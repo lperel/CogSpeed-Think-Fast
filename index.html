@@ -491,7 +491,7 @@
       <div id="adminBenchmarkNote" style="font-size:12px;color:var(--muted);text-align:center;margin-top:6px"></div>
       <div class="controls" style="margin-top:10px">
         <button class="ctrl-btn" id="runBenchmarkBtn" style="background:#0d2a1a;border-color:#00cc66;color:#00ff88">Run Benchmark</button>
-        <div></div>
+        <button class="ctrl-btn" id="trialLogBtn" style="background:#1a1a2e;border-color:#7fd7ff;color:#7fd7ff">Trial Log</button>
       </div>
       <div class="controls" style="margin-top:6px">
         <button class="ctrl-btn" id="saveAdminBtn">Save</button>
@@ -505,6 +505,37 @@
         <button class="ctrl-btn" id="adminBackBtn2">Restart</button>
         <button class="ctrl-btn" id="adminStartOverBtn2">Full Reset</button>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ TRIAL LOG OVERLAY ═══════════ -->
+<div id="trialLogOverlay" class="overlay hidden">
+  <div class="modal">
+    <div style="text-align:center;margin-bottom:6px"><span class="badge">Trial Log</span></div>
+    <h2 style="text-align:center;margin-bottom:4px">Trial-by-Trial Log</h2>
+    <p class="modal-hint" id="trialLogMeta"></p>
+    <div style="overflow-x:auto;overflow-y:auto;max-height:55vh;margin-top:6px;border:1px solid var(--edge);border-radius:8px">
+      <table id="trialLogTable" style="width:100%;border-collapse:collapse;font-size:11px;min-width:600px">
+        <thead>
+          <tr style="background:rgba(0,234,255,.08);position:sticky;top:0">
+            <th style="padding:6px 4px;text-align:right;color:var(--accent);white-space:nowrap">#</th>
+            <th style="padding:6px 4px;text-align:left;color:var(--accent);white-space:nowrap">Phase</th>
+            <th style="padding:6px 4px;text-align:left;color:var(--accent);white-space:nowrap">Clock Time</th>
+            <th style="padding:6px 4px;text-align:right;color:var(--accent);white-space:nowrap">Rate ms</th>
+            <th style="padding:6px 4px;text-align:right;color:var(--accent);white-space:nowrap">RT ms</th>
+            <th style="padding:6px 4px;text-align:center;color:var(--accent);white-space:nowrap">Outcome</th>
+            <th style="padding:6px 4px;text-align:left;color:var(--accent);white-space:nowrap">Probe</th>
+            <th style="padding:6px 4px;text-align:left;color:var(--accent);white-space:nowrap">Correct Cell</th>
+            <th style="padding:6px 4px;text-align:left;color:var(--accent);white-space:nowrap">Response</th>
+          </tr>
+        </thead>
+        <tbody id="trialLogBody"></tbody>
+      </table>
+    </div>
+    <div class="controls" style="margin-top:10px">
+      <button class="ctrl-btn" id="trialLogCsvBtn">Download CSV</button>
+      <button class="ctrl-btn" id="trialLogCloseBtn">Back to Admin</button>
     </div>
   </div>
 </div>

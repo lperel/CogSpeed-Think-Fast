@@ -160,8 +160,39 @@ const modeLabel   = $("modeLabel");
 const metricsPanel= $("metricsPanel");
 let deferredPrompt = null;
 
-// ─── Utility ───
-function randInt(min, max) { return Math.floor(Math.random() * (max - min + 1)) + min; }
+// ─── Trial logger — captures full trial context ───
+function logTrial({ phase, rt, outcome, responseIndex }) {
+  const trial = state.current;
+  if (!trial) return;
+  const clockTime = new Date().toISOString();
+  const duration  = state.duration || null;
+  // Probe
+  const probeDesc = `${trial.probeFamily}:${trial.probeCount}`;
+  // Correct cell
+  const correctItem = trial.topItems[trial.correctPos];
+  const correctDesc = correctItem
+    ? `${correctItem.family}:${correctItem.count} @pos${trial.correctPos + 1}`
+    : "—";
+  // Response
+  let responseDesc = "no_response";
+  if (responseIndex != null) {
+    const respItem = trial.topItems[responseIndex];
+    responseDesc = respItem
+      ? `${respItem.family}:${respItem.count} @pos${responseIndex + 1}`
+      : `pos${responseIndex + 1}`;
+  }
+  state.rtLog.push({
+    seq:          state.rtLog.length + 1,
+    phase,
+    clockTime,
+    durationMs:   duration != null ? Math.round(duration) : null,
+    rt:           rt != null ? Math.round(rt) : null,
+    outcome,      // "correct" | "wrong" | "missed"
+    probe:        probeDesc,
+    correctCell:  correctDesc,
+    response:     responseDesc
+  });
+}
 function clamp(v, lo, hi) { return Math.min(hi, Math.max(lo, v)); }
 function mean(a) { return a.length ? a.reduce((x, y) => x + y, 0) / a.length : 0; }
 function stdDev(a) {
@@ -811,7 +842,7 @@ function onPacedFrameEnd() {
   const currentMissed = state.current && state.current.kind === "paced" && !state.current.resolved;
 
   if (currentMissed) {
-    state.rtLog.push({ seq: state.rtLog.length + 1, rt: null, correct: false, phase: "missed" });
+    logTrial({ phase: "missed", rt: null, outcome: "missed", responseIndex: null });
     state.missedTrials += 1;       // missed = no tap, not a wrong tap
     state.previousMissed = true;
     state.lastFrameDuration = state.duration;
@@ -853,10 +884,10 @@ function handleTap(index, btnEl) {
     const rt = performance.now() - state.trialOpenedAt;
     const ok = trialMatches(state.current, index);
     flashBtn(index, ok);
-    // count every calibration tap toward all-phase totals
     state.totalResponses += 1;
     if (ok) state.totalCorrect += 1;
     else    state.totalIncorrect += 1;
+    logTrial({ phase: "calibration", rt, outcome: ok ? "correct" : "wrong", responseIndex: index });
     if (!ok) {
       state.calibrationErrors += 1;
       updateMetrics();
@@ -881,12 +912,13 @@ function handleTap(index, btnEl) {
   }
 
   if (state.phase === "recovery") {
-    // ── SP Restart Phase after a block ──
     clearTimer();
     const ok = trialMatches(state.current, index);
+    const rt = performance.now() - state.trialOpenedAt;
     flashBtn(index, ok);
     state.totalResponses += 1;
     if (ok) state.totalCorrect += 1; else state.totalIncorrect += 1;
+    logTrial({ phase: "recovery", rt, outcome: ok ? "correct" : "wrong", responseIndex: index });
 
     if (ok) {
       state.spCorrectStreak += 1;
@@ -929,12 +961,13 @@ function handleTap(index, btnEl) {
   }
 
   if (state.phase === "terminal_recovery") {
-    // ── Terminal recovery: 2 self-paced correct then end ──
     clearTimer();
     const ok = trialMatches(state.current, index);
+    const rt = performance.now() - state.trialOpenedAt;
     flashBtn(index, ok);
     state.totalResponses += 1;
     if (ok) state.totalCorrect += 1; else state.totalIncorrect += 1;
+    logTrial({ phase: "terminal_recovery", rt, outcome: ok ? "correct" : "wrong", responseIndex: index });
     if (recordAnswer(ok)) return;
     if (ok) {
       state.current.resolved = true;
@@ -971,7 +1004,7 @@ function handleTap(index, btnEl) {
       applyPacingAdjustment(effectiveRT, true, state.duration);
       state.totalCorrect += 1;
       state.pacedRTs.push(rt);
-      state.rtLog.push({ seq: state.rtLog.length + 1, rt, correct: true, phase: "paced_late_correct" });
+      logTrial({ phase: "paced_late_correct", rt, outcome: "correct", responseIndex: index });
       flashBtn(index, true);
       if (recordAnswer(true)) return;
     } else {
@@ -979,7 +1012,7 @@ function handleTap(index, btnEl) {
       applyPacingAdjustment(null, false, state.duration);
       state.totalIncorrect += 1;
       state.pacedErrors += 1;
-      state.rtLog.push({ seq: state.rtLog.length + 1, rt, correct: false, phase: "paced_late_wrong" });
+      logTrial({ phase: "paced_late_wrong", rt, outcome: "wrong", responseIndex: index });
       flashBtn(index, false);
       if (recordAnswer(false)) return;
     }
@@ -996,7 +1029,7 @@ function handleTap(index, btnEl) {
     state.totalCorrect += 1;
     applyPacingAdjustment(rt, true, state.duration);
     state.pacedRTs.push(rt);
-    state.rtLog.push({ seq: state.rtLog.length + 1, rt, correct: true, phase: "paced" });
+    logTrial({ phase: "paced", rt, outcome: "correct", responseIndex: index });
     flashBtn(index, true);
     if (recordAnswer(true)) return;
     return;
@@ -1007,7 +1040,7 @@ function handleTap(index, btnEl) {
   state.totalIncorrect += 1;
   state.pacedErrors += 1;
   applyPacingAdjustment(null, false, state.duration);
-  state.rtLog.push({ seq: state.rtLog.length + 1, rt: null, correct: false, phase: "paced_wrong" });
+  logTrial({ phase: "paced_wrong", rt: performance.now() - state.trialOpenedAt, outcome: "wrong", responseIndex: index });
   flashBtn(index, false);
   recordAnswer(false);
 }
@@ -1550,7 +1583,7 @@ function stopFX() {
 // ═══════════════════════════════════════════════════
 
 function showOnly(overlayId) {
-  ["subjectOverlay","refresherOverlay","fatigueOverlay","resultsOverlay","adminOverlay","summaryOverlay"].forEach(id => {
+  ["subjectOverlay","refresherOverlay","fatigueOverlay","resultsOverlay","adminOverlay","summaryOverlay","trialLogOverlay"].forEach(id => {
     const el = $(id);
     if (!el) return;
     if (id === overlayId) el.classList.remove("hidden");
@@ -1820,6 +1853,91 @@ if (benchAdmin) benchAdmin.onclick = () => {
   $("adminBody").classList.remove("hidden");
   renderAdmin();
 };
+
+// ─── Trial Log ───
+function buildTrialLog() {
+  const last = state.history[state.history.length - 1];
+  const log  = last ? last.rtLog : state.rtLog;
+
+  const meta = $("trialLogMeta");
+  if (meta) {
+    if (last) {
+      meta.textContent = `Subject: ${last.subjectId || "—"}  |  ${new Date(last.time).toLocaleString()}  |  ${log.length} trials`;
+    } else {
+      meta.textContent = log.length ? `Current session — ${log.length} trials` : "No trial data available.";
+    }
+  }
+
+  const body = $("trialLogBody");
+  if (!body) return;
+  if (!log || !log.length) { body.innerHTML = `<tr><td colspan="9" style="text-align:center;padding:16px;color:var(--muted)">No trials recorded yet.</td></tr>`; return; }
+
+  const outcomeColor = { correct:"#00ff88", wrong:"#ff4466", missed:"#ff9f40" };
+  const phaseShort   = { calibration:"CAL", paced:"MP", paced_wrong:"MP", missed:"MP-miss",
+                         paced_late_correct:"MP-late✓", paced_late_wrong:"MP-late✗",
+                         recovery:"SP-restart", terminal_recovery:"SP-final" };
+
+  body.innerHTML = log.map((t, i) => {
+    const bg   = i % 2 === 0 ? "rgba(255,255,255,.02)" : "transparent";
+    const col  = outcomeColor[t.outcome] || "#ccc";
+    const ph   = phaseShort[t.phase] || t.phase;
+    const time = t.clockTime ? new Date(t.clockTime).toLocaleTimeString() : "—";
+    const rate = t.durationMs != null ? t.durationMs : "—";
+    const rt   = t.rt   != null ? t.rt   : "—";
+    return `<tr style="background:${bg}">
+      <td style="padding:4px 4px;text-align:right;color:var(--muted)">${t.seq}</td>
+      <td style="padding:4px 4px;white-space:nowrap">${ph}</td>
+      <td style="padding:4px 4px;white-space:nowrap;color:var(--muted)">${time}</td>
+      <td style="padding:4px 4px;text-align:right">${rate}</td>
+      <td style="padding:4px 4px;text-align:right">${rt}</td>
+      <td style="padding:4px 4px;text-align:center;color:${col};font-weight:700">${t.outcome}</td>
+      <td style="padding:4px 4px;white-space:nowrap">${t.probe || "—"}</td>
+      <td style="padding:4px 4px;white-space:nowrap">${t.correctCell || "—"}</td>
+      <td style="padding:4px 4px;white-space:nowrap;color:${t.outcome==="correct"?"#00ff88":t.outcome==="wrong"?"#ff4466":"var(--muted)"}">${t.response || "—"}</td>
+    </tr>`;
+  }).join("");
+}
+
+function downloadTrialLogCSV() {
+  const last = state.history[state.history.length - 1];
+  const log  = last ? last.rtLog : state.rtLog;
+  if (!log || !log.length) { setStatus("No trial data to export."); return; }
+
+  const header = ["#","Phase","ClockTime","RateMs","RTms","Outcome","Probe","CorrectCell","Response"];
+  const rows   = log.map(t => [
+    t.seq, t.phase,
+    t.clockTime ? new Date(t.clockTime).toLocaleString() : "",
+    t.durationMs != null ? t.durationMs : "",
+    t.rt         != null ? t.rt         : "",
+    t.outcome, t.probe || "", t.correctCell || "", t.response || ""
+  ].map(v => `"${String(v).replace(/"/g,'""')}"`).join(","));
+
+  const csv  = [header.join(","), ...rows].join("\r\n");
+  const blob = new Blob([csv], { type: "text/csv" });
+  const a    = document.createElement("a");
+  a.href     = URL.createObjectURL(blob);
+  const subj = last ? last.subjectId || "unknown" : "session";
+  a.download = `cogspeed_v13_triallog_${subj}.csv`;
+  a.click();
+}
+
+// Trial log button wiring
+const trialLogBtn = $("trialLogBtn");
+if (trialLogBtn) trialLogBtn.onclick = () => {
+  $("adminOverlay").classList.add("hidden");
+  buildTrialLog();
+  $("trialLogOverlay").classList.remove("hidden");
+};
+const trialLogClose = $("trialLogCloseBtn");
+if (trialLogClose) trialLogClose.onclick = () => {
+  $("trialLogOverlay").classList.add("hidden");
+  $("adminOverlay").classList.remove("hidden");
+  $("adminGate").classList.add("hidden");
+  $("adminBody").classList.remove("hidden");
+  renderAdmin();
+};
+const trialLogCsv = $("trialLogCsvBtn");
+if (trialLogCsv) trialLogCsv.onclick = downloadTrialLogCSV;
 
 window.addEventListener("beforeinstallprompt", e => {
   e.preventDefault(); deferredPrompt = e;
