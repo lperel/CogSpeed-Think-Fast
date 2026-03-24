@@ -91,6 +91,34 @@
     .trial-log-table td{padding:5px 4px;border-bottom:1px solid rgba(79,111,153,.15);color:var(--muted)}
     canvas{display:block;width:100%;border-radius:10px}
     @media(max-width:400px){.controls.four{grid-template-columns:1fr 1fr;gap:6px}.metric-val{font-size:14px}}
+
+    /* ── Short screens: compress everything to fit without scrolling ── */
+    /* ── Compact layout for short screens (most phones in browser) ── */
+    @media(max-height:720px){
+      .app{gap:3px;padding:4px 6px}
+      .panel{padding:6px}
+      .stim-cell,.resp-btn{aspect-ratio:unset;height:clamp(52px,11vh,80px);border-radius:10px}
+      .probe-cell{width:clamp(70px,16vh,108px)!important;height:clamp(70px,16vh,108px)!important}
+      .probe-label{font-size:9px;margin-bottom:1px}
+      .probe-row{padding:2px 0}
+      .metrics{gap:2px}
+      .metric{padding:3px 2px;border-radius:8px}
+      .metric-label{font-size:9px}
+      .metric-val{font-size:12px}
+      .topbar{padding:1px 4px}
+      .topbar-left,.topbar-right{font-size:12px}
+      .ctrl-btn{padding:7px 4px;font-size:11px;min-height:34px;border-radius:10px}
+      .statusline{font-size:10px;padding:1px;min-height:16px}
+      .badge{padding:2px 8px;font-size:11px}
+    }
+    @media(max-height:600px){
+      .stim-cell,.resp-btn{height:clamp(44px,9.5vh,64px)}
+      .probe-cell{width:clamp(58px,13vh,84px)!important;height:clamp(58px,13vh,84px)!important}
+      .probe-label{display:none}
+      .metric-label{display:none}
+      .metric-val{font-size:11px}
+      .ctrl-btn{padding:5px 4px;font-size:10px;min-height:30px}
+    }
   </style>
 </head>
 <body>
@@ -323,6 +351,6 @@
   <div class="panel result hidden" id="resultBox"></div>
 </div>
 
-<script src="app.js?v=19"></script>
+<script src="app.js?v=20"></script>
 </body>
 </html>
