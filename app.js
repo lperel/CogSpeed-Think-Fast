@@ -1763,7 +1763,12 @@ function startTest() {
   state.previousMissed = false;
   state.lastFrameDuration = null;
   setTestingQuiet(true);
-  captureGeoAndAddress();   // fire-and-forget — geo captured async, stored when ready
+  // Hide all overlays so test grid is visible
+  ["subjectOverlay","refresherOverlay","fatigueOverlay","resultsOverlay",
+   "adminOverlay","summaryOverlay","trialLogOverlay"].forEach(id => {
+    const el = $(id); if (el) el.classList.add("hidden");
+  });
+  captureGeoAndAddress();
   noteAnyResponse();
   openTrial("calibration");
 }
