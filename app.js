@@ -370,6 +370,7 @@ function openTrial(kind){
   const lastPos=state.current?state.current.correctPos:null;
   const lastProbe=state.current?{family:state.current.probeFamily,count:state.current.probeCount}:null;
   state.current=makeTrial(kind,lastPos,lastProbe);
+  state.hadResponse=false;
   state.trialOpenedAt=performance.now();
   renderTrial(state.current);
   updateMetrics();
@@ -394,13 +395,17 @@ function openTrial(kind){
 function onPacedFrameEnd(){
   if(state.phase!=="paced") return;
   state.totalTrials+=1;
-  const missed=state.current&&!state.current.resolved;
-  if(missed){
+  // True miss = no tap at all. Wrong tap = had response but unresolved.
+  // Only true misses count toward block threshold.
+  const truelyMissed=state.current&&!state.current.resolved&&!state.hadResponse;
+  const wrongAndUnresolved=state.current&&!state.current.resolved&&state.hadResponse;
+  if(truelyMissed){
     logTrial({phase:"missed",rt:null,outcome:"missed",responseIndex:null});
     state.missedTrials+=1; state.previousMissed=true; state.lastFrameDuration=state.duration;
     if(recordAnswer(false,true)) return;
   }else{ state.previousMissed=false; state.lastFrameDuration=null; }
-  state.unresolvedStreak=missed?state.unresolvedStreak+1:0;
+  // Wrong responses reset the miss streak (subject DID respond, just incorrectly)
+  state.unresolvedStreak=truelyMissed?state.unresolvedStreak+1:0;
   if(state.unresolvedStreak>=settings.consecutiveMissesForBlock){
     state.blockDuration=state.duration; state.overloads.push(state.blockDuration);
     state.unresolvedStreak=0; state.previousMissed=false; state.lastFrameDuration=null;
@@ -501,13 +506,14 @@ function handleTap(index){
     }
     return;
   }
-  state.previousMissed=false; state.lastFrameDuration=null; state.lastProbe=null;
+  state.previousMissed=false; state.lastFrameDuration=null; state.lastProbe=null; state.hadResponse=false;
   if(state.current&&!state.current.resolved&&trialMatches(state.current,index)){
     state.current.resolved=true; state.totalResponses+=1; state.totalCorrect+=1;
     applyPacing(rt,true); state.pacedRTs.push(rt);
     logTrial({phase:"paced",rt,outcome:"correct",responseIndex:index}); flashBtn(index,true);
     if(recordAnswer(true)) return; return;
   }
+  state.hadResponse=true;
   state.totalResponses+=1; state.totalIncorrect+=1; state.pacedErrors+=1;
   applyPacing(null,false);
   logTrial({phase:"paced_wrong",rt:performance.now()-state.trialOpenedAt,outcome:"wrong",responseIndex:index});
@@ -1002,6 +1008,13 @@ $("resetAdminBtn").onclick=()=>{ resetAdmin(); setStatus("Settings reset to defa
 $("exportAdminBtn").onclick=()=>{ const blob=new Blob([JSON.stringify(settings,null,2)],{type:"application/json"}),a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download="cogspeed_v18_settings.json"; a.click(); };
 $("adminTrialLogBtn").onclick=()=>{ buildTrialLog(state.history.length-1); $("trialLogOverlay").classList.remove("hidden"); };
 $("adminHistoryBtn").onclick=()=>{ buildHistoryOverlay(); $("historyOverlay").classList.remove("hidden"); };
+$("adminLastResultBtn").onclick=()=>{
+  const last=state.history[state.history.length-1];
+  if(!last){ setStatus("No results yet."); return; }
+  $("adminOverlay").classList.add("hidden");
+  buildSummary(last);
+  $("summaryOverlay").classList.remove("hidden");
+};
 $("trialLogCloseBtn").onclick=()=>$("trialLogOverlay").classList.add("hidden");
 $("trialLogCsvBtn").onclick=()=>downloadTrialLogCSV();
 $("historyCloseBtn").onclick=()=>$("historyOverlay").classList.add("hidden");
