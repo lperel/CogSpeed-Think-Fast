@@ -1,10 +1,10 @@
 // ═══════════════════════════════════════════════════
-//  CogSpeed V17
+//  CogSpeed V18
 // ═══════════════════════════════════════════════════
 
 // ─── Version guard ───
 (function(){
-  const VER="cogspeed_v17", key="cogspeed_version";
+  const VER="cogspeed_v18", key="cogspeed_version";
   if(localStorage.getItem(key)!==VER){
     Object.keys(localStorage).forEach(k=>{ if(k.startsWith("cogspeed_")||k.startsWith("cogblock_")) localStorage.removeItem(k); });
     localStorage.setItem(key,VER);
@@ -91,13 +91,13 @@ const SAMN_PERELLI=[
 
 // ─── Settings ───
 function loadSettings(){
-  const s=JSON.parse(localStorage.getItem("cogspeed_v17_settings")||"null");
+  const s=JSON.parse(localStorage.getItem("cogspeed_v18_settings")||"null");
   if(!s) return {...DEFAULTS};
   const m={...DEFAULTS};
   Object.keys(DEFAULTS).forEach(k=>{ if(s[k]!==undefined) m[k]=s[k]; });
   return m;
 }
-function saveSettings(){ localStorage.setItem("cogspeed_v17_settings",JSON.stringify(settings)); }
+function saveSettings(){ localStorage.setItem("cogspeed_v18_settings",JSON.stringify(settings)); }
 let settings=loadSettings();
 
 // ─── State ───
@@ -106,7 +106,7 @@ const state={
   current:null, previous:null, unresolvedStreak:0,
   overloads:[], recoveries:[], recoveryCorrectCompleted:0,
   spCorrectStreak:0, spWrongCount:0, terminalBlockReason:null,
-  history:JSON.parse(localStorage.getItem("cogspeed_v17_history")||"[]"),
+  history:JSON.parse(localStorage.getItem("cogspeed_v18_history")||"[]"),
   totalTrials:0, totalResponses:0, totalCorrect:0, totalIncorrect:0,
   missedTrials:0, pacedErrors:0, rollMeanLog:[],
   testStartTime:null, trialTimer:null, absoluteNoResponseTimer:null, maxTestTimer:null,
@@ -353,7 +353,7 @@ function finish(){
     time:new Date().toISOString(), geo:state.geo
   };
   state.history.push(result);
-  localStorage.setItem("cogspeed_v17_history",JSON.stringify(state.history));
+  localStorage.setItem("cogspeed_v18_history",JSON.stringify(state.history));
   updateCPSDisplay(avg2); setProbeIdle();
   // Build the display text (also used for email)
   buildSummary(result);
@@ -623,12 +623,12 @@ function drawRTScatterChart(canvas,rtLog,blocks,meanRT,sdRT){
 // ─── Export / Email ───
 function exportResults(){
   const blob=new Blob([JSON.stringify({settings,history:state.history},null,2)],{type:"application/json"});
-  const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download="cogspeed_v17_results.json"; a.click();
+  const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download="cogspeed_v18_results.json"; a.click();
 }
 function emailResults(){
   const last=state.history[state.history.length-1];
   if(!last){ setStatus("No results to email."); return; }
-  window.location.href=`mailto:?subject=CogSpeed V17 Results&body=${encodeURIComponent(state.lastResultText||JSON.stringify(last,null,2))}`;
+  window.location.href=`mailto:?subject=CogSpeed V18 Results&body=${encodeURIComponent(state.lastResultText||JSON.stringify(last,null,2))}`;
 }
 
 // ─── FX (steam wisps + sparks from each gear corner) ───
@@ -727,7 +727,7 @@ function buildSummary(result){
   const cps=result.cognitivePerformanceScore;
   const sd=result.pacedResponseSdMs;
   el.textContent=
-`CogSpeed V17  —  Test Results
+`CogSpeed V18  —  Test Results
 ${hr}
 Subject ID:    ${result.subjectId}
 Date / Time:   ${new Date(result.time).toLocaleString()}
@@ -885,7 +885,7 @@ function downloadTrialLogCSV(){
   ].join(",")).join("\n");
   const subj=result?result.subjectId:"current";
   const blob=new Blob([hdr+rows],{type:"text/csv"});
-  const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=`cogspeed_v17_trials_${subj}.csv`; a.click();
+  const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=`cogspeed_v18_trials_${subj}.csv`; a.click();
 }
 
 // ─── History & Graphs overlay ───
@@ -996,7 +996,7 @@ $("closeAdminBtn").onclick=()=>$("adminOverlay").classList.add("hidden");
 $("closeAdminBtn2").onclick=()=>$("benchmarkOverlay").classList.add("hidden");
 $("saveAdminBtn").onclick=()=>{ readAdmin(); saveSettings(); renderAdmin(); setStatus("Settings saved"); };
 $("resetAdminBtn").onclick=()=>{ resetAdmin(); setStatus("Settings reset to defaults"); };
-$("exportAdminBtn").onclick=()=>{ const blob=new Blob([JSON.stringify(settings,null,2)],{type:"application/json"}),a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download="cogspeed_v17_settings.json"; a.click(); };
+$("exportAdminBtn").onclick=()=>{ const blob=new Blob([JSON.stringify(settings,null,2)],{type:"application/json"}),a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download="cogspeed_v18_settings.json"; a.click(); };
 $("adminTrialLogBtn").onclick=()=>{ buildTrialLog(state.history.length-1); $("trialLogOverlay").classList.remove("hidden"); };
 $("adminHistoryBtn").onclick=()=>{ buildHistoryOverlay(); $("historyOverlay").classList.remove("hidden"); };
 $("trialLogCloseBtn").onclick=()=>$("trialLogOverlay").classList.add("hidden");
@@ -1004,7 +1004,7 @@ $("trialLogCsvBtn").onclick=()=>downloadTrialLogCSV();
 $("historyCloseBtn").onclick=()=>$("historyOverlay").classList.add("hidden");
 $("historyClearBtn").onclick=()=>{
   if(!confirm("Clear ALL session history? This cannot be undone.")) return;
-  state.history=[]; localStorage.removeItem("cogspeed_v17_history");
+  state.history=[]; localStorage.removeItem("cogspeed_v18_history");
   buildHistoryOverlay(); setStatus("History cleared.");
 };
 const _tsel=$("trialLogSessionSelect");
