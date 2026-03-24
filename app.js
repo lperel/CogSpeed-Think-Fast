@@ -597,7 +597,7 @@ function drawCombinedChart(canvas,hist){
 }
 function renderHistoryGraphs(){
   drawCombinedChart($("resultsHistChart"),state.history);
-  drawCombinedChart($("adminHistChart"),state.history);
+  // adminHistChart removed — history now in historyOverlay
 }
 
 // ─── RT scatter chart ───
@@ -659,10 +659,10 @@ function stopFX(){ if(_fxRaf){ cancelAnimationFrame(_fxRaf); _fxRaf=null; } }
 
 // ─── Overlay management ───
 function hideAllOverlays(){
-  ["subjectOverlay","refresherOverlay","fatigueOverlay","adminOverlay","resultsOverlay","summaryOverlay","trialLogOverlay","thinkingOverlay","outcomeOverlay"].forEach(id=>{ const el=$(id); if(el) el.classList.add("hidden"); });
+  ["subjectOverlay","refresherOverlay","fatigueOverlay","adminOverlay","resultsOverlay","summaryOverlay","trialLogOverlay","historyOverlay","thinkingOverlay","outcomeOverlay"].forEach(id=>{ const el=$(id); if(el) el.classList.add("hidden"); });
 }
 function showOnly(id){
-  ["subjectOverlay","refresherOverlay","fatigueOverlay","adminOverlay","resultsOverlay","summaryOverlay","trialLogOverlay"].forEach(oid=>{ const el=$(oid); if(el) el.classList[oid===id?"remove":"add"]("hidden"); });
+  ["subjectOverlay","refresherOverlay","fatigueOverlay","adminOverlay","resultsOverlay","summaryOverlay","trialLogOverlay","historyOverlay"].forEach(oid=>{ const el=$(oid); if(el) el.classList[oid===id?"remove":"add"]("hidden"); });
 }
 function isTestSuccess(r){ return (r||"").toLowerCase().startsWith("convergent"); }
 
@@ -744,29 +744,101 @@ function startTest(){
   openTrial("calibration");
 }
 
-// ─── Trial log ───
-function buildTrialLog(){
+// ─── Trial detail log ───
+function buildTrialLog(sessionIndex){
   const tbody=$("trialLogBody"); if(!tbody) return;
+  // Populate session selector
+  const sel=$("trialLogSessionSelect");
+  if(sel){
+    sel.innerHTML="";
+    // Most recent first
+    [...state.history].reverse().forEach((r,i)=>{
+      const idx=state.history.length-1-i;
+      const opt=document.createElement("option");
+      opt.value=String(idx);
+      opt.textContent=`Session ${idx+1} — ${r.subjectId} — ${new Date(r.time).toLocaleString()} — CPS: ${r.cognitivePerformanceScore!=null?r.cognitivePerformanceScore.toFixed(0):"—"}`;
+      sel.appendChild(opt);
+    });
+    if(sessionIndex!=null) sel.value=String(sessionIndex);
+  }
+  const idx=sel?Number(sel.value):state.history.length-1;
+  const result=state.history[idx];
+  const log=result?result.rtLog:state.rtLog;
   tbody.innerHTML="";
-  const last=state.history[state.history.length-1];
-  const log=last?last.rtLog:state.rtLog;
-  if(!log||!log.length){ tbody.innerHTML='<tr><td colspan="7" style="text-align:center;color:var(--muted)">No data</td></tr>'; return; }
+  if(!log||!log.length){
+    tbody.innerHTML='<tr><td colspan="9" style="text-align:center;color:var(--muted);padding:12px">No trial data for this session</td></tr>';
+    const meta=$("trialLogMeta"); if(meta) meta.textContent="No data";
+    return;
+  }
+  // Color coding
+  const outcomeColor={correct:"#00ff88",wrong:"#ff4466",missed:"#888"};
   log.forEach(e=>{
     const tr=document.createElement("tr");
-    tr.innerHTML=`<td>${e.seq}</td><td>${e.phase}</td><td>${e.rt!=null?e.rt+"ms":"—"}</td><td>${e.outcome}</td><td>${e.probe}</td><td>${e.correctCell}</td><td>${e.response}</td>`;
+    const timeStr=e.clockTime?new Date(e.clockTime).toLocaleTimeString("en-US",{hour12:false,hour:"2-digit",minute:"2-digit",second:"2-digit",fractionalSecondDigits:3}):"—";
+    const rtStr=e.rt!=null?e.rt.toLocaleString():"—";
+    const durStr=e.durationMs!=null?e.durationMs.toLocaleString()+"ms":"—";
+    const oc=outcomeColor[e.outcome]||"var(--muted)";
+    tr.innerHTML=`<td style="font-weight:700">${e.seq}</td><td style="font-size:10px">${timeStr}</td><td style="font-size:10px;color:var(--muted)">${e.phase}</td><td>${durStr}</td><td style="font-weight:700">${rtStr}</td><td style="color:${oc};font-weight:700">${e.outcome}</td><td>${e.probe}</td><td style="color:var(--accent)">${e.correctCell}</td><td style="color:${oc==="var(--muted)"?"var(--muted)":oc}">${e.response}</td>`;
     tbody.appendChild(tr);
   });
-  const meta=$("trialLogMeta"); if(meta) meta.textContent=`${log.length} trials logged`;
+  const meta=$("trialLogMeta"); if(meta) meta.textContent=`${log.length} trials — Session ${idx+1}: ${result?result.subjectId:"current"}`;
 }
 function downloadTrialLogCSV(){
-  const last=state.history[state.history.length-1];
-  const log=last?last.rtLog:state.rtLog;
-  if(!log||!log.length) return;
-  const hdr="seq,phase,rt_ms,outcome,probe,correctCell,response\n";
-  const rows=log.map(e=>[e.seq,e.phase,e.rt!=null?e.rt:"",e.outcome,e.probe,e.correctCell,e.response].join(",")).join("\n");
+  const sel=$("trialLogSessionSelect");
+  const idx=sel?Number(sel.value):state.history.length-1;
+  const result=state.history[idx];
+  const log=result?result.rtLog:state.rtLog;
+  if(!log||!log.length){ setStatus("No trial data to download"); return; }
+  const hdr="trial#,clockTime,phase,presentationRateMs,rtMs,outcome,probe,correctCell,response\n";
+  const rows=log.map(e=>[
+    e.seq,
+    e.clockTime||"",
+    e.phase,
+    e.durationMs!=null?e.durationMs:"",
+    e.rt!=null?e.rt:"",
+    e.outcome,
+    e.probe,
+    e.correctCell,
+    `"${e.response}"`
+  ].join(",")).join("\n");
+  const subj=result?result.subjectId:"current";
   const blob=new Blob([hdr+rows],{type:"text/csv"});
-  const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download="cogspeed_v17_trials.csv"; a.click();
+  const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=`cogspeed_v17_trials_${subj}.csv`; a.click();
 }
+
+// ─── History & Graphs overlay ───
+function buildHistoryOverlay(){
+  // Draw chart
+  drawCombinedChart($("histGraphChart"),state.history);
+  // Build session table
+  const tbody=$("historyTableBody"); if(!tbody) return;
+  tbody.innerHTML="";
+  if(!state.history.length){
+    tbody.innerHTML='<tr><td colspan="10" style="text-align:center;color:var(--muted);padding:12px">No history yet</td></tr>';
+    return;
+  }
+  [...state.history].reverse().forEach((r,ri)=>{
+    const idx=state.history.length-1-ri;
+    const tr=document.createElement("tr");
+    const date=new Date(r.time).toLocaleString("en-US",{month:"short",day:"numeric",hour:"2-digit",minute:"2-digit"});
+    const spf=r.samnPerelli?r.samnPerelli.score:"—";
+    const calRT=r.calibrationAverageMs!=null?r.calibrationAverageMs.toFixed(0)+"ms":"—";
+    const avgBlk=r.averageLast2BlockingScoresMs!=null?r.averageLast2BlockingScoresMs.toFixed(0)+"ms":"—";
+    const cps=r.cognitivePerformanceScore!=null?r.cognitivePerformanceScore.toFixed(1):"—";
+    const dur=formatDuration(r.testDurationMs);
+    const endShort=(r.endReason||"").substring(0,30)+((r.endReason||"").length>30?"…":"");
+    tr.style.cursor="pointer";
+    tr.title="Click to view trial detail";
+    tr.onclick=()=>{ buildHistoryOverlay._closeAndOpenTrial(idx); };
+    tr.innerHTML=`<td style="font-weight:700;color:var(--accent)">${idx+1}</td><td style="font-size:11px">${date}</td><td>${r.subjectId}</td><td style="color:#88ff88">${spf}</td><td>${calRT}</td><td>${r.blockCount||0}</td><td style="color:#ff9f40">${avgBlk}</td><td style="color:var(--accent);font-weight:800">${cps}</td><td>${dur}</td><td style="font-size:10px;color:var(--muted)">${endShort}</td>`;
+    tbody.appendChild(tr);
+  });
+}
+buildHistoryOverlay._closeAndOpenTrial=function(idx){
+  $("historyOverlay").classList.add("hidden");
+  buildTrialLog(idx);
+  $("trialLogOverlay").classList.remove("hidden");
+};
 
 // ─── Device benchmark ───
 async function runDeviceBenchmark(force){
@@ -829,9 +901,18 @@ $("closeAdminBtn2").onclick=()=>$("adminOverlay").classList.add("hidden");
 $("saveAdminBtn").onclick=()=>{ readAdmin(); saveSettings(); renderAdmin(); setStatus("Settings saved"); };
 $("resetAdminBtn").onclick=()=>{ resetAdmin(); setStatus("Settings reset to defaults"); };
 $("exportAdminBtn").onclick=()=>{ const blob=new Blob([JSON.stringify(settings,null,2)],{type:"application/json"}),a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download="cogspeed_v17_settings.json"; a.click(); };
-$("adminTrialLogBtn").onclick=()=>{ buildTrialLog(); $("trialLogOverlay").classList.remove("hidden"); };
+$("adminTrialLogBtn").onclick=()=>{ buildTrialLog(state.history.length-1); $("trialLogOverlay").classList.remove("hidden"); };
+$("adminHistoryBtn").onclick=()=>{ buildHistoryOverlay(); $("historyOverlay").classList.remove("hidden"); };
 $("trialLogCloseBtn").onclick=()=>$("trialLogOverlay").classList.add("hidden");
 $("trialLogCsvBtn").onclick=()=>downloadTrialLogCSV();
+$("historyCloseBtn").onclick=()=>$("historyOverlay").classList.add("hidden");
+$("historyClearBtn").onclick=()=>{
+  if(!confirm("Clear ALL session history? This cannot be undone.")) return;
+  state.history=[]; localStorage.removeItem("cogspeed_v17_history");
+  buildHistoryOverlay(); setStatus("History cleared.");
+};
+const _tsel=$("trialLogSessionSelect");
+if(_tsel) _tsel.onchange=()=>buildTrialLog();
 $("adminBackBtn").onclick=()=>goToStartPage();
 $("adminBackBtn2").onclick=()=>goToStartPage();
 $("adminStartOverBtn").onclick=()=>startOverFlow();

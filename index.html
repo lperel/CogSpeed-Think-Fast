@@ -156,18 +156,18 @@
       <div class="controls" style="margin-bottom:8px;flex-wrap:wrap;gap:6px">
         <button class="ctrl-btn" id="saveAdminBtn">Save</button>
         <button class="ctrl-btn" id="resetAdminBtn">Reset</button>
-        <button class="ctrl-btn" id="exportAdminBtn">Export</button>
-        <button class="ctrl-btn" id="adminTrialLogBtn">Trial Log</button>
+        <button class="ctrl-btn" id="exportAdminBtn">Export JSON</button>
+        <button class="ctrl-btn" id="benchRunBtn">Benchmark</button>
+      </div>
+      <div class="controls" style="margin-bottom:8px;flex-wrap:wrap;gap:6px">
+        <button class="ctrl-btn" id="adminTrialLogBtn" style="background:linear-gradient(180deg,#1a3355,#0d1b33);border-color:#4f8fcc">📋 Trial Detail</button>
+        <button class="ctrl-btn" id="adminHistoryBtn" style="background:linear-gradient(180deg,#1a3355,#0d1b33);border-color:#4f8fcc">📈 History &amp; Graphs</button>
       </div>
       <div class="controls" style="flex-wrap:wrap;gap:6px">
         <button class="ctrl-btn" id="adminBackBtn">Back to Start</button>
-        <button class="ctrl-btn" id="adminBackBtn2">Close</button>
         <button class="ctrl-btn" id="adminStartOverBtn">Full Reset</button>
+        <button class="ctrl-btn" id="adminBackBtn2">Close</button>
         <button class="ctrl-btn" id="adminStartOverBtn2">Start Over</button>
-      </div>
-      <div style="margin-top:12px"><canvas id="adminHistChart" width="380" height="160"></canvas></div>
-      <div style="margin-top:8px;text-align:center">
-        <button class="ctrl-btn" id="benchRunBtn" style="font-size:12px;padding:8px 14px;min-height:36px">Run Benchmark</button>
       </div>
     </div>
     <div style="text-align:center;margin-top:8px">
@@ -247,20 +247,48 @@
   </div>
 </div>
 
-<!-- ═══ TRIAL LOG OVERLAY ═══ -->
+<!-- ═══ TRIAL DETAIL OVERLAY ═══ -->
 <div id="trialLogOverlay" class="overlay hidden">
-  <div class="modal">
-    <h2>Trial Log</h2>
+  <div class="modal" style="max-width:min(98vw,800px)">
+    <h2>Trial Detail Log</h2>
     <p class="modal-hint" id="trialLogMeta"></p>
-    <div style="max-height:50vh;overflow:auto;margin-bottom:10px">
+    <div style="margin-bottom:8px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+      <select id="trialLogSessionSelect" style="flex:1;padding:8px;border:1px solid var(--edge);border-radius:10px;background:#0a1629;color:var(--text);font-size:13px"></select>
+    </div>
+    <div style="max-height:55vh;overflow:auto;margin-bottom:10px;border-radius:10px;border:1px solid var(--edge)">
       <table class="trial-log-table">
-        <thead><tr><th>#</th><th>Phase</th><th>RT</th><th>Outcome</th><th>Probe</th><th>Correct</th><th>Response</th></tr></thead>
+        <thead><tr>
+          <th>#</th><th>Clock Time</th><th>Phase</th><th>Pres. Rate</th>
+          <th>RT (ms)</th><th>Outcome</th><th>Probe</th>
+          <th>Correct Cell</th><th>Response</th>
+        </tr></thead>
         <tbody id="trialLogBody"></tbody>
       </table>
     </div>
     <div class="controls">
-      <button class="ctrl-btn" id="trialLogCsvBtn">Download CSV</button>
-      <button class="ctrl-btn" id="trialLogCloseBtn">Back to Admin</button>
+      <button class="ctrl-btn" id="trialLogCsvBtn">⬇ Download CSV</button>
+      <button class="ctrl-btn" id="trialLogCloseBtn">← Back to Admin</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ HISTORY & GRAPHS OVERLAY ═══ -->
+<div id="historyOverlay" class="overlay hidden">
+  <div class="modal">
+    <h2>History &amp; Graphs</h2>
+    <canvas id="histGraphChart" width="380" height="180" style="margin-bottom:12px"></canvas>
+    <div id="historyTable" style="max-height:50vh;overflow:auto;border-radius:10px;border:1px solid var(--edge);margin-bottom:10px">
+      <table class="trial-log-table">
+        <thead><tr>
+          <th>#</th><th>Date</th><th>Subject</th><th>S-PF</th>
+          <th>Cal RT</th><th>Blocks</th><th>Avg Block</th><th>CPS</th><th>Duration</th><th>End Reason</th>
+        </tr></thead>
+        <tbody id="historyTableBody"></tbody>
+      </table>
+    </div>
+    <div class="controls">
+      <button class="ctrl-btn" id="historyCloseBtn">← Back to Admin</button>
+      <button class="ctrl-btn" id="historyClearBtn" style="color:#ff6688">Clear All History</button>
     </div>
   </div>
 </div>
