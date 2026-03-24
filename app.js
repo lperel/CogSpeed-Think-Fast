@@ -195,10 +195,12 @@ function patternToSVG(pattern,size="large"){
 }
 
 // ─── Trial generation ───
-function makeTrial(kind,lastCorrectPos){
+function makeTrial(kind,lastCorrectPos,lastProbe){
   for(let attempt=0;attempt<500;attempt++){
     const probeFamily=Math.random()<0.5?"dots":"lines";
     const probeCount=randInt(1,6);
+    // Reject if same probe as previous trial (subject can't tell a new trial started)
+    if(lastProbe&&probeFamily===lastProbe.family&&probeCount===lastProbe.count) continue;
     const probePattern=probeFamily==="dots"?DOT_PATTERNS[probeCount]:LINE_PATTERNS[probeCount];
     const oppFamily=probeFamily==="dots"?"lines":"dots";
     const correctPos=(()=>{
@@ -366,7 +368,8 @@ function openTrial(kind){
   clearTimer();
   state.previous=state.current;
   const lastPos=state.current?state.current.correctPos:null;
-  state.current=makeTrial(kind,lastPos);
+  const lastProbe=state.current?{family:state.current.probeFamily,count:state.current.probeCount}:null;
+  state.current=makeTrial(kind,lastPos,lastProbe);
   state.trialOpenedAt=performance.now();
   renderTrial(state.current);
   updateMetrics();
@@ -498,7 +501,7 @@ function handleTap(index){
     }
     return;
   }
-  state.previousMissed=false; state.lastFrameDuration=null;
+  state.previousMissed=false; state.lastFrameDuration=null; state.lastProbe=null;
   if(state.current&&!state.current.resolved&&trialMatches(state.current,index)){
     state.current.resolved=true; state.totalResponses+=1; state.totalCorrect+=1;
     applyPacing(rt,true); state.pacedRTs.push(rt);
@@ -631,66 +634,66 @@ function emailResults(){
   window.location.href=`mailto:?subject=CogSpeed V18 Results&body=${encodeURIComponent(state.lastResultText||JSON.stringify(last,null,2))}`;
 }
 
-// ─── FX (steam wisps + sparks from each gear corner) ───
+// ─── FX (steam + sparks from each gear corner) ───
 let _fxRaf=null, _fxParticles=[];
 function startFX(){
   const canvas=$("fxCanvas"); if(!canvas) return;
   const ctx=canvas.getContext("2d");
-  const cr=canvas.getBoundingClientRect();
-  const W=Math.round(cr.width)||338, H=Math.round(cr.height)||212;
-  canvas.width=W; canvas.height=H;
-  const br=canvas.parentElement.getBoundingClientRect();
-  const BW=Math.round(br.width), BH=Math.round(br.height), OFF=60;
-  // 4 gear corner positions inside canvas coords
+  const box=canvas.parentElement;
+  const br=box.getBoundingClientRect();
+  const BW=Math.round(br.width), BH=Math.round(br.height);
+  // Extend canvas 80px beyond box in all directions
+  const O=80;
+  canvas.style.position="absolute";
+  canvas.style.inset=`-${O}px`;
+  canvas.style.width=(BW+O*2)+"px";
+  canvas.style.height=(BH+O*2)+"px";
+  canvas.style.pointerEvents="none";
+  canvas.width=BW+O*2; canvas.height=BH+O*2;
+  // Gear corners: O px offset + 14px from box corner
   const GEARS=[
-    {x:OFF+14, y:OFF+14},
-    {x:OFF+BW-14, y:OFF+14},
-    {x:OFF+14, y:OFF+BH-14},
-    {x:OFF+BW-14, y:OFF+BH-14}
+    {x:O+14,    y:O+14},
+    {x:O+BW-14, y:O+14},
+    {x:O+14,    y:O+BH-14},
+    {x:O+BW-14, y:O+BH-14}
   ];
   _fxParticles=[];
   function frame(){
-    ctx.clearRect(0,0,W,H);
+    ctx.clearRect(0,0,canvas.width,canvas.height);
     GEARS.forEach(g=>{
-      // Steam: rises mostly upward, slight drift
-      if(Math.random()<0.20){
-        const ang=-Math.PI/2+(Math.random()-0.5)*0.7;
+      if(Math.random()<0.22){
+        const ang=-Math.PI/2+(Math.random()-0.5)*0.8;
         _fxParticles.push({
-          x:g.x+(Math.random()-0.5)*6, y:g.y,
-          vx:Math.cos(ang)*0.5+(Math.random()-0.5)*0.3,
-          vy:Math.sin(ang)*1.1,
-          life:1, size:4+Math.random()*3, type:"steam"
+          x:g.x+(Math.random()-0.5)*8, y:g.y,
+          vx:Math.cos(ang)*0.6, vy:Math.sin(ang)*1.2,
+          life:1, size:5+Math.random()*4, type:"steam"
         });
       }
-      // Sparks: fly outward in all directions
-      if(Math.random()<0.07){
-        const ang=Math.random()*Math.PI*2;
-        const spd=1.5+Math.random()*2;
+      if(Math.random()<0.08){
+        const ang=Math.random()*Math.PI*2, spd=1.8+Math.random()*2.2;
         _fxParticles.push({
-          x:g.x+(Math.random()-0.5)*4, y:g.y+(Math.random()-0.5)*4,
+          x:g.x+(Math.random()-0.5)*6, y:g.y+(Math.random()-0.5)*6,
           vx:Math.cos(ang)*spd, vy:Math.sin(ang)*spd,
-          life:0.8+Math.random()*0.3, type:"spark"
+          life:0.9, type:"spark"
         });
       }
     });
     _fxParticles=_fxParticles.filter(p=>p.life>0);
     _fxParticles.forEach(p=>{
-      p.x+=p.vx; p.y+=p.vy; p.vx*=0.96; p.vy*=0.97;
+      p.x+=p.vx; p.y+=p.vy; p.vx*=0.97; p.vy*=0.97;
       if(p.type==="steam"){
         p.life-=0.008; p.size+=0.5;
-        const a=p.life*0.18;
+        const a=p.life*0.20;
         const g=ctx.createRadialGradient(p.x,p.y,0,p.x,p.y,p.size);
         g.addColorStop(0,`rgba(170,185,210,${a})`);
-        g.addColorStop(0.5,`rgba(130,150,175,${a*0.5})`);
+        g.addColorStop(0.5,`rgba(130,150,180,${a*0.5})`);
         g.addColorStop(1,"rgba(80,100,130,0)");
         ctx.fillStyle=g; ctx.beginPath(); ctx.arc(p.x,p.y,p.size,0,Math.PI*2); ctx.fill();
-      } else {
-        p.life-=0.025;
-        const bright=50+p.life*50;
-        ctx.strokeStyle=`hsla(45,90%,${bright}%,${p.life*0.65})`;
-        ctx.lineWidth=1+p.life*0.8; ctx.lineCap="round";
-        ctx.beginPath(); ctx.moveTo(p.x,p.y);
-        ctx.lineTo(p.x-p.vx*3, p.y-p.vy*3); ctx.stroke();
+      }else{
+        p.life-=0.028;
+        ctx.strokeStyle=`hsla(45,90%,${55+p.life*45}%,${p.life*0.7})`;
+        ctx.lineWidth=1+p.life; ctx.lineCap="round";
+        ctx.beginPath(); ctx.moveTo(p.x,p.y); ctx.lineTo(p.x-p.vx*3,p.y-p.vy*3); ctx.stroke();
       }
     });
     _fxRaf=requestAnimationFrame(frame);
