@@ -119,6 +119,111 @@
       .metric-val{font-size:11px}
       .ctrl-btn{padding:5px 4px;font-size:10px;min-height:30px}
     }
+
+    /* ══ TEST SCREEN — full screen gear layout ══ */
+    #testScreen{
+      position:fixed!important;inset:0;z-index:10;
+      display:flex;flex-direction:column;
+      background:#080e18;
+    }
+    #testScreen.hidden{display:none!important}
+    /* override old rules inside test screen */
+    #testScreen .stim-grid{
+      display:grid;grid-template-columns:repeat(3,1fr);
+      gap:5px;padding:4px 5px 0;flex:1;min-height:0;
+    }
+    #testScreen .stim-cell{
+      aspect-ratio:unset!important;border-radius:0!important;
+      border:none!important;background:transparent!important;
+      display:flex;align-items:center;justify-content:center;
+      position:relative;min-height:0;overflow:visible;
+    }
+    #testScreen .probe-row{
+      display:flex;align-items:center;justify-content:center;
+      padding:2px 0;flex-shrink:0;
+    }
+    #testScreen .probe-cell{
+      width:clamp(72px,19vw,115px)!important;
+      height:clamp(72px,19vw,115px)!important;
+      border-radius:0!important;border:none!important;
+      background:transparent!important;box-shadow:none!important;
+      animation:none!important;
+      display:flex;align-items:center;justify-content:center;
+      flex-direction:column;position:relative;overflow:visible;
+    }
+    #testScreen .probe-label{
+      font-size:9px;letter-spacing:.12em;text-transform:uppercase;
+      color:#baf6ff;font-weight:700;position:absolute;top:-14px;
+      white-space:nowrap;text-shadow:0 0 8px rgba(0,234,255,.6);
+    }
+    #testScreen .resp-grid{
+      display:grid;grid-template-columns:repeat(3,1fr);
+      gap:5px;padding:0 5px 4px;flex:1;min-height:0;
+    }
+    #testScreen .resp-btn{
+      aspect-ratio:unset!important;border-radius:0!important;
+      border:none!important;background:transparent!important;
+      display:flex;align-items:center;justify-content:center;
+      cursor:pointer;-webkit-tap-highlight-color:transparent;
+      position:relative;min-height:0;overflow:visible;
+      transition:none;
+    }
+    #testScreen .resp-btn:active{transform:none;background:transparent!important}
+    #testScreen .resp-btn.correct-flash svg{filter:brightness(2) drop-shadow(0 0 10px rgba(200,255,200,.9));transition:none}
+    #testScreen .resp-btn.wrong-flash svg{filter:brightness(0.4) saturate(0);transition:none}
+    #testScreen .metrics{
+      gap:3px;padding:2px 5px;flex-shrink:0;
+    }
+    #testScreen .metric{padding:2px 2px;border-radius:6px}
+    #testScreen .metric-label{font-size:9px}
+    #testScreen .metric-val{font-size:12px}
+    /* gear SVG fills its container */
+    #testScreen .stim-cell svg,
+    #testScreen .probe-cell svg,
+    #testScreen .resp-btn svg{
+      width:100%;height:100%;display:block;overflow:visible;
+    }
+    /* cell label */
+    #testScreen .cell-label,#testScreen .resp-pos{
+      position:absolute;top:6px;left:8px;font-size:10px;
+      color:rgba(255,255,255,0.4);font-weight:700;z-index:2;
+      pointer-events:none;
+    }
+    /* topbar */
+    #testScreen .ts-topbar{
+      display:flex;justify-content:space-between;align-items:center;
+      padding:4px 8px;flex-shrink:0;
+      font-size:11px;color:rgba(255,255,255,0.4);
+    }
+    /* bottom controls */
+    #testScreen .ts-controls{
+      display:grid;grid-template-columns:repeat(3,1fr);
+      gap:5px;padding:3px 5px 5px;flex-shrink:0;
+    }
+    /* curtain */
+    .curtain{
+      position:absolute;inset:0;z-index:20;
+      pointer-events:none;display:flex;
+    }
+    .curtain-left,.curtain-right{
+      flex:1;
+      background:linear-gradient(135deg,#0d1b33,#060c18);
+      transition:transform 0.75s cubic-bezier(.77,0,.18,1);
+    }
+    .curtain-left{transform-origin:left center}
+    .curtain-right{transform-origin:right center}
+    .curtain.open .curtain-left{transform:translateX(-100%)}
+    .curtain.open .curtain-right{transform:translateX(100%)}
+    /* gear rotation */
+    @keyframes gSpinF{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+    @keyframes gSpinR{from{transform:rotate(0deg)}to{transform:rotate(-360deg)}}
+    .gspin-f .g-rot{animation:gSpinF 1.1s linear infinite;transform-origin:50% 50%}
+    .gspin-r .g-rot{animation:gSpinR 1.1s linear infinite;transform-origin:50% 50%}
+    .gidle-f .g-rot{animation:gSpinF 9s linear infinite;transform-origin:50% 50%}
+    .gidle-r .g-rot{animation:gSpinR 9s linear infinite;transform-origin:50% 50%}
+    /* probe pulse */
+    @keyframes probePulseG{0%{transform:scale(1)}50%{transform:scale(1.05)}100%{transform:scale(1)}}
+    #testScreen .probe-cell:not(.idle) svg{animation:probePulseG 1.4s ease-in-out infinite}
   </style>
 </head>
 <body>
@@ -375,6 +480,6 @@
   </div>
 </div>
 
-<script src="app.js?v=26"></script>
+<script src="app.js?v=27"></script>
 </body>
 </html>

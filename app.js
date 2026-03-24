@@ -227,116 +227,84 @@ function makeTrial(kind,lastCorrectPos,lastProbe){
 
 
 // ── 7 gear style definitions ──
-// index 0 = probe, 1–6 = cell/button pairs
-const GEAR_STYLES = [
-  // 0: PROBE — 12 teeth, bright silver center glow
-  { teeth:12, r:0.72, toothH:0.13, toothW:0.18, bodyFill:"#1a2a3a", bodyStroke:"#7fd7ff",
-    toothFill:"#5aa8d8", toothStroke:"#9de0ff", rimWidth:3, glowColor:"rgba(127,215,255,0.5)",
-    centerR:0.22, centerFill:"#0d2a40", hubColor:"#7fd7ff" },
-  // 1: 8 teeth, dark charcoal
-  { teeth:8,  r:0.70, toothH:0.14, toothW:0.22, bodyFill:"#1c1c24", bodyStroke:"#5a5a6e",
-    toothFill:"#3a3a4a", toothStroke:"#6a6a80", rimWidth:2, glowColor:"rgba(90,90,110,0.3)",
-    centerR:0.20, centerFill:"#141420", hubColor:"#5a5a6e" },
-  // 2: 10 teeth, mid gray
-  { teeth:10, r:0.68, toothH:0.13, toothW:0.20, bodyFill:"#252530", bodyStroke:"#707080",
-    toothFill:"#484858", toothStroke:"#808090", rimWidth:2, glowColor:"rgba(100,100,120,0.3)",
-    centerR:0.20, centerFill:"#1a1a24", hubColor:"#707080" },
-  // 3: 9 teeth, silver-blue
-  { teeth:9,  r:0.71, toothH:0.14, toothW:0.21, bodyFill:"#1e2830", bodyStroke:"#8090a0",
-    toothFill:"#506070", toothStroke:"#90a0b0", rimWidth:2, glowColor:"rgba(100,130,150,0.3)",
-    centerR:0.21, centerFill:"#141e28", hubColor:"#8090a0" },
-  // 4: 7 teeth, gunmetal
-  { teeth:7,  r:0.69, toothH:0.15, toothW:0.24, bodyFill:"#1a1e1e", bodyStroke:"#606868",
-    toothFill:"#3a4040", toothStroke:"#707878", rimWidth:2, glowColor:"rgba(80,100,100,0.3)",
-    centerR:0.20, centerFill:"#141818", hubColor:"#606868" },
-  // 5: 11 teeth, warm silver
-  { teeth:11, r:0.70, toothH:0.13, toothW:0.19, bodyFill:"#28262a", bodyStroke:"#888090",
-    toothFill:"#584e60", toothStroke:"#988898", rimWidth:2, glowColor:"rgba(110,100,120,0.3)",
-    centerR:0.20, centerFill:"#1e1c20", hubColor:"#888090" },
-  // 6: 8 teeth, steel
-  { teeth:8,  r:0.71, toothH:0.14, toothW:0.22, bodyFill:"#202428", bodyStroke:"#7888a0",
-    toothFill:"#404858", toothStroke:"#788898", rimWidth:2, glowColor:"rgba(90,110,130,0.3)",
-    centerR:0.20, centerFill:"#181c20", hubColor:"#7888a0" },
+// Index 0=probe, 1-6=cell pairs. Each pair: top stim cell N matches bottom resp btn N.
+// Colors range across grays/silvers for clear visual distinction.
+const GEAR_STYLES=[
+  // 0: PROBE — bright silver-blue, 12 teeth, glowing rim
+  {teeth:12,bodyFill:"#162233",bodyStroke:"#7fd7ff",toothFill:"#2a4a6a",toothStroke:"#9de0ff",rimW:3,cFill:"#0a1824",hubColor:"#7fd7ff",hub:0.18,R:0.70,tH:0.14,tW:0.18},
+  // 1: near-black gunmetal, 8 teeth
+  {teeth:8, bodyFill:"#141418",bodyStroke:"#484850",toothFill:"#282830",toothStroke:"#585860",rimW:2,cFill:"#0e0e12",hubColor:"#484850",hub:0.17,R:0.69,tH:0.15,tW:0.22},
+  // 2: medium gray, 10 teeth
+  {teeth:10,bodyFill:"#2a2a32",bodyStroke:"#787888",toothFill:"#3e3e4a",toothStroke:"#888898",rimW:2,cFill:"#1e1e26",hubColor:"#787888",hub:0.17,R:0.68,tH:0.13,tW:0.20},
+  // 3: warm silver, 9 teeth
+  {teeth:9, bodyFill:"#2e2828",bodyStroke:"#908080",toothFill:"#443c3c",toothStroke:"#a09090",rimW:2,cFill:"#201c1c",hubColor:"#908080",hub:0.17,R:0.71,tH:0.14,tW:0.21},
+  // 4: cool steel blue-gray, 7 teeth
+  {teeth:7, bodyFill:"#1a2028",bodyStroke:"#607080",toothFill:"#283040",toothStroke:"#708090",rimW:2,cFill:"#121820",hubColor:"#607080",hub:0.18,R:0.70,tH:0.16,tW:0.25},
+  // 5: light silver, 11 teeth
+  {teeth:11,bodyFill:"#383838",bodyStroke:"#a8a8b0",toothFill:"#505058",toothStroke:"#b8b8c0",rimW:2,cFill:"#282828",hubColor:"#a8a8b0",hub:0.17,R:0.69,tH:0.13,tW:0.19},
+  // 6: dark teal-gray, 8 teeth
+  {teeth:8, bodyFill:"#182028",bodyStroke:"#507080",toothFill:"#263038",toothStroke:"#608090",rimW:2,cFill:"#101820",hubColor:"#507080",hub:0.17,R:0.70,tH:0.14,tW:0.22},
 ];
 
-// Build a gear SVG element with pattern content inside
-// styleIdx: 0=probe, 1-6=cell pair
-// pattern: array of mark definitions, size: "large"|"probe"|"small"
-// spinDir: "f" forward, "r" reverse, null=no spin class
-function buildGearSVG(styleIdx, pattern, size, spinDir, extraClass) {
-  const g = GEAR_STYLES[styleIdx];
-  const dim = 100; // viewBox units
-  const cx = 50, cy = 50;
-  const R = g.r * 50; // body radius in viewBox units
-  const teeth = g.teeth;
-  const tH = g.toothH * 50;
-  const tW = g.toothW * 50;
-  const rimW = g.rimWidth;
-
-  // Build tooth path
-  const toothPaths = [];
-  for (let i = 0; i < teeth; i++) {
-    const ang = (i / teeth) * Math.PI * 2;
-    const ang1 = ang - (tW / R) / 2;
-    const ang2 = ang + (tW / R) / 2;
-    const r1 = R, r2 = R + tH;
-    const x1 = cx + r1 * Math.cos(ang1), y1 = cy + r1 * Math.sin(ang1);
-    const x2 = cx + r2 * Math.cos(ang1), y2 = cy + r2 * Math.sin(ang1);
-    const x3 = cx + r2 * Math.cos(ang2), y3 = cy + r2 * Math.sin(ang2);
-    const x4 = cx + r1 * Math.cos(ang2), y4 = cy + r1 * Math.sin(ang2);
-    toothPaths.push(`M${x1.toFixed(1)},${y1.toFixed(1)} L${x2.toFixed(1)},${y2.toFixed(1)} L${x3.toFixed(1)},${y3.toFixed(1)} L${x4.toFixed(1)},${y4.toFixed(1)}Z`);
+// Build a gear SVG string. uid = unique string to avoid gradient ID collisions.
+// spinClass: "gspin-f"|"gspin-r"|"gidle-f"|"gidle-r"|""
+function buildGearSVG(styleIdx,pattern,size,spinClass){
+  const g=GEAR_STYLES[styleIdx];
+  const uid=styleIdx+"_"+Math.random().toString(36).slice(2,7);
+  const cx=50,cy=50,dim=100;
+  const R=g.R*50, tH=g.tH*50, tW=g.tW*50;
+  // Teeth
+  let teeth="";
+  for(let i=0;i<g.teeth;i++){
+    const a=(i/g.teeth)*Math.PI*2;
+    const a1=a-(tW/R)/2, a2=a+(tW/R)/2;
+    const r1=R, r2=R+tH;
+    const x1=cx+r1*Math.cos(a1),y1=cy+r1*Math.sin(a1);
+    const x2=cx+r2*Math.cos(a1),y2=cy+r2*Math.sin(a1);
+    const x3=cx+r2*Math.cos(a2),y3=cy+r2*Math.sin(a2);
+    const x4=cx+r1*Math.cos(a2),y4=cy+r1*Math.sin(a2);
+    teeth+=`<path d="M${x1.toFixed(1)},${y1.toFixed(1)} L${x2.toFixed(1)},${y2.toFixed(1)} L${x3.toFixed(1)},${y3.toFixed(1)} L${x4.toFixed(1)},${y4.toFixed(1)}Z" fill="${g.toothFill}" stroke="${g.toothStroke}" stroke-width="0.8"/>`;
   }
-
-  // Pattern content — scale to fit inside gear body
-  const innerR = R * 0.72; // usable inner area radius
-  const patMarks = pattern ? pattern.map(([k, px, py]) => {
-    // px,py are 0-100 coords → map to circle inscribed region
-    const ix = cx + (px/100 - 0.5) * innerR * 1.8;
-    const iy = cy + (py/100 - 0.5) * innerR * 1.8;
-    const dotR = size === "probe" ? 5.5 : 4.5;
-    const lw = size === "probe" ? 7 : 6;
-    const lh = size === "probe" ? 18 : 14;
-    if (k === "dot") {
-      return `<circle cx="${ix.toFixed(1)}" cy="${iy.toFixed(1)}" r="${dotR}" fill="white" opacity="0.92"/>`;
-    } else {
-      const x0 = (ix - lw/2).toFixed(1), y0 = (iy - lh/2).toFixed(1);
-      return `<rect x="${x0}" y="${y0}" width="${lw}" height="${lh}" rx="1.5" fill="white" opacity="0.92"/>`;
-    }
-  }).join("") : "";
-
-  const cR = g.centerR * 50;
-  const spinClass = spinDir === "f" ? "gear-spin-f" : spinDir === "r" ? "gear-spin-r" : "";
-  const idleClass = spinDir === "idle-f" ? "gear-idle-f" : spinDir === "idle-r" ? "gear-idle-r" : "";
-  const extra = extraClass || "";
-
-  const svg = `<svg class="gear-body ${spinClass} ${idleClass} ${extra}" viewBox="0 0 ${dim} ${dim}" xmlns="http://www.w3.org/2000/svg">
+  // Pattern marks (non-rotating, drawn on top)
+  let marks="";
+  if(pattern){
+    const innerR=R*0.68;
+    const dotR=size==="probe"?6:5, lw=size==="probe"?8:6.5, lh=size==="probe"?20:16;
+    marks=pattern.map(([k,px,py])=>{
+      const ix=cx+(px/100-0.5)*innerR*1.85;
+      const iy=cy+(py/100-0.5)*innerR*1.85;
+      return k==="dot"
+        ?`<circle cx="${ix.toFixed(1)}" cy="${iy.toFixed(1)}" r="${dotR}" fill="white" opacity="0.95"/>`
+        :`<rect x="${(ix-lw/2).toFixed(1)}" y="${(iy-lh/2).toFixed(1)}" width="${lw}" height="${lh}" rx="2" fill="white" opacity="0.95"/>`;
+    }).join("");
+  }
+  const cR=g.hub*50;
+  const sc=spinClass||"";
+  return `<svg class="${sc}" viewBox="0 0 ${dim} ${dim}" xmlns="http://www.w3.org/2000/svg" style="overflow:visible">
   <defs>
-    <radialGradient id="gbg${styleIdx}" cx="40%" cy="35%" r="65%">
-      <stop offset="0%" stop-color="${lighten(g.bodyFill, 20)}"/>
-      <stop offset="100%" stop-color="${darken(g.bodyFill, 10)}"/>
+    <radialGradient id="gbod${uid}" cx="38%" cy="32%" r="65%">
+      <stop offset="0%" stop-color="${lighten(g.bodyFill,22)}"/>
+      <stop offset="100%" stop-color="${darken(g.bodyFill,8)}"/>
     </radialGradient>
-    <filter id="gglow${styleIdx}" x="-20%" y="-20%" width="140%" height="140%">
-      <feGaussianBlur stdDeviation="2" result="blur"/>
-      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    <filter id="gglo${uid}" x="-25%" y="-25%" width="150%" height="150%">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="1.5" result="b"/>
+      <feFlood flood-color="${g.bodyStroke}" flood-opacity="0.4" result="c"/>
+      <feComposite in="c" in2="b" operator="in" result="shadow"/>
+      <feMerge><feMergeNode in="shadow"/><feMergeNode in="SourceGraphic"/></feMerge>
     </filter>
   </defs>
-  <g class="gear-rotate-group" style="transform-origin:50px 50px">
-    <!-- body circle -->
-    <circle cx="${cx}" cy="${cy}" r="${R}" fill="url(#gbg${styleIdx})" stroke="${g.bodyStroke}" stroke-width="${rimW}"/>
-    <!-- teeth -->
-    ${toothPaths.map(p => `<path d="${p}" fill="${g.toothFill}" stroke="${g.toothStroke}" stroke-width="0.8"/>`).join("")}
-    <!-- inner ring -->
-    <circle cx="${cx}" cy="${cy}" r="${cR * 1.6}" fill="none" stroke="${g.bodyStroke}" stroke-width="1" opacity="0.4"/>
-    <!-- hub -->
-    <circle cx="${cx}" cy="${cy}" r="${cR}" fill="${g.centerFill}" stroke="${g.hubColor}" stroke-width="1.5"/>
+  <g class="g-rot" style="transform-origin:50px 50px">
+    <circle cx="${cx}" cy="${cy}" r="${R}" fill="url(#gbod${uid})" stroke="${g.bodyStroke}" stroke-width="${g.rimW}" filter="url(#gglo${uid})"/>
+    ${teeth}
+    <circle cx="${cx}" cy="${cy}" r="${cR*1.7}" fill="none" stroke="${g.bodyStroke}" stroke-width="0.8" opacity="0.5"/>
+    <circle cx="${cx}" cy="${cy}" r="${cR}" fill="${g.cFill}" stroke="${g.hubColor}" stroke-width="1.8"/>
   </g>
-  <!-- pattern (non-rotating) -->
-  <g class="gear-pattern">${patMarks}</g>
+  <g class="g-pat">${marks}</g>
 </svg>`;
-  return svg;
 }
+function lighten(hex,amt){ const n=parseInt(hex.slice(1),16),r=Math.min(255,(n>>16)+amt),g=Math.min(255,((n>>8)&0xff)+amt),b=Math.min(255,(n&0xff)+amt); return `rgb(${r},${g},${b})`; }
+function darken(hex,amt){ const n=parseInt(hex.slice(1),16),r=Math.max(0,(n>>16)-amt),g=Math.max(0,((n>>8)&0xff)-amt),b=Math.max(0,(n&0xff)-amt); return `rgb(${r},${g},${b})`; }
 
-// Simple color helpers for gradient
 function lighten(hex, amt) {
   const n = parseInt(hex.slice(1),16);
   const r = Math.min(255,(n>>16)+amt), g = Math.min(255,((n>>8)&0xff)+amt), b = Math.min(255,(n&0xff)+amt);
@@ -349,29 +317,26 @@ function darken(hex, amt) {
 }
 // ─── Render trial (gear version) ───
 function renderTrial(trial){
-  // Show test screen, hide any overlays
-  const ts = $("testScreen"); if(ts) ts.classList.remove("hidden");
-
+  const ts=$("testScreen"); if(ts) ts.classList.remove("hidden");
   stimGrid.innerHTML="";
   for(let i=0;i<6;i++){
     const cell=document.createElement("div");
-    cell.className="stim-cell " + (i%2===0?"gear-idle-f":"gear-idle-r");
+    cell.className="stim-cell";
     const lbl=document.createElement("div"); lbl.className="cell-label"; lbl.textContent=String(i+1);
     cell.appendChild(lbl);
-    const gsvg = buildGearSVG(i+1, trial.topItems[i].pattern, "large", i%2===0?"idle-f":"idle-r");
-    cell.innerHTML += gsvg;
+    const sc=i%2===0?"gidle-f":"gidle-r";
+    cell.innerHTML+=buildGearSVG(i+1,trial.topItems[i].pattern,"large",sc);
     stimGrid.appendChild(cell);
   }
   probeCell.classList.remove("idle");
-  probeInner.innerHTML = buildGearSVG(0, trial.probePattern, "probe", "idle-f");
-
+  probeInner.innerHTML=buildGearSVG(0,trial.probePattern,"probe","gidle-f");
   respGrid.innerHTML="";
   for(let i=0;i<6;i++){
     const btn=document.createElement("div"); btn.className="resp-btn";
     const pos=document.createElement("div"); pos.className="resp-pos"; pos.textContent=String(i+1);
     btn.appendChild(pos);
-    // Response buttons have same style as matching stim cell but no pattern
-    btn.innerHTML += buildGearSVG(i+1, null, "large", i%2===0?"idle-f":"idle-r");
+    const sc=i%2===0?"gidle-f":"gidle-r";
+    btn.innerHTML+=buildGearSVG(i+1,null,"large",sc);
     const idx=i;
     btn.addEventListener("pointerdown",()=>handleTap(idx));
     respGrid.appendChild(btn);
@@ -911,14 +876,14 @@ function showResultsPage(){
   const success=last?isTestSuccess(last.endReason):false;
   // 1. Spin all gears fast for 1.5s
   stimGrid.querySelectorAll(".stim-cell").forEach((c,i)=>{
-    c.classList.remove("gear-idle-f","gear-idle-r");
-    c.classList.add(i%2===0?"gear-spin-f":"gear-spin-r");
+    c.classList.remove("gidle-f","gidle-r");
+    c.classList.add(i%2===0?"gspin-f":"gspin-r");
   });
   respGrid.querySelectorAll(".resp-btn").forEach((b,i)=>{
-    b.classList.remove("gear-idle-f","gear-idle-r");
-    b.classList.add(i%2===0?"gear-spin-f":"gear-spin-r");
+    b.classList.remove("gidle-f","gidle-r");
+    b.classList.add(i%2===0?"gspin-f":"gspin-r");
   });
-  probeCell.classList.remove("gear-idle-f"); probeCell.classList.add("gear-spin-f");
+  probeCell.classList.remove("gidle-f"); probeCell.classList.add("gspin-f");
   // 2. Close curtain
   const curtain=$("curtain"); if(curtain) curtain.classList.remove("open");
   setTimeout(()=>{
@@ -980,15 +945,15 @@ function runGearSpinThenStart(callback) {
   for(let i=0;i<6;i++){
     const cell = document.createElement("div");
     cell.className = "stim-cell";
-    cell.innerHTML = buildGearSVG(i+1, null, "large", i%2===0?"f":"r");
+    cell.innerHTML = buildGearSVG(i+1, null, "large", i%2===0?"gspin-f":"gspin-r");
     stimGrid.appendChild(cell);
   }
   probeCell.classList.remove("idle");
-  probeInner.innerHTML = buildGearSVG(0, null, "probe", "f");
+  probeInner.innerHTML = buildGearSVG(0, null, "probe", "gspin-f");
   respGrid.innerHTML = "";
   for(let i=0;i<6;i++){
     const btn = document.createElement("div"); btn.className = "resp-btn";
-    btn.innerHTML = buildGearSVG(i+1, null, "large", i%2===0?"f":"r");
+    btn.innerHTML = buildGearSVG(i+1, null, "large", i%2===0?"gspin-f":"gspin-r");
     respGrid.appendChild(btn);
   }
   setTimeout(()=>{
