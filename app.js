@@ -77,7 +77,7 @@ const LINE_PATTERNS={
   3:[["v",28,72],["v",50,28],["v",72,72]],
   4:[["v",28,28],["v",72,28],["v",28,72],["v",72,72]],
   5:[["v",28,28],["v",72,28],["v",50,50],["v",28,72],["v",72,72]],
-  6:[["v",28,22],["v",72,22],["v",28,50],["v",72,50],["v",28,78],["v",72,78]]
+  6:[["v",28,18],["v",72,18],["v",28,50],["v",72,50],["v",28,82],["v",72,82]]
 };
 const SAMN_PERELLI=[
   [7,"Full alert, wide awake"],
@@ -635,52 +635,66 @@ function emailResults(){
   window.location.href=`mailto:?subject=CogSpeed V17 Results&body=${encodeURIComponent(state.lastResultText||JSON.stringify(last,null,2))}`;
 }
 
-// ─── FX (smoke + sparks around gear corners on thinking overlay) ───
+// ─── FX (steam wisps + sparks from each gear corner) ───
 let _fxRaf=null, _fxParticles=[];
 function startFX(){
   const canvas=$("fxCanvas"); if(!canvas) return;
   const ctx=canvas.getContext("2d");
-  // Size canvas to its rendered size (box inset:-60px means canvas extends 60px beyond box)
   const cr=canvas.getBoundingClientRect();
   const W=Math.round(cr.width)||338, H=Math.round(cr.height)||212;
   canvas.width=W; canvas.height=H;
-  // Gear corners: box padding is 60px inside canvas (inset:-60px)
   const br=canvas.parentElement.getBoundingClientRect();
   const BW=Math.round(br.width), BH=Math.round(br.height), OFF=60;
+  // 4 gear corner positions inside canvas coords
   const GEARS=[
-    {x:OFF+14,    y:OFF+14},
+    {x:OFF+14, y:OFF+14},
     {x:OFF+BW-14, y:OFF+14},
-    {x:OFF+14,    y:OFF+BH-14},
+    {x:OFF+14, y:OFF+BH-14},
     {x:OFF+BW-14, y:OFF+BH-14}
   ];
   _fxParticles=[];
   function frame(){
     ctx.clearRect(0,0,W,H);
     GEARS.forEach(g=>{
-      if(Math.random()<0.18){
-        const ang=-Math.PI/2+(Math.random()-0.5)*1.0;
-        _fxParticles.push({x:g.x+(Math.random()-0.5)*8,y:g.y+(Math.random()-0.5)*8,
-          vx:Math.cos(ang)*0.6,vy:Math.sin(ang)*1.0,life:1,size:5,type:"smoke"});
+      // Steam: rises mostly upward, slight drift
+      if(Math.random()<0.20){
+        const ang=-Math.PI/2+(Math.random()-0.5)*0.7;
+        _fxParticles.push({
+          x:g.x+(Math.random()-0.5)*6, y:g.y,
+          vx:Math.cos(ang)*0.5+(Math.random()-0.5)*0.3,
+          vy:Math.sin(ang)*1.1,
+          life:1, size:4+Math.random()*3, type:"steam"
+        });
       }
-      if(Math.random()<0.05){
+      // Sparks: fly outward in all directions
+      if(Math.random()<0.07){
         const ang=Math.random()*Math.PI*2;
-        _fxParticles.push({x:g.x,y:g.y,vx:Math.cos(ang)*2.2,vy:Math.sin(ang)*2.2,life:0.7,type:"spark"});
+        const spd=1.5+Math.random()*2;
+        _fxParticles.push({
+          x:g.x+(Math.random()-0.5)*4, y:g.y+(Math.random()-0.5)*4,
+          vx:Math.cos(ang)*spd, vy:Math.sin(ang)*spd,
+          life:0.8+Math.random()*0.3, type:"spark"
+        });
       }
     });
     _fxParticles=_fxParticles.filter(p=>p.life>0);
     _fxParticles.forEach(p=>{
-      p.x+=p.vx; p.y+=p.vy; p.vx*=0.97; p.vy*=0.97;
-      if(p.type==="smoke"){
-        p.life-=0.009; p.size+=0.4;
-        const a=p.life*0.22;
+      p.x+=p.vx; p.y+=p.vy; p.vx*=0.96; p.vy*=0.97;
+      if(p.type==="steam"){
+        p.life-=0.008; p.size+=0.5;
+        const a=p.life*0.18;
         const g=ctx.createRadialGradient(p.x,p.y,0,p.x,p.y,p.size);
-        g.addColorStop(0,`rgba(155,165,185,${a})`); g.addColorStop(1,"rgba(80,90,110,0)");
+        g.addColorStop(0,`rgba(170,185,210,${a})`);
+        g.addColorStop(0.5,`rgba(130,150,175,${a*0.5})`);
+        g.addColorStop(1,"rgba(80,100,130,0)");
         ctx.fillStyle=g; ctx.beginPath(); ctx.arc(p.x,p.y,p.size,0,Math.PI*2); ctx.fill();
-      }else{
-        p.life-=0.03;
-        ctx.strokeStyle=`hsla(45,85%,70%,${p.life*0.55})`;
-        ctx.lineWidth=1.2; ctx.lineCap="round";
-        ctx.beginPath(); ctx.moveTo(p.x,p.y); ctx.lineTo(p.x-p.vx*3,p.y-p.vy*3); ctx.stroke();
+      } else {
+        p.life-=0.025;
+        const bright=50+p.life*50;
+        ctx.strokeStyle=`hsla(45,90%,${bright}%,${p.life*0.65})`;
+        ctx.lineWidth=1+p.life*0.8; ctx.lineCap="round";
+        ctx.beginPath(); ctx.moveTo(p.x,p.y);
+        ctx.lineTo(p.x-p.vx*3, p.y-p.vy*3); ctx.stroke();
       }
     });
     _fxRaf=requestAnimationFrame(frame);
@@ -700,16 +714,55 @@ function isTestSuccess(r){ return (r||"").toLowerCase().startsWith("convergent")
 
 // ─── Summary ───
 function buildSummary(result){
-  const el=id=>{ const e=$(id); if(e) e.textContent=id; };
-  const set=(id,v)=>{ const e=$(id); if(e) e.textContent=v; };
-  set("sumSubject",result.subjectId);
-  set("sumSPF",result.samnPerelli?`${result.samnPerelli.score} — ${result.samnPerelli.label}`:"—");
-  set("sumCPS",result.cognitivePerformanceScore!=null?result.cognitivePerformanceScore.toFixed(1):"—");
-  set("sumBlocks",String(result.blockCount||0));
-  set("sumAvgBlock",result.averageLast2BlockingScoresMs!=null?result.averageLast2BlockingScoresMs.toFixed(0)+"ms":"—");
-  set("sumCalRT",result.calibrationAverageMs!=null?result.calibrationAverageMs.toFixed(0)+"ms":"—");
-  set("sumDuration",formatDuration(result.testDurationMs));
-  set("sumEndReason",result.endReason);
+  const el=$("summaryText"); if(!el) return;
+  const hr="─────────────────────────";
+  const spf=result.samnPerelli?`${result.samnPerelli.score}  (${result.samnPerelli.label})`:"not recorded";
+  let geoStr="unavailable";
+  if(result.geo){
+    geoStr=result.geo.status==="ok"
+      ?(result.geo.address||`${result.geo.latitude.toFixed(5)}, ${result.geo.longitude.toFixed(5)}`)+` (±${Math.round(result.geo.accuracy_m)}m)`
+      :result.geo.status;
+  }
+  const blockList=result.blocks&&result.blocks.length
+    ?result.blocks.map((b,i)=>`  Block ${i+1}: ${b.toFixed(0)} ms`).join("\n"):"  none";
+  const avg2=result.averageLast2BlockingScoresMs;
+  const diff=result.blockScoreDifferenceMs;
+  const diffStr=diff!=null?`${diff>0?"+":""}${diff.toFixed(0)} ms  (${diff>0?"slower":diff<0?"faster":"no change"})`:"—";
+  const cps=result.cognitivePerformanceScore;
+  const sd=result.pacedResponseSdMs;
+  el.textContent=
+`CogSpeed V17  —  Test Results
+${hr}
+Subject ID:    ${result.subjectId}
+Date / Time:   ${new Date(result.time).toLocaleString()}
+Test duration:         ${formatDuration(result.testDurationMs)}
+Location:      ${geoStr}
+${hr}
+FATIGUE (S-PF)
+  Pre-test rating:  ${spf}
+${hr}
+CALIBRATION
+  Average RT:  ${result.calibrationAverageMs!=null?result.calibrationAverageMs.toFixed(1)+" ms":"—"}
+${hr}
+MACHINE-PACED PERFORMANCE
+  Block scores:
+${blockList}
+  Avg last 2 blocks:   ${avg2!=null?avg2.toFixed(1)+" ms":"—"}
+  Block score diff:    ${diffStr}
+  CPS:                 ${cps!=null?cps.toFixed(1)+" / 100":"—"}
+${hr}
+RESPONSE STATISTICS
+  Total taps:            ${result.totalResponses}
+    Correct:             ${result.totalCorrect}
+    Incorrect:           ${result.totalIncorrect}
+  Missed (no response):  ${result.missedTrials}
+  Paced correct taps:    ${result.pacedResponseCount||0}
+  Paced wrong taps:      ${result.pacedErrors||0}
+  Mean paced RT:         ${result.pacedResponseMeanMs!=null?result.pacedResponseMeanMs.toFixed(1)+" ms":"—"}
+  Paced RT SD:           ${sd!=null?sd.toFixed(1)+" ms":"—"}
+${hr}
+END REASON
+  ${result.endReason}`;
 }
 
 // ─── Results page ───
@@ -983,8 +1036,21 @@ $("resultsBackBtn").onclick=goToStartPage;
 $("resultsStartOverBtn").onclick=startOverFlow;
 $("resultsExportBtn").onclick=exportResults;
 $("resultsEmailBtn").onclick=emailResults;
-window.addEventListener("beforeinstallprompt",e=>{ e.preventDefault(); deferredPrompt=e; $("installBtn").disabled=false; });
-$("installBtn").onclick=async()=>{ if(!deferredPrompt) return; deferredPrompt.prompt(); const c=await deferredPrompt.userChoice; deferredPrompt=null; setStatus(c.outcome==="accepted"?"App added to home screen.":"Cancelled."); };
+window.addEventListener("beforeinstallprompt",e=>{
+  e.preventDefault(); deferredPrompt=e;
+  $("installBtn").disabled=false;
+  const hb=$("installBtnHome"); if(hb) hb.disabled=false;
+});
+async function _doInstall(){
+  if(!deferredPrompt) return;
+  deferredPrompt.prompt();
+  const c=await deferredPrompt.userChoice;
+  deferredPrompt=null;
+  const msg=c.outcome==="accepted"?"App added to home screen.":"Cancelled.";
+  setStatus(msg);
+}
+$("installBtn").onclick=_doInstall;
+const _ihb=$("installBtnHome"); if(_ihb) _ihb.onclick=_doInstall;
 
 // ─── Init ───
 modeLabel.textContent="Subject mode";
