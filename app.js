@@ -209,6 +209,7 @@ function logTrial({ phase, rt, outcome, responseIndex }) {
     response:     responseDesc
   });
 }
+function randInt(min, max) { return Math.floor(Math.random() * (max - min + 1)) + min; }
 function clamp(v, lo, hi) { return Math.min(hi, Math.max(lo, v)); }
 function mean(a) { return a.length ? a.reduce((x, y) => x + y, 0) / a.length : 0; }
 function stdDev(a) {
