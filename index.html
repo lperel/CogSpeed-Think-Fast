@@ -249,6 +249,7 @@
     <div id="summaryText" style="font-family:monospace;font-size:11.5px;color:var(--muted);white-space:pre;overflow-x:auto;max-height:60vh;overflow-y:auto;background:#060e1a;border:1px solid var(--edge);border-radius:10px;padding:10px;line-height:1.6"></div>
     <div style="display:flex;align-items:center;gap:8px;margin-top:10px">
       <button class="ctrl-btn" id="summaryRestartBtn" style="flex:1">New Test</button>
+      <button class="ctrl-btn" id="summaryEmailBtn" style="flex:1">Email Results</button>
       <button id="summaryAdminBtn" style="background:none;border:none;color:rgba(127,215,255,0.3);font-size:11px;padding:4px 10px;cursor:pointer;font-family:inherit;letter-spacing:.05em">Admin →</button>
     </div>
   </div>
@@ -339,11 +340,10 @@
     <div class="metric"><div class="metric-label">S-PF</div><div class="metric-val" id="fatigueOut">—</div></div>
     <div class="metric"><div class="metric-label">Status</div><div class="metric-val" style="font-size:11px;color:var(--muted)" id="statusLine">CogSpeed V17 ready.</div></div>
   </div>
-  <div class="controls four">
+  <div class="controls" style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px">
     <button class="ctrl-btn" id="startBtn">Start</button>
     <button class="ctrl-btn" id="backToStartBtn">Restart</button>
     <button class="ctrl-btn" id="startOverBtn">Full Reset</button>
-    <button class="ctrl-btn" id="installBtn" disabled>Add to Home</button>
   </div>
   <div class="panel result hidden" id="resultBox"></div>
 </div>

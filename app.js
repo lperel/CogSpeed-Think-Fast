@@ -355,14 +355,10 @@ function finish(){
   state.history.push(result);
   localStorage.setItem("cogspeed_v17_history",JSON.stringify(state.history));
   updateCPSDisplay(avg2); setProbeIdle();
-  let geoStr="unavailable";
-  if(result.geo){ geoStr=result.geo.status==="ok"?(result.geo.address||`${result.geo.latitude.toFixed(5)},${result.geo.longitude.toFixed(5)}`)+` (±${Math.round(result.geo.accuracy_m)}m)`:result.geo.status; }
-  const spf=result.samnPerelli?`${result.samnPerelli.score} (${result.samnPerelli.label})`:"not recorded";
-  const blockList=result.blocks.length?result.blocks.map((b,i)=>`  Block ${i+1}: ${b.toFixed(0)}ms`).join("\n"):"  none";
-  const hr="─────────────────────────";
-  const text=`CogSpeed V17  —  Test Results\n${hr}\nDate:       ${new Date(result.time).toLocaleString()}\nSubject:    ${result.subjectId}\nLocation:   ${geoStr}\n${hr}\nFATIGUE (S-PF)\n  ${spf}\n${hr}\nCALIBRATION\n  Avg RT: ${result.calibrationAverageMs!=null?result.calibrationAverageMs.toFixed(1)+"ms":"—"}\n${hr}\nMACHINE-PACED\n${blockList}\n  Avg last 2 blocks: ${avg2!=null?avg2.toFixed(1)+"ms":"—"}\n  CPS: ${cps!=null?cps.toFixed(1)+"/100":"—"}\n${hr}\nSTATISTICS\n  Taps: ${result.totalResponses}  Correct: ${result.totalCorrect}  Wrong: ${result.totalIncorrect}\n  Missed: ${result.missedTrials}  Test time: ${formatDuration(testDurMs)}\n${hr}\nEND\n  ${result.endReason}`;
-  state.lastResultText=text;
-  showResultsPage(text);
+  // Build the display text (also used for email)
+  buildSummary(result);
+  state.lastResultText = $("summaryText") ? $("summaryText").textContent : "";
+  showResultsPage();
 }
 
 // ─── Open trial ───
@@ -766,7 +762,7 @@ END REASON
 }
 
 // ─── Results page ───
-function showResultsPage(text){
+function showResultsPage(){
   const thinking=$("thinkingOverlay"),outcome=$("outcomeOverlay"),outcomeText=$("outcomeText");
   const last=state.history[state.history.length-1];
   const success=last?isTestSuccess(last.endReason):false;
@@ -780,8 +776,6 @@ function showResultsPage(text){
     }
     setTimeout(()=>{
       if(outcome) outcome.classList.add("hidden");
-      // Show subject-facing summary only
-      if(last) buildSummary(last);
       $("summaryOverlay").classList.remove("hidden");
       setTestingQuiet(false);
     },3000);
@@ -1023,6 +1017,7 @@ $("startBtn").onclick=startTest;
 $("backToStartBtn").onclick=goToStartPage;
 $("startOverBtn").onclick=startOverFlow;
 $("summaryRestartBtn").onclick=()=>{ $("summaryOverlay").classList.add("hidden"); goToStartPage(); };
+$("summaryEmailBtn").onclick=emailResults;
 $("summaryAdminBtn").onclick=()=>{
   $("summaryOverlay").classList.add("hidden");
   $("adminOverlay").classList.remove("hidden");
@@ -1038,7 +1033,6 @@ $("resultsExportBtn").onclick=exportResults;
 $("resultsEmailBtn").onclick=emailResults;
 window.addEventListener("beforeinstallprompt",e=>{
   e.preventDefault(); deferredPrompt=e;
-  $("installBtn").disabled=false;
   const hb=$("installBtnHome"); if(hb) hb.disabled=false;
 });
 async function _doInstall(){
@@ -1049,7 +1043,6 @@ async function _doInstall(){
   const msg=c.outcome==="accepted"?"App added to home screen.":"Cancelled.";
   setStatus(msg);
 }
-$("installBtn").onclick=_doInstall;
 const _ihb=$("installBtnHome"); if(_ihb) _ihb.onclick=_doInstall;
 
 // ─── Init ───
