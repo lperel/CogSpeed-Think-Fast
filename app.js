@@ -1725,7 +1725,7 @@ function startOverFlow() {
 //  START TEST
 // ═══════════════════════════════════════════════════
 
-async function startTest() {
+function startTest() {
   if (!state.subjectId) { showOnly("subjectOverlay"); setStatus("Enter Subject ID first"); return; }
   if (!state.samnPerelli) { showOnly("fatigueOverlay"); setStatus("Select fatigue rating first"); return; }
   clearTimer(); clearNoResponseTimer();
@@ -1747,7 +1747,7 @@ async function startTest() {
   state.previousMissed = false;
   state.lastFrameDuration = null;
   setTestingQuiet(true);
-  await captureGeoAndAddress();
+  captureGeoAndAddress();   // fire-and-forget — geo captured async, stored when ready
   noteAnyResponse();
   openTrial("calibration");
 }
