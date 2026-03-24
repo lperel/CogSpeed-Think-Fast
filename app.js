@@ -1093,10 +1093,15 @@ function renderFatigueChecklist() {
     b.className = "fatigue-item";
     b.textContent = `${score}. ${label}`;
     b.onclick = () => {
+      // Highlight selected, clear others
+      f.querySelectorAll(".fatigue-item").forEach(el => el.style.background = "");
+      b.style.background = "rgba(0,180,255,0.18)";
       state.samnPerelli = { score, label };
       fatigueOut.textContent = String(score);
-      $("fatigueOverlay").classList.add("hidden");
-      setStatus(`Fatigue rating: ${score} — ${label}`);
+      setStatus(`S-PF: ${score} — ${label}`);
+      // Show Start Test button
+      const startBtn = $("fatigueStartBtn");
+      if (startBtn) startBtn.classList.remove("hidden");
     };
     f.appendChild(b);
   }
@@ -1791,11 +1796,17 @@ $("subjectNextBtn").onclick = () => {
   setStatus(`Subject ID: ${state.subjectId}`);
 };
 
-$("skipRefresherBtn").onclick    = () => { showOnly("fatigueOverlay"); setStatus("Refresher skipped"); };
+$("skipRefresherBtn").onclick    = () => {
+  const sb = $("fatigueStartBtn"); if (sb) sb.classList.add("hidden");
+  $("fatigueList").querySelectorAll(".fatigue-item").forEach(el => el.style.background = "");
+  showOnly("fatigueOverlay"); setStatus("Refresher skipped");
+};
 $("refBackBtn").onclick          = () => goToStartPage();
 $("refStartOverBtn").onclick     = () => startOverFlow();
 $("fatigueBackBtn").onclick      = () => goToStartPage();
 $("fatigueStartOverBtn").onclick = () => startOverFlow();
+const fatigueStartBtn = $("fatigueStartBtn");
+if (fatigueStartBtn) fatigueStartBtn.onclick = () => startTest();
 
 $("adminOpenBtn").onclick  = () => {
   $("adminOverlay").classList.remove("hidden");
