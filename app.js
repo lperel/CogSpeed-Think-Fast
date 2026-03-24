@@ -299,17 +299,13 @@ function buildGearSVG(si,pattern,size,spinClass){
       <stop offset="0%" stop-color="${lgt}"/>
       <stop offset="100%" stop-color="${drk}"/>
     </radialGradient>
-    <radialGradient id="hg${uid}" cx="40%" cy="35%" r="60%">
-      <stop offset="0%" stop-color="${lighten(g.hFill,20)}"/>
-      <stop offset="100%" stop-color="${g.hFill}"/>
-    </radialGradient>
+    <!-- hub gradient removed -->
   </defs>
   <g class="g-rot" style="transform-origin:50px 50px">
     <path d="${path}" fill="url(#rg${uid})" stroke="${g.stroke}" stroke-width="0.8"/>
-    <circle cx="${cx}" cy="${cy}" r="${ringR}" fill="none" stroke="${g.rim}" stroke-width="0.8" opacity="0.6"/>
+    <!-- inner ring removed -->
     ${spokes}
-    <circle cx="${cx}" cy="${cy}" r="${g.hub}" fill="url(#hg${uid})" stroke="${g.hStroke}" stroke-width="1.2"/>
-    <circle cx="${cx}" cy="${cy}" r="${g.hub*0.45}" fill="${g.body}" opacity="0.8"/>
+    <!-- hub removed to avoid obscuring pattern -->
   </g>
   <g class="g-pat">${marks}</g>
 </svg>`;
@@ -339,7 +335,8 @@ function renderTrial(trial){
     cell.innerHTML+=buildGearSVG(i+1,trial.topItems[i].pattern,"large",""); // no rotation during test
     stimGrid.appendChild(cell);
   }
-  probeCell.classList.remove("idle");
+  // Clear ALL spin/animation classes before rendering probe
+  probeCell.classList.remove("idle","gspin-f","gspin-r","gidle-f","gidle-r");
   probeInner.innerHTML=buildGearSVG(0,trial.probePattern,"probe",""); // no rotation during test
   respGrid.innerHTML="";
   for(let i=0;i<6;i++){
@@ -642,14 +639,20 @@ function renderRefresher(){
 // ─── Fatigue checklist ───
 function renderFatigueChecklist(){
   const f=$("fatigueList"); f.innerHTML="";
+  f.style.cssText="display:flex;flex-direction:column;gap:8px;flex:1";
   for(const [score,label] of SAMN_PERELLI){
     const b=document.createElement("button"); b.className="fatigue-item";
-    b.textContent=`${score}. ${label}`;
+    b.style.cssText="flex:1;font-size:18px;font-weight:600;padding:0 18px;display:flex;align-items:center;gap:14px;min-height:52px";
+    const num=document.createElement("span");
+    num.style.cssText="font-size:28px;font-weight:900;color:var(--accent);min-width:32px;text-align:center;flex-shrink:0";
+    num.textContent=String(score);
+    const txt=document.createElement("span"); txt.textContent=label;
+    b.appendChild(num); b.appendChild(txt);
     b.onclick=()=>{
       f.querySelectorAll(".fatigue-item").forEach(el=>el.style.background="");
-      b.style.background="rgba(0,180,255,0.18)";
+      b.style.background="rgba(0,180,255,0.22)";
       state.samnPerelli={score,label}; fatigueOut.textContent=String(score);
-      setStatus(`S-PF: ${score} — ${label}`);
+      setStatus(`SP-FS: ${score} — ${label}`);
       const sb=$("fatigueStartBtn"); if(sb) sb.classList.remove("hidden");
     };
     f.appendChild(b);
@@ -937,6 +940,7 @@ function goToStartPage(){
   clearCurrentSession();
   ["thinkingOverlay","outcomeOverlay","testScreen"].forEach(id=>{ const el=$(id); if(el) el.classList.add("hidden"); });
   const curtain=$("curtain"); if(curtain) curtain.classList.remove("open");
+  probeCell.classList.remove("gspin-f","gspin-r","gidle-f","gidle-r");
   stopFX(); setStatus("Ready"); showOnly("subjectOverlay");
 }
 function startOverFlow(){
