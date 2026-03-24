@@ -1955,8 +1955,152 @@ $("installBtn").onclick = async () => {
   setStatus(choice.outcome === "accepted" ? "App added to home screen." : "Cancelled.");
 };
 
-// ─── Init ───
-modeLabel.textContent = "Subject mode";
+// ─── Animated Logo ───
+(function initAnimatedLogo() {
+  const canvas = $("logoCanvas");
+  if (!canvas) return;
+  const ctx = canvas.getContext("2d");
+  const W = canvas.width, H = canvas.height;
+
+  // Gear definitions: cx, cy, outerR, innerR, teeth, toothDepth, speed, dir
+  const gears = [
+    { cx:196, cy:102, R:54, r:40, teeth:18, td:10, speed:0.4,  dir: 1 }, // large
+    { cx:136, cy: 68, R:26, r:19, teeth:10, td: 6, speed:0.83, dir:-1 }, // small top-left
+    { cx:162, cy:156, R:38, r:28, teeth:14, td: 8, speed:0.57, dir:-1 }, // medium bottom
+  ];
+
+  let angle = 0;
+
+  function drawGear(g, rot) {
+    const { cx, cy, R, r, teeth, td } = g;
+    const step = (Math.PI * 2) / teeth;
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(rot);
+
+    // Glow
+    ctx.shadowColor = "#00cfff";
+    ctx.shadowBlur  = 14;
+
+    // Tooth path
+    ctx.beginPath();
+    for (let i = 0; i < teeth; i++) {
+      const a0 = step * i - step * 0.3;
+      const a1 = step * i - step * 0.1;
+      const a2 = step * i + step * 0.1;
+      const a3 = step * i + step * 0.3;
+      ctx.lineTo(Math.cos(a0) * r,       Math.sin(a0) * r);
+      ctx.lineTo(Math.cos(a1) * (r + td), Math.sin(a1) * (r + td));
+      ctx.lineTo(Math.cos(a2) * (r + td), Math.sin(a2) * (r + td));
+      ctx.lineTo(Math.cos(a3) * r,        Math.sin(a3) * r);
+    }
+    ctx.closePath();
+    ctx.strokeStyle = "#4dd8f5";
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    // Inner ring
+    ctx.beginPath();
+    ctx.arc(0, 0, R * 0.55, 0, Math.PI * 2);
+    ctx.strokeStyle = "#4dd8f5";
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    // Hub rings (large gear gets double ring)
+    ctx.beginPath();
+    ctx.arc(0, 0, R * 0.25, 0, Math.PI * 2);
+    ctx.strokeStyle = "#7fe8ff";
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    if (teeth >= 16) {
+      ctx.beginPath();
+      ctx.arc(0, 0, R * 0.38, 0, Math.PI * 2);
+      ctx.strokeStyle = "#4dd8f5";
+      ctx.lineWidth = 1.2;
+      ctx.stroke();
+    }
+
+    ctx.restore();
+  }
+
+  function drawHead() {
+    ctx.save();
+    ctx.shadowColor = "#5ab4d8";
+    ctx.shadowBlur  = 12;
+    ctx.strokeStyle = "rgba(160,220,255,0.75)";
+    ctx.lineWidth   = 2.5;
+    ctx.beginPath();
+    // Profile facing left: forehead → crown → back → neck
+    ctx.moveTo(175, 10);
+    ctx.bezierCurveTo(220, 8, 258, 40, 262, 88);
+    ctx.bezierCurveTo(268, 130, 255, 175, 240, 200);
+    ctx.bezierCurveTo(228, 220, 215, 238, 200, 252);
+    ctx.bezierCurveTo(185, 265, 170, 272, 160, 278);
+    // Neck
+    ctx.lineTo(155, 295);
+    ctx.lineTo(148, 295);
+    ctx.lineTo(143, 278);
+    // Face
+    ctx.bezierCurveTo(128, 265, 112, 248, 104, 228);
+    ctx.bezierCurveTo( 92, 202,  90, 170,  95, 148);
+    ctx.bezierCurveTo( 98, 128, 108, 112, 118, 100);
+    // Nose/brow
+    ctx.bezierCurveTo(125,  88, 128,  75, 132,  62);
+    ctx.bezierCurveTo(138,  42, 152,  14, 175,  10);
+    ctx.stroke();
+
+    // Small triangle on forehead (third-eye detail from logo)
+    ctx.beginPath();
+    ctx.moveTo(112, 152);
+    ctx.lineTo(106, 164);
+    ctx.lineTo(118, 164);
+    ctx.closePath();
+    ctx.strokeStyle = "rgba(160,220,255,0.6)";
+    ctx.lineWidth   = 1.5;
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawText() {
+    ctx.save();
+    ctx.shadowColor = "#00cfff";
+    ctx.shadowBlur  = 18;
+    ctx.font        = "bold 44px 'Arial', sans-serif";
+    ctx.textAlign   = "center";
+
+    // Gradient fill
+    const grad = ctx.createLinearGradient(60, 0, 260, 0);
+    grad.addColorStop(0,   "#7fe8ff");
+    grad.addColorStop(0.4, "#ffffff");
+    grad.addColorStop(1,   "#4dd8f5");
+    ctx.fillStyle = grad;
+    ctx.fillText("CogSpeed", 160, 288);
+    ctx.restore();
+  }
+
+  function frame() {
+    ctx.clearRect(0, 0, W, H);
+
+    // Dark background
+    ctx.fillStyle = "rgba(6,14,26,0.92)";
+    ctx.fillRect(0, 0, W, H);
+
+    drawHead();
+
+    // Draw gears with meshed rotation
+    gears.forEach((g, i) => {
+      const rot = angle * g.speed * g.dir;
+      drawGear(g, rot);
+    });
+
+    drawText();
+
+    angle += 0.025;
+    requestAnimationFrame(frame);
+  }
+
+  frame();
+})();
 renderFatigueChecklist();
 renderRefresher();
 updateMetrics();
