@@ -108,7 +108,7 @@ const state={
   spCorrectStreak:0, spWrongCount:0, terminalBlockReason:null,
   history:JSON.parse(localStorage.getItem("cogspeed_v18_history")||"[]"),
   totalTrials:0, totalResponses:0, totalCorrect:0, totalIncorrect:0,
-  missedTrials:0, pacedErrors:0, rollMeanLog:[],
+  missedTrials:0, pacedErrors:0, recoveryErrors:0, rollMeanLog:[],
   testStartTime:null, trialTimer:null, absoluteNoResponseTimer:null, maxTestTimer:null,
   lastFiveAnswers:[], samnPerelli:null, subjectId:null,
   calibrationTrialIndex:0, calibrationRTs:[], calibrationErrors:0,
@@ -348,7 +348,7 @@ function finish(){
     cognitivePerformanceScore:cps, totalResponses:state.totalResponses,
     totalTrials:state.totalTrials, totalCorrect:state.totalCorrect,
     totalIncorrect:state.totalIncorrect, missedTrials:state.missedTrials,
-    pacedErrors:state.pacedErrors, pacedResponseCount:state.pacedRTs.length,
+    pacedErrors:state.pacedErrors, recoveryErrors:state.recoveryErrors, pacedResponseCount:state.pacedRTs.length,
     pacedResponseMeanMs:state.pacedRTs.length?mean(state.pacedRTs):null,
     pacedResponseSdMs:sd, testDurationMs:testDurMs,
     rtLog:[...state.rtLog], endReason:state.endReason||"Run complete",
@@ -463,7 +463,7 @@ function handleTap(index){
         setTimeout(()=>openTrial("recovery"),160);
       }
     }else{
-      state.spCorrectStreak=0; state.spWrongCount+=1;
+      state.spCorrectStreak=0; state.spWrongCount+=1; state.recoveryErrors+=1;
       const limit=Math.max(1,Number(settings.spRestartWrongLimit)||3);
       if(state.spWrongCount>=limit){ state.endReason=`SP Restart failed: ${limit} wrong before ${settings.spRestartCorrectStreak} correct in a row`; finish(); return; }
       setStatus(`SP Restart: ${state.spWrongCount}/${limit} wrong`);
@@ -506,7 +506,7 @@ function handleTap(index){
     }
     return;
   }
-  state.previousMissed=false; state.lastFrameDuration=null; state.lastProbe=null; state.hadResponse=false;
+  state.previousMissed=false; state.lastFrameDuration=null; state.lastProbe=null;
   if(state.current&&!state.current.resolved&&trialMatches(state.current,index)){
     state.current.resolved=true; state.totalResponses+=1; state.totalCorrect+=1;
     applyPacing(rt,true); state.pacedRTs.push(rt);
@@ -763,6 +763,7 @@ RESPONSE STATISTICS
   Missed (no response):  ${result.missedTrials}
   Paced correct taps:    ${result.pacedResponseCount||0}
   Paced wrong taps:      ${result.pacedErrors||0}
+  SP Restart wrong taps: ${result.recoveryErrors||0}
   Mean paced RT:         ${result.pacedResponseMeanMs!=null?result.pacedResponseMeanMs.toFixed(1)+" ms":"—"}
   Paced RT SD:           ${sd!=null?sd.toFixed(1)+" ms":"—"}
 ${hr}
