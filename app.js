@@ -897,7 +897,7 @@ $("unlockBtn").onclick=()=>{
   else setStatus("Incorrect passcode — default is 4822");
 };
 $("closeAdminBtn").onclick=()=>$("adminOverlay").classList.add("hidden");
-$("closeAdminBtn2").onclick=()=>$("adminOverlay").classList.add("hidden");
+$("closeAdminBtn2").onclick=()=>$("benchmarkOverlay").classList.add("hidden");
 $("saveAdminBtn").onclick=()=>{ readAdmin(); saveSettings(); renderAdmin(); setStatus("Settings saved"); };
 $("resetAdminBtn").onclick=()=>{ resetAdmin(); setStatus("Settings reset to defaults"); };
 $("exportAdminBtn").onclick=()=>{ const blob=new Blob([JSON.stringify(settings,null,2)],{type:"application/json"}),a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download="cogspeed_v17_settings.json"; a.click(); };
@@ -914,9 +914,7 @@ $("historyClearBtn").onclick=()=>{
 const _tsel=$("trialLogSessionSelect");
 if(_tsel) _tsel.onchange=()=>buildTrialLog();
 $("adminBackBtn").onclick=()=>goToStartPage();
-$("adminBackBtn2").onclick=()=>goToStartPage();
 $("adminStartOverBtn").onclick=()=>startOverFlow();
-$("adminStartOverBtn2").onclick=()=>startOverFlow();
 $("benchRunBtn").onclick=()=>runDeviceBenchmark(true);
 $("benchMainBtn").onclick=()=>{ $("benchmarkOverlay").classList.add("hidden"); };
 $("startBtn").onclick=startTest;
