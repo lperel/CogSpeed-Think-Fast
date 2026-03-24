@@ -223,25 +223,22 @@
       <div class="summary-card" style="grid-column:1/-1"><div class="summary-card-label">End Reason</div><div style="font-size:12px;color:var(--muted);margin-top:4px" id="sumEndReason">—</div></div>
     </div>
     <div class="controls">
-      <button class="ctrl-btn" id="summaryRestartBtn">Restart</button>
-      <button class="ctrl-btn" id="summaryViewResultsBtn">Full Results</button>
+      <button class="ctrl-btn" id="summaryRestartBtn">New Test</button>
+      <button class="ctrl-btn" id="summaryAdminBtn">Admin →</button>
     </div>
   </div>
 </div>
 
-<!-- ═══ RESULTS OVERLAY ═══ -->
+<!-- Results handled via Admin > History & Graphs -->
 <div id="resultsOverlay" class="overlay hidden">
   <div class="modal">
-    <div style="text-align:center;margin-bottom:8px"><span class="badge">Results</span></div>
-    <canvas id="resultsRTChart" width="380" height="120" style="margin-bottom:8px"></canvas>
-    <canvas id="resultsHistChart" width="380" height="160" style="margin-bottom:8px"></canvas>
-    <div class="panel result" id="resultsPageBox"></div>
-    <div class="controls" style="margin-top:10px;flex-wrap:wrap;gap:6px">
-      <button class="ctrl-btn" id="resultsBackBtn">Restart</button>
-      <button class="ctrl-btn" id="resultsStartOverBtn">Full Reset</button>
-      <button class="ctrl-btn" id="resultsExportBtn">Save Data</button>
-      <button class="ctrl-btn" id="resultsEmailBtn">Email</button>
-    </div>
+    <div id="resultsPageBox" style="display:none"></div>
+    <canvas id="resultsRTChart" style="display:none"></canvas>
+    <canvas id="resultsHistChart" style="display:none"></canvas>
+    <button id="resultsBackBtn" style="display:none"></button>
+    <button id="resultsStartOverBtn" style="display:none"></button>
+    <button id="resultsExportBtn" style="display:none"></button>
+    <button id="resultsEmailBtn" style="display:none"></button>
   </div>
 </div>
 

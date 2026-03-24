@@ -682,20 +682,22 @@ function buildSummary(result){
 
 // ─── Results page ───
 function showResultsPage(text){
-  const thinking=$("thinkingOverlay"),outcome=$("outcomeOverlay"),outcomeText=$("outcomeText"),summary=$("summaryOverlay");
+  const thinking=$("thinkingOverlay"),outcome=$("outcomeOverlay"),outcomeText=$("outcomeText");
   const last=state.history[state.history.length-1];
   const success=last?isTestSuccess(last.endReason):false;
   if(thinking){ thinking.classList.remove("hidden"); startFX(); }
   setTimeout(()=>{
     stopFX(); if(thinking) thinking.classList.add("hidden");
-    if(outcome&&outcomeText){ outcomeText.textContent=success?"SUCCESS!":"Test Failed"; outcomeText.className="outcome-text "+(success?"success":"failed"); outcome.classList.remove("hidden"); }
+    if(outcome&&outcomeText){
+      outcomeText.textContent=success?"SUCCESS!":"Test Complete";
+      outcomeText.className="outcome-text "+(success?"success":"failed");
+      outcome.classList.remove("hidden");
+    }
     setTimeout(()=>{
       if(outcome) outcome.classList.add("hidden");
+      // Show subject-facing summary only
       if(last) buildSummary(last);
-      if(summary) summary.classList.remove("hidden");
-      const box=$("resultsPageBox"); if(box) box.textContent=text;
-      renderHistoryGraphs();
-      if(last) drawRTScatterChart($("resultsRTChart"),last.rtLog||[],last.blocks||[],last.pacedResponseMeanMs,last.pacedResponseSdMs);
+      $("summaryOverlay").classList.remove("hidden");
       setTestingQuiet(false);
     },3000);
   },6000);
@@ -724,6 +726,7 @@ function goToStartPage(){
 function startOverFlow(){
   clearCurrentSession(); state.subjectId=null; state.samnPerelli=null;
   fatigueOut.textContent="—"; $("subjectIdInput").value="";
+  _adminUnlocked=false;
   setStatus("Reset. Enter Subject ID."); showOnly("subjectOverlay");
 }
 
@@ -890,11 +893,25 @@ $("fatigueBackBtn").onclick=()=>goToStartPage();
 $("fatigueStartOverBtn").onclick=()=>startOverFlow();
 const _fsb=$("fatigueStartBtn");
 if(_fsb) _fsb.onclick=startTest;
-$("adminOpenBtn").onclick=()=>{ $("adminOverlay").classList.remove("hidden"); $("adminGate").classList.remove("hidden"); $("adminBody").classList.add("hidden"); $("adminPass").value=""; };
+let _adminUnlocked = false;
+$("adminOpenBtn").onclick=()=>{
+  $("adminOverlay").classList.remove("hidden");
+  if(_adminUnlocked){
+    $("adminGate").classList.add("hidden");
+    $("adminBody").classList.remove("hidden");
+    renderAdmin();
+  } else {
+    $("adminGate").classList.remove("hidden");
+    $("adminBody").classList.add("hidden");
+    $("adminPass").value="";
+  }
+};
 $("unlockBtn").onclick=()=>{
   const v=$("adminPass").value;
-  if(v===settings.adminPasscode||v==="4822"){ $("adminGate").classList.add("hidden"); $("adminBody").classList.remove("hidden"); renderAdmin(); setStatus("Admin unlocked"); }
-  else setStatus("Incorrect passcode — default is 4822");
+  if(v===settings.adminPasscode||v==="4822"){
+    _adminUnlocked=true;
+    $("adminGate").classList.add("hidden"); $("adminBody").classList.remove("hidden"); renderAdmin(); setStatus("Admin unlocked");
+  } else setStatus("Incorrect passcode — default is 4822");
 };
 $("closeAdminBtn").onclick=()=>$("adminOverlay").classList.add("hidden");
 $("closeAdminBtn2").onclick=()=>$("benchmarkOverlay").classList.add("hidden");
@@ -920,8 +937,16 @@ $("benchMainBtn").onclick=()=>{ $("benchmarkOverlay").classList.add("hidden"); }
 $("startBtn").onclick=startTest;
 $("backToStartBtn").onclick=goToStartPage;
 $("startOverBtn").onclick=startOverFlow;
-$("summaryViewResultsBtn").onclick=()=>{ $("summaryOverlay").classList.add("hidden"); showOnly("resultsOverlay"); };
 $("summaryRestartBtn").onclick=()=>{ $("summaryOverlay").classList.add("hidden"); goToStartPage(); };
+$("summaryAdminBtn").onclick=()=>{
+  $("summaryOverlay").classList.add("hidden");
+  $("adminOverlay").classList.remove("hidden");
+  if(_adminUnlocked){
+    $("adminGate").classList.add("hidden"); $("adminBody").classList.remove("hidden"); renderAdmin();
+  } else {
+    $("adminGate").classList.remove("hidden"); $("adminBody").classList.add("hidden"); $("adminPass").value="";
+  }
+};
 $("resultsBackBtn").onclick=goToStartPage;
 $("resultsStartOverBtn").onclick=startOverFlow;
 $("resultsExportBtn").onclick=exportResults;
