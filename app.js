@@ -73,11 +73,11 @@ const DOT_PATTERNS={
 };
 const LINE_PATTERNS={
   1:[["v",50,50]],
-  2:[["v",28,50],["v",72,50]],
-  3:[["v",28,72],["v",50,28],["v",72,72]],
-  4:[["v",28,28],["v",72,28],["v",28,72],["v",72,72]],
-  5:[["v",28,28],["v",72,28],["v",50,50],["v",28,72],["v",72,72]],
-  6:[["v",28,18],["v",72,18],["v",28,50],["v",72,50],["v",28,82],["v",72,82]]
+  2:[["v",25,50],["v",75,50]],
+  3:[["v",50,18],["v",25,75],["v",75,75]],
+  4:[["v",25,25],["v",75,25],["v",25,75],["v",75,75]],
+  5:[["v",25,18],["v",75,18],["v",50,50],["v",25,82],["v",75,82]],
+  6:[["v",17,28],["v",50,28],["v",83,28],["v",17,72],["v",50,72],["v",83,72]]
 };
 const SAMN_PERELLI=[
   [7,"Full alert, wide awake"],
@@ -160,8 +160,7 @@ function noteAnyResponse(){ armNoResponseTimer(); }
 
 // ─── Quiet mode ───
 function setTestingQuiet(q){
-  if(metricsPanel) metricsPanel.style.display=q?"none":"grid";
-  const sl=$("statusLine"); if(sl) sl.style.display=q?"none":"block";
+  // Test screen is gears-only — nothing to show/hide during test
   if(resultBox) resultBox.classList.add("hidden");
 }
 
@@ -286,7 +285,7 @@ function buildGearSVG(si,pattern,size,spinClass){
   let marks="";
   if(pattern){
     const iR=(g.rP-g.ded-4)*0.72;
-    const dotR=size==="probe"?6:5, lw=size==="probe"?9:7, lh=size==="probe"?22:17;
+    const dotR=size==="probe"?6:5, lw=size==="probe"?9:7, lh=size==="probe"?14:10;
     marks=pattern.map(([k,px,py])=>{
       const ix=cx+(px/100-0.5)*iR*1.95, iy=cy+(py/100-0.5)*iR*1.95;
       if(k==="dot") return `<circle cx="${ix.toFixed(1)}" cy="${iy.toFixed(1)}" r="${dotR}" fill="white" opacity="0.95"/>`;
@@ -984,7 +983,6 @@ function startTest(){
   clearCurrentSession();
   state.subjectId=sid; state.samnPerelli=spf;
   const fo=$("fatigueOut"); if(fo) fo.textContent=String(spf.score);
-  const fo2=$("fatigueOut2"); if(fo2) fo2.textContent=String(spf.score);
   hideAllOverlays();
   setTestingQuiet(true);
   captureGeo();
