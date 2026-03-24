@@ -640,47 +640,46 @@ let _fxRaf=null, _fxParticles=[];
 function startFX(){
   const canvas=$("fxCanvas"); if(!canvas) return;
   const ctx=canvas.getContext("2d");
-  canvas.width=340; canvas.height=240;
+  // Size canvas to its rendered size (box inset:-60px means canvas extends 60px beyond box)
+  const cr=canvas.getBoundingClientRect();
+  const W=Math.round(cr.width)||338, H=Math.round(cr.height)||212;
+  canvas.width=W; canvas.height=H;
+  // Gear corners: box padding is 60px inside canvas (inset:-60px)
+  const br=canvas.parentElement.getBoundingClientRect();
+  const BW=Math.round(br.width), BH=Math.round(br.height), OFF=60;
+  const GEARS=[
+    {x:OFF+14,    y:OFF+14},
+    {x:OFF+BW-14, y:OFF+14},
+    {x:OFF+14,    y:OFF+BH-14},
+    {x:OFF+BW-14, y:OFF+BH-14}
+  ];
   _fxParticles=[];
-  // Gear corner positions (matching CSS .gear-corner tl/tr/bl/br at ~14px from edges of 340x240 canvas)
-  const GEARS=[{x:22,y:22},{x:318,y:22},{x:22,y:218},{x:318,y:218}];
   function frame(){
-    ctx.clearRect(0,0,canvas.width,canvas.height);
-    // Spawn from each gear corner
+    ctx.clearRect(0,0,W,H);
     GEARS.forEach(g=>{
-      if(Math.random()<0.15){
-        // Smoke wisp
-        const angle=-Math.PI/2+(Math.random()-0.5)*0.8; // mostly upward
-        _fxParticles.push({
-          x:g.x+(Math.random()-0.5)*8, y:g.y+(Math.random()-0.5)*8,
-          vx:Math.cos(angle)*0.6, vy:Math.sin(angle)*0.8,
-          life:1, size:4, type:"smoke"
-        });
+      if(Math.random()<0.18){
+        const ang=-Math.PI/2+(Math.random()-0.5)*1.0;
+        _fxParticles.push({x:g.x+(Math.random()-0.5)*8,y:g.y+(Math.random()-0.5)*8,
+          vx:Math.cos(ang)*0.6,vy:Math.sin(ang)*1.0,life:1,size:5,type:"smoke"});
       }
-      if(Math.random()<0.06){
-        // Occasional spark
-        const angle=Math.random()*Math.PI*2;
-        _fxParticles.push({
-          x:g.x, y:g.y,
-          vx:Math.cos(angle)*1.8, vy:Math.sin(angle)*1.8,
-          life:0.8, type:"spark"
-        });
+      if(Math.random()<0.05){
+        const ang=Math.random()*Math.PI*2;
+        _fxParticles.push({x:g.x,y:g.y,vx:Math.cos(ang)*2.2,vy:Math.sin(ang)*2.2,life:0.7,type:"spark"});
       }
     });
     _fxParticles=_fxParticles.filter(p=>p.life>0);
     _fxParticles.forEach(p=>{
       p.x+=p.vx; p.y+=p.vy; p.vx*=0.97; p.vy*=0.97;
       if(p.type==="smoke"){
-        p.life-=0.01; p.size+=0.35;
+        p.life-=0.009; p.size+=0.4;
         const a=p.life*0.22;
         const g=ctx.createRadialGradient(p.x,p.y,0,p.x,p.y,p.size);
-        g.addColorStop(0,`rgba(150,160,180,${a})`);
-        g.addColorStop(1,"rgba(80,90,110,0)");
+        g.addColorStop(0,`rgba(155,165,185,${a})`); g.addColorStop(1,"rgba(80,90,110,0)");
         ctx.fillStyle=g; ctx.beginPath(); ctx.arc(p.x,p.y,p.size,0,Math.PI*2); ctx.fill();
-      } else {
+      }else{
         p.life-=0.03;
-        ctx.strokeStyle=`hsla(45,90%,70%,${p.life*0.6})`;
-        ctx.lineWidth=1; ctx.lineCap="round";
+        ctx.strokeStyle=`hsla(45,85%,70%,${p.life*0.55})`;
+        ctx.lineWidth=1.2; ctx.lineCap="round";
         ctx.beginPath(); ctx.moveTo(p.x,p.y); ctx.lineTo(p.x-p.vx*3,p.y-p.vy*3); ctx.stroke();
       }
     });
