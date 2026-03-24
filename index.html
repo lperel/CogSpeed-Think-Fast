@@ -315,21 +315,46 @@
   </div>
 </div>
 
-<!-- ═══ MAIN APP ═══ -->
-<div class="app">
-  <div class="topbar">
-    <div class="topbar-left" id="modeLabel">Subject mode</div>
-    <div style="text-align:center"><span class="badge">V18</span></div>
-    <div class="topbar-right" id="phaseLabel">Ready</div>
+<!-- ═══ MAIN APP (overlays only when not testing) ═══ -->
+<div class="app" id="mainApp" style="display:none">
+  <div class="panel result hidden" id="resultBox"></div>
+  <!-- Hidden metric outputs still needed for JS compatibility -->
+  <div style="display:none">
+    <span id="fatigueOut">—</span>
+    <span id="modeLabel">Subject mode</span>
   </div>
-  <div class="panel"><div class="stim-grid" id="stimGrid"></div></div>
+</div>
+
+<!-- ═══ TEST SCREEN ═══ -->
+<div class="test-screen hidden" id="testScreen">
+  <!-- curtain overlay -->
+  <div class="curtain" id="curtain">
+    <div class="curtain-left"></div>
+    <div class="curtain-right"></div>
+  </div>
+
+  <!-- topbar -->
+  <div class="ts-topbar">
+    <span id="phaseLabel" style="color:rgba(127,215,255,0.5);font-weight:700">Ready</span>
+    <span class="badge" style="font-size:11px;padding:2px 10px">V18</span>
+    <span id="statusLine" style="font-size:10px">CogSpeed V18</span>
+  </div>
+
+  <!-- stimulus gear grid (top) -->
+  <div class="stim-grid" id="stimGrid"></div>
+
+  <!-- probe gear (center) -->
   <div class="probe-row">
     <div class="probe-cell idle" id="probeCell">
       <div class="probe-label">MATCH</div>
       <div id="probeInner"></div>
     </div>
   </div>
-  <div class="panel"><div class="resp-grid" id="respGrid"></div></div>
+
+  <!-- response gear grid (bottom) -->
+  <div class="resp-grid" id="respGrid"></div>
+
+  <!-- metrics -->
   <div class="metrics" id="metricsPanel">
     <div class="metric"><div class="metric-label">Pace</div><div class="metric-val" id="rateOut">—</div></div>
     <div class="metric"><div class="metric-label">Blocks</div><div class="metric-val" id="blocksOut">0</div></div>
@@ -337,18 +362,19 @@
     <div class="metric"><div class="metric-label">Wrong</div><div class="metric-val" id="wrongOut">0</div></div>
     <div class="metric"><div class="metric-label">CPS</div><div class="metric-val" id="cpsOut">—</div></div>
   </div>
-  <div class="metrics" style="grid-template-columns:1fr 1fr;display:grid;gap:4px">
-    <div class="metric"><div class="metric-label">S-PF</div><div class="metric-val" id="fatigueOut">—</div></div>
-    <div class="metric"><div class="metric-label">Status</div><div class="metric-val" style="font-size:11px;color:var(--muted)" id="statusLine">CogSpeed V18 ready.</div></div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:3px;padding:1px 6px;flex-shrink:0">
+    <div class="metric"><div class="metric-label">S-PF</div><div class="metric-val" id="fatigueOut2" style="font-size:11px">—</div></div>
+    <div class="metric" style="grid-column:1/-1"><div class="metric-val" style="font-size:10px;color:var(--muted)" id="statusLine2"></div></div>
   </div>
-  <div class="controls" style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px">
+
+  <!-- bottom controls -->
+  <div class="ts-controls">
     <button class="ctrl-btn" id="startBtn">Start</button>
     <button class="ctrl-btn" id="backToStartBtn">Restart</button>
     <button class="ctrl-btn" id="startOverBtn">Full Reset</button>
   </div>
-  <div class="panel result hidden" id="resultBox"></div>
 </div>
 
-<script src="app.js?v=25"></script>
+<script src="app.js?v=26"></script>
 </body>
 </html>

@@ -160,9 +160,9 @@ function noteAnyResponse(){ armNoResponseTimer(); }
 
 // ─── Quiet mode ───
 function setTestingQuiet(q){
-  metricsPanel.style.display=q?"none":"grid";
-  statusLine.style.display=q?"none":"block";
-  resultBox.classList.add("hidden");
+  if(metricsPanel) metricsPanel.style.display=q?"none":"grid";
+  const sl=$("statusLine"); if(sl) sl.style.display=q?"none":"block";
+  if(resultBox) resultBox.classList.add("hidden");
 }
 
 // ─── Geo (fire and forget) ───
@@ -225,24 +225,153 @@ function makeTrial(kind,lastCorrectPos,lastProbe){
   throw new Error("makeTrial: could not generate valid trial after 500 attempts");
 }
 
-// ─── Render trial ───
+
+// ── 7 gear style definitions ──
+// index 0 = probe, 1–6 = cell/button pairs
+const GEAR_STYLES = [
+  // 0: PROBE — 12 teeth, bright silver center glow
+  { teeth:12, r:0.72, toothH:0.13, toothW:0.18, bodyFill:"#1a2a3a", bodyStroke:"#7fd7ff",
+    toothFill:"#5aa8d8", toothStroke:"#9de0ff", rimWidth:3, glowColor:"rgba(127,215,255,0.5)",
+    centerR:0.22, centerFill:"#0d2a40", hubColor:"#7fd7ff" },
+  // 1: 8 teeth, dark charcoal
+  { teeth:8,  r:0.70, toothH:0.14, toothW:0.22, bodyFill:"#1c1c24", bodyStroke:"#5a5a6e",
+    toothFill:"#3a3a4a", toothStroke:"#6a6a80", rimWidth:2, glowColor:"rgba(90,90,110,0.3)",
+    centerR:0.20, centerFill:"#141420", hubColor:"#5a5a6e" },
+  // 2: 10 teeth, mid gray
+  { teeth:10, r:0.68, toothH:0.13, toothW:0.20, bodyFill:"#252530", bodyStroke:"#707080",
+    toothFill:"#484858", toothStroke:"#808090", rimWidth:2, glowColor:"rgba(100,100,120,0.3)",
+    centerR:0.20, centerFill:"#1a1a24", hubColor:"#707080" },
+  // 3: 9 teeth, silver-blue
+  { teeth:9,  r:0.71, toothH:0.14, toothW:0.21, bodyFill:"#1e2830", bodyStroke:"#8090a0",
+    toothFill:"#506070", toothStroke:"#90a0b0", rimWidth:2, glowColor:"rgba(100,130,150,0.3)",
+    centerR:0.21, centerFill:"#141e28", hubColor:"#8090a0" },
+  // 4: 7 teeth, gunmetal
+  { teeth:7,  r:0.69, toothH:0.15, toothW:0.24, bodyFill:"#1a1e1e", bodyStroke:"#606868",
+    toothFill:"#3a4040", toothStroke:"#707878", rimWidth:2, glowColor:"rgba(80,100,100,0.3)",
+    centerR:0.20, centerFill:"#141818", hubColor:"#606868" },
+  // 5: 11 teeth, warm silver
+  { teeth:11, r:0.70, toothH:0.13, toothW:0.19, bodyFill:"#28262a", bodyStroke:"#888090",
+    toothFill:"#584e60", toothStroke:"#988898", rimWidth:2, glowColor:"rgba(110,100,120,0.3)",
+    centerR:0.20, centerFill:"#1e1c20", hubColor:"#888090" },
+  // 6: 8 teeth, steel
+  { teeth:8,  r:0.71, toothH:0.14, toothW:0.22, bodyFill:"#202428", bodyStroke:"#7888a0",
+    toothFill:"#404858", toothStroke:"#788898", rimWidth:2, glowColor:"rgba(90,110,130,0.3)",
+    centerR:0.20, centerFill:"#181c20", hubColor:"#7888a0" },
+];
+
+// Build a gear SVG element with pattern content inside
+// styleIdx: 0=probe, 1-6=cell pair
+// pattern: array of mark definitions, size: "large"|"probe"|"small"
+// spinDir: "f" forward, "r" reverse, null=no spin class
+function buildGearSVG(styleIdx, pattern, size, spinDir, extraClass) {
+  const g = GEAR_STYLES[styleIdx];
+  const dim = 100; // viewBox units
+  const cx = 50, cy = 50;
+  const R = g.r * 50; // body radius in viewBox units
+  const teeth = g.teeth;
+  const tH = g.toothH * 50;
+  const tW = g.toothW * 50;
+  const rimW = g.rimWidth;
+
+  // Build tooth path
+  const toothPaths = [];
+  for (let i = 0; i < teeth; i++) {
+    const ang = (i / teeth) * Math.PI * 2;
+    const ang1 = ang - (tW / R) / 2;
+    const ang2 = ang + (tW / R) / 2;
+    const r1 = R, r2 = R + tH;
+    const x1 = cx + r1 * Math.cos(ang1), y1 = cy + r1 * Math.sin(ang1);
+    const x2 = cx + r2 * Math.cos(ang1), y2 = cy + r2 * Math.sin(ang1);
+    const x3 = cx + r2 * Math.cos(ang2), y3 = cy + r2 * Math.sin(ang2);
+    const x4 = cx + r1 * Math.cos(ang2), y4 = cy + r1 * Math.sin(ang2);
+    toothPaths.push(`M${x1.toFixed(1)},${y1.toFixed(1)} L${x2.toFixed(1)},${y2.toFixed(1)} L${x3.toFixed(1)},${y3.toFixed(1)} L${x4.toFixed(1)},${y4.toFixed(1)}Z`);
+  }
+
+  // Pattern content — scale to fit inside gear body
+  const innerR = R * 0.72; // usable inner area radius
+  const patMarks = pattern ? pattern.map(([k, px, py]) => {
+    // px,py are 0-100 coords → map to circle inscribed region
+    const ix = cx + (px/100 - 0.5) * innerR * 1.8;
+    const iy = cy + (py/100 - 0.5) * innerR * 1.8;
+    const dotR = size === "probe" ? 5.5 : 4.5;
+    const lw = size === "probe" ? 7 : 6;
+    const lh = size === "probe" ? 18 : 14;
+    if (k === "dot") {
+      return `<circle cx="${ix.toFixed(1)}" cy="${iy.toFixed(1)}" r="${dotR}" fill="white" opacity="0.92"/>`;
+    } else {
+      const x0 = (ix - lw/2).toFixed(1), y0 = (iy - lh/2).toFixed(1);
+      return `<rect x="${x0}" y="${y0}" width="${lw}" height="${lh}" rx="1.5" fill="white" opacity="0.92"/>`;
+    }
+  }).join("") : "";
+
+  const cR = g.centerR * 50;
+  const spinClass = spinDir === "f" ? "gear-spin-f" : spinDir === "r" ? "gear-spin-r" : "";
+  const idleClass = spinDir === "idle-f" ? "gear-idle-f" : spinDir === "idle-r" ? "gear-idle-r" : "";
+  const extra = extraClass || "";
+
+  const svg = `<svg class="gear-body ${spinClass} ${idleClass} ${extra}" viewBox="0 0 ${dim} ${dim}" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <radialGradient id="gbg${styleIdx}" cx="40%" cy="35%" r="65%">
+      <stop offset="0%" stop-color="${lighten(g.bodyFill, 20)}"/>
+      <stop offset="100%" stop-color="${darken(g.bodyFill, 10)}"/>
+    </radialGradient>
+    <filter id="gglow${styleIdx}" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="2" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+  <g class="gear-rotate-group" style="transform-origin:50px 50px">
+    <!-- body circle -->
+    <circle cx="${cx}" cy="${cy}" r="${R}" fill="url(#gbg${styleIdx})" stroke="${g.bodyStroke}" stroke-width="${rimW}"/>
+    <!-- teeth -->
+    ${toothPaths.map(p => `<path d="${p}" fill="${g.toothFill}" stroke="${g.toothStroke}" stroke-width="0.8"/>`).join("")}
+    <!-- inner ring -->
+    <circle cx="${cx}" cy="${cy}" r="${cR * 1.6}" fill="none" stroke="${g.bodyStroke}" stroke-width="1" opacity="0.4"/>
+    <!-- hub -->
+    <circle cx="${cx}" cy="${cy}" r="${cR}" fill="${g.centerFill}" stroke="${g.hubColor}" stroke-width="1.5"/>
+  </g>
+  <!-- pattern (non-rotating) -->
+  <g class="gear-pattern">${patMarks}</g>
+</svg>`;
+  return svg;
+}
+
+// Simple color helpers for gradient
+function lighten(hex, amt) {
+  const n = parseInt(hex.slice(1),16);
+  const r = Math.min(255,(n>>16)+amt), g = Math.min(255,((n>>8)&0xff)+amt), b = Math.min(255,(n&0xff)+amt);
+  return `rgb(${r},${g},${b})`;
+}
+function darken(hex, amt) {
+  const n = parseInt(hex.slice(1),16);
+  const r = Math.max(0,(n>>16)-amt), g = Math.max(0,((n>>8)&0xff)-amt), b = Math.max(0,(n&0xff)-amt);
+  return `rgb(${r},${g},${b})`;
+}
+// ─── Render trial (gear version) ───
 function renderTrial(trial){
+  // Show test screen, hide any overlays
+  const ts = $("testScreen"); if(ts) ts.classList.remove("hidden");
+
   stimGrid.innerHTML="";
   for(let i=0;i<6;i++){
     const cell=document.createElement("div");
-    cell.className="stim-cell";
+    cell.className="stim-cell " + (i%2===0?"gear-idle-f":"gear-idle-r");
     const lbl=document.createElement("div"); lbl.className="cell-label"; lbl.textContent=String(i+1);
     cell.appendChild(lbl);
-    cell.innerHTML+=patternToSVG(trial.topItems[i].pattern,"large");
+    const gsvg = buildGearSVG(i+1, trial.topItems[i].pattern, "large", i%2===0?"idle-f":"idle-r");
+    cell.innerHTML += gsvg;
     stimGrid.appendChild(cell);
   }
   probeCell.classList.remove("idle");
-  probeInner.innerHTML=patternToSVG(trial.probePattern,"probe");
+  probeInner.innerHTML = buildGearSVG(0, trial.probePattern, "probe", "idle-f");
+
   respGrid.innerHTML="";
   for(let i=0;i<6;i++){
     const btn=document.createElement("div"); btn.className="resp-btn";
     const pos=document.createElement("div"); pos.className="resp-pos"; pos.textContent=String(i+1);
     btn.appendChild(pos);
+    // Response buttons have same style as matching stim cell but no pattern
+    btn.innerHTML += buildGearSVG(i+1, null, "large", i%2===0?"idle-f":"idle-r");
     const idx=i;
     btn.addEventListener("pointerdown",()=>handleTap(idx));
     respGrid.appendChild(btn);
@@ -255,7 +384,12 @@ function flashBtn(index,ok){
   btns[index].classList.add(cls);
   setTimeout(()=>btns[index].classList.remove(cls),200);
 }
-function setProbeIdle(){ probeCell.classList.add("idle"); probeInner.innerHTML=""; stimGrid.innerHTML=""; respGrid.innerHTML=""; }
+function setProbeIdle(){
+  probeCell.classList.add("idle");
+  probeInner.innerHTML="";
+  stimGrid.innerHTML="";
+  respGrid.innerHTML="";
+}
 
 // ─── Metrics ───
 function updateMetrics(){
@@ -771,25 +905,42 @@ END REASON
   ${result.endReason}`;
 }
 
-// ─── Results page ───
+// ─── Results page — gear spin outro then thinking box ───
 function showResultsPage(){
-  const thinking=$("thinkingOverlay"),outcome=$("outcomeOverlay"),outcomeText=$("outcomeText");
   const last=state.history[state.history.length-1];
   const success=last?isTestSuccess(last.endReason):false;
-  if(thinking){ thinking.classList.remove("hidden"); startFX(); }
+  // 1. Spin all gears fast for 1.5s
+  stimGrid.querySelectorAll(".stim-cell").forEach((c,i)=>{
+    c.classList.remove("gear-idle-f","gear-idle-r");
+    c.classList.add(i%2===0?"gear-spin-f":"gear-spin-r");
+  });
+  respGrid.querySelectorAll(".resp-btn").forEach((b,i)=>{
+    b.classList.remove("gear-idle-f","gear-idle-r");
+    b.classList.add(i%2===0?"gear-spin-f":"gear-spin-r");
+  });
+  probeCell.classList.remove("gear-idle-f"); probeCell.classList.add("gear-spin-f");
+  // 2. Close curtain
+  const curtain=$("curtain"); if(curtain) curtain.classList.remove("open");
   setTimeout(()=>{
-    stopFX(); if(thinking) thinking.classList.add("hidden");
-    if(outcome&&outcomeText){
-      outcomeText.textContent=success?"SUCCESS!":"Test Failed";
-      outcomeText.className="outcome-text "+(success?"success":"failed");
-      outcome.classList.remove("hidden");
-    }
+    // 3. Show thinking box
+    const ts=$("testScreen"); if(ts) ts.classList.add("hidden");
+    const thinking=$("thinkingOverlay");
+    if(thinking){ thinking.classList.remove("hidden"); startFX(); }
     setTimeout(()=>{
-      if(outcome) outcome.classList.add("hidden");
-      $("summaryOverlay").classList.remove("hidden");
-      setTestingQuiet(false);
-    },3000);
-  },6000);
+      stopFX(); if(thinking) thinking.classList.add("hidden");
+      const outcome=$("outcomeOverlay"),outcomeText=$("outcomeText");
+      if(outcome&&outcomeText){
+        outcomeText.textContent=success?"SUCCESS!":"Test Failed";
+        outcomeText.className="outcome-text "+(success?"success":"failed");
+        outcome.classList.remove("hidden");
+      }
+      setTimeout(()=>{
+        if(outcome) outcome.classList.add("hidden");
+        $("summaryOverlay").classList.remove("hidden");
+        setTestingQuiet(false);
+      },3000);
+    },6000);
+  },1500);
 }
 
 // ─── Session control ───
@@ -809,7 +960,8 @@ function clearCurrentSession(){
 }
 function goToStartPage(){
   clearCurrentSession();
-  ["thinkingOverlay","outcomeOverlay"].forEach(id=>{ const el=$(id); if(el) el.classList.add("hidden"); });
+  ["thinkingOverlay","outcomeOverlay","testScreen"].forEach(id=>{ const el=$(id); if(el) el.classList.add("hidden"); });
+  const curtain=$("curtain"); if(curtain) curtain.classList.remove("open");
   stopFX(); setStatus("Ready"); showOnly("subjectOverlay");
 }
 function startOverFlow(){
@@ -819,21 +971,52 @@ function startOverFlow(){
   setStatus("Reset. Enter Subject ID."); showOnly("subjectOverlay");
 }
 
+// ─── Gear spin intro then start ───
+function runGearSpinThenStart(callback) {
+  // Show test screen with gears, no pattern, spin fast for 2s, then callback
+  const ts = $("testScreen"); if(ts) ts.classList.remove("hidden");
+  // Render blank gears for the spin
+  stimGrid.innerHTML = "";
+  for(let i=0;i<6;i++){
+    const cell = document.createElement("div");
+    cell.className = "stim-cell";
+    cell.innerHTML = buildGearSVG(i+1, null, "large", i%2===0?"f":"r");
+    stimGrid.appendChild(cell);
+  }
+  probeCell.classList.remove("idle");
+  probeInner.innerHTML = buildGearSVG(0, null, "probe", "f");
+  respGrid.innerHTML = "";
+  for(let i=0;i<6;i++){
+    const btn = document.createElement("div"); btn.className = "resp-btn";
+    btn.innerHTML = buildGearSVG(i+1, null, "large", i%2===0?"f":"r");
+    respGrid.appendChild(btn);
+  }
+  setTimeout(()=>{
+    // Open curtain
+    const curtain = $("curtain"); if(curtain) curtain.classList.add("open");
+    setTimeout(()=>{
+      callback();
+    }, 750);
+  }, 1800);
+}
+
 // ─── START TEST ───
 function startTest(){
   if(!state.subjectId){ showOnly("subjectOverlay"); setStatus("Enter Subject ID first"); return; }
   if(!state.samnPerelli){ showOnly("fatigueOverlay"); setStatus("Select fatigue rating first"); return; }
-  // Preserve identity across session reset
   const sid=state.subjectId, spf=state.samnPerelli;
   clearCurrentSession();
   state.subjectId=sid; state.samnPerelli=spf;
-  fatigueOut.textContent=String(spf.score);
+  const fo=$("fatigueOut"); if(fo) fo.textContent=String(spf.score);
+  const fo2=$("fatigueOut2"); if(fo2) fo2.textContent=String(spf.score);
   hideAllOverlays();
-  state.phase="calibration";
   setTestingQuiet(true);
-  captureGeo(); // fire and forget
+  captureGeo();
   noteAnyResponse();
-  openTrial("calibration");
+  runGearSpinThenStart(()=>{
+    state.phase="calibration";
+    openTrial("calibration");
+  });
 }
 
 // ─── Trial detail log ───
