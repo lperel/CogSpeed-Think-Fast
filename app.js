@@ -1964,9 +1964,9 @@ $("installBtn").onclick = async () => {
 
   // Gear definitions: cx, cy, outerR, innerR, teeth, toothDepth, speed, dir
   const gears = [
-    { cx:196, cy:102, R:54, r:40, teeth:18, td:10, speed:0.4,  dir: 1 }, // large
-    { cx:136, cy: 68, R:26, r:19, teeth:10, td: 6, speed:0.83, dir:-1 }, // small top-left
-    { cx:162, cy:156, R:38, r:28, teeth:14, td: 8, speed:0.57, dir:-1 }, // medium bottom
+    { cx:200, cy:110, R:52, r:38, teeth:18, td:10, speed:0.4,  dir: 1 }, // large (center-right)
+    { cx:148, cy: 74, R:26, r:19, teeth:10, td: 6, speed:0.83, dir:-1 }, // small top-left
+    { cx:170, cy:162, R:36, r:26, teeth:14, td: 8, speed:0.57, dir:-1 }, // medium bottom
   ];
 
   let angle = 0;
@@ -2025,39 +2025,73 @@ $("installBtn").onclick = async () => {
 
   function drawHead() {
     ctx.save();
-    ctx.shadowColor = "#5ab4d8";
-    ctx.shadowBlur  = 12;
-    ctx.strokeStyle = "rgba(160,220,255,0.75)";
-    ctx.lineWidth   = 2.5;
+    ctx.strokeStyle = "rgba(140,210,255,0.7)";
+    ctx.lineWidth   = 2;
+    ctx.shadowColor = "#3ab8e0";
+    ctx.shadowBlur  = 10;
+
+    // Left-facing profile silhouette matching the logo
     ctx.beginPath();
-    // Profile facing left: forehead → crown → back → neck
-    ctx.moveTo(175, 10);
-    ctx.bezierCurveTo(220, 8, 258, 40, 262, 88);
-    ctx.bezierCurveTo(268, 130, 255, 175, 240, 200);
-    ctx.bezierCurveTo(228, 220, 215, 238, 200, 252);
-    ctx.bezierCurveTo(185, 265, 170, 272, 160, 278);
+
+    // Start at top of forehead
+    ctx.moveTo(178, 18);
+
+    // Crown curving right
+    ctx.bezierCurveTo(210, 12, 238, 22, 252, 48);
+
+    // Back of head (right side, curves down)
+    ctx.bezierCurveTo(264, 72, 268, 108, 262, 140);
+
+    // Back of neck coming down
+    ctx.bezierCurveTo(256, 172, 244, 198, 232, 218);
+
+    // Shoulder / neck base
+    ctx.bezierCurveTo(222, 232, 210, 245, 200, 258);
+
     // Neck
-    ctx.lineTo(155, 295);
-    ctx.lineTo(148, 295);
-    ctx.lineTo(143, 278);
-    // Face
-    ctx.bezierCurveTo(128, 265, 112, 248, 104, 228);
-    ctx.bezierCurveTo( 92, 202,  90, 170,  95, 148);
-    ctx.bezierCurveTo( 98, 128, 108, 112, 118, 100);
-    // Nose/brow
-    ctx.bezierCurveTo(125,  88, 128,  75, 132,  62);
-    ctx.bezierCurveTo(138,  42, 152,  14, 175,  10);
+    ctx.lineTo(195, 278);
+    ctx.lineTo(188, 278);
+    ctx.lineTo(183, 258);
+
+    // Chin
+    ctx.bezierCurveTo(172, 244, 160, 232, 152, 218);
+
+    // Jaw line to chin point
+    ctx.bezierCurveTo(140, 204, 130, 188, 124, 170);
+
+    // Cheek / face
+    ctx.bezierCurveTo(116, 150, 112, 128, 114, 108);
+
+    // Temple / brow ridge
+    ctx.bezierCurveTo(116, 90, 122, 76, 130, 66);
+
+    // Nose bridge up to forehead
+    ctx.bezierCurveTo(136, 56, 144, 44, 152, 36);
+
+    // Back to forehead top
+    ctx.bezierCurveTo(160, 26, 168, 18, 178, 18);
+
+    ctx.closePath();
     ctx.stroke();
 
-    // Small triangle on forehead (third-eye detail from logo)
+    // Nose bump (small protrusion on face side ~y=180)
     ctx.beginPath();
-    ctx.moveTo(112, 152);
-    ctx.lineTo(106, 164);
-    ctx.lineTo(118, 164);
-    ctx.closePath();
-    ctx.strokeStyle = "rgba(160,220,255,0.6)";
-    ctx.lineWidth   = 1.5;
+    ctx.moveTo(124, 170);
+    ctx.bezierCurveTo(118, 178, 112, 186, 118, 194);
+    ctx.bezierCurveTo(122, 198, 128, 196, 132, 192);
     ctx.stroke();
+
+    // Triangle detail on forehead (matches logo)
+    ctx.shadowBlur = 6;
+    ctx.strokeStyle = "rgba(140,210,255,0.5)";
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(130, 130);
+    ctx.lineTo(123, 144);
+    ctx.lineTo(137, 144);
+    ctx.closePath();
+    ctx.stroke();
+
     ctx.restore();
   }
 

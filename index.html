@@ -384,15 +384,18 @@
     </div>
 
     <div style="text-align:center;margin-bottom:10px"><span class="badge">V13</span></div>
-    <h2>CogSpeed</h2>
     <p class="modal-hint">Enter your Subject ID to begin.</p>
     <div class="field-row">
       <label>Subject ID<div class="field-hint">6 letters/numbers, or 0 for Guest</div></label>
       <input id="subjectIdInput" maxlength="6" placeholder="A12B34 or 0" autocapitalize="characters">
     </div>
-    <div class="controls" style="margin-top:6px">
-      <button class="ctrl-btn" id="subjectNextBtn">Test Now!</button>
-      <button class="ctrl-btn" id="adminOpenBtn">Admin</button>
+    <div style="margin-top:6px;display:flex;align-items:center;gap:8px">
+      <button class="ctrl-btn" id="subjectNextBtn" style="flex:1">Test Now!</button>
+      <button id="adminOpenBtn" style="
+        background:none;border:none;color:rgba(127,215,255,0.25);
+        font-size:11px;padding:4px 8px;cursor:pointer;
+        font-family:inherit;letter-spacing:.05em;
+      ">admin</button>
     </div>
   </div>
 </div>
