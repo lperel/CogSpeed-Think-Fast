@@ -1,10 +1,10 @@
 // ═══════════════════════════════════════════════════
-//  CogSpeed V13 — dots/lines layout rebuild
+//  CogSpeed V14 — dots/lines layout rebuild
 // ═══════════════════════════════════════════════════
 
 // ─── Version guard — clear stale localStorage from old versions ───
 (function() {
-  const VER = "cogspeed_v13";
+  const VER = "cogspeed_v14";
   const verKey = "cogspeed_version";
   const stored = localStorage.getItem(verKey);
   if (stored !== VER) {
@@ -100,7 +100,7 @@ const SAMN_PERELLI = [
 
 // ─── Settings ───
 function loadSettings() {
-  const s = JSON.parse(localStorage.getItem("cogspeed_v13_settings") || "null");
+  const s = JSON.parse(localStorage.getItem("cogspeed_v14_settings") || "null");
   if (!s) return { ...DEFAULTS };
   // Only carry over keys that exist in DEFAULTS — prevents stale/missing keys crashing
   const merged = { ...DEFAULTS };
@@ -110,7 +110,7 @@ function loadSettings() {
   return merged;
 }
 function saveSettings() {
-  localStorage.setItem("cogspeed_v13_settings", JSON.stringify(settings));
+  localStorage.setItem("cogspeed_v14_settings", JSON.stringify(settings));
 }
 let settings = loadSettings();
 
@@ -129,7 +129,7 @@ const state = {
   spWrongCount: 0,              // total wrongs in SP restart phase
   terminalBlockReason: null,    // description of convergent blocks that triggered terminal rule
   _benchResolve: null,          // resolves benchmark promise on user action
-  history: JSON.parse(localStorage.getItem("cogspeed_v13_history") || "[]"),
+  history: JSON.parse(localStorage.getItem("cogspeed_v14_history") || "[]"),
   totalTrials: 0,
   totalResponses: 0,     // every tap (calibration + paced + recovery)
   totalCorrect: 0,       // correct taps across ALL phases
@@ -741,7 +741,7 @@ function finish() {
   };
 
   state.history.push(result);
-  localStorage.setItem("cogspeed_v13_history", JSON.stringify(state.history));
+  localStorage.setItem("cogspeed_v14_history", JSON.stringify(state.history));
   updateCPSDisplay(avg2);
   setProbeIdle();
 
@@ -771,7 +771,7 @@ function finish() {
     : "—";
 
   const text =
-`CogSpeed V13  —  Test Results
+`CogSpeed V14  —  Test Results
 ${hr}
 Date / Time:   ${new Date(result.time).toLocaleString()}
 Subject ID:    ${result.subjectId}
@@ -1466,14 +1466,14 @@ function exportResults() {
   const blob = new Blob([JSON.stringify({ settings, history: state.history }, null, 2)], { type: "application/json" });
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
-  a.download = "cogspeed_v13_results.json";
+  a.download = "cogspeed_v14_results.json";
   a.click();
 }
 
 function emailResults() {
   const text = state.lastResultText || "No results available.";
   const body = encodeURIComponent(text);
-  window.location.href = `mailto:?subject=CogSpeed V13 Results&body=${body}`;
+  window.location.href = `mailto:?subject=CogSpeed V14 Results&body=${body}`;
 }
 
 // ═══════════════════════════════════════════════════
@@ -1629,7 +1629,7 @@ function buildSummary(result) {
       }
       return result.geo.status;
     })()],
-    ["Version",          "CogSpeed V13"],
+    ["Version",          "CogSpeed V14"],
     ["Test Duration",    formatDuration(result.testDurationMs)],
     ["Total Responses",  String(result.totalResponses)],
     ["S-PF Rating",      result.samnPerelli ? `${result.samnPerelli.score} — ${result.samnPerelli.label}` : "—"],
@@ -1830,7 +1830,7 @@ $("resetAdminBtn").onclick   = () => { resetAdmin(); setStatus("Admin reset to d
 $("exportAdminBtn").onclick  = () => {
   const blob = new Blob([JSON.stringify(settings, null, 2)], { type: "application/json" });
   const a = document.createElement("a"); a.href = URL.createObjectURL(blob);
-  a.download = "cogspeed_v13_admin.json"; a.click();
+  a.download = "cogspeed_v14_admin.json"; a.click();
 };
 $("adminBackBtn").onclick     = () => goToStartPage();
 $("adminBackBtn2").onclick    = () => goToStartPage();
@@ -1950,7 +1950,7 @@ function downloadTrialLogCSV() {
   const a    = document.createElement("a");
   a.href     = URL.createObjectURL(blob);
   const subj = last ? last.subjectId || "unknown" : "session";
-  a.download = `cogspeed_v13_triallog_${subj}.csv`;
+  a.download = `cogspeed_v14_triallog_${subj}.csv`;
   a.click();
 }
 
@@ -1975,7 +1975,7 @@ if (trialLogCsv) trialLogCsv.onclick = downloadTrialLogCSV;
 window.addEventListener("beforeinstallprompt", e => {
   e.preventDefault(); deferredPrompt = e;
   $("installBtn").disabled = false;
-  setStatus("'Add to Home Screen' saves CogSpeed V13 as an app for offline use.");
+  setStatus("'Add to Home Screen' saves CogSpeed V14 as an app for offline use.");
 });
 $("installBtn").onclick = async () => {
   if (!deferredPrompt) {
