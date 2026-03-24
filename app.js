@@ -635,59 +635,53 @@ function emailResults(){
   window.location.href=`mailto:?subject=CogSpeed V17 Results&body=${encodeURIComponent(state.lastResultText||JSON.stringify(last,null,2))}`;
 }
 
-// ─── FX (fire/sparks/smoke on thinking overlay) ───
+// ─── FX (smoke + sparks around gear corners on thinking overlay) ───
 let _fxRaf=null, _fxParticles=[];
 function startFX(){
   const canvas=$("fxCanvas"); if(!canvas) return;
   const ctx=canvas.getContext("2d");
-  // Use fixed size — canvas is inside hidden overlay so offsetWidth=0
   canvas.width=340; canvas.height=240;
   _fxParticles=[];
-  const CX=canvas.width/2, BASE=canvas.height*0.72;
+  // Gear corner positions (matching CSS .gear-corner tl/tr/bl/br at ~14px from edges of 340x240 canvas)
+  const GEARS=[{x:22,y:22},{x:318,y:22},{x:22,y:218},{x:318,y:218}];
   function frame(){
     ctx.clearRect(0,0,canvas.width,canvas.height);
-    // Spawn particles
-    for(let i=0;i<3;i++){
-      const r=Math.random();
-      if(r<0.4) _fxParticles.push({
-        x:CX+(Math.random()-0.5)*50, y:BASE,
-        vx:(Math.random()-0.5)*2.5, vy:-(2+Math.random()*4),
-        life:1, type:"ember", size:3+Math.random()*3
-      });
-      else if(r<0.7) _fxParticles.push({
-        x:CX+(Math.random()-0.5)*30, y:BASE-10,
-        vx:(Math.random()-0.5)*1.5, vy:-(1.5+Math.random()*2),
-        life:0.9, type:"spark"
-      });
-      else _fxParticles.push({
-        x:CX+(Math.random()-0.5)*40, y:BASE-20,
-        vx:(Math.random()-0.5)*1.2, vy:-(0.8+Math.random()*1.5),
-        life:0.7, type:"smoke", size:8+Math.random()*14
-      });
-    }
+    // Spawn from each gear corner
+    GEARS.forEach(g=>{
+      if(Math.random()<0.15){
+        // Smoke wisp
+        const angle=-Math.PI/2+(Math.random()-0.5)*0.8; // mostly upward
+        _fxParticles.push({
+          x:g.x+(Math.random()-0.5)*8, y:g.y+(Math.random()-0.5)*8,
+          vx:Math.cos(angle)*0.6, vy:Math.sin(angle)*0.8,
+          life:1, size:4, type:"smoke"
+        });
+      }
+      if(Math.random()<0.06){
+        // Occasional spark
+        const angle=Math.random()*Math.PI*2;
+        _fxParticles.push({
+          x:g.x, y:g.y,
+          vx:Math.cos(angle)*1.8, vy:Math.sin(angle)*1.8,
+          life:0.8, type:"spark"
+        });
+      }
+    });
     _fxParticles=_fxParticles.filter(p=>p.life>0);
-    _fxParticles.sort((a,b)=>a.type==="smoke"?1:-1); // smoke on top
     _fxParticles.forEach(p=>{
-      p.x+=p.vx; p.y+=p.vy; p.vx*=0.99; p.vy*=0.98;
+      p.x+=p.vx; p.y+=p.vy; p.vx*=0.97; p.vy*=0.97;
       if(p.type==="smoke"){
-        p.life-=0.008; p.size+=0.3;
-        const alpha=p.life*0.18;
+        p.life-=0.01; p.size+=0.35;
+        const a=p.life*0.22;
         const g=ctx.createRadialGradient(p.x,p.y,0,p.x,p.y,p.size);
-        g.addColorStop(0,`rgba(160,170,190,${alpha})`);
-        g.addColorStop(1,`rgba(80,90,110,0)`);
+        g.addColorStop(0,`rgba(150,160,180,${a})`);
+        g.addColorStop(1,"rgba(80,90,110,0)");
         ctx.fillStyle=g; ctx.beginPath(); ctx.arc(p.x,p.y,p.size,0,Math.PI*2); ctx.fill();
-      } else if(p.type==="spark"){
-        p.life-=0.025;
-        ctx.strokeStyle=`hsla(45,100%,${65+p.life*35}%,${p.life})`;
-        ctx.lineWidth=p.life*2.5; ctx.lineCap="round";
-        ctx.beginPath(); ctx.moveTo(p.x,p.y); ctx.lineTo(p.x-p.vx*4,p.y-p.vy*4); ctx.stroke();
       } else {
-        p.life-=0.016;
-        const g=ctx.createRadialGradient(p.x,p.y,0,p.x,p.y,p.size);
-        g.addColorStop(0,`rgba(255,${Math.round(80+p.life*160)},0,${p.life})`);
-        g.addColorStop(0.5,`rgba(255,${Math.round(40+p.life*80)},0,${p.life*0.6})`);
-        g.addColorStop(1,"rgba(200,30,0,0)");
-        ctx.fillStyle=g; ctx.beginPath(); ctx.arc(p.x,p.y,p.size,0,Math.PI*2); ctx.fill();
+        p.life-=0.03;
+        ctx.strokeStyle=`hsla(45,90%,70%,${p.life*0.6})`;
+        ctx.lineWidth=1; ctx.lineCap="round";
+        ctx.beginPath(); ctx.moveTo(p.x,p.y); ctx.lineTo(p.x-p.vx*3,p.y-p.vy*3); ctx.stroke();
       }
     });
     _fxRaf=requestAnimationFrame(frame);
