@@ -1,76 +1,69 @@
 // ═══════════════════════════════════════════════════
-//  CogSpeed V14 — dots/lines layout rebuild
+//  CogSpeed V17
 // ═══════════════════════════════════════════════════
 
-// ─── Version guard — clear stale localStorage from old versions ───
-(function() {
-  const VER = "cogspeed_v14";
-  const verKey = "cogspeed_version";
-  const stored = localStorage.getItem(verKey);
-  if (stored !== VER) {
-    // New version — clear all old cogspeed/cogblock keys
-    Object.keys(localStorage).forEach(k => {
-      if (k.startsWith("cogblock_") || (k.startsWith("cogspeed_") && k !== VER + "_history")) {
-        localStorage.removeItem(k);
-      }
-    });
-    localStorage.setItem(verKey, VER);
+// ─── Version guard ───
+(function(){
+  const VER="cogspeed_v17", key="cogspeed_version";
+  if(localStorage.getItem(key)!==VER){
+    Object.keys(localStorage).forEach(k=>{ if(k.startsWith("cogspeed_")||k.startsWith("cogblock_")) localStorage.removeItem(k); });
+    localStorage.setItem(key,VER);
   }
 })();
 
-const DEFAULTS = {
-  adminPasscode: "4822",
-  consecutiveMissesForBlock: 2,
-  spRestartSlowerByMs: 375,
-  spRestartWrongLimit: 3,
-  spRestartCorrectStreak: 2,
-  qualifyingBlockGapMs: 250,
-  rollMeanWindow: 8,
-  noResponseTimeoutMs: 20000,
-  wrongWindowSize: 5,
-  wrongThresholdStop: 4,
-  maxTrialCount: 180,
-  maxTestDurationMs: 120000,
-  minDurationMs: 800,
-  maxDurationMs: 10000,
-  initialUnusedCalibrationTrials: 1,
-  initialMeasuredCalibrationTrials: 20,
-  initialPacedPercent: 0.70,
-  calibrationStopErrors: 5,
-  calibrationStopSlowMs: 10000,
-  cpsBestMs: 800,
-  cpsWorstMs: 3000,
-  deviceBenchmarkEnabled: 0
+// ─── Defaults ───
+const DEFAULTS={
+  adminPasscode:"4822",
+  consecutiveMissesForBlock:2,
+  spRestartSlowerByMs:375,
+  spRestartWrongLimit:3,
+  spRestartCorrectStreak:2,
+  qualifyingBlockGapMs:250,
+  rollMeanWindow:8,
+  noResponseTimeoutMs:20000,
+  wrongWindowSize:5,
+  wrongThresholdStop:4,
+  maxTrialCount:180,
+  maxTestDurationMs:120000,
+  minDurationMs:800,
+  maxDurationMs:10000,
+  initialUnusedCalibrationTrials:1,
+  initialMeasuredCalibrationTrials:20,
+  initialPacedPercent:0.70,
+  calibrationStopErrors:5,
+  calibrationStopSlowMs:10000,
+  cpsBestMs:800,
+  cpsWorstMs:3000,
+  deviceBenchmarkEnabled:0
 };
 
-const ADMIN_FIELDS = [
+const ADMIN_FIELDS=[
   ["consecutiveMissesForBlock","Consecutive misses for block","number"],
-  ["spRestartSlowerByMs","SP Restart: slowdown on success (ms)","number"],
-  ["spRestartWrongLimit","SP Restart: wrong limit before bad end","number"],
-  ["spRestartCorrectStreak","SP Restart: correct streak to pass","number"],
-  ["qualifyingBlockGapMs","Max block diff to trigger end (ms)","number"],
-  ["rollMeanWindow","Rolling mean window size (answers)","number"],
-  ["maxTestDurationMs","Max total test time (ms)","number"],
-  ["noResponseTimeoutMs","Time to end test if no response (ms)","number"],
-  ["wrongWindowSize","Wrong-answer window size","number"],
-  ["wrongThresholdStop","Wrong answers threshold","number"],
-  ["maxTrialCount","Maximum paced trial count","number"],
-  ["minDurationMs","Minimum paced duration (ms)","number"],
-  ["maxDurationMs","Maximum paced duration (ms)","number"],
-  ["initialUnusedCalibrationTrials","Unused self-paced trials","number"],
-  ["initialMeasuredCalibrationTrials","Measured self-paced trials","number"],
-  ["initialPacedPercent","Initial paced % of calibration average","number"],
-  ["calibrationStopErrors","Calibration stop after errors >","number"],
-  ["calibrationStopSlowMs","Calibration stop if any RT exceeds (ms)","number"],
+  ["spRestartSlowerByMs","SP Restart: slowdown (ms)","number"],
+  ["spRestartWrongLimit","SP Restart: wrong limit","number"],
+  ["spRestartCorrectStreak","SP Restart: correct streak needed","number"],
+  ["qualifyingBlockGapMs","Max block diff to end (ms)","number"],
+  ["rollMeanWindow","Rolling mean window","number"],
+  ["noResponseTimeoutMs","No-response timeout (ms)","number"],
+  ["wrongWindowSize","Wrong-answer window","number"],
+  ["wrongThresholdStop","Wrong threshold","number"],
+  ["maxTrialCount","Max paced trials","number"],
+  ["maxTestDurationMs","Max test time (ms)","number"],
+  ["minDurationMs","Min paced duration (ms)","number"],
+  ["maxDurationMs","Max paced duration (ms)","number"],
+  ["initialUnusedCalibrationTrials","Unused calibration trials","number"],
+  ["initialMeasuredCalibrationTrials","Measured calibration trials","number"],
+  ["initialPacedPercent","Initial paced % of calibration","number"],
+  ["calibrationStopErrors","Cal stop after N errors","number"],
+  ["calibrationStopSlowMs","Cal stop if RT exceeds (ms)","number"],
   ["cpsBestMs","CPS best ms (score 100)","number"],
   ["cpsWorstMs","CPS worst ms (score 0)","number"],
-  ["deviceBenchmarkEnabled","Run device benchmark before test (0/1)","number"],
+  ["deviceBenchmarkEnabled","Benchmark before test (0/1)","number"],
   ["adminPasscode","Admin passcode","password"]
 ];
 
-// ─── Pattern definitions (1–6 dots / 1–6 lines) ───
-// Coordinates are % of cell — spread wide (15–85) for maximum readability
-const DOT_PATTERNS = {
+// ─── Patterns ───
+const DOT_PATTERNS={
   1:[["dot",50,50]],
   2:[["dot",22,50],["dot",78,50]],
   3:[["dot",50,18],["dot",22,75],["dot",78,75]],
@@ -78,8 +71,7 @@ const DOT_PATTERNS = {
   5:[["dot",22,22],["dot",78,22],["dot",50,50],["dot",22,78],["dot",78,78]],
   6:[["dot",22,18],["dot",78,18],["dot",22,50],["dot",78,50],["dot",22,82],["dot",78,82]]
 };
-
-const LINE_PATTERNS = {
+const LINE_PATTERNS={
   1:[["v",50,50]],
   2:[["v",22,50],["v",78,50]],
   3:[["v",15,50],["v",50,50],["v",85,50]],
@@ -87,8 +79,7 @@ const LINE_PATTERNS = {
   5:[["v",22,22],["v",78,22],["v",50,50],["v",22,78],["v",78,78]],
   6:[["v",15,18],["v",50,18],["v",85,18],["v",15,78],["v",50,78],["v",85,78]]
 };
-
-const SAMN_PERELLI = [
+const SAMN_PERELLI=[
   [7,"Full alert, wide awake"],
   [6,"Very lively, responsive, but not at peak"],
   [5,"Okay, about normal"],
@@ -99,1899 +90,769 @@ const SAMN_PERELLI = [
 ];
 
 // ─── Settings ───
-function loadSettings() {
-  const s = JSON.parse(localStorage.getItem("cogspeed_v14_settings") || "null");
-  if (!s) return { ...DEFAULTS };
-  // Only carry over keys that exist in DEFAULTS — prevents stale/missing keys crashing
-  const merged = { ...DEFAULTS };
-  for (const k of Object.keys(DEFAULTS)) {
-    if (s[k] !== undefined) merged[k] = s[k];
-  }
-  return merged;
+function loadSettings(){
+  const s=JSON.parse(localStorage.getItem("cogspeed_v17_settings")||"null");
+  if(!s) return {...DEFAULTS};
+  const m={...DEFAULTS};
+  Object.keys(DEFAULTS).forEach(k=>{ if(s[k]!==undefined) m[k]=s[k]; });
+  return m;
 }
-function saveSettings() {
-  localStorage.setItem("cogspeed_v14_settings", JSON.stringify(settings));
-}
-let settings = loadSettings();
+function saveSettings(){ localStorage.setItem("cogspeed_v17_settings",JSON.stringify(settings)); }
+let settings=loadSettings();
 
 // ─── State ───
-const state = {
-  phase: "idle",
-  duration: null,
-  blockDuration: null,
-  current: null,
-  previous: null,
-  unresolvedStreak: 0,
-  overloads: [],
-  recoveries: [],
-  recoveryCorrectCompleted: 0,  // used by terminal_recovery only
-  spCorrectStreak: 0,           // consecutive corrects in SP restart phase
-  spWrongCount: 0,              // total wrongs in SP restart phase
-  terminalBlockReason: null,    // description of convergent blocks that triggered terminal rule
-  _benchResolve: null,          // resolves benchmark promise on user action
-  history: JSON.parse(localStorage.getItem("cogspeed_v14_history") || "[]"),
-  totalTrials: 0,
-  totalResponses: 0,     // every tap (calibration + paced + recovery)
-  totalCorrect: 0,       // correct taps across ALL phases
-  totalIncorrect: 0,     // incorrect taps across ALL phases (not including misses)
-  missedTrials: 0,       // paced frames with no response
-  pacedErrors: 0,        // wrong taps during paced phase only
-  rollMeanLog: [],       // last N answers (true/false) across all phases for roll mean check
-  testStartTime: null,   // performance.now() at test start
-  trialTimer: null,
-  absoluteNoResponseTimer: null,
-  maxTestTimer: null,
-  lastFiveAnswers: [],
-  samnPerelli: null,
-  subjectId: null,
-  calibrationTrialIndex: 0,
-  calibrationRTs: [],
-  calibrationErrors: 0,
-  pacedRTs: [],          // correct paced response times (ms)
-  rtLog: [],             // {seq, rt, correct, phase} for every paced tap + missed
-  previousMissed: false, // was the immediately preceding paced frame a no-response?
-  lastFrameDuration: null, // duration of the frame that was missed (for late-catch r calc)
-  trialOpenedAt: null,
-  geo: null,
-  benchmark: null,
-  lastResultText: null
+const state={
+  phase:"idle", duration:null, blockDuration:null,
+  current:null, previous:null, unresolvedStreak:0,
+  overloads:[], recoveries:[], recoveryCorrectCompleted:0,
+  spCorrectStreak:0, spWrongCount:0, terminalBlockReason:null,
+  history:JSON.parse(localStorage.getItem("cogspeed_v17_history")||"[]"),
+  totalTrials:0, totalResponses:0, totalCorrect:0, totalIncorrect:0,
+  missedTrials:0, pacedErrors:0, rollMeanLog:[],
+  testStartTime:null, trialTimer:null, absoluteNoResponseTimer:null, maxTestTimer:null,
+  lastFiveAnswers:[], samnPerelli:null, subjectId:null,
+  calibrationTrialIndex:0, calibrationRTs:[], calibrationErrors:0,
+  pacedRTs:[], rtLog:[], previousMissed:false, lastFrameDuration:null,
+  trialOpenedAt:null, geo:null, benchmark:null, lastResultText:null
 };
 
-// ─── DOM refs ───
-const $ = id => document.getElementById(id);
-const stimGrid    = $("stimGrid");
-const probeCell   = $("probeCell");
-const probeInner  = $("probeInner");
-const respGrid    = $("respGrid");
-const rateOut     = $("rateOut");
-const blocksOut   = $("blocksOut");
-const recoveryOut = $("recoveryOut");
-const wrongOut    = $("wrongOut");
-const fatigueOut  = $("fatigueOut");
-const cpsOut      = $("cpsOut");
-const statusLine  = $("statusLine");
-const resultBox   = $("resultBox");
-const phaseLabel  = $("phaseLabel");
-const modeLabel   = $("modeLabel");
-const metricsPanel= $("metricsPanel");
-let deferredPrompt = null;
+// ─── DOM ───
+const $=id=>document.getElementById(id);
+const stimGrid=$("stimGrid"), probeCell=$("probeCell"), probeInner=$("probeInner"),
+      respGrid=$("respGrid"), rateOut=$("rateOut"), blocksOut=$("blocksOut"),
+      recoveryOut=$("recoveryOut"), wrongOut=$("wrongOut"), fatigueOut=$("fatigueOut"),
+      cpsOut=$("cpsOut"), statusLine=$("statusLine"), resultBox=$("resultBox"),
+      phaseLabel=$("phaseLabel"), modeLabel=$("modeLabel"), metricsPanel=$("metricsPanel");
+let deferredPrompt=null;
 
-// ─── Trial logger — captures full trial context ───
-function logTrial({ phase, rt, outcome, responseIndex }) {
-  const trial = state.current;
-  if (!trial) return;
-  const clockTime = new Date().toISOString();
-  const duration  = state.duration || null;
-  // Probe
-  const probeDesc = `${trial.probeFamily}:${trial.probeCount}`;
-  // Correct cell
-  const correctItem = trial.topItems[trial.correctPos];
-  const correctDesc = correctItem
-    ? `${correctItem.family}:${correctItem.count} @pos${trial.correctPos + 1}`
-    : "—";
-  // Response
-  let responseDesc = "no_response";
-  if (responseIndex != null) {
-    const respItem = trial.topItems[responseIndex];
-    responseDesc = respItem
-      ? `${respItem.family}:${respItem.count} @pos${responseIndex + 1}`
-      : `pos${responseIndex + 1}`;
-  }
-  state.rtLog.push({
-    seq:          state.rtLog.length + 1,
-    phase,
-    clockTime,
-    durationMs:   duration != null ? Math.round(duration) : null,
-    rt:           rt != null ? Math.round(rt) : null,
-    outcome,      // "correct" | "wrong" | "missed"
-    probe:        probeDesc,
-    correctCell:  correctDesc,
-    response:     responseDesc
-  });
-}
-function randInt(min, max) { return Math.floor(Math.random() * (max - min + 1)) + min; }
-function clamp(v, lo, hi) { return Math.min(hi, Math.max(lo, v)); }
-function mean(a) { return a.length ? a.reduce((x, y) => x + y, 0) / a.length : 0; }
-function stdDev(a) {
-  if (a.length < 2) return null;
-  const m = mean(a);
-  return Math.sqrt(a.reduce((sum, v) => sum + (v - m) ** 2, 0) / (a.length - 1));
-}
-function shuffle(arr) {
-  const a = [...arr];
-  for (let i = a.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [a[i], a[j]] = [a[j], a[i]];
-  }
-  return a;
-}
-function subjectKey(id) { return id === "0" ? "Guest" : id; }
-function setStatus(m) { statusLine.textContent = m; }
+// ─── Utilities ───
+function randInt(min,max){ return Math.floor(Math.random()*(max-min+1))+min; }
+function clamp(v,lo,hi){ return Math.min(hi,Math.max(lo,v)); }
+function mean(a){ return a.length?a.reduce((x,y)=>x+y,0)/a.length:0; }
+function stdDev(a){ if(a.length<2) return null; const m=mean(a); return Math.sqrt(a.reduce((s,v)=>s+(v-m)**2,0)/(a.length-1)); }
+function shuffle(arr){ const a=[...arr]; for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]; } return a; }
+function subjectKey(id){ return id==="0"?"Guest":id; }
+function setStatus(m){ statusLine.textContent=m; }
+function formatDuration(ms){ if(ms==null) return "—"; const s=Math.round(ms/1000),m=Math.floor(s/60); return m>0?`${m}m ${s%60}s`:`${s}s`; }
 
 // ─── CPS ───
-function computeCPS(avgMs) {
-  const best = Number(settings.cpsBestMs), worst = Number(settings.cpsWorstMs);
-  const span = worst - best;
-  if (!isFinite(best) || !isFinite(worst) || span <= 0) return 0;
-  return Math.max(0, Math.min(100, ((worst - avgMs) / span) * 100));
+function computeCPS(avgMs){
+  const best=Number(settings.cpsBestMs),worst=Number(settings.cpsWorstMs),span=worst-best;
+  if(!isFinite(best)||!isFinite(worst)||span<=0) return 0;
+  return Math.max(0,Math.min(100,((worst-avgMs)/span)*100));
 }
-function updateCPSDisplay(avg) {
-  cpsOut.textContent = avg != null ? computeCPS(avg).toFixed(0) : "—";
-}
+function updateCPSDisplay(avg){ cpsOut.textContent=avg!=null?computeCPS(avg).toFixed(0):"—"; }
 
 // ─── Timers ───
-function clearTimer() {
-  if (state.trialTimer) clearTimeout(state.trialTimer);
-  state.trialTimer = null;
-}
-function clearNoResponseTimer() {
-  if (state.absoluteNoResponseTimer) clearTimeout(state.absoluteNoResponseTimer);
-  state.absoluteNoResponseTimer = null;
-}
-function clearMaxTestTimer() {
-  if (state.maxTestTimer) clearTimeout(state.maxTestTimer);
-  state.maxTestTimer = null;
-}
-function armNoResponseTimer() {
+function clearTimer(){ if(state.trialTimer) clearTimeout(state.trialTimer); state.trialTimer=null; }
+function clearNoResponseTimer(){ if(state.absoluteNoResponseTimer) clearTimeout(state.absoluteNoResponseTimer); state.absoluteNoResponseTimer=null; }
+function clearMaxTestTimer(){ if(state.maxTestTimer) clearTimeout(state.maxTestTimer); state.maxTestTimer=null; }
+function armNoResponseTimer(){
   clearNoResponseTimer();
-  state.absoluteNoResponseTimer = setTimeout(() => {
-    state.endReason = `No response for more than ${settings.noResponseTimeoutMs} ms`;
-    finish();
-  }, settings.noResponseTimeoutMs);
+  state.absoluteNoResponseTimer=setTimeout(()=>{ state.endReason=`No response for ${settings.noResponseTimeoutMs}ms`; finish(); },settings.noResponseTimeoutMs);
 }
-function armMaxTestTimer() {
+function armMaxTestTimer(){
   clearMaxTestTimer();
-  const ms = Number(settings.maxTestDurationMs) || 120000;
-  state.maxTestTimer = setTimeout(() => {
-    state.endReason = `Maximum test time reached (${(ms/1000).toFixed(0)} s)`;
-    finish();
-  }, ms);
+  const ms=Number(settings.maxTestDurationMs)||120000;
+  state.maxTestTimer=setTimeout(()=>{ state.endReason=`Max test time reached (${(ms/1000).toFixed(0)}s)`; finish(); },ms);
 }
-function noteAnyResponse() { armNoResponseTimer(); }
+function noteAnyResponse(){ armNoResponseTimer(); }
 
-// ─── Quiet mode during test ───
-function setTestingQuiet(isQuiet) {
-  metricsPanel.style.display = isQuiet ? "none" : "grid";
-  statusLine.style.display   = isQuiet ? "none" : "block";
+// ─── Quiet mode ───
+function setTestingQuiet(q){
+  metricsPanel.style.display=q?"none":"grid";
+  statusLine.style.display=q?"none":"block";
   resultBox.classList.add("hidden");
 }
 
-// ─── Geo ───
-async function captureGeoAndAddress() {
-  const now = new Date();
-  const base = { local_time: now.toLocaleString(), gmt_time: now.toUTCString(), date_iso: now.toISOString() };
-  if (!navigator.geolocation) { state.geo = { ...base, status: "unavailable" }; return; }
-  const pos = await new Promise(resolve => {
-    navigator.geolocation.getCurrentPosition(resolve, () => resolve(null), { enableHighAccuracy: true, timeout: 7000, maximumAge: 0 });
-  });
-  if (!pos) { state.geo = { ...base, status: "denied_or_failed" }; return; }
-  state.geo = { ...base, status: "ok", latitude: pos.coords.latitude, longitude: pos.coords.longitude, accuracy_m: pos.coords.accuracy };
-  try {
-    const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${pos.coords.latitude}&lon=${pos.coords.longitude}`;
-    const r = await fetch(url, { headers: { "Accept": "application/json" } });
-    const data = await r.json();
-    state.geo.address = data.display_name || "";
-  } catch (e) {
-    state.geo.address_error = "reverse_geocode_failed";
-  }
+// ─── Geo (fire and forget) ───
+async function captureGeo(){
+  const now=new Date();
+  const base={local_time:now.toLocaleString(),gmt_time:now.toUTCString(),date_iso:now.toISOString()};
+  if(!navigator.geolocation){ state.geo={...base,status:"unavailable"}; return; }
+  const pos=await new Promise(r=>navigator.geolocation.getCurrentPosition(r,()=>r(null),{enableHighAccuracy:true,timeout:7000,maximumAge:0}));
+  if(!pos){ state.geo={...base,status:"denied"}; return; }
+  state.geo={...base,status:"ok",latitude:pos.coords.latitude,longitude:pos.coords.longitude,accuracy_m:pos.coords.accuracy};
+  try{
+    const r=await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${pos.coords.latitude}&lon=${pos.coords.longitude}`,{headers:{"Accept":"application/json"}});
+    const d=await r.json(); state.geo.address=d.display_name||"";
+  }catch(e){ state.geo.address_error="geocode_failed"; }
 }
 
-// ─── Device benchmark ───
-// Phase 1: how fast can the processor generate + render 100 trials?
-// Phase 2: how accurately does setTimeout(0) fire — measures JS scheduler overhead.
-// Both phases run as fast as the processor allows — no deliberate waits.
-async function runDeviceBenchmark(force) {
-  const enabled = force || Number(settings.deviceBenchmarkEnabled || 0) === 1;
-  if (!enabled) { state.benchmark = null; return; }
-
-  const BENCH_TRIALS = 1000;
-
-  const benchOverlay    = $("benchmarkOverlay");
-  const benchStatus     = $("benchStatusLine");
-  const benchStatsBox   = $("benchStats");
-  const benchGradeEl    = $("benchGrade");
-  const benchChartEl    = $("benchChart");
-  const benchBtnsEl     = $("benchBtns");
-
-  if (benchOverlay)   benchOverlay.classList.remove("hidden");
-  if (benchGradeEl)   benchGradeEl.style.display   = "none";
-  if (benchChartEl)   benchChartEl.style.display    = "none";
-  if (benchBtnsEl)    benchBtnsEl.style.display     = "none";
-  if (benchStatsBox)  benchStatsBox.innerHTML        = "";
-
-  // ── Phase 1: Processor speed — generate + render trials as fast as possible ──
-  if (benchStatus) benchStatus.textContent = "Phase 1: Measuring processor speed…";
-  await new Promise(r => setTimeout(r, 50)); // allow UI to update
-
-  const procTimes = [];
-  for (let i = 0; i < BENCH_TRIALS; i++) {
-    const t0 = performance.now();
-    const trial = makeTrial("paced", i > 0 ? i % 6 : null);
-    renderTrial(trial);
-    procTimes.push(performance.now() - t0);
-    if (benchStatus && i % 10 === 9)
-      benchStatus.textContent = `Phase 1: ${i + 1}/${BENCH_TRIALS} trials…`;
-  }
-  setProbeIdle();
-
-  const avgProcMs      = mean(procTimes);
-  const minProcMs      = Math.min(...procTimes);
-  const maxProcMs      = Math.max(...procTimes);
-  const procSd         = stdDev(procTimes) || 0;
-  const minPossibleDurMs = Math.ceil(avgProcMs + procSd * 2);
-
-  // ── Phase 2: Scheduler overhead — how fast does setTimeout(0) actually fire? ──
-  if (benchStatus) benchStatus.textContent = "Phase 2: Measuring scheduler speed…";
-  await new Promise(r => setTimeout(r, 50));
-
-  const schedTimes = [];
-  await new Promise(resolve => {
-    let n = 0;
-    function next() {
-      if (n >= BENCH_TRIALS) { resolve(); return; }
-      const t0 = performance.now();
-      setTimeout(() => {
-        schedTimes.push(performance.now() - t0);
-        n++;
-        if (benchStatus && n % 100 === 0)
-          benchStatus.textContent = `Phase 2: ${n}/${BENCH_TRIALS} scheduler calls…`;
-        next();
-      }, 0);
-    }
-    next();
-  });
-
-  const avgSchedMs = mean(schedTimes);
-  const minSchedMs = Math.min(...schedTimes);
-  const maxSchedMs = Math.max(...schedTimes);
-  const schedSd    = stdDev(schedTimes) || 0;
-
-  // ── Scores ──
-  const procScore   = Math.max(0, Math.min(100, Math.round(100 - (avgProcMs  / 20) * 100)));
-  const schedScore  = Math.max(0, Math.min(100, Math.round(100 - (avgSchedMs / 20) * 100)));
-  const overallScore = Math.round((procScore + schedScore) / 2);
-
-  const grade      = overallScore >= 90 ? "A" : overallScore >= 75 ? "B" : overallScore >= 55 ? "C" : "D";
-  const gradeClass = grade === "A" ? "a" : grade === "B" ? "b" : grade === "C" ? "c" : "d";
-
-  state.benchmark = {
-    enabled: true, trials: BENCH_TRIALS,
-    avgProcMs, minProcMs, maxProcMs, procSd, minPossibleDurMs,
-    avgSchedMs, minSchedMs, maxSchedMs, schedSd,
-    procScore, schedScore, overallScore, grade,
-    schedTimes: [...schedTimes], procTimes: [...procTimes]
-  };
-
-  if (benchStatus) benchStatus.textContent = "Benchmark complete";
-
-  if (benchGradeEl) {
-    benchGradeEl.textContent  = `Grade: ${grade}  (${overallScore}/100)`;
-    benchGradeEl.className    = `bench-grade ${gradeClass}`;
-    benchGradeEl.style.display = "block";
-  }
-
-  const canRun = minPossibleDurMs < 1000;
-  const rows = [
-    ["── PROCESSOR SPEED ──", ""],
-    ["Avg render time",       `${avgProcMs.toFixed(2)} ms`],
-    ["Min / Max render",      `${minProcMs.toFixed(2)} / ${maxProcMs.toFixed(2)} ms`],
-    ["Render SD",             `${procSd.toFixed(2)} ms`],
-    ["Min presentation rate", `~${minPossibleDurMs} ms/trial`],
-    ["Can run <1000ms?",      canRun ? `✓ Yes — floor ~${minPossibleDurMs}ms` : `✗ Marginal (${minPossibleDurMs}ms floor)`],
-    ["Processor score",       `${procScore} / 100`],
-    ["── SCHEDULER SPEED ──", ""],
-    ["Avg setTimeout(0)",     `${avgSchedMs.toFixed(2)} ms`],
-    ["Min / Max",             `${minSchedMs.toFixed(2)} / ${maxSchedMs.toFixed(2)} ms`],
-    ["Scheduler SD",          `${schedSd.toFixed(2)} ms`],
-    ["Scheduler score",       `${schedScore} / 100`],
-    ["── OVERALL ──", ""],
-    ["Score",                 `${overallScore} / 100`],
-    ["Grade",                 grade],
-  ];
-
-  if (benchStatsBox) {
-    benchStatsBox.innerHTML = rows.map(([label, val]) =>
-      val === ""
-        ? `<div style="font-size:11px;color:var(--accent);font-weight:700;margin-top:8px;letter-spacing:.08em">${label}</div>`
-        : `<div class="bench-stat"><span class="bench-label">${label}</span><span class="bench-val">${val}</span></div>`
-    ).join("");
-  }
-
-  if (benchChartEl) {
-    benchChartEl.style.display = "block";
-    const ctx = benchChartEl.getContext("2d");
-    const W = benchChartEl.width, H = benchChartEl.height;
-    ctx.clearRect(0, 0, W, H);
-    ctx.fillStyle = "#081321"; ctx.fillRect(0, 0, W, H);
-    const PAD = { top: 20, right: 14, bottom: 24, left: 46 };
-    const cW = W - PAD.left - PAD.right, cH = H - PAD.top - PAD.bottom;
-    const vMax = Math.max(...schedTimes, 10);
-    const yOf  = v => PAD.top + cH - (v / vMax) * cH;
-    ctx.strokeStyle = "rgba(79,111,153,.25)"; ctx.lineWidth = 1;
-    [0, .25, .5, .75, 1].forEach(f => {
-      const y = PAD.top + cH * (1 - f);
-      ctx.beginPath(); ctx.moveTo(PAD.left, y); ctx.lineTo(PAD.left + cW, y); ctx.stroke();
-      ctx.fillStyle = "#7fa0c0"; ctx.font = "9px sans-serif"; ctx.textAlign = "right";
-      ctx.fillText(`${(vMax * f).toFixed(1)}ms`, PAD.left - 3, y + 3);
-    });
-    ctx.strokeStyle = "#7fd7ff"; ctx.lineWidth = 1;
-    ctx.beginPath();
-    schedTimes.forEach((v, i) => {
-      const x = PAD.left + (i / (BENCH_TRIALS - 1)) * cW;
-      i === 0 ? ctx.moveTo(x, yOf(v)) : ctx.lineTo(x, yOf(v));
-    });
-    ctx.stroke();
-    const yAvg = yOf(avgSchedMs);
-    ctx.strokeStyle = "rgba(255,159,64,.7)"; ctx.lineWidth = 1.5;
-    ctx.setLineDash([4, 3]);
-    ctx.beginPath(); ctx.moveTo(PAD.left, yAvg); ctx.lineTo(PAD.left + cW, yAvg); ctx.stroke();
-    ctx.setLineDash([]);
-    ctx.fillStyle = "#ff9f40"; ctx.font = "9px sans-serif"; ctx.textAlign = "left";
-    ctx.fillText("avg", PAD.left + cW + 2, yAvg + 3);
-    ctx.fillStyle = "#d7e7f8"; ctx.font = "bold 10px sans-serif"; ctx.textAlign = "left";
-    ctx.fillText("Scheduler latency — setTimeout(0) per call", PAD.left, 14);
-    ctx.fillStyle = "#7fa0c0"; ctx.font = "9px sans-serif"; ctx.textAlign = "center";
-    ctx.fillText("Call →", PAD.left + cW / 2, H - 2);
-  }
-
-  if (benchBtnsEl) benchBtnsEl.style.display = "grid";
-}
-
-// ═══════════════════════════════════════════════════
-//  SVG RENDERING — dots and lines only, no shapes
-// ═══════════════════════════════════════════════════
-
-/**
- * Renders a pattern (dots or lines) as an inline SVG.
- * size: "large" for stim cells, "probe" for center, "small" for refresher
- */
-function patternToSVG(pattern, size = "large") {
-  const dim  = size === "probe" ? 72 : size === "small" ? 40 : 56;
-  const dotR = size === "probe" ? 8  : size === "small" ? 5  : 7;
-  const lineW = size === "probe" ? 10 : size === "small" ? 6  : 9;
-  const lineH = size === "probe" ? 26 : size === "small" ? 15 : 22;
-  const marks = pattern.map(([k, x, y]) => {
-    const px = (x / 100) * dim, py = (y / 100) * dim;
-    if (k === "dot") return `<circle cx="${px.toFixed(1)}" cy="${py.toFixed(1)}" r="${dotR}" fill="var(--text)"/>`;
-    return `<rect x="${(px - lineW / 2).toFixed(1)}" y="${(py - lineH / 2).toFixed(1)}" width="${lineW}" height="${lineH}" rx="2" fill="var(--text)"/>`;
+// ─── SVG rendering ───
+function patternToSVG(pattern,size="large"){
+  const dim=size==="probe"?72:size==="small"?40:56;
+  const dotR=size==="probe"?8:size==="small"?5:7;
+  const lw=size==="probe"?10:size==="small"?6:9;
+  const lh=size==="probe"?26:size==="small"?15:22;
+  const marks=pattern.map(([k,x,y])=>{
+    const px=(x/100)*dim,py=(y/100)*dim;
+    return k==="dot"
+      ?`<circle cx="${px.toFixed(1)}" cy="${py.toFixed(1)}" r="${dotR}" fill="var(--text)"/>`
+      :`<rect x="${(px-lw/2).toFixed(1)}" y="${(py-lh/2).toFixed(1)}" width="${lw}" height="${lh}" rx="2" fill="var(--text)"/>`;
   }).join("");
-  return `<svg class="pat-svg" width="${dim}" height="${dim}" viewBox="0 0 ${dim} ${dim}" xmlns="http://www.w3.org/2000/svg">${marks}</svg>`;
+  return `<svg width="${dim}" height="${dim}" viewBox="0 0 ${dim} ${dim}" xmlns="http://www.w3.org/2000/svg">${marks}</svg>`;
 }
 
-// ─── Build a trial ───
-// Top cells: random mix of dots AND lines (not all same family).
-// Probe: dots or lines. Exactly one top cell matches probe count AND is opposite family.
-// All other top cells either have a different count, or if same count, same family as probe.
-// lastCorrectPos: the correct position from the previous trial — new trial must differ.
-
-function makeTrial(kind, lastCorrectPos) {
-  for (let attempt = 0; attempt < 500; attempt++) {
-    // Choose probe family and count
-    const probeFamily  = Math.random() < 0.5 ? "dots" : "lines";
-    const probeCount   = randInt(1, 6);
-    const probePattern = probeFamily === "dots" ? DOT_PATTERNS[probeCount] : LINE_PATTERNS[probeCount];
-    const oppFamily    = probeFamily === "dots" ? "lines" : "dots";
-
-    // Choose correct position — must differ from lastCorrectPos
-    const correctPos = (() => {
-      if (lastCorrectPos == null) return randInt(0, 5);
-      let p;
-      let tries = 0;
-      do { p = randInt(0, 5); tries++; } while (p === lastCorrectPos && tries < 20);
-      return p;
+// ─── Trial generation ───
+function makeTrial(kind,lastCorrectPos){
+  for(let attempt=0;attempt<500;attempt++){
+    const probeFamily=Math.random()<0.5?"dots":"lines";
+    const probeCount=randInt(1,6);
+    const probePattern=probeFamily==="dots"?DOT_PATTERNS[probeCount]:LINE_PATTERNS[probeCount];
+    const oppFamily=probeFamily==="dots"?"lines":"dots";
+    const correctPos=(()=>{
+      if(lastCorrectPos==null) return randInt(0,5);
+      let p,t=0; do{ p=randInt(0,5);t++; }while(p===lastCorrectPos&&t<20); return p;
     })();
-
-    // Build 6 top cells: random mix of dots and lines
-    // correctPos cell: opposite family, probeCount
-    // Other cells: must NOT be (oppFamily + probeCount) — i.e. must not also be a correct answer
-    const counts = shuffle([1, 2, 3, 4, 5, 6]);
-    // Ensure probeCount lands at correctPos
-    const existingAt = counts.indexOf(probeCount);
-    [counts[correctPos], counts[existingAt]] = [counts[existingAt], counts[correctPos]];
-
-    // Assign families: correctPos gets oppFamily; others get random family
-    // but if another cell has probeCount AND oppFamily it would be a second correct answer — reject
-    const families = [];
-    let valid = true;
-    for (let i = 0; i < 6; i++) {
-      if (i === correctPos) {
-        families.push(oppFamily);
-      } else {
-        // Randomly pick family; if this cell has probeCount, must NOT be oppFamily
-        let f;
-        if (counts[i] === probeCount) {
-          // Force same family as probe so it doesn't match
-          f = probeFamily;
-        } else {
-          f = Math.random() < 0.5 ? "dots" : "lines";
-        }
-        families.push(f);
-      }
+    const counts=shuffle([1,2,3,4,5,6]);
+    const ei=counts.indexOf(probeCount);
+    [counts[correctPos],counts[ei]]=[counts[ei],counts[correctPos]];
+    const families=[];
+    for(let i=0;i<6;i++){
+      if(i===correctPos){ families.push(oppFamily); }
+      else{ families.push(counts[i]===probeCount?probeFamily:(Math.random()<0.5?"dots":"lines")); }
     }
-
-    // Build topItems
-    const topItems = counts.map((c, i) => {
-      const fam = families[i];
-      return { count: c, family: fam, pattern: fam === "dots" ? DOT_PATTERNS[c] : LINE_PATTERNS[c] };
-    });
-
-    // Validation: exactly one cell is (oppFamily + probeCount)
-    const correctMatches = topItems.filter(x => x.count === probeCount && x.family === oppFamily);
-    if (correctMatches.length !== 1) continue;
-    if (topItems[correctPos].count !== probeCount || topItems[correctPos].family !== oppFamily) continue;
-    if (correctPos === lastCorrectPos) continue;
-
-    return {
-      kind,
-      probePattern,
-      probeCount,
-      probeFamily,
-      topItems,
-      correctPos,
-      resolved: false
-    };
+    const topItems=counts.map((c,i)=>({ count:c,family:families[i],pattern:families[i]==="dots"?DOT_PATTERNS[c]:LINE_PATTERNS[c] }));
+    const correct=topItems.filter(x=>x.count===probeCount&&x.family===oppFamily);
+    if(correct.length!==1) continue;
+    if(topItems[correctPos].count!==probeCount||topItems[correctPos].family!==oppFamily) continue;
+    if(correctPos===lastCorrectPos) continue;
+    return { kind,probePattern,probeCount,probeFamily,topItems,correctPos,resolved:false };
   }
-  throw new Error("Could not generate valid trial");
+  throw new Error("makeTrial: could not generate valid trial after 500 attempts");
 }
 
-// ─── Render the trial layout ───
-function renderTrial(trial) {
-  // --- Stimulus grid (top, 2 rows × 3 cols) ---
-  stimGrid.innerHTML = "";
-  for (let i = 0; i < 6; i++) {
-    const cell = document.createElement("div");
-    cell.className = "stim-cell";
-    // position label: row 1 = positions 1–3, row 2 = positions 4–6
-    const label = document.createElement("div");
-    label.className = "cell-label";
-    label.textContent = String(i + 1);
-    cell.appendChild(label);
-    cell.innerHTML += patternToSVG(trial.topItems[i].pattern, "large");
+// ─── Render trial ───
+function renderTrial(trial){
+  stimGrid.innerHTML="";
+  for(let i=0;i<6;i++){
+    const cell=document.createElement("div");
+    cell.className="stim-cell";
+    const lbl=document.createElement("div"); lbl.className="cell-label"; lbl.textContent=String(i+1);
+    cell.appendChild(lbl);
+    cell.innerHTML+=patternToSVG(trial.topItems[i].pattern,"large");
     stimGrid.appendChild(cell);
   }
-
-  // --- Probe (center) ---
   probeCell.classList.remove("idle");
-  probeInner.innerHTML = patternToSVG(trial.probePattern, "probe");
-
-  // --- Response buttons (bottom, same 2×3 layout) ---
-  respGrid.innerHTML = "";
-  for (let i = 0; i < 6; i++) {
-    const btn = document.createElement("div");
-    btn.className = "resp-btn";
-    const pos = document.createElement("div");
-    pos.className = "resp-pos";
-    pos.textContent = String(i + 1);
+  probeInner.innerHTML=patternToSVG(trial.probePattern,"probe");
+  respGrid.innerHTML="";
+  for(let i=0;i<6;i++){
+    const btn=document.createElement("div"); btn.className="resp-btn";
+    const pos=document.createElement("div"); pos.className="resp-pos"; pos.textContent=String(i+1);
     btn.appendChild(pos);
-    const capturedIndex = i;
-    btn.addEventListener("pointerdown", () => handleTap(capturedIndex, btn));
+    const idx=i;
+    btn.addEventListener("pointerdown",()=>handleTap(idx));
     respGrid.appendChild(btn);
   }
 }
-
-// ─── Flash feedback on button ───
-function flashBtn(index, correct) {
-  const btns = respGrid.querySelectorAll(".resp-btn");
-  if (!btns[index]) return;
-  const cls = correct ? "correct-flash" : "wrong-flash";
+function flashBtn(index,ok){
+  const btns=respGrid.querySelectorAll(".resp-btn");
+  if(!btns[index]) return;
+  const cls=ok?"correct-flash":"wrong-flash";
   btns[index].classList.add(cls);
-  setTimeout(() => btns[index].classList.remove(cls), 200);
+  setTimeout(()=>btns[index].classList.remove(cls),200);
+}
+function setProbeIdle(){ probeCell.classList.add("idle"); probeInner.innerHTML=""; stimGrid.innerHTML=""; respGrid.innerHTML=""; }
+
+// ─── Metrics ───
+function updateMetrics(){
+  rateOut.textContent=state.duration?`${Math.round(state.duration)}ms`:"—";
+  blocksOut.textContent=String(state.overloads.length);
+  recoveryOut.textContent=String(state.recoveries.length);
+  wrongOut.textContent=String(state.lastFiveAnswers.filter(v=>v===false).length+state.calibrationErrors);
+  fatigueOut.textContent=state.samnPerelli?String(state.samnPerelli.score):"—";
 }
 
-// ─── Idle probe ───
-function setProbeIdle() {
-  probeCell.classList.add("idle");
-  probeInner.innerHTML = "";
-  stimGrid.innerHTML = "";
-  respGrid.innerHTML = "";
+// ─── Trial log ───
+function logTrial({phase,rt,outcome,responseIndex}){
+  const trial=state.current; if(!trial) return;
+  const ci=trial.topItems[trial.correctPos];
+  const ri=responseIndex!=null?trial.topItems[responseIndex]:null;
+  state.rtLog.push({
+    seq:state.rtLog.length+1, phase, clockTime:new Date().toISOString(),
+    durationMs:state.duration?Math.round(state.duration):null,
+    rt:rt!=null?Math.round(rt):null, outcome,
+    probe:`${trial.probeFamily}:${trial.probeCount}`,
+    correctCell:ci?`${ci.family}:${ci.count} @${trial.correctPos+1}`:"—",
+    response:ri?`${ri.family}:${ri.count} @${responseIndex+1}`:(responseIndex!=null?`pos${responseIndex+1}`:"no_response")
+  });
 }
 
-// ═══════════════════════════════════════════════════
-//  TEST LOGIC
-// ═══════════════════════════════════════════════════
-
-function updateMetrics() {
-  rateOut.textContent   = state.duration ? `${Math.round(state.duration)} ms` : "—";
-  blocksOut.textContent = String(state.overloads.length);
-  recoveryOut.textContent = String(state.recoveries.length);
-  wrongOut.textContent  = String(state.lastFiveAnswers.filter(v => v === false).length + state.calibrationErrors);
-  fatigueOut.textContent = state.samnPerelli ? String(state.samnPerelli.score) : "—";
-}
-
-function trialMatches(trial, index) {
-  return trial && index === trial.correctPos;
-}
-
-function recordAnswer(ok, isMiss) {
-  // Misses (no tap) do NOT count toward roll mean or wrong-threshold —
-  // only actual tap responses count
-  if (!isMiss) {
-    // ── per-window wrong-answer check ──
+// ─── Answer recording ───
+function trialMatches(trial,index){ return trial&&index===trial.correctPos; }
+function recordAnswer(ok,isMiss){
+  if(!isMiss){
     state.lastFiveAnswers.push(ok);
-    if (state.lastFiveAnswers.length > settings.wrongWindowSize) state.lastFiveAnswers.shift();
-
-    // ── rolling mean check ──
+    if(state.lastFiveAnswers.length>settings.wrongWindowSize) state.lastFiveAnswers.shift();
     state.rollMeanLog.push(ok);
-    const win = Math.max(1, Math.round(Number(settings.rollMeanWindow) || 8));
-    if (state.rollMeanLog.length > win) state.rollMeanLog.shift();
-    if (state.rollMeanLog.length === win) {
-      const correctCount = state.rollMeanLog.filter(v => v === true).length;
-      const ratio = correctCount / win;
-      if (ratio < 0.70) {
-        state.endReason = `Too many wrong responses (${correctCount}/${win} correct = ${(ratio * 100).toFixed(0)}% — below 70% threshold)`;
-        finish();
-        return true;
-      }
+    const win=Math.max(1,Math.round(Number(settings.rollMeanWindow)||8));
+    if(state.rollMeanLog.length>win) state.rollMeanLog.shift();
+    if(state.rollMeanLog.length===win){
+      const ratio=state.rollMeanLog.filter(v=>v===true).length/win;
+      if(ratio<0.70){ state.endReason=`Rolling accuracy below 70% (${(ratio*100).toFixed(0)}%)`; finish(); return true; }
     }
-
-    // ── wrong-threshold stop ──
-    const wc = state.lastFiveAnswers.filter(v => v === false).length;
-    if (state.lastFiveAnswers.length === settings.wrongWindowSize && wc > settings.wrongThresholdStop) {
-      state.endReason = `More than ${settings.wrongThresholdStop} wrong answers out of last ${settings.wrongWindowSize}. Restart required.`;
-      finish();
-      return true;
+    const wc=state.lastFiveAnswers.filter(v=>v===false).length;
+    if(state.lastFiveAnswers.length===settings.wrongWindowSize&&wc>settings.wrongThresholdStop){
+      state.endReason=`Too many wrong (${wc}/${settings.wrongWindowSize})`; finish(); return true;
     }
   }
-
-  updateMetrics();
-  return false;
+  updateMetrics(); return false;
 }
-
-function avgLast2Blocks() {
-  if (state.overloads.length < 2) return null;
-  return (state.overloads[state.overloads.length - 1] + state.overloads[state.overloads.length - 2]) / 2;
+function avgLast2Blocks(){
+  if(state.overloads.length<2) return null;
+  return(state.overloads[state.overloads.length-1]+state.overloads[state.overloads.length-2])/2;
 }
-
-function maybeTriggerTerminalRule() {
-  if (state.overloads.length < 2) return false;
-  const n = state.overloads.length;
-  const b1 = state.overloads[n - 2];
-  const b2 = state.overloads[n - 1];
-  const diff = Math.abs(b2 - b1);
-  if (diff < settings.qualifyingBlockGapMs) {
-    state.terminalBlockReason = `2 consecutive blocks within ${settings.qualifyingBlockGapMs} ms threshold (Block ${n-1}: ${b1.toFixed(0)} ms, Block ${n}: ${b2.toFixed(0)} ms, diff: ${diff.toFixed(0)} ms)`;
-    state.phase = "terminal_recovery";
-    state.recoveryCorrectCompleted = 0;
-    state.spCorrectStreak = 0;
-    state.spWrongCount = 0;
-    openTrial("terminal_recovery");
-    return true;
+function maybeTriggerTerminalRule(){
+  if(state.overloads.length<2) return false;
+  const n=state.overloads.length,b1=state.overloads[n-2],b2=state.overloads[n-1],diff=Math.abs(b2-b1);
+  if(diff<settings.qualifyingBlockGapMs){
+    state.terminalBlockReason=`Blocks ${n-1}&${n} within ${settings.qualifyingBlockGapMs}ms (${b1.toFixed(0)}ms,${b2.toFixed(0)}ms,diff=${diff.toFixed(0)}ms)`;
+    state.phase="terminal_recovery"; state.recoveryCorrectCompleted=0; state.spCorrectStreak=0; state.spWrongCount=0;
+    openTrial("terminal_recovery"); return true;
   }
   return false;
 }
-
-function failCalibrationAndRetest(reason) {
-  state.endReason = reason + " Retest required.";
-  finish();
-}
-
-function finishCalibration() {
-  const avg = mean(state.calibrationRTs);
-  const pacedStart = clamp(avg * settings.initialPacedPercent, settings.minDurationMs, settings.maxDurationMs);
-  state.duration = pacedStart;
-  state.phase = "paced";
-  state.testStartTime = performance.now();  // start duration clock when MP begins
-  armMaxTestTimer();                         // max-test timer starts at same moment
-  setStatus(`Machine-paced start: ${pacedStart.toFixed(1)} ms`);
+function failCalibration(reason){ state.endReason=reason+" Retest required."; finish(); }
+function finishCalibration(){
+  const avg=mean(state.calibrationRTs);
+  state.duration=clamp(avg*settings.initialPacedPercent,settings.minDurationMs,settings.maxDurationMs);
+  state.phase="paced"; state.testStartTime=performance.now();
+  armMaxTestTimer();
+  setStatus(`Machine-paced start: ${state.duration.toFixed(0)}ms`);
   openTrial("paced");
 }
 
-function formatDuration(ms) {
-  if (ms == null) return "—";
-  const totalSec = Math.round(ms / 1000);
-  const m = Math.floor(totalSec / 60);
-  const s = totalSec % 60;
-  return m > 0 ? `${m}m ${s}s` : `${s}s`;
+// ─── Pacing ───
+function applyPacing(rt,correct){
+  if(correct){ const r=rt/state.duration; state.duration=clamp(state.duration+(0.1*r-0.1)*state.duration,settings.minDurationMs,settings.maxDurationMs); }
+  else{ state.duration=clamp(state.duration+100,settings.minDurationMs,settings.maxDurationMs); }
 }
 
-function finish() {
+// ─── Finish ───
+function finish(){
   clearTimer(); clearNoResponseTimer(); clearMaxTestTimer();
-  state.phase = "finished";
-
-  const avg2      = avgLast2Blocks();
-  const cps       = avg2 != null ? computeCPS(avg2) : null;
-  const sd        = stdDev(state.pacedRTs);
-  const blockDiff = state.overloads.length >= 2
-    ? state.overloads[state.overloads.length - 1] - state.overloads[state.overloads.length - 2]
-    : null;
-  const testDurMs = state.testStartTime != null ? performance.now() - state.testStartTime : null;
-
-  const result = {
-    subjectId:                  subjectKey(state.subjectId || "0"),
-    samnPerelli:                state.samnPerelli,
-    calibrationAverageMs:       state.calibrationRTs.length ? mean(state.calibrationRTs) : null,
-    blocks:                     [...state.overloads],
-    blockCount:                 state.overloads.length,
-    averageLast2BlockingScoresMs: avg2,
-    blockScoreDifferenceMs:     blockDiff,
-    cognitivePerformanceScore:  cps,
-    totalResponses:             state.totalResponses,
-    totalTrials:                state.totalTrials,
-    totalCorrect:               state.totalCorrect,
-    totalIncorrect:             state.totalIncorrect,
-    missedTrials:               state.missedTrials,
-    pacedErrors:                state.pacedErrors,
-    pacedResponseCount:         state.pacedRTs.length,
-    pacedResponseMeanMs:        state.pacedRTs.length ? mean(state.pacedRTs) : null,
-    pacedResponseSdMs:          sd,
-    testDurationMs:             testDurMs,
-    rtLog:                      [...state.rtLog],
-    endReason:                  state.endReason || "Run complete",
-    time:                       new Date().toISOString(),
-    geo:                        state.geo
+  state.phase="finished";
+  const avg2=avgLast2Blocks(), cps=avg2!=null?computeCPS(avg2):null;
+  const sd=stdDev(state.pacedRTs);
+  const blockDiff=state.overloads.length>=2?state.overloads[state.overloads.length-1]-state.overloads[state.overloads.length-2]:null;
+  const testDurMs=state.testStartTime!=null?performance.now()-state.testStartTime:null;
+  const result={
+    subjectId:subjectKey(state.subjectId||"0"),
+    samnPerelli:state.samnPerelli,
+    calibrationAverageMs:state.calibrationRTs.length?mean(state.calibrationRTs):null,
+    blocks:[...state.overloads], blockCount:state.overloads.length,
+    averageLast2BlockingScoresMs:avg2, blockScoreDifferenceMs:blockDiff,
+    cognitivePerformanceScore:cps, totalResponses:state.totalResponses,
+    totalTrials:state.totalTrials, totalCorrect:state.totalCorrect,
+    totalIncorrect:state.totalIncorrect, missedTrials:state.missedTrials,
+    pacedErrors:state.pacedErrors, pacedResponseCount:state.pacedRTs.length,
+    pacedResponseMeanMs:state.pacedRTs.length?mean(state.pacedRTs):null,
+    pacedResponseSdMs:sd, testDurationMs:testDurMs,
+    rtLog:[...state.rtLog], endReason:state.endReason||"Run complete",
+    time:new Date().toISOString(), geo:state.geo
   };
-
   state.history.push(result);
-  localStorage.setItem("cogspeed_v14_history", JSON.stringify(state.history));
-  updateCPSDisplay(avg2);
-  setProbeIdle();
-
-  // ── geo string ──
-  let geoStr = "unavailable";
-  if (result.geo) {
-    if (result.geo.status === "ok") {
-      geoStr = result.geo.address
-        ? result.geo.address
-        : `${result.geo.latitude.toFixed(5)}, ${result.geo.longitude.toFixed(5)}`;
-      geoStr += ` (±${Math.round(result.geo.accuracy_m)} m)`;
-    } else {
-      geoStr = result.geo.status;
-    }
-  }
-
-  // ── build clean readable results text ──
-  const hr  = "─────────────────────────";
-  const spf = result.samnPerelli
-    ? `${result.samnPerelli.score}  (${result.samnPerelli.label})`
-    : "not recorded";
-  const blockList = result.blocks.length
-    ? result.blocks.map((b, i) => `  Block ${i + 1}: ${b.toFixed(0)} ms`).join("\n")
-    : "  none";
-  const diffStr = blockDiff != null
-    ? `${blockDiff > 0 ? "+" : ""}${blockDiff.toFixed(0)} ms  (${blockDiff > 0 ? "slower" : blockDiff < 0 ? "faster" : "no change"})`
-    : "—";
-
-  const text =
-`CogSpeed V14  —  Test Results
-${hr}
-Date / Time:   ${new Date(result.time).toLocaleString()}
-Subject ID:    ${result.subjectId}
-Location:      ${geoStr}
-${hr}
-FATIGUE (S-PF)
-  Pre-test rating:  ${spf}
-${hr}
-CALIBRATION
-  Average RT:  ${result.calibrationAverageMs != null ? result.calibrationAverageMs.toFixed(1) + " ms" : "—"}
-${hr}
-MACHINE-PACED PERFORMANCE
-  Block scores:
-${blockList}
-  Avg last 2 blocks:   ${avg2 != null ? avg2.toFixed(1) + " ms" : "—"}
-  Block score diff:    ${diffStr}
-  CPS:                 ${cps != null ? cps.toFixed(1) + " / 100" : "—"}
-${hr}
-RESPONSE STATISTICS
-  Total taps:            ${result.totalResponses}
-    Correct:             ${result.totalCorrect}
-    Incorrect:           ${result.totalIncorrect}
-  Missed (no response):  ${result.missedTrials}
-  Paced correct taps:    ${result.pacedResponseCount}
-  Paced wrong taps:      ${result.pacedErrors}
-  Mean paced RT:         ${result.pacedResponseMeanMs != null ? result.pacedResponseMeanMs.toFixed(1) + " ms" : "—"}
-  Paced RT SD:           ${sd != null ? sd.toFixed(1) + " ms" : "—"}
-  Test duration:         ${formatDuration(testDurMs)}
-${hr}
-END REASON
-  ${result.endReason}`;
-
-  state.lastResultText = text;
+  localStorage.setItem("cogspeed_v17_history",JSON.stringify(state.history));
+  updateCPSDisplay(avg2); setProbeIdle();
+  let geoStr="unavailable";
+  if(result.geo){ geoStr=result.geo.status==="ok"?(result.geo.address||`${result.geo.latitude.toFixed(5)},${result.geo.longitude.toFixed(5)}`)+` (±${Math.round(result.geo.accuracy_m)}m)`:result.geo.status; }
+  const spf=result.samnPerelli?`${result.samnPerelli.score} (${result.samnPerelli.label})`:"not recorded";
+  const blockList=result.blocks.length?result.blocks.map((b,i)=>`  Block ${i+1}: ${b.toFixed(0)}ms`).join("\n"):"  none";
+  const hr="─────────────────────────";
+  const text=`CogSpeed V17  —  Test Results\n${hr}\nDate:       ${new Date(result.time).toLocaleString()}\nSubject:    ${result.subjectId}\nLocation:   ${geoStr}\n${hr}\nFATIGUE (S-PF)\n  ${spf}\n${hr}\nCALIBRATION\n  Avg RT: ${result.calibrationAverageMs!=null?result.calibrationAverageMs.toFixed(1)+"ms":"—"}\n${hr}\nMACHINE-PACED\n${blockList}\n  Avg last 2 blocks: ${avg2!=null?avg2.toFixed(1)+"ms":"—"}\n  CPS: ${cps!=null?cps.toFixed(1)+"/100":"—"}\n${hr}\nSTATISTICS\n  Taps: ${result.totalResponses}  Correct: ${result.totalCorrect}  Wrong: ${result.totalIncorrect}\n  Missed: ${result.missedTrials}  Test time: ${formatDuration(testDurMs)}\n${hr}\nEND\n  ${result.endReason}`;
+  state.lastResultText=text;
   showResultsPage(text);
 }
 
-function openTrial(kind) {
+// ─── Open trial ───
+function openTrial(kind){
   clearTimer();
-  state.previous = state.current;
-  const lastCorrectPos = state.current ? state.current.correctPos : null;
-  state.current  = makeTrial(kind, lastCorrectPos);
-  state.trialOpenedAt = performance.now();
+  state.previous=state.current;
+  const lastPos=state.current?state.current.correctPos:null;
+  state.current=makeTrial(kind,lastPos);
+  state.trialOpenedAt=performance.now();
   renderTrial(state.current);
   updateMetrics();
-
-  if (kind === "calibration") {
-    const idx   = state.calibrationTrialIndex + 1;
-    const total = settings.initialUnusedCalibrationTrials + settings.initialMeasuredCalibrationTrials;
-    phaseLabel.textContent = `Cal ${idx}/${total}`;
-    setStatus(idx <= settings.initialUnusedCalibrationTrials ? "Self-paced (unused)" : "Self-paced (measured)");
-  } else if (kind === "paced") {
-    phaseLabel.textContent = `Paced · ${Math.round(state.duration)} ms`;
+  if(kind==="calibration"){
+    const idx=state.calibrationTrialIndex+1,total=settings.initialUnusedCalibrationTrials+settings.initialMeasuredCalibrationTrials;
+    phaseLabel.textContent=`Cal ${idx}/${total}`;
+    setStatus(idx<=settings.initialUnusedCalibrationTrials?"Self-paced (unused)":"Self-paced (measured)");
+  }else if(kind==="paced"){
+    phaseLabel.textContent=`Paced · ${Math.round(state.duration)}ms`;
     setStatus("Machine-paced");
-    state.trialTimer = setTimeout(onPacedFrameEnd, state.duration);
-  } else if (kind === "recovery") {
-    phaseLabel.textContent = `SP Restart ${state.spCorrectStreak}✓ ${state.spWrongCount}✗`;
-    setStatus(`SP Restart — need ${settings.spRestartCorrectStreak} in a row (${state.spWrongCount}/${settings.spRestartWrongLimit} wrong)`);
-  } else if (kind === "terminal_recovery") {
-    phaseLabel.textContent = `Final SP ${state.recoveryCorrectCompleted + 1}/${settings.spRestartCorrectStreak}`;
+    state.trialTimer=setTimeout(onPacedFrameEnd,state.duration);
+  }else if(kind==="recovery"){
+    phaseLabel.textContent=`SP Restart ${state.spCorrectStreak}✓ ${state.spWrongCount}✗`;
+    setStatus(`SP Restart — need ${settings.spRestartCorrectStreak} correct in a row`);
+  }else if(kind==="terminal_recovery"){
+    phaseLabel.textContent=`Final SP ${state.recoveryCorrectCompleted+1}/${settings.spRestartCorrectStreak}`;
     setStatus("Final self-paced recovery");
   }
 }
 
-// ─── New pacing formula ───
-// r = RT / presentationRate
-// Δ = (0.1r - 0.1) * duration   →  negative = speedup, positive = slowdown
-// Correct: apply Δ
-// No response: no change
-// Wrong: +100 ms
-function applyPacingAdjustment(rt, correct, durationUsed) {
-  if (correct) {
-    const r = rt / durationUsed;
-    const delta = (0.1 * r - 0.1) * durationUsed;
-    state.duration = clamp(state.duration + delta, settings.minDurationMs, settings.maxDurationMs);
-  } else {
-    // wrong response
-    state.duration = clamp(state.duration + 100, settings.minDurationMs, settings.maxDurationMs);
-  }
-}
-
-function onPacedFrameEnd() {
-  if (state.phase !== "paced") return;
-  state.totalTrials += 1;
-  const currentMissed = state.current && state.current.kind === "paced" && !state.current.resolved;
-
-  if (currentMissed) {
-    logTrial({ phase: "missed", rt: null, outcome: "missed", responseIndex: null });
-    state.missedTrials += 1;       // missed = no tap, not a wrong tap
-    state.previousMissed = true;
-    state.lastFrameDuration = state.duration;
-    if (recordAnswer(false, true)) return;  // isMiss=true
-  } else {
-    state.previousMissed = false;
-    state.lastFrameDuration = null;
-  }
-
-  state.unresolvedStreak = currentMissed ? state.unresolvedStreak + 1 : 0;
-  if (state.unresolvedStreak >= settings.consecutiveMissesForBlock) {
-    state.blockDuration = state.duration;
-    state.overloads.push(state.blockDuration);
-    state.unresolvedStreak = 0;
-    state.previousMissed = false;
-    state.lastFrameDuration = null;
+// ─── Paced frame end ───
+function onPacedFrameEnd(){
+  if(state.phase!=="paced") return;
+  state.totalTrials+=1;
+  const missed=state.current&&!state.current.resolved;
+  if(missed){
+    logTrial({phase:"missed",rt:null,outcome:"missed",responseIndex:null});
+    state.missedTrials+=1; state.previousMissed=true; state.lastFrameDuration=state.duration;
+    if(recordAnswer(false,true)) return;
+  }else{ state.previousMissed=false; state.lastFrameDuration=null; }
+  state.unresolvedStreak=missed?state.unresolvedStreak+1:0;
+  if(state.unresolvedStreak>=settings.consecutiveMissesForBlock){
+    state.blockDuration=state.duration; state.overloads.push(state.blockDuration);
+    state.unresolvedStreak=0; state.previousMissed=false; state.lastFrameDuration=null;
     updateCPSDisplay(avgLast2Blocks());
-    if (maybeTriggerTerminalRule()) return;
-    state.phase = "recovery";
-    state.recoveryCorrectCompleted = 0;
-    state.spCorrectStreak = 0;
-    state.spWrongCount = 0;
-    openTrial("recovery");
-    return;
+    if(maybeTriggerTerminalRule()) return;
+    state.phase="recovery"; state.recoveryCorrectCompleted=0; state.spCorrectStreak=0; state.spWrongCount=0;
+    openTrial("recovery"); return;
   }
-  if (state.totalTrials >= settings.maxTrialCount) {
-    state.endReason = `Trial cap reached (${settings.maxTrialCount} trials)`;
-    finish();
-  } else {
-    openTrial("paced");
-  }
+  if(state.totalTrials>=settings.maxTrialCount){ state.endReason=`Trial cap (${settings.maxTrialCount})`; finish(); }
+  else openTrial("paced");
 }
 
-function handleTap(index, btnEl) {
-  if (!["calibration", "paced", "recovery", "terminal_recovery"].includes(state.phase)) return;
+// ─── Handle tap ───
+function handleTap(index){
+  if(!["calibration","paced","recovery","terminal_recovery"].includes(state.phase)) return;
   noteAnyResponse();
 
-  if (state.phase === "calibration") {
-    const rt = performance.now() - state.trialOpenedAt;
-    const ok = trialMatches(state.current, index);
-    flashBtn(index, ok);
-    state.totalResponses += 1;
-    if (ok) state.totalCorrect += 1;
-    else    state.totalIncorrect += 1;
-    logTrial({ phase: "calibration", rt, outcome: ok ? "correct" : "wrong", responseIndex: index });
-    if (!ok) {
-      state.calibrationErrors += 1;
-      updateMetrics();
-      if (state.calibrationErrors > settings.calibrationStopErrors) {
-        failCalibrationAndRetest(`More than ${settings.calibrationStopErrors} calibration errors.`);
-        return;
-      }
-    } else {
-      if (rt > settings.calibrationStopSlowMs) {
-        failCalibrationAndRetest(`Calibration response exceeded ${settings.calibrationStopSlowMs} ms.`);
-        return;
-      }
-      if (state.calibrationTrialIndex >= settings.initialUnusedCalibrationTrials) state.calibrationRTs.push(rt);
+  // Calibration
+  if(state.phase==="calibration"){
+    const rt=performance.now()-state.trialOpenedAt, ok=trialMatches(state.current,index);
+    flashBtn(index,ok); state.totalResponses+=1;
+    if(ok) state.totalCorrect+=1; else state.totalIncorrect+=1;
+    logTrial({phase:"calibration",rt,outcome:ok?"correct":"wrong",responseIndex:index});
+    if(!ok){
+      state.calibrationErrors+=1; updateMetrics();
+      if(state.calibrationErrors>settings.calibrationStopErrors){ failCalibration(`>${settings.calibrationStopErrors} calibration errors.`); return; }
+    }else{
+      if(rt>settings.calibrationStopSlowMs){ failCalibration(`Calibration RT exceeded ${settings.calibrationStopSlowMs}ms.`); return; }
+      if(state.calibrationTrialIndex>=settings.initialUnusedCalibrationTrials) state.calibrationRTs.push(rt);
     }
-    state.calibrationTrialIndex += 1;
-    if (state.calibrationTrialIndex >= settings.initialUnusedCalibrationTrials + settings.initialMeasuredCalibrationTrials) {
-      finishCalibration();
-    } else {
-      openTrial("calibration");
-    }
+    state.calibrationTrialIndex+=1;
+    if(state.calibrationTrialIndex>=settings.initialUnusedCalibrationTrials+settings.initialMeasuredCalibrationTrials) finishCalibration();
+    else openTrial("calibration");
     return;
   }
 
-  if (state.phase === "recovery") {
+  // Recovery (SP Restart)
+  if(state.phase==="recovery"){
     clearTimer();
-    const ok = trialMatches(state.current, index);
-    const rt = performance.now() - state.trialOpenedAt;
-    flashBtn(index, ok);
-    state.totalResponses += 1;
-    if (ok) state.totalCorrect += 1; else state.totalIncorrect += 1;
-    logTrial({ phase: "recovery", rt, outcome: ok ? "correct" : "wrong", responseIndex: index });
-
-    if (ok) {
-      state.spCorrectStreak += 1;
-      state.current.resolved = true;
-      const streakNeeded = Math.max(1, Math.round(Number(settings.spRestartCorrectStreak) || 2));
-      if (state.spCorrectStreak >= streakNeeded) {
-        // 2 correct in a row — success, re-enter MP with slowdown
-        const slower = clamp(
-          state.blockDuration + (Number(settings.spRestartSlowerByMs) || 375),
-          settings.minDurationMs, settings.maxDurationMs
-        );
-        state.recoveries.push(slower);
-        state.phase = "paced";
-        state.duration = slower;
-        state.spCorrectStreak = 0; state.spWrongCount = 0;
-        phaseLabel.textContent = `Paced · ${Math.round(slower)} ms`;
-        setStatus(`SP Restart passed — resuming at ${slower.toFixed(0)} ms`);
-        setTimeout(() => openTrial("paced"), 180);
-      } else {
-        setStatus(`SP Restart: ${state.spCorrectStreak} correct in a row — need ${streakNeeded}`);
-        setTimeout(() => openTrial("recovery"), 160);
+    const rt=performance.now()-state.trialOpenedAt, ok=trialMatches(state.current,index);
+    flashBtn(index,ok); state.totalResponses+=1;
+    if(ok) state.totalCorrect+=1; else state.totalIncorrect+=1;
+    logTrial({phase:"recovery",rt,outcome:ok?"correct":"wrong",responseIndex:index});
+    if(ok){
+      state.spCorrectStreak+=1; state.current.resolved=true;
+      const need=Math.max(1,Number(settings.spRestartCorrectStreak)||2);
+      if(state.spCorrectStreak>=need){
+        const slower=clamp(state.blockDuration+(Number(settings.spRestartSlowerByMs)||375),settings.minDurationMs,settings.maxDurationMs);
+        state.recoveries.push(slower); state.phase="paced"; state.duration=slower;
+        state.spCorrectStreak=0; state.spWrongCount=0;
+        setStatus(`SP Restart passed — resuming at ${slower.toFixed(0)}ms`);
+        setTimeout(()=>openTrial("paced"),180);
+      }else{
+        setStatus(`SP Restart: ${state.spCorrectStreak}/${need} correct`);
+        setTimeout(()=>openTrial("recovery"),160);
       }
-    } else {
-      state.spCorrectStreak = 0; // reset streak on any wrong
-      state.spWrongCount += 1;
-      const wrongLimit = Math.max(1, Math.round(Number(settings.spRestartWrongLimit) || 3));
-      if (state.spWrongCount >= wrongLimit) {
-        // 3 wrong — bad end
-        state.endReason = `SP Restart failed: ${wrongLimit} wrong responses before ${settings.spRestartCorrectStreak} correct in a row`;
-        finish();
-        return;
-      }
-      setStatus(`SP Restart: ${state.spWrongCount} wrong (limit ${wrongLimit})`);
-      setTimeout(() => openTrial("recovery"), 160);
+    }else{
+      state.spCorrectStreak=0; state.spWrongCount+=1;
+      const limit=Math.max(1,Number(settings.spRestartWrongLimit)||3);
+      if(state.spWrongCount>=limit){ state.endReason=`SP Restart failed: ${limit} wrong before ${settings.spRestartCorrectStreak} correct in a row`; finish(); return; }
+      setStatus(`SP Restart: ${state.spWrongCount}/${limit} wrong`);
+      setTimeout(()=>openTrial("recovery"),160);
     }
-
-    // roll mean / wrong-threshold checks (don't end via recordAnswer — we handle it above)
-    recordAnswer(ok);
-    return;
+    recordAnswer(ok); return;
   }
 
-  if (state.phase === "terminal_recovery") {
+  // Terminal recovery
+  if(state.phase==="terminal_recovery"){
     clearTimer();
-    const ok = trialMatches(state.current, index);
-    const rt = performance.now() - state.trialOpenedAt;
-    flashBtn(index, ok);
-    state.totalResponses += 1;
-    if (ok) state.totalCorrect += 1; else state.totalIncorrect += 1;
-    logTrial({ phase: "terminal_recovery", rt, outcome: ok ? "correct" : "wrong", responseIndex: index });
-    if (recordAnswer(ok)) return;
-    if (ok) {
-      state.current.resolved = true;
-      state.recoveryCorrectCompleted += 1;
-      const needed = Math.max(1, Math.round(Number(settings.spRestartCorrectStreak) || 2));
-      if (state.recoveryCorrectCompleted >= needed) {
-        state.endReason = `Convergent blocks — ${state.terminalBlockReason || "2 consecutive blocks within threshold"}. Completed ${needed} final self-paced trials.`;
-        finish();
-        return;
-      }
-      setTimeout(() => openTrial("terminal_recovery"), 160);
-    } else {
-      setTimeout(() => openTrial("terminal_recovery"), 160);
+    const rt=performance.now()-state.trialOpenedAt, ok=trialMatches(state.current,index);
+    flashBtn(index,ok); state.totalResponses+=1;
+    if(ok) state.totalCorrect+=1; else state.totalIncorrect+=1;
+    logTrial({phase:"terminal_recovery",rt,outcome:ok?"correct":"wrong",responseIndex:index});
+    if(recordAnswer(ok)) return;
+    if(ok){
+      state.current.resolved=true; state.recoveryCorrectCompleted+=1;
+      const need=Math.max(1,Number(settings.spRestartCorrectStreak)||2);
+      if(state.recoveryCorrectCompleted>=need){ state.endReason=`Convergent blocks — ${state.terminalBlockReason||"2 consecutive blocks within threshold"}. Completed ${need} final trials.`; finish(); return; }
+      setTimeout(()=>openTrial("terminal_recovery"),160);
+    }else setTimeout(()=>openTrial("terminal_recovery"),160);
+    return;
+  }
+
+  // Paced
+  const rt=performance.now()-state.trialOpenedAt;
+  if(state.previousMissed&&rt<600){
+    const correctForLast=state.previous&&!state.previous.resolved&&trialMatches(state.previous,index);
+    state.totalResponses+=1; state.previousMissed=false; state.lastFrameDuration=null;
+    if(correctForLast){
+      state.previous.resolved=true; const eRT=rt+(state.lastFrameDuration||state.duration);
+      applyPacing(eRT,true); state.totalCorrect+=1; state.pacedRTs.push(rt);
+      logTrial({phase:"paced_late_correct",rt,outcome:"correct",responseIndex:index}); flashBtn(index,true);
+      if(recordAnswer(true)) return;
+    }else{
+      applyPacing(null,false); state.totalIncorrect+=1; state.pacedErrors+=1;
+      logTrial({phase:"paced_late_wrong",rt,outcome:"wrong",responseIndex:index}); flashBtn(index,false);
+      if(recordAnswer(false)) return;
     }
     return;
   }
-
-  // ── Paced phase tap handling ──
-  const rt = performance.now() - state.trialOpenedAt;
-
-  if (state.previousMissed && rt < 600) {
-    // Fast response after a miss — assume it was meant for the PREVIOUS trial
-    const lastDur = state.lastFrameDuration || state.duration;
-    const correctForLast = state.previous && !state.previous.resolved && trialMatches(state.previous, index);
-
-    state.totalResponses += 1;
-    state.previousMissed = false;
-    state.lastFrameDuration = null;
-
-    if (correctForLast) {
-      // Correct for last trial: effectiveRT = RT + lastDur → slowdown (faster than window)
-      state.previous.resolved = true;
-      const effectiveRT = rt + lastDur;
-      applyPacingAdjustment(effectiveRT, true, state.duration);
-      state.totalCorrect += 1;
-      state.pacedRTs.push(rt);
-      logTrial({ phase: "paced_late_correct", rt, outcome: "correct", responseIndex: index });
-      flashBtn(index, true);
-      if (recordAnswer(true)) return;
-    } else {
-      // Wrong for last trial: +100ms slowdown
-      applyPacingAdjustment(null, false, state.duration);
-      state.totalIncorrect += 1;
-      state.pacedErrors += 1;
-      logTrial({ phase: "paced_late_wrong", rt, outcome: "wrong", responseIndex: index });
-      flashBtn(index, false);
-      if (recordAnswer(false)) return;
-    }
-    return;
+  state.previousMissed=false; state.lastFrameDuration=null;
+  if(state.current&&!state.current.resolved&&trialMatches(state.current,index)){
+    state.current.resolved=true; state.totalResponses+=1; state.totalCorrect+=1;
+    applyPacing(rt,true); state.pacedRTs.push(rt);
+    logTrial({phase:"paced",rt,outcome:"correct",responseIndex:index}); flashBtn(index,true);
+    if(recordAnswer(true)) return; return;
   }
-
-  // RT >= 600ms (or no preceding miss) — treat as response to CURRENT trial
-  state.previousMissed = false;
-  state.lastFrameDuration = null;
-
-  if (state.current && state.current.kind === "paced" && !state.current.resolved && trialMatches(state.current, index)) {
-    state.current.resolved = true;
-    state.totalResponses += 1;
-    state.totalCorrect += 1;
-    applyPacingAdjustment(rt, true, state.duration);
-    state.pacedRTs.push(rt);
-    logTrial({ phase: "paced", rt, outcome: "correct", responseIndex: index });
-    flashBtn(index, true);
-    if (recordAnswer(true)) return;
-    return;
-  }
-
-  // Wrong response (no match on current trial)
-  state.totalResponses += 1;
-  state.totalIncorrect += 1;
-  state.pacedErrors += 1;
-  applyPacingAdjustment(null, false, state.duration);
-  logTrial({ phase: "paced_wrong", rt: performance.now() - state.trialOpenedAt, outcome: "wrong", responseIndex: index });
-  flashBtn(index, false);
-  recordAnswer(false);
+  state.totalResponses+=1; state.totalIncorrect+=1; state.pacedErrors+=1;
+  applyPacing(null,false);
+  logTrial({phase:"paced_wrong",rt:performance.now()-state.trialOpenedAt,outcome:"wrong",responseIndex:index});
+  flashBtn(index,false); recordAnswer(false);
 }
 
-// ═══════════════════════════════════════════════════
-//  REFRESHER
-// ═══════════════════════════════════════════════════
-
-function renderRefresher() {
-  const grid = $("refresherGrid");
-  grid.innerHTML = "";
-  for (let i = 1; i <= 6; i++) {
-    const card = document.createElement("div");
-    card.className = "ref-card";
-    card.innerHTML = `<div class="ref-num">${i}</div>
-      <div class="ref-row">
-        <div><div class="ref-lbl">dots</div>${patternToSVG(DOT_PATTERNS[i], "small")}</div>
-        <div class="ref-arrow">↔</div>
-        <div><div class="ref-lbl">lines</div>${patternToSVG(LINE_PATTERNS[i], "small")}</div>
-      </div>`;
-    grid.appendChild(card);
+// ─── Refresher ───
+function renderRefresher(){
+  const grid=$("refresherGrid"); grid.innerHTML="";
+  for(let i=1;i<=6;i++){
+    const c=document.createElement("div"); c.className="ref-card";
+    c.innerHTML=`<div class="ref-num">${i}</div><div class="ref-row"><div><div class="ref-lbl">dots</div>${patternToSVG(DOT_PATTERNS[i],"small")}</div><div class="ref-arrow">↔</div><div><div class="ref-lbl">lines</div>${patternToSVG(LINE_PATTERNS[i],"small")}</div></div>`;
+    grid.appendChild(c);
   }
 }
 
-// ═══════════════════════════════════════════════════
-//  FATIGUE CHECKLIST
-// ═══════════════════════════════════════════════════
-
-function renderFatigueChecklist() {
-  const f = $("fatigueList");
-  f.innerHTML = "";
-  for (const [score, label] of SAMN_PERELLI) {
-    const b = document.createElement("button");
-    b.className = "fatigue-item";
-    b.textContent = `${score}. ${label}`;
-    b.onclick = () => {
-      // Highlight selected, clear others
-      f.querySelectorAll(".fatigue-item").forEach(el => el.style.background = "");
-      b.style.background = "rgba(0,180,255,0.18)";
-      state.samnPerelli = { score, label };
-      fatigueOut.textContent = String(score);
+// ─── Fatigue checklist ───
+function renderFatigueChecklist(){
+  const f=$("fatigueList"); f.innerHTML="";
+  for(const [score,label] of SAMN_PERELLI){
+    const b=document.createElement("button"); b.className="fatigue-item";
+    b.textContent=`${score}. ${label}`;
+    b.onclick=()=>{
+      f.querySelectorAll(".fatigue-item").forEach(el=>el.style.background="");
+      b.style.background="rgba(0,180,255,0.18)";
+      state.samnPerelli={score,label}; fatigueOut.textContent=String(score);
       setStatus(`S-PF: ${score} — ${label}`);
-      // Show Start Test button
-      const startBtn = $("fatigueStartBtn");
-      if (startBtn) startBtn.classList.remove("hidden");
+      const sb=$("fatigueStartBtn"); if(sb) sb.classList.remove("hidden");
     };
     f.appendChild(b);
   }
 }
 
-// ═══════════════════════════════════════════════════
-//  ADMIN
-// ═══════════════════════════════════════════════════
-
-function renderAdmin() {
-  const w = $("adminSettings");
-  w.innerHTML = "";
-  for (const [k, l, t] of ADMIN_FIELDS) {
-    const r = document.createElement("div");
-    r.style.cssText = "display:grid;grid-template-columns:1fr 140px;gap:8px;align-items:center;margin-bottom:8px";
-    r.innerHTML = `<label style="font-size:14px;color:var(--text)">${l}<div style="font-size:11px;color:var(--muted)">${k}</div></label><input id="adm_${k}" type="${t}" value="${settings[k]}" style="padding:9px;border:1px solid var(--edge);border-radius:10px;background:#0a1629;color:var(--text);font-size:14px;width:100%">`;
+// ─── Admin ───
+function renderAdmin(){
+  const w=$("adminSettings"); w.innerHTML="";
+  for(const [k,l,t] of ADMIN_FIELDS){
+    const r=document.createElement("div");
+    r.style.cssText="display:grid;grid-template-columns:1fr 140px;gap:8px;align-items:center;margin-bottom:8px";
+    r.innerHTML=`<label style="font-size:14px;color:var(--text)">${l}<div style="font-size:11px;color:var(--muted)">${k}</div></label><input id="adm_${k}" type="${t}" value="${settings[k]}" style="padding:9px;border:1px solid var(--edge);border-radius:10px;background:#0a1629;color:var(--text);font-size:14px;width:100%">`;
     w.appendChild(r);
   }
   renderHistoryGraphs();
 }
+function readAdmin(){ for(const [k,,t] of ADMIN_FIELDS){ const el=$("adm_"+k); if(el) settings[k]=t==="number"?Number(el.value):el.value; } }
+function resetAdmin(){ settings={...DEFAULTS}; saveSettings(); renderAdmin(); }
 
-function readAdmin() {
-  for (const [k, _, t] of ADMIN_FIELDS) {
-    const el = $("adm_" + k);
-    settings[k] = t === "number" ? Number(el.value) : el.value;
-  }
-}
-
-function resetAdmin() {
-  settings = { ...DEFAULTS };
-  saveSettings();
-  renderAdmin();
-}
-
-// ═══════════════════════════════════════════════════
-//  CHARTS
-// ═══════════════════════════════════════════════════
-
-// ═══════════════════════════════════════════════════
-//  CHARTS — combined CPS / Block Score / S-PF
-// ═══════════════════════════════════════════════════
-
-function drawCombinedChart(canvas, hist) {
-  if (!canvas) return;
-  const ctx = canvas.getContext("2d");
-  const W = canvas.width, H = canvas.height;
-  ctx.clearRect(0, 0, W, H);
-
-  const PAD = { top: 32, right: 52, bottom: 38, left: 48 };
-  const cW = W - PAD.left - PAD.right;
-  const cH = H - PAD.top - PAD.bottom;
-
-  ctx.fillStyle = "#081321";
-  ctx.fillRect(0, 0, W, H);
-
-  if (!hist.length) {
-    ctx.fillStyle = "#d7e7f8";
-    ctx.font = "bold 13px sans-serif";
-    ctx.textAlign = "center";
-    ctx.fillText("No data yet", W / 2, H / 2);
-    ctx.textAlign = "left";
-    return;
-  }
-
-  const slice = hist.slice(-20);
-  const n = slice.length;
-  const xStep = n > 1 ? cW / (n - 1) : cW;
-
-  // ── Raw series values ──
-  const cpsVals   = slice.map(x => x.cognitivePerformanceScore ?? null);
-  const blockVals = slice.map(x => x.averageLast2BlockingScoresMs ?? null);
-  const spfVals   = slice.map(x => x.samnPerelli ? x.samnPerelli.score : null);
-
-  // ── Left axis: CPS 0–100 ──
-  const CPS_MIN = 0, CPS_MAX = 100;
-
-  // ── Right axis: block time (ms) — auto-scale from data ──
-  const blockValid = blockVals.filter(v => v != null);
-  const blockRawMin = blockValid.length ? Math.min(...blockValid) : 0;
-  const blockRawMax = blockValid.length ? Math.max(...blockValid) : 3000;
-  // nice round ticks for right axis (block ms)
-  const blockAxisMax = Math.ceil(blockRawMax / 500) * 500 || 3000;
-  const blockAxisMin = Math.max(0, Math.floor(blockRawMin / 500) * 500);
-
-  // ── Right axis: S-PF 1–7 (share the right axis, annotated separately) ──
-  const SPF_MIN = 1, SPF_MAX = 7;
-
-  // Convert to Y pixel coords
-  function yLeft(v, lo, hi)  { return PAD.top + cH - ((v - lo) / ((hi - lo) || 1)) * cH; }
-  function xOf(i)             { return PAD.left + (n > 1 ? i * xStep : cW / 2); }
-
-  // ── Grid lines (based on left CPS axis, 5 lines 0/25/50/75/100) ──
-  ctx.strokeStyle = "rgba(79,111,153,0.25)";
-  ctx.lineWidth = 1;
-  [0, 25, 50, 75, 100].forEach(v => {
-    const y = yLeft(v, CPS_MIN, CPS_MAX);
-    ctx.beginPath(); ctx.moveTo(PAD.left, y); ctx.lineTo(PAD.left + cW, y); ctx.stroke();
-  });
-
-  // ── Left Y axis: CPS labels ──
-  ctx.font = "10px sans-serif";
-  ctx.fillStyle = "#7fd7ff";
-  ctx.textAlign = "right";
-  [0, 25, 50, 75, 100].forEach(v => {
-    ctx.fillText(String(v), PAD.left - 4, yLeft(v, CPS_MIN, CPS_MAX) + 4);
-  });
-  // Left axis title
-  ctx.save();
-  ctx.translate(11, PAD.top + cH / 2);
-  ctx.rotate(-Math.PI / 2);
-  ctx.fillStyle = "#7fd7ff";
-  ctx.font = "bold 9px sans-serif";
-  ctx.textAlign = "center";
-  ctx.fillText("CPS", 0, 0);
-  ctx.restore();
-
-  // ── Right Y axis: Block ms labels ──
-  ctx.fillStyle = "#ff9f40";
-  ctx.textAlign = "left";
-  const blockTicks = 5;
-  for (let t = 0; t <= blockTicks; t++) {
-    const v = blockAxisMin + (t / blockTicks) * (blockAxisMax - blockAxisMin);
-    // Map block ms to pixel using same pixel range but block scale
-    const y = PAD.top + cH - (t / blockTicks) * cH;
-    ctx.fillText(v >= 1000 ? (v/1000).toFixed(1)+"s" : Math.round(v)+"ms", PAD.left + cW + 4, y + 4);
-  }
-  // Right axis title
-  ctx.save();
-  ctx.translate(W - 6, PAD.top + cH / 2);
-  ctx.rotate(Math.PI / 2);
-  ctx.fillStyle = "#ff9f40";
-  ctx.font = "bold 9px sans-serif";
-  ctx.textAlign = "center";
-  ctx.fillText("Block ms", 0, 0);
-  ctx.restore();
-
-  // ── X axis labels ──
-  ctx.fillStyle = "#7fa0c0";
-  ctx.font = "10px sans-serif";
-  ctx.textAlign = "center";
-  for (let i = 0; i < n; i++) {
-    ctx.fillText(String(i + 1), xOf(i), PAD.top + cH + 14);
-  }
-  ctx.fillText("Session →", PAD.left + cW / 2, PAD.top + cH + 28);
-  ctx.textAlign = "left";
-
-  // ── Helper: draw a series ──
-  function drawSeries(vals, toY, color, dashed) {
-    ctx.strokeStyle = color;
-    ctx.lineWidth = 2.2;
-    ctx.setLineDash(dashed || []);
-    ctx.beginPath();
-    let started = false;
-    vals.forEach((v, i) => {
-      if (v == null) { started = false; return; }
-      const x = xOf(i), y = toY(v);
-      if (!started) { ctx.moveTo(x, y); started = true; } else ctx.lineTo(x, y);
-    });
+// ─── Charts ───
+function drawCombinedChart(canvas,hist){
+  if(!canvas) return;
+  const ctx=canvas.getContext("2d"),W=canvas.width,H=canvas.height;
+  ctx.clearRect(0,0,W,H); ctx.fillStyle="#081321"; ctx.fillRect(0,0,W,H);
+  const PAD={top:32,right:52,bottom:38,left:48},cW=W-PAD.left-PAD.right,cH=H-PAD.top-PAD.bottom;
+  if(!hist.length){ ctx.fillStyle="#d7e7f8"; ctx.font="bold 13px sans-serif"; ctx.textAlign="center"; ctx.fillText("No data yet",W/2,H/2); return; }
+  const slice=hist.slice(-20),n=slice.length,xStep=n>1?cW/(n-1):cW;
+  const cpsVals=slice.map(x=>x.cognitivePerformanceScore??null);
+  const blockVals=slice.map(x=>x.averageLast2BlockingScoresMs??null);
+  const spfVals=slice.map(x=>x.samnPerelli?x.samnPerelli.score:null);
+  const bValid=blockVals.filter(v=>v!=null);
+  const bMax=bValid.length?Math.ceil(Math.max(...bValid)/500)*500||3000:3000;
+  const bMin=bValid.length?Math.max(0,Math.floor(Math.min(...bValid)/500)*500):0;
+  function yL(v,lo,hi){ return PAD.top+cH-((v-lo)/((hi-lo)||1))*cH; }
+  function xO(i){ return PAD.left+(n>1?i*xStep:cW/2); }
+  ctx.strokeStyle="rgba(79,111,153,0.25)"; ctx.lineWidth=1;
+  [0,25,50,75,100].forEach(v=>{ const y=yL(v,0,100); ctx.beginPath(); ctx.moveTo(PAD.left,y); ctx.lineTo(PAD.left+cW,y); ctx.stroke(); });
+  ctx.font="10px sans-serif"; ctx.fillStyle="#7fd7ff"; ctx.textAlign="right";
+  [0,25,50,75,100].forEach(v=>ctx.fillText(String(v),PAD.left-4,yL(v,0,100)+4));
+  ctx.fillStyle="#ff9f40"; ctx.textAlign="left";
+  for(let t=0;t<=5;t++){ const v=bMin+(t/5)*(bMax-bMin); ctx.fillText(v>=1000?(v/1000).toFixed(1)+"s":Math.round(v)+"ms",PAD.left+cW+4,PAD.top+cH-(t/5)*cH+4); }
+  ctx.fillStyle="#7fa0c0"; ctx.font="10px sans-serif"; ctx.textAlign="center";
+  for(let i=0;i<n;i++) ctx.fillText(String(i+1),xO(i),PAD.top+cH+14);
+  function drawSeries(vals,toY,color){
+    ctx.strokeStyle=color; ctx.lineWidth=2.2; ctx.beginPath(); let started=false;
+    vals.forEach((v,i)=>{ if(v==null){started=false;return;} const x=xO(i),y=toY(v); if(!started){ctx.moveTo(x,y);started=true;}else ctx.lineTo(x,y); });
     ctx.stroke();
-    ctx.setLineDash([]);
-    vals.forEach((v, i) => {
-      if (v == null) return;
-      ctx.fillStyle = color;
-      ctx.beginPath(); ctx.arc(xOf(i), toY(v), 3.5, 0, Math.PI * 2); ctx.fill();
-      // value label above dot
-      ctx.fillStyle = color;
-      ctx.font = "9px sans-serif";
-      ctx.textAlign = "center";
-      ctx.fillText(typeof v === "number" ? (v > 100 ? (v/1000).toFixed(1)+"s" : v.toFixed(0)) : "", xOf(i), toY(v) - 6);
-      ctx.textAlign = "left";
+    vals.forEach((v,i)=>{ if(v==null) return; ctx.fillStyle=color; ctx.beginPath(); ctx.arc(xO(i),toY(v),3.5,0,Math.PI*2); ctx.fill(); ctx.font="9px sans-serif"; ctx.textAlign="center"; ctx.fillText(v>100?(v/1000).toFixed(1)+"s":v.toFixed(0),xO(i),toY(v)-6); ctx.textAlign="left"; });
+  }
+  function blockToY(v){ return PAD.top+cH-((v-bMin)/((bMax-bMin)||1))*cH; }
+  function spfToY(v){ return yL(v,1,7); }
+  drawSeries(blockVals,blockToY,"#ff9f40");
+  drawSeries(cpsVals,v=>yL(v,0,100),"#7fd7ff");
+  drawSeries(spfVals,spfToY,"#88ff88");
+  ctx.fillStyle="#7fd7ff"; ctx.font="bold 9px sans-serif"; ctx.textAlign="left"; ctx.fillText("■ CPS",PAD.left,PAD.top-4);
+  ctx.fillStyle="#ff9f40"; ctx.fillText("■ Block ms",PAD.left+50,PAD.top-4);
+  ctx.fillStyle="#88ff88"; ctx.fillText("■ S-PF",PAD.left+110,PAD.top-4);
+}
+function renderHistoryGraphs(){
+  drawCombinedChart($("resultsHistChart"),state.history);
+  drawCombinedChart($("adminHistChart"),state.history);
+}
+
+// ─── RT scatter chart ───
+function drawRTScatterChart(canvas,rtLog,blocks,meanRT,sdRT){
+  if(!canvas||!rtLog.length) return;
+  const ctx=canvas.getContext("2d"),W=canvas.width,H=canvas.height;
+  ctx.clearRect(0,0,W,H); ctx.fillStyle="#081321"; ctx.fillRect(0,0,W,H);
+  const PAD={top:20,right:20,bottom:30,left:48},cW=W-PAD.left-PAD.right,cH=H-PAD.top-PAD.bottom;
+  const rts=rtLog.filter(e=>e.rt!=null).map(e=>e.rt);
+  if(!rts.length) return;
+  const maxRT=Math.max(...rts,1000);
+  const n=rtLog.length;
+  function xO(i){ return PAD.left+(i/(n-1||1))*cW; }
+  function yO(v){ return PAD.top+cH-(v/maxRT)*cH; }
+  ctx.strokeStyle="rgba(79,111,153,0.2)"; ctx.lineWidth=1;
+  [250,500,750,1000].filter(v=>v<=maxRT+100).forEach(v=>{ ctx.beginPath(); ctx.moveTo(PAD.left,yO(v)); ctx.lineTo(PAD.left+cW,yO(v)); ctx.stroke(); ctx.fillStyle="#7fa0c0"; ctx.font="9px sans-serif"; ctx.textAlign="right"; ctx.fillText(`${v}ms`,PAD.left-3,yO(v)+3); });
+  const colorMap={correct:"#00ff88",wrong:"#ff4466",missed:"#888",paced:"#00ff88",paced_wrong:"#ff4466","paced_late_correct":"#ffff00","paced_late_wrong":"#ff8800",calibration:"#88aaff",recovery:"#ffaa00",terminal_recovery:"#ff88ff"};
+  rtLog.forEach((e,i)=>{
+    if(e.rt==null) return;
+    ctx.fillStyle=colorMap[e.phase]||colorMap[e.outcome]||"#aaa";
+    ctx.beginPath(); ctx.arc(xO(i),yO(e.rt),3,0,Math.PI*2); ctx.fill();
+  });
+  if(meanRT){ ctx.strokeStyle="rgba(127,215,255,0.6)"; ctx.lineWidth=1.5; ctx.setLineDash([4,3]); ctx.beginPath(); ctx.moveTo(PAD.left,yO(meanRT)); ctx.lineTo(PAD.left+cW,yO(meanRT)); ctx.stroke(); ctx.setLineDash([]); }
+  ctx.fillStyle="#7fa0c0"; ctx.font="9px sans-serif"; ctx.textAlign="center"; ctx.fillText("Trial →",PAD.left+cW/2,H-2);
+}
+
+// ─── Export / Email ───
+function exportResults(){
+  const blob=new Blob([JSON.stringify({settings,history:state.history},null,2)],{type:"application/json"});
+  const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download="cogspeed_v17_results.json"; a.click();
+}
+function emailResults(){
+  const last=state.history[state.history.length-1];
+  if(!last){ setStatus("No results to email."); return; }
+  window.location.href=`mailto:?subject=CogSpeed V17 Results&body=${encodeURIComponent(state.lastResultText||JSON.stringify(last,null,2))}`;
+}
+
+// ─── FX (fire/sparks on thinking overlay) ───
+let _fxRaf=null, _fxParticles=[];
+function startFX(){
+  const canvas=$("fxCanvas"); if(!canvas) return;
+  const ctx=canvas.getContext("2d");
+  canvas.width=canvas.offsetWidth||300; canvas.height=canvas.offsetHeight||200;
+  _fxParticles=[];
+  function frame(){
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    if(Math.random()<0.3) _fxParticles.push({x:canvas.width/2+(Math.random()-0.5)*60,y:canvas.height*0.6,vx:(Math.random()-0.5)*2,vy:-(1+Math.random()*3),life:1,type:Math.random()<0.5?"spark":"ember"});
+    _fxParticles=_fxParticles.filter(p=>p.life>0);
+    _fxParticles.forEach(p=>{
+      p.x+=p.vx; p.y+=p.vy; p.vy*=0.98; p.life-=0.018;
+      if(p.type==="spark"){ ctx.strokeStyle=`hsla(45,100%,${60+p.life*40}%,${p.life})`; ctx.lineWidth=p.life*2; ctx.lineCap="round"; ctx.beginPath(); ctx.moveTo(p.x,p.y); ctx.lineTo(p.x-p.vx*3,p.y-p.vy*3); ctx.stroke(); }
+      else{ const g=ctx.createRadialGradient(p.x,p.y,0,p.x,p.y,4); g.addColorStop(0,`rgba(255,${100+p.life*155},0,${p.life})`); g.addColorStop(1,"rgba(255,60,0,0)"); ctx.fillStyle=g; ctx.beginPath(); ctx.arc(p.x,p.y,4,0,Math.PI*2); ctx.fill(); }
     });
+    _fxRaf=requestAnimationFrame(frame);
   }
+  if(_fxRaf) cancelAnimationFrame(_fxRaf); frame();
+}
+function stopFX(){ if(_fxRaf){ cancelAnimationFrame(_fxRaf); _fxRaf=null; } }
 
-  // Normalize block ms to left-axis pixel space using its own scale
-  function yBlock(v) {
-    return PAD.top + cH - ((v - blockAxisMin) / ((blockAxisMax - blockAxisMin) || 1)) * cH;
-  }
-  function ySpf(v) {
-    return yLeft(v, SPF_MIN, SPF_MAX);
-  }
+// ─── Overlay management ───
+function hideAllOverlays(){
+  ["subjectOverlay","refresherOverlay","fatigueOverlay","adminOverlay","resultsOverlay","summaryOverlay","trialLogOverlay","thinkingOverlay","outcomeOverlay"].forEach(id=>{ const el=$(id); if(el) el.classList.add("hidden"); });
+}
+function showOnly(id){
+  ["subjectOverlay","refresherOverlay","fatigueOverlay","adminOverlay","resultsOverlay","summaryOverlay","trialLogOverlay"].forEach(oid=>{ const el=$(oid); if(el) el.classList[oid===id?"remove":"add"]("hidden"); });
+}
+function isTestSuccess(r){ return (r||"").toLowerCase().startsWith("convergent"); }
 
-  drawSeries(cpsVals,   v => yLeft(v, CPS_MIN, CPS_MAX), "#7fd7ff");
-  drawSeries(blockVals, yBlock,  "#ff9f40", [5, 3]);
-  drawSeries(spfVals,   ySpf,   "#a8ff78", [2, 4]);
-
-  // ── S-PF right-side tick annotations (1–7) ──
-  ctx.fillStyle = "#a8ff78";
-  ctx.font = "9px sans-serif";
-  ctx.textAlign = "left";
-  [1, 4, 7].forEach(v => {
-    ctx.fillText(`${v}`, PAD.left + cW + 4, ySpf(v) + 3);
-  });
-  ctx.save();
-  ctx.translate(W - 6, PAD.top + cH * 0.25);
-  ctx.rotate(Math.PI / 2);
-  ctx.fillStyle = "#a8ff78";
-  ctx.font = "bold 9px sans-serif";
-  ctx.textAlign = "center";
-  ctx.fillText("S-PF", 0, 0);
-  ctx.restore();
-
-  // ── Legend ──
-  const legend = [
-    { color: "#7fd7ff", label: "CPS",       dash: [] },
-    { color: "#ff9f40", label: "Block ms",  dash: [5, 3] },
-    { color: "#a8ff78", label: "S-PF",      dash: [2, 4] }
-  ];
-  let lx = PAD.left;
-  legend.forEach(({ color, label, dash }) => {
-    ctx.strokeStyle = color; ctx.lineWidth = 2;
-    ctx.setLineDash(dash);
-    ctx.beginPath(); ctx.moveTo(lx, 16); ctx.lineTo(lx + 16, 16); ctx.stroke();
-    ctx.setLineDash([]);
-    ctx.fillStyle = color;
-    ctx.font = "bold 10px sans-serif";
-    ctx.textAlign = "left";
-    ctx.fillText(label, lx + 20, 20);
-    lx += ctx.measureText(label).width + 38;
-  });
+// ─── Summary ───
+function buildSummary(result){
+  const el=id=>{ const e=$(id); if(e) e.textContent=id; };
+  const set=(id,v)=>{ const e=$(id); if(e) e.textContent=v; };
+  set("sumSubject",result.subjectId);
+  set("sumSPF",result.samnPerelli?`${result.samnPerelli.score} — ${result.samnPerelli.label}`:"—");
+  set("sumCPS",result.cognitivePerformanceScore!=null?result.cognitivePerformanceScore.toFixed(1):"—");
+  set("sumBlocks",String(result.blockCount||0));
+  set("sumAvgBlock",result.averageLast2BlockingScoresMs!=null?result.averageLast2BlockingScoresMs.toFixed(0)+"ms":"—");
+  set("sumCalRT",result.calibrationAverageMs!=null?result.calibrationAverageMs.toFixed(0)+"ms":"—");
+  set("sumDuration",formatDuration(result.testDurationMs));
+  set("sumEndReason",result.endReason);
 }
 
-function renderHistoryGraphs() {
-  const hist = state.history || [];
-  drawCombinedChart($("resultsCombinedChart"), hist);
-  drawCombinedChart($("adminCombinedChart"),   hist);
-  const note = state.benchmark && state.benchmark.enabled
-    ? `Benchmark grade ${state.benchmark.grade} (${state.benchmark.overallScore}/100) | ` +
-      `proc ${state.benchmark.avgProcMs.toFixed(2)}ms avg | min rate ${state.benchmark.minPossibleDurMs}ms | ` +
-      `scheduler ${state.benchmark.avgSchedMs.toFixed(2)}ms avg`
-    : "Device benchmark — tap 'Run Benchmark' on main screen";
-  const an = $("adminBenchmarkNote");
-  if (an) an.textContent = note;
-}
-
-function drawRTScatterChart(canvas, rtLog, blockScores, meanRT, sdRT) {
-  if (!canvas) return;
-  const ctx = canvas.getContext("2d");
-  const W = canvas.width, H = canvas.height;
-  ctx.clearRect(0, 0, W, H);
-
-  ctx.fillStyle = "#081321";
-  ctx.fillRect(0, 0, W, H);
-
-  const PAD = { top: 28, right: 14, bottom: 36, left: 52 };
-  const cW = W - PAD.left - PAD.right;
-  const cH = H - PAD.top - PAD.bottom;
-
-  // Filter to entries with actual RT values
-  const withRT = rtLog.filter(e => e.rt != null);
-
-  if (!withRT.length) {
-    ctx.fillStyle = "#d7e7f8";
-    ctx.font = "bold 13px sans-serif";
-    ctx.textAlign = "center";
-    ctx.fillText("No paced responses recorded", W / 2, H / 2);
-    ctx.textAlign = "left";
-    return;
-  }
-
-  const n = rtLog.length;
-  const rtVals = withRT.map(e => e.rt);
-  const rtMax = Math.max(...rtVals, meanRT != null ? meanRT + (sdRT || 0) * 2 : 0);
-  const rtMin = 0;
-  const rtSpan = rtMax || 1;
-
-  function xOf(seq) { return PAD.left + ((seq - 1) / Math.max(1, n - 1)) * cW; }
-  function yOf(rt)  { return PAD.top + cH - (rt / rtSpan) * cH; }
-
-  // Grid lines
-  ctx.strokeStyle = "rgba(79,111,153,0.25)";
-  ctx.lineWidth = 1;
-  const yTicks = 5;
-  for (let g = 0; g <= yTicks; g++) {
-    const rt = (g / yTicks) * rtMax;
-    const y = yOf(rt);
-    ctx.beginPath(); ctx.moveTo(PAD.left, y); ctx.lineTo(PAD.left + cW, y); ctx.stroke();
-    ctx.fillStyle = "#7fa0c0";
-    ctx.font = "10px sans-serif";
-    ctx.textAlign = "right";
-    ctx.fillText(rt >= 1000 ? (rt / 1000).toFixed(1) + "s" : Math.round(rt) + "ms", PAD.left - 4, y + 4);
-  }
-  ctx.textAlign = "left";
-
-  // X axis label
-  ctx.fillStyle = "#7fa0c0";
-  ctx.font = "10px sans-serif";
-  ctx.textAlign = "center";
-  ctx.fillText("Trial sequence →", PAD.left + cW / 2, H - 4);
-  ctx.textAlign = "left";
-
-  // SD band
-  if (meanRT != null && sdRT != null) {
-    const yTop    = yOf(Math.min(meanRT + sdRT, rtMax));
-    const yBottom = yOf(Math.max(meanRT - sdRT, 0));
-    ctx.fillStyle = "rgba(127,215,255,0.07)";
-    ctx.fillRect(PAD.left, yTop, cW, yBottom - yTop);
-  }
-
-  // Mean line
-  if (meanRT != null) {
-    const yM = yOf(meanRT);
-    ctx.strokeStyle = "rgba(127,215,255,0.5)";
-    ctx.lineWidth = 1.5;
-    ctx.setLineDash([4, 3]);
-    ctx.beginPath(); ctx.moveTo(PAD.left, yM); ctx.lineTo(PAD.left + cW, yM); ctx.stroke();
-    ctx.setLineDash([]);
-    ctx.fillStyle = "#7fd7ff";
-    ctx.font = "10px sans-serif";
-    ctx.fillText("mean", PAD.left + cW + 2, yM + 4);
-  }
-
-  // Block score markers (vertical lines at block events)
-  let blockSeq = 0;
-  blockScores.forEach((bs, i) => {
-    // find approximate seq where block happened — use cumulative trials
-    // we mark them evenly for now since we don't store exact seq per block
-    blockSeq = Math.round(((i + 1) / blockScores.length) * n);
-    const x = PAD.left + (blockSeq / Math.max(1, n)) * cW;
-    ctx.strokeStyle = "rgba(255,100,100,0.55)";
-    ctx.lineWidth = 1.5;
-    ctx.setLineDash([3, 3]);
-    ctx.beginPath(); ctx.moveTo(x, PAD.top); ctx.lineTo(x, PAD.top + cH); ctx.stroke();
-    ctx.setLineDash([]);
-    ctx.fillStyle = "#ff8888";
-    ctx.font = "bold 9px sans-serif";
-    ctx.textAlign = "center";
-    ctx.fillText(`B${i + 1}`, x, PAD.top - 4);
-    ctx.textAlign = "left";
-  });
-
-  // Missed/error dots (grey X markers)
-  rtLog.forEach(e => {
-    if (e.rt != null) return;
-    const x = xOf(e.seq);
-    const y = PAD.top + cH * 0.15; // park at top as "off-chart miss"
-    ctx.strokeStyle = e.phase === "missed" ? "rgba(180,120,60,0.7)" : "rgba(255,80,80,0.7)";
-    ctx.lineWidth = 1.5;
-    const r = 4;
-    ctx.beginPath(); ctx.moveTo(x - r, y - r); ctx.lineTo(x + r, y + r); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(x + r, y - r); ctx.lineTo(x - r, y + r); ctx.stroke();
-  });
-
-  // Correct RT dots
-  withRT.forEach(e => {
-    const x = xOf(e.seq);
-    const y = yOf(e.rt);
-    ctx.fillStyle = "#7fd7ff";
-    ctx.beginPath(); ctx.arc(x, y, 3.5, 0, Math.PI * 2); ctx.fill();
-  });
-
-  // Chart title
-  ctx.fillStyle = "#d7e7f8";
-  ctx.font = "bold 11px sans-serif";
-  ctx.fillText("Response Times  (● correct  × miss/error  ─ mean ± SD  B# block)", PAD.left, 16);
-}
-
-// ═══════════════════════════════════════════════════
-//  EXPORT / EMAIL
-// ═══════════════════════════════════════════════════
-
-function exportResults() {
-  const blob = new Blob([JSON.stringify({ settings, history: state.history }, null, 2)], { type: "application/json" });
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(blob);
-  a.download = "cogspeed_v14_results.json";
-  a.click();
-}
-
-function emailResults() {
-  const text = state.lastResultText || "No results available.";
-  const body = encodeURIComponent(text);
-  window.location.href = `mailto:?subject=CogSpeed V14 Results&body=${body}`;
-}
-
-// ═══════════════════════════════════════════════════
-//  FIRE / SMOKE / SPARKS PARTICLE SYSTEM
-// ═══════════════════════════════════════════════════
-let _fxRaf = null;
-const _particles = [];
-
-function startFX() {
-  const canvas = $("fxCanvas");
-  const box    = $("thinkingBox");
-  if (!canvas || !box) return;
-
-  const br  = box.getBoundingClientRect();
-  const PAD = 60;
-  canvas.width  = br.width  + PAD * 2;
-  canvas.height = br.height + PAD * 2;
-  canvas.style.left     = `-${PAD}px`;
-  canvas.style.top      = `-${PAD}px`;
-  canvas.style.width    = `${br.width  + PAD * 2}px`;
-  canvas.style.height   = `${br.height + PAD * 2}px`;
-  canvas.style.zIndex   = "0";
-  canvas.style.position = "absolute";
-
-  const W = canvas.width, H = canvas.height;
-  const ctx = canvas.getContext("2d");
-
-  // Gear corner positions in canvas coords (offset by PAD)
-  const corners = [
-    { x: PAD + 22,              y: PAD + 22 },
-    { x: PAD + br.width  - 22,  y: PAD + 22 },
-    { x: PAD + 22,              y: PAD + br.height - 22 },
-    { x: PAD + br.width  - 22,  y: PAD + br.height - 22 },
-  ];
-
-  _particles.length = 0;
-
-  function spawn() {
-    corners.forEach(c => {
-      // Fire — 2 per corner per frame
-      for (let i = 0; i < 2; i++) {
-        _particles.push({
-          type:"fire", x: c.x + (Math.random()-.5)*8, y: c.y,
-          vx:(Math.random()-.5)*1.2, vy:-(Math.random()*2.5+1.5),
-          life:1, decay:Math.random()*.03+.025,
-          size:Math.random()*5+3, hue:Math.random()*30
-        });
-      }
-      // Smoke — 35% chance per corner
-      if (Math.random()<.35) {
-        _particles.push({
-          type:"smoke", x: c.x+(Math.random()-.5)*10, y: c.y-8,
-          vx:(Math.random()-.5)*.6, vy:-(Math.random()*1.2+.6),
-          life:1, decay:Math.random()*.012+.008, size:Math.random()*12+8
-        });
-      }
-      // Sparks — 25% chance per corner
-      if (Math.random()<.25) {
-        const ang = Math.random()*Math.PI*2;
-        const spd = Math.random()*4+2;
-        _particles.push({
-          type:"spark", x:c.x, y:c.y,
-          vx:Math.cos(ang)*spd, vy:Math.sin(ang)*spd-2,
-          life:1, decay:Math.random()*.06+.04, size:Math.random()*2+1, gravity:.18
-        });
-      }
-    });
-  }
-
-  function frame() {
-    ctx.clearRect(0, 0, W, H);
-    spawn();
-    for (let i = _particles.length-1; i >= 0; i--) {
-      const p = _particles[i];
-      p.x += p.vx; p.y += p.vy;
-      if (p.gravity) p.vy += p.gravity;
-      p.life -= p.decay;
-      if (p.life <= 0) { _particles.splice(i,1); continue; }
-
-      ctx.save();
-      ctx.globalAlpha = Math.max(0, p.life) * (p.type==="smoke" ? .45 : p.life);
-
-      if (p.type==="fire") {
-        const g = ctx.createRadialGradient(p.x,p.y,0,p.x,p.y,p.size);
-        g.addColorStop(0,  `hsla(${p.hue+40},100%,95%,${p.life})`);
-        g.addColorStop(.3, `hsla(${p.hue+20},100%,70%,${p.life})`);
-        g.addColorStop(.7, `hsla(${p.hue},90%,45%,${p.life*.7})`);
-        g.addColorStop(1,  `hsla(${p.hue},80%,20%,0)`);
-        ctx.fillStyle = g;
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, p.size*(1+(1-p.life)*.5), 0, Math.PI*2);
-        ctx.fill();
-      } else if (p.type==="smoke") {
-        const g = ctx.createRadialGradient(p.x,p.y,0,p.x,p.y,p.size);
-        g.addColorStop(0,  `rgba(160,190,210,${p.life*.4})`);
-        g.addColorStop(.6, `rgba(100,130,160,${p.life*.2})`);
-        g.addColorStop(1,  `rgba(60,80,100,0)`);
-        ctx.fillStyle = g;
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, p.size*(1+(1-p.life)), 0, Math.PI*2);
-        ctx.fill();
-      } else if (p.type==="spark") {
-        ctx.strokeStyle = `hsla(45,100%,${70+p.life*30}%,${p.life})`;
-        ctx.lineWidth = p.size; ctx.lineCap="round";
-        ctx.beginPath();
-        ctx.moveTo(p.x, p.y);
-        ctx.lineTo(p.x-p.vx*3, p.y-p.vy*3);
-        ctx.stroke();
-      }
-      ctx.restore();
-    }
-    _fxRaf = requestAnimationFrame(frame);
-  }
-
-  if (_fxRaf) cancelAnimationFrame(_fxRaf);
-  frame();
-}
-
-function stopFX() {
-  if (_fxRaf) { cancelAnimationFrame(_fxRaf); _fxRaf = null; }
-  _particles.length = 0;
-  const canvas = $("fxCanvas");
-  if (canvas) { const ctx=canvas.getContext("2d"); ctx.clearRect(0,0,canvas.width,canvas.height); }
-}
-
-// ═══════════════════════════════════════════════════
-//  NAVIGATION
-// ═══════════════════════════════════════════════════
-
-function showOnly(overlayId) {
-  ["subjectOverlay","refresherOverlay","fatigueOverlay","resultsOverlay","adminOverlay","summaryOverlay","trialLogOverlay"].forEach(id => {
-    const el = $(id);
-    if (!el) return;
-    if (id === overlayId) el.classList.remove("hidden");
-    else el.classList.add("hidden");
-  });
-}
-
-function isTestSuccess(endReason) {
-  // Success = test ended because convergent blocks were found
-  return (endReason || "").toLowerCase().startsWith("convergent blocks");
-}
-
-function buildSummary(result) {
-  const rows = [
-    ["Subject ID",       result.subjectId],
-    ["Date / Time",      new Date(result.time).toLocaleString()],
-    ["Location",         (() => {
-      if (!result.geo) return "unavailable";
-      if (result.geo.status === "ok") {
-        const addr = result.geo.address || `${result.geo.latitude.toFixed(4)}, ${result.geo.longitude.toFixed(4)}`;
-        return addr.length > 40 ? addr.substring(0, 38) + "…" : addr;
-      }
-      return result.geo.status;
-    })()],
-    ["Version",          "CogSpeed V14"],
-    ["Test Duration",    formatDuration(result.testDurationMs)],
-    ["Total Responses",  String(result.totalResponses)],
-    ["S-PF Rating",      result.samnPerelli ? `${result.samnPerelli.score} — ${result.samnPerelli.label}` : "—"],
-    ["CPS",              result.cognitivePerformanceScore != null ? result.cognitivePerformanceScore.toFixed(1) + " / 100" : "—"],
-    ["Total Blocks",     String(result.blockCount || result.blocks.length)],
-    ["Final Block Score",result.blocks.length ? result.blocks[result.blocks.length - 1].toFixed(0) + " ms" : "—"],
-    ["Block Score Diff", result.blockScoreDifferenceMs != null
-      ? `${result.blockScoreDifferenceMs > 0 ? "+" : ""}${result.blockScoreDifferenceMs.toFixed(0)} ms`
-      : "—"],
-  ];
-  // Add benchmark if it ran
-  if (state.benchmark && state.benchmark.enabled) {
-    rows.push(["Device Grade",  `${state.benchmark.grade} (${state.benchmark.overallScore}/100)`]);
-    rows.push(["Min Rate",      `${state.benchmark.minPossibleDurMs}ms/trial`]);
-  }
-  const container = $("summaryRows");
-  if (!container) return;
-  container.innerHTML = rows.map(([label, val]) =>
-    `<div class="summary-row"><span class="summary-label">${label}</span><span class="summary-val">${val}</span></div>`
-  ).join("");
-}
-
-function showResultsPage(text) {
-  const last = state.history[state.history.length - 1];
-  const success = last ? isTestSuccess(last.endReason) : false;
-
-  // Step 1 — Thinking (6s)
-  const thinking = $("thinkingOverlay");
-  const outcome  = $("outcomeOverlay");
-  const outcomeText = $("outcomeText");
-  const summary  = $("summaryOverlay");
-
-  if (thinking) {
-    thinking.classList.remove("hidden");
-    setTimeout(() => startFX(), 50);
-  }
-
-  setTimeout(() => {
-    stopFX();
-    if (thinking) thinking.classList.add("hidden");
-
-    // Step 2 — Success / Failed (3s)
-    if (outcome && outcomeText) {
-      outcomeText.textContent = success ? "SUCCESS!" : "Test Failed";
-      outcomeText.className   = "outcome-text " + (success ? "success" : "failed");
-      outcome.classList.remove("hidden");
-    }
-
-    setTimeout(() => {
-      if (outcome) outcome.classList.add("hidden");
-
-      // Step 3 — Summary page
-      if (last) buildSummary(last);
-      if (summary) summary.classList.remove("hidden");
-      // Pre-populate full results page in background
-      const box = $("resultsPageBox");
-      if (box) box.textContent = text;
+// ─── Results page ───
+function showResultsPage(text){
+  const thinking=$("thinkingOverlay"),outcome=$("outcomeOverlay"),outcomeText=$("outcomeText"),summary=$("summaryOverlay");
+  const last=state.history[state.history.length-1];
+  const success=last?isTestSuccess(last.endReason):false;
+  if(thinking){ thinking.classList.remove("hidden"); startFX(); }
+  setTimeout(()=>{
+    stopFX(); if(thinking) thinking.classList.add("hidden");
+    if(outcome&&outcomeText){ outcomeText.textContent=success?"SUCCESS!":"Test Failed"; outcomeText.className="outcome-text "+(success?"success":"failed"); outcome.classList.remove("hidden"); }
+    setTimeout(()=>{
+      if(outcome) outcome.classList.add("hidden");
+      if(last) buildSummary(last);
+      if(summary) summary.classList.remove("hidden");
+      const box=$("resultsPageBox"); if(box) box.textContent=text;
       renderHistoryGraphs();
-      if (last) {
-        drawRTScatterChart($("resultsRTChart"), last.rtLog || [], last.blocks || [], last.pacedResponseMeanMs, last.pacedResponseSdMs);
-      }
+      if(last) drawRTScatterChart($("resultsRTChart"),last.rtLog||[],last.blocks||[],last.pacedResponseMeanMs,last.pacedResponseSdMs);
       setTestingQuiet(false);
-    }, 3000);
-  }, 6000);
+    },3000);
+  },6000);
 }
 
-function clearCurrentSession() {
+// ─── Session control ───
+function clearCurrentSession(){
   clearTimer(); clearNoResponseTimer(); clearMaxTestTimer();
-  state.phase = "idle";
-  state.duration = null; state.blockDuration = null;
-  state.current = null; state.previous = null;
-  state.unresolvedStreak = 0;
-  state.overloads = []; state.recoveries = [];
-  state.recoveryCorrectCompleted = 0;
-  state.spCorrectStreak = 0; state.spWrongCount = 0; state.terminalBlockReason = null;
-  state.totalTrials = 0; state.endReason = "";
-  state.totalResponses = 0; state.pacedErrors = 0; state.testStartTime = null;
-  state.totalCorrect = 0; state.totalIncorrect = 0; state.missedTrials = 0; state.rollMeanLog = [];
-  state.lastFiveAnswers = [];
-  state.calibrationTrialIndex = 0;
-  state.calibrationRTs = []; state.calibrationErrors = 0;
-  state.pacedRTs = [];
-  state.rtLog = [];
-  state.previousMissed = false;
-  state.lastFrameDuration = null;
-  state.geo = null; state.benchmark = null; state.lastResultText = null;
-  updateCPSDisplay(null);
-  updateMetrics();
-  setProbeIdle();
-  setTestingQuiet(false);
+  state.phase="idle"; state.duration=null; state.blockDuration=null;
+  state.current=null; state.previous=null; state.unresolvedStreak=0;
+  state.overloads=[]; state.recoveries=[]; state.recoveryCorrectCompleted=0;
+  state.spCorrectStreak=0; state.spWrongCount=0; state.terminalBlockReason=null;
+  state.totalTrials=0; state.endReason=""; state.totalResponses=0; state.pacedErrors=0;
+  state.testStartTime=null; state.totalCorrect=0; state.totalIncorrect=0;
+  state.missedTrials=0; state.rollMeanLog=[]; state.lastFiveAnswers=[];
+  state.calibrationTrialIndex=0; state.calibrationRTs=[]; state.calibrationErrors=0;
+  state.pacedRTs=[]; state.rtLog=[]; state.previousMissed=false; state.lastFrameDuration=null;
+  state.geo=null; state.benchmark=null; state.lastResultText=null;
+  updateCPSDisplay(null); updateMetrics(); setProbeIdle(); setTestingQuiet(false);
 }
-
-function goToStartPage() {
+function goToStartPage(){
   clearCurrentSession();
-  ["thinkingOverlay","outcomeOverlay"].forEach(id => {
-    const el = $(id); if (el) el.classList.add("hidden");
-  });
-  stopFX();
-  setStatus("Ready");
-  showOnly("subjectOverlay");
+  ["thinkingOverlay","outcomeOverlay"].forEach(id=>{ const el=$(id); if(el) el.classList.add("hidden"); });
+  stopFX(); setStatus("Ready"); showOnly("subjectOverlay");
+}
+function startOverFlow(){
+  clearCurrentSession(); state.subjectId=null; state.samnPerelli=null;
+  fatigueOut.textContent="—"; $("subjectIdInput").value="";
+  setStatus("Reset. Enter Subject ID."); showOnly("subjectOverlay");
 }
 
-function startOverFlow() {
+// ─── START TEST ───
+function startTest(){
+  if(!state.subjectId){ showOnly("subjectOverlay"); setStatus("Enter Subject ID first"); return; }
+  if(!state.samnPerelli){ showOnly("fatigueOverlay"); setStatus("Select fatigue rating first"); return; }
+  // Preserve identity across session reset
+  const sid=state.subjectId, spf=state.samnPerelli;
   clearCurrentSession();
-  state.subjectId = null;
-  state.samnPerelli = null;
-  fatigueOut.textContent = "—";
-  $("subjectIdInput").value = "";
-  setStatus("Reset. Enter Subject ID.");
-  showOnly("subjectOverlay");
-}
-
-// ═══════════════════════════════════════════════════
-//  START TEST
-// ═══════════════════════════════════════════════════
-
-function startTest() {
-  if (!state.subjectId) { showOnly("subjectOverlay"); setStatus("Enter Subject ID first"); return; }
-  if (!state.samnPerelli) { showOnly("fatigueOverlay"); setStatus("Select fatigue rating first"); return; }
-  clearTimer(); clearNoResponseTimer();
-  state.phase = "calibration";
-  state.duration = null; state.blockDuration = null;
-  state.current = null; state.previous = null;
-  state.unresolvedStreak = 0;
-  state.overloads = []; state.recoveries = [];
-  state.recoveryCorrectCompleted = 0;
-  state.spCorrectStreak = 0; state.spWrongCount = 0; state.terminalBlockReason = null;
-  state.totalTrials = 0; state.endReason = "";
-  state.totalResponses = 0; state.pacedErrors = 0; state.testStartTime = null;
-  state.totalCorrect = 0; state.totalIncorrect = 0; state.missedTrials = 0; state.rollMeanLog = [];
-  state.lastFiveAnswers = [];
-  state.calibrationTrialIndex = 0;
-  state.calibrationRTs = []; state.calibrationErrors = 0;
-  state.pacedRTs = [];
-  state.rtLog = [];
-  state.previousMissed = false;
-  state.lastFrameDuration = null;
+  state.subjectId=sid; state.samnPerelli=spf;
+  fatigueOut.textContent=String(spf.score);
+  hideAllOverlays();
+  state.phase="calibration";
   setTestingQuiet(true);
-  // Hide all overlays so test grid is visible
-  ["subjectOverlay","refresherOverlay","fatigueOverlay","resultsOverlay",
-   "adminOverlay","summaryOverlay","trialLogOverlay"].forEach(id => {
-    const el = $(id); if (el) el.classList.add("hidden");
-  });
-  captureGeoAndAddress();
+  captureGeo(); // fire and forget
   noteAnyResponse();
   openTrial("calibration");
 }
 
-// ═══════════════════════════════════════════════════
-//  EVENT WIRING
-// ═══════════════════════════════════════════════════
+// ─── Trial log ───
+function buildTrialLog(){
+  const tbody=$("trialLogBody"); if(!tbody) return;
+  tbody.innerHTML="";
+  const last=state.history[state.history.length-1];
+  const log=last?last.rtLog:state.rtLog;
+  if(!log||!log.length){ tbody.innerHTML='<tr><td colspan="7" style="text-align:center;color:var(--muted)">No data</td></tr>'; return; }
+  log.forEach(e=>{
+    const tr=document.createElement("tr");
+    tr.innerHTML=`<td>${e.seq}</td><td>${e.phase}</td><td>${e.rt!=null?e.rt+"ms":"—"}</td><td>${e.outcome}</td><td>${e.probe}</td><td>${e.correctCell}</td><td>${e.response}</td>`;
+    tbody.appendChild(tr);
+  });
+  const meta=$("trialLogMeta"); if(meta) meta.textContent=`${log.length} trials logged`;
+}
+function downloadTrialLogCSV(){
+  const last=state.history[state.history.length-1];
+  const log=last?last.rtLog:state.rtLog;
+  if(!log||!log.length) return;
+  const hdr="seq,phase,rt_ms,outcome,probe,correctCell,response\n";
+  const rows=log.map(e=>[e.seq,e.phase,e.rt!=null?e.rt:"",e.outcome,e.probe,e.correctCell,e.response].join(",")).join("\n");
+  const blob=new Blob([hdr+rows],{type:"text/csv"});
+  const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download="cogspeed_v17_trials.csv"; a.click();
+}
 
-$("subjectNextBtn").onclick = () => {
-  const raw = $("subjectIdInput").value.trim();
-  if (raw === "0") {
-    state.subjectId = "0";
-    showOnly("refresherOverlay");
-    setStatus("Guest session");
-    return;
-  }
-  if (!/^[A-Za-z0-9]{6}$/.test(raw)) { setStatus("ID must be 6 letters/numbers, or 0 for Guest"); return; }
-  state.subjectId = raw.toUpperCase();
-  showOnly("refresherOverlay");
-  setStatus(`Subject ID: ${state.subjectId}`);
+// ─── Device benchmark ───
+async function runDeviceBenchmark(force){
+  const enabled=force||Number(settings.deviceBenchmarkEnabled||0)===1;
+  if(!enabled){ state.benchmark=null; return; }
+  const BENCH=1000;
+  const ov=$("benchmarkOverlay"),bs=$("benchStatusLine"),bst=$("benchStats"),bg=$("benchGrade"),bc=$("benchChart"),bb=$("benchBtns");
+  if(ov) ov.classList.remove("hidden");
+  if(bg) bg.style.display="none"; if(bc) bc.style.display="none"; if(bb) bb.style.display="none";
+  if(bst) bst.innerHTML="";
+  if(bs) bs.textContent="Phase 1: Processor speed…";
+  await new Promise(r=>setTimeout(r,50));
+  const pt=[];
+  for(let i=0;i<BENCH;i++){ const t0=performance.now(); const tr=makeTrial("paced",i>0?i%6:null); renderTrial(tr); pt.push(performance.now()-t0); if(bs&&i%10===9) bs.textContent=`Phase 1: ${i+1}/${BENCH}…`; }
+  setProbeIdle();
+  const avgP=mean(pt),minP=Math.min(...pt),maxP=Math.max(...pt),sdP=stdDev(pt)||0,floor=Math.ceil(avgP+sdP*2);
+  if(bs) bs.textContent="Phase 2: Scheduler speed…";
+  await new Promise(r=>setTimeout(r,50));
+  const st=[];
+  await new Promise(resolve=>{ let n=0; function next(){ if(n>=BENCH){resolve();return;} const t0=performance.now(); setTimeout(()=>{ st.push(performance.now()-t0); n++; if(bs&&n%100===0) bs.textContent=`Phase 2: ${n}/${BENCH}…`; next(); },0); } next(); });
+  const avgS=mean(st),minS=Math.min(...st),maxS=Math.max(...st),sdS=stdDev(st)||0;
+  const ps=Math.max(0,Math.min(100,Math.round(100-(avgP/20)*100)));
+  const ss=Math.max(0,Math.min(100,Math.round(100-(avgS/20)*100)));
+  const os=Math.round((ps+ss)/2);
+  const grade=os>=90?"A":os>=75?"B":os>=55?"C":"D";
+  state.benchmark={enabled:true,trials:BENCH,avgProcMs:avgP,minProcMs:minP,maxProcMs:maxP,procSd:sdP,minPossibleDurMs:floor,avgSchedMs:avgS,minSchedMs:minS,maxSchedMs:maxS,schedSd:sdS,procScore:ps,schedScore:ss,overallScore:os,grade};
+  if(bs) bs.textContent="Benchmark complete";
+  if(bg){ bg.textContent=`Grade: ${grade} (${os}/100)`; bg.className=`bench-grade ${grade.toLowerCase()}`; bg.style.display="block"; }
+  const rows=[["─ PROCESSOR ─",""],["Avg render",`${avgP.toFixed(2)}ms`],["Min/Max",`${minP.toFixed(2)}/${maxP.toFixed(2)}ms`],["Floor",`~${floor}ms`],["Score",`${ps}/100`],["─ SCHEDULER ─",""],["Avg setTimeout(0)",`${avgS.toFixed(2)}ms`],["Min/Max",`${minS.toFixed(2)}/${maxS.toFixed(2)}ms`],["Score",`${ss}/100`],["─ OVERALL ─",""],["Score",`${os}/100`],["Grade",grade]];
+  if(bst) bst.innerHTML=rows.map(([l,v])=>v===""?`<div style="font-size:11px;color:var(--accent);font-weight:700;margin-top:8px">${l}</div>`:`<div class="bench-stat"><span class="bench-label">${l}</span><span class="bench-val">${v}</span></div>`).join("");
+  if(bb) bb.style.display="grid";
+}
+
+// ─── Event wiring ───
+$("subjectNextBtn").onclick=()=>{
+  const raw=$("subjectIdInput").value.trim();
+  if(raw==="0"){ state.subjectId="0"; showOnly("refresherOverlay"); setStatus("Guest session"); return; }
+  if(!/^[A-Za-z0-9]{6}$/.test(raw)){ setStatus("ID must be 6 letters/numbers, or 0 for Guest"); return; }
+  state.subjectId=raw.toUpperCase(); showOnly("refresherOverlay"); setStatus(`Subject: ${state.subjectId}`);
 };
-
-$("skipRefresherBtn").onclick    = () => {
-  const sb = $("fatigueStartBtn"); if (sb) sb.classList.add("hidden");
-  $("fatigueList").querySelectorAll(".fatigue-item").forEach(el => el.style.background = "");
+$("skipRefresherBtn").onclick=()=>{
+  const sb=$("fatigueStartBtn"); if(sb) sb.classList.add("hidden");
+  $("fatigueList").querySelectorAll(".fatigue-item").forEach(el=>el.style.background="");
   showOnly("fatigueOverlay"); setStatus("Refresher skipped");
 };
-$("refBackBtn").onclick          = () => goToStartPage();
-$("refStartOverBtn").onclick     = () => startOverFlow();
-$("fatigueBackBtn").onclick      = () => goToStartPage();
-$("fatigueStartOverBtn").onclick = () => startOverFlow();
-const fatigueStartBtn = $("fatigueStartBtn");
-if (fatigueStartBtn) fatigueStartBtn.onclick = () => startTest();
-
-$("adminOpenBtn").onclick  = () => {
-  $("adminOverlay").classList.remove("hidden");
-  $("adminGate").classList.remove("hidden");
-  $("adminBody").classList.add("hidden");
-  $("adminPass").value = "";
+$("refBackBtn").onclick=()=>goToStartPage();
+$("refStartOverBtn").onclick=()=>startOverFlow();
+$("fatigueBackBtn").onclick=()=>goToStartPage();
+$("fatigueStartOverBtn").onclick=()=>startOverFlow();
+const _fsb=$("fatigueStartBtn");
+if(_fsb) _fsb.onclick=startTest;
+$("adminOpenBtn").onclick=()=>{ $("adminOverlay").classList.remove("hidden"); $("adminGate").classList.remove("hidden"); $("adminBody").classList.add("hidden"); $("adminPass").value=""; };
+$("unlockBtn").onclick=()=>{
+  const v=$("adminPass").value;
+  if(v===settings.adminPasscode||v==="4822"){ $("adminGate").classList.add("hidden"); $("adminBody").classList.remove("hidden"); renderAdmin(); setStatus("Admin unlocked"); }
+  else setStatus("Incorrect passcode — default is 4822");
 };
-$("unlockBtn").onclick = () => {
-  const entered = $("adminPass").value;
-  if (entered === settings.adminPasscode || entered === "4822") {
-    $("adminGate").classList.add("hidden");
-    $("adminBody").classList.remove("hidden");
-    renderAdmin();
-    setStatus("Admin unlocked");
-  } else { setStatus("Incorrect passcode — default is 4822"); }
-};
-$("closeAdminBtn").onclick   = () => $("adminOverlay").classList.add("hidden");
-$("closeAdminBtn2").onclick  = () => $("adminOverlay").classList.add("hidden");
-$("saveAdminBtn").onclick    = () => { readAdmin(); saveSettings(); renderAdmin(); setStatus("Settings saved"); };
-$("resetAdminBtn").onclick   = () => { resetAdmin(); setStatus("Admin reset to defaults"); };
-$("exportAdminBtn").onclick  = () => {
-  const blob = new Blob([JSON.stringify(settings, null, 2)], { type: "application/json" });
-  const a = document.createElement("a"); a.href = URL.createObjectURL(blob);
-  a.download = "cogspeed_v14_admin.json"; a.click();
-};
-$("adminBackBtn").onclick     = () => goToStartPage();
-$("adminBackBtn2").onclick    = () => goToStartPage();
-$("adminStartOverBtn").onclick= () => startOverFlow();
-$("adminStartOverBtn2").onclick= () => startOverFlow();
-
-$("startBtn").onclick       = startTest;
-$("backToStartBtn").onclick = goToStartPage;
-$("startOverBtn").onclick   = startOverFlow;
-$("resultsBackBtn").onclick  = goToStartPage;
-$("resultsStartOverBtn").onclick = startOverFlow;
-$("resultsExportBtn").onclick= exportResults;
-$("resultsEmailBtn").onclick = emailResults;
-
-// Summary ↔ Full results navigation
-const summaryToFull = $("summaryToFullBtn");
-const fullToSummary = $("fullToSummaryBtn");
-if (summaryToFull) summaryToFull.onclick = () => {
-  $("summaryOverlay").classList.add("hidden");
-  $("resultsOverlay").classList.remove("hidden");
-};
-if (fullToSummary) fullToSummary.onclick = () => {
-  $("resultsOverlay").classList.add("hidden");
-  $("summaryOverlay").classList.remove("hidden");
-};
-const summaryRestart = $("summaryRestartBtn");
-const summaryReset   = $("summaryResetBtn");
-if (summaryRestart) summaryRestart.onclick = goToStartPage;
-if (summaryReset)   summaryReset.onclick   = startOverFlow;
-
-// Benchmark button in admin
-const runBenchBtn = $("runBenchmarkBtn");
-if (runBenchBtn) runBenchBtn.onclick = async () => {
-  $("adminOverlay").classList.add("hidden");
-  await runDeviceBenchmark(true);
-};
-const benchMain   = $("benchMainBtn");
-const benchRetest = $("benchRetestBtn");
-const benchAdmin  = $("benchAdminBtn");
-if (benchMain) benchMain.onclick = () => {
-  $("benchmarkOverlay").classList.add("hidden");
-};
-if (benchRetest) benchRetest.onclick = () => {
-  const overlay = $("benchmarkOverlay");
-  if (overlay) overlay.classList.add("hidden");
-  setTimeout(async () => { await runDeviceBenchmark(true); }, 200);
-};
-if (benchAdmin) benchAdmin.onclick = () => {
-  const overlay = $("benchmarkOverlay");
-  if (overlay) overlay.classList.add("hidden");
-  $("adminOverlay").classList.remove("hidden");
-  $("adminGate").classList.add("hidden");
-  $("adminBody").classList.remove("hidden");
-  renderAdmin();
-};
-
-// ─── Trial Log ───
-function buildTrialLog() {
-  const last = state.history[state.history.length - 1];
-  const log  = last ? last.rtLog : state.rtLog;
-
-  const meta = $("trialLogMeta");
-  if (meta) {
-    if (last) {
-      meta.textContent = `Subject: ${last.subjectId || "—"}  |  ${new Date(last.time).toLocaleString()}  |  ${log.length} trials`;
-    } else {
-      meta.textContent = log.length ? `Current session — ${log.length} trials` : "No trial data available.";
-    }
-  }
-
-  const body = $("trialLogBody");
-  if (!body) return;
-  if (!log || !log.length) { body.innerHTML = `<tr><td colspan="9" style="text-align:center;padding:16px;color:var(--muted)">No trials recorded yet.</td></tr>`; return; }
-
-  const outcomeColor = { correct:"#00ff88", wrong:"#ff4466", missed:"#ff9f40" };
-  const phaseShort   = { calibration:"CAL", paced:"MP", paced_wrong:"MP", missed:"MP-miss",
-                         paced_late_correct:"MP-late✓", paced_late_wrong:"MP-late✗",
-                         recovery:"SP-restart", terminal_recovery:"SP-final" };
-
-  body.innerHTML = log.map((t, i) => {
-    const bg   = i % 2 === 0 ? "rgba(255,255,255,.02)" : "transparent";
-    const col  = outcomeColor[t.outcome] || "#ccc";
-    const ph   = phaseShort[t.phase] || t.phase;
-    const time = t.clockTime ? new Date(t.clockTime).toLocaleTimeString() : "—";
-    const rate = t.durationMs != null ? t.durationMs : "—";
-    const rt   = t.rt   != null ? t.rt   : "—";
-    return `<tr style="background:${bg}">
-      <td style="padding:4px 4px;text-align:right;color:var(--muted)">${t.seq}</td>
-      <td style="padding:4px 4px;white-space:nowrap">${ph}</td>
-      <td style="padding:4px 4px;white-space:nowrap;color:var(--muted)">${time}</td>
-      <td style="padding:4px 4px;text-align:right">${rate}</td>
-      <td style="padding:4px 4px;text-align:right">${rt}</td>
-      <td style="padding:4px 4px;text-align:center;color:${col};font-weight:700">${t.outcome}</td>
-      <td style="padding:4px 4px;white-space:nowrap">${t.probe || "—"}</td>
-      <td style="padding:4px 4px;white-space:nowrap">${t.correctCell || "—"}</td>
-      <td style="padding:4px 4px;white-space:nowrap;color:${t.outcome==="correct"?"#00ff88":t.outcome==="wrong"?"#ff4466":"var(--muted)"}">${t.response || "—"}</td>
-    </tr>`;
-  }).join("");
-}
-
-function downloadTrialLogCSV() {
-  const last = state.history[state.history.length - 1];
-  const log  = last ? last.rtLog : state.rtLog;
-  if (!log || !log.length) { setStatus("No trial data to export."); return; }
-
-  const header = ["#","Phase","ClockTime","RateMs","RTms","Outcome","Probe","CorrectCell","Response"];
-  const rows   = log.map(t => [
-    t.seq, t.phase,
-    t.clockTime ? new Date(t.clockTime).toLocaleString() : "",
-    t.durationMs != null ? t.durationMs : "",
-    t.rt         != null ? t.rt         : "",
-    t.outcome, t.probe || "", t.correctCell || "", t.response || ""
-  ].map(v => `"${String(v).replace(/"/g,'""')}"`).join(","));
-
-  const csv  = [header.join(","), ...rows].join("\r\n");
-  const blob = new Blob([csv], { type: "text/csv" });
-  const a    = document.createElement("a");
-  a.href     = URL.createObjectURL(blob);
-  const subj = last ? last.subjectId || "unknown" : "session";
-  a.download = `cogspeed_v14_triallog_${subj}.csv`;
-  a.click();
-}
-
-// Trial log button wiring
-const trialLogBtn = $("trialLogBtn");
-if (trialLogBtn) trialLogBtn.onclick = () => {
-  $("adminOverlay").classList.add("hidden");
-  buildTrialLog();
-  $("trialLogOverlay").classList.remove("hidden");
-};
-const trialLogClose = $("trialLogCloseBtn");
-if (trialLogClose) trialLogClose.onclick = () => {
-  $("trialLogOverlay").classList.add("hidden");
-  $("adminOverlay").classList.remove("hidden");
-  $("adminGate").classList.add("hidden");
-  $("adminBody").classList.remove("hidden");
-  renderAdmin();
-};
-const trialLogCsv = $("trialLogCsvBtn");
-if (trialLogCsv) trialLogCsv.onclick = downloadTrialLogCSV;
-
-window.addEventListener("beforeinstallprompt", e => {
-  e.preventDefault(); deferredPrompt = e;
-  $("installBtn").disabled = false;
-  setStatus("'Add to Home Screen' saves CogSpeed V14 as an app for offline use.");
-});
-$("installBtn").onclick = async () => {
-  if (!deferredPrompt) {
-    setStatus("'Add to Home Screen' saves this app for offline use. Available in Chrome or Edge on Android, and Safari on iOS.");
-    return;
-  }
-  deferredPrompt.prompt();
-  const choice = await deferredPrompt.userChoice;
-  deferredPrompt = null;
-  setStatus(choice.outcome === "accepted" ? "App added to home screen." : "Cancelled.");
-};
+$("closeAdminBtn").onclick=()=>$("adminOverlay").classList.add("hidden");
+$("closeAdminBtn2").onclick=()=>$("adminOverlay").classList.add("hidden");
+$("saveAdminBtn").onclick=()=>{ readAdmin(); saveSettings(); renderAdmin(); setStatus("Settings saved"); };
+$("resetAdminBtn").onclick=()=>{ resetAdmin(); setStatus("Settings reset to defaults"); };
+$("exportAdminBtn").onclick=()=>{ const blob=new Blob([JSON.stringify(settings,null,2)],{type:"application/json"}),a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download="cogspeed_v17_settings.json"; a.click(); };
+$("adminTrialLogBtn").onclick=()=>{ buildTrialLog(); $("trialLogOverlay").classList.remove("hidden"); };
+$("trialLogCloseBtn").onclick=()=>$("trialLogOverlay").classList.add("hidden");
+$("trialLogCsvBtn").onclick=()=>downloadTrialLogCSV();
+$("adminBackBtn").onclick=()=>goToStartPage();
+$("adminBackBtn2").onclick=()=>goToStartPage();
+$("adminStartOverBtn").onclick=()=>startOverFlow();
+$("adminStartOverBtn2").onclick=()=>startOverFlow();
+$("benchRunBtn").onclick=()=>runDeviceBenchmark(true);
+$("benchMainBtn").onclick=()=>{ $("benchmarkOverlay").classList.add("hidden"); };
+$("startBtn").onclick=startTest;
+$("backToStartBtn").onclick=goToStartPage;
+$("startOverBtn").onclick=startOverFlow;
+$("summaryViewResultsBtn").onclick=()=>{ $("summaryOverlay").classList.add("hidden"); showOnly("resultsOverlay"); };
+$("summaryRestartBtn").onclick=()=>{ $("summaryOverlay").classList.add("hidden"); goToStartPage(); };
+$("resultsBackBtn").onclick=goToStartPage;
+$("resultsStartOverBtn").onclick=startOverFlow;
+$("resultsExportBtn").onclick=exportResults;
+$("resultsEmailBtn").onclick=emailResults;
+window.addEventListener("beforeinstallprompt",e=>{ e.preventDefault(); deferredPrompt=e; $("installBtn").disabled=false; });
+$("installBtn").onclick=async()=>{ if(!deferredPrompt) return; deferredPrompt.prompt(); const c=await deferredPrompt.userChoice; deferredPrompt=null; setStatus(c.outcome==="accepted"?"App added to home screen.":"Cancelled."); };
 
 // ─── Init ───
+modeLabel.textContent="Subject mode";
 renderFatigueChecklist();
 renderRefresher();
 updateMetrics();
 renderHistoryGraphs();
-setProbeIdle();
