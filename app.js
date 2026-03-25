@@ -129,7 +129,7 @@ let settings=loadSettings();
 
 // ─── State ───
 const state={
-  phase:"idle", duration:null, blockDuration:null,
+  phase:"idle", duration:null, blockDuration:null, profile:null,
   current:null, previous:null, unresolvedStreak:0,
   overloads:[], recoveries:[], recoveryCorrectCompleted:0,
   spCorrectStreak:0, spWrongCount:0, terminalBlockReason:null,
@@ -561,6 +561,7 @@ function finish(){
   const testDurMs=state.testStartTime!=null?performance.now()-state.testStartTime:null;
   const result={
     subjectId:subjectKey(state.subjectId||"0"),
+    profile:state.profile?{gender:state.profile.gender,age:computeAge(state.profile.birthMonth,state.profile.birthYear),emailResults:state.profile.emailResults}:null,
     samnPerelli:state.samnPerelli,
     calibrationAverageMs:state.calibrationRTs.length?mean(state.calibrationRTs):null,
     blocks:[...state.overloads], blockCount:state.overloads.length,
@@ -976,7 +977,11 @@ function exportCSV(){
 function emailResults(){
   const last=state.history[state.history.length-1];
   if(!last){ setStatus("No results to email."); return; }
-  window.location.href=`mailto:?subject=CogSpeed V20 Results&body=${encodeURIComponent(state.lastResultText||JSON.stringify(last,null,2))}`;
+  const to=state.profile?.emailResults&&state.profile?.email?state.profile.email:"";
+  window.location.href=`mailto:${to}?subject=CogSpeed V20 Results&body=${encodeURIComponent(state.lastResultText||JSON.stringify(last,null,2))}`;
+}
+function autoEmailIfEnabled(){
+  if(state.profile?.emailResults&&state.profile?.email) emailResults();
 }
 
 // ─── FX (steam + sparks from each gear corner) ───
@@ -1048,16 +1053,153 @@ function startFX(){
 function stopFX(){ if(_fxRaf){ cancelAnimationFrame(_fxRaf); _fxRaf=null; } }
 
 // ─── Overlay management ───
+
+// ═══════════════════════════════════════════════════════════════
+// SECTION: REGISTRATION — PROFILE
+// Collects email (subject ID), birth month/year, gender, email pref.
+// Stored in localStorage: cogspeed_v20_profile
+// [PLANNED] Server-side account for population norms.
+// ═══════════════════════════════════════════════════════════════
+
+const PROFILE_KEY = "cogspeed_v20_profile";
+
+function loadProfile(){
+  try { return JSON.parse(localStorage.getItem(PROFILE_KEY)||"null"); } catch(e){ return null; }
+}
+function saveProfile(p){
+  localStorage.setItem(PROFILE_KEY, JSON.stringify(p));
+}
+function clearProfile(){
+  localStorage.removeItem(PROFILE_KEY);
+}
+
+// Compute age from birth month (1-12) and year
+function computeAge(bMonth, bYear){
+  const now = new Date();
+  let age = now.getFullYear() - bYear;
+  if(now.getMonth()+1 < bMonth) age--;
+  return age;
+}
+
+// Current profile being edited
+let _profileData = {email:"", birthMonth:0, birthYear:0, gender:"", emailResults:false};
+let _profileGenderSelected = "";
+
+function profileSelectGender(g){
+  _profileGenderSelected = g;
+  ["M","F","O"].forEach(x=>{
+    const btn = $("profileGender"+x);
+    if(!btn) return;
+    btn.style.background = x===g ? "linear-gradient(180deg,#0d4a1a,#062a10)" : "";
+    btn.style.borderColor = x===g ? "#00ff88" : "";
+    btn.style.color       = x===g ? "#00ff88" : "";
+  });
+}
+
+function profileToggleEmail(checked){
+  const thumb = $("profileEmailThumb");
+  const track = $("profileEmailToggle");
+  if(thumb) thumb.style.transform = checked ? "translateX(24px)" : "translateX(0)";
+  if(track) track.style.background = checked ? "#0080ff" : "rgba(255,255,255,0.15)";
+}
+
+function validateProfileAge(){
+  const mo = parseInt($("profileBirthMonth")?.value||"0");
+  const yr = parseInt($("profileBirthYear")?.value||"0");
+  const msg = $("profileAgeMsg");
+  if(!mo || !yr || yr < 1910 || yr > new Date().getFullYear()-5){
+    if(msg) msg.textContent=""; return false;
+  }
+  const age = computeAge(mo, yr);
+  if(age < 14){
+    if(msg){ msg.textContent="⚠ Must be 14 or older to take this test."; msg.style.color="#ff6688"; }
+    return false;
+  }
+  if(age > 120){
+    if(msg){ msg.textContent="⚠ Please check the year."; msg.style.color="#ff6688"; }
+    return false;
+  }
+  if(msg){ msg.textContent="Age: "+age+" years ✓"; msg.style.color="#00ff88"; }
+  return true;
+}
+
+function openProfileOverlay(email){
+  const existing = loadProfile();
+  _profileGenderSelected = existing?.gender || "";
+
+  // Show email
+  const ed = $("profileEmailDisplay");
+  if(ed) ed.textContent = email;
+
+  // Pre-fill if returning
+  if(existing){
+    const bm = $("profileBirthMonth"); if(bm) bm.value = existing.birthMonth||"";
+    const by = $("profileBirthYear");  if(by) by.value  = existing.birthYear||"";
+    const er = $("profileEmailResults"); if(er) er.checked = !!existing.emailResults;
+    profileToggleEmail(!!existing.emailResults);
+    if(existing.gender) profileSelectGender(existing.gender);
+    validateProfileAge();
+  } else {
+    const bm = $("profileBirthMonth"); if(bm) bm.value="";
+    const by = $("profileBirthYear");  if(by) by.value="";
+    const er = $("profileEmailResults"); if(er) er.checked=false;
+    profileToggleEmail(false);
+    profileSelectGender("");
+    const msg=$("profileAgeMsg"); if(msg) msg.textContent="";
+  }
+
+  showOnly("profileOverlay");
+}
+
+function saveAndContinueProfile(){
+  const email = ($("subjectIdInput")?.value||"").trim().toLowerCase();
+  const bMonth = parseInt($("profileBirthMonth")?.value||"0");
+  const bYear  = parseInt($("profileBirthYear")?.value||"0");
+  const emailResults = !!$("profileEmailResults")?.checked;
+
+  // Validate age
+  if(!validateProfileAge()){ setStatus("Please enter a valid date of birth (14+)."); return; }
+  if(!_profileGenderSelected){ setStatus("Please select a gender."); return; }
+
+  const profile = {email, birthMonth:bMonth, birthYear:bYear,
+    gender:_profileGenderSelected, emailResults, updatedAt:Date.now()};
+  saveProfile(profile);
+
+  // Use email as subjectId
+  state.subjectId = email;
+  state.profile = profile;
+
+  // Proceed to refresher
+  showOnly("refresherOverlay");
+  setStatus("Profile saved");
+}
+
+function resetProfile(){
+  clearProfile();
+  _profileGenderSelected = "";
+  const bm=$("profileBirthMonth"); if(bm) bm.value="";
+  const by=$("profileBirthYear");  if(by) by.value="";
+  const er=$("profileEmailResults"); if(er) er.checked=false;
+  profileToggleEmail(false);
+  ["M","F","O"].forEach(x=>{
+    const btn=$("profileGender"+x);
+    if(btn){ btn.style.background=""; btn.style.borderColor=""; btn.style.color=""; }
+  });
+  const msg=$("profileAgeMsg"); if(msg) msg.textContent="";
+  setStatus("Profile reset");
+}
+
+
 // ─── OVERLAY / NAVIGATION UTILITIES ──────────────────────────
 // hideAllOverlays(): hides every overlay (used at test start).
 // showOnly(id): shows one overlay, hides all others.
 // _adminReturnTo: tracks which page opened admin so Close returns there.
 // ──────────────────────────────────────────────────────────────
 function hideAllOverlays(){
-  ["subjectOverlay","refresherOverlay","fatigueOverlay","tutorialOverlay","adminOverlay","resultsOverlay","summaryOverlay","trialLogOverlay","historyOverlay","thinkingOverlay","outcomeOverlay"].forEach(id=>{ const el=$(id); if(el) el.classList.add("hidden"); });
+  ["subjectOverlay","profileOverlay","refresherOverlay","fatigueOverlay","tutorialOverlay","adminOverlay","resultsOverlay","summaryOverlay","trialLogOverlay","historyOverlay","thinkingOverlay","outcomeOverlay"].forEach(id=>{ const el=$(id); if(el) el.classList.add("hidden"); });
 }
 function showOnly(id){
-  ["subjectOverlay","refresherOverlay","fatigueOverlay","adminOverlay","resultsOverlay","summaryOverlay","trialLogOverlay","historyOverlay"].forEach(oid=>{ const el=$(oid); if(el) el.classList[oid===id?"remove":"add"]("hidden"); });
+  ["subjectOverlay","profileOverlay","refresherOverlay","fatigueOverlay","adminOverlay","resultsOverlay","summaryOverlay","trialLogOverlay","historyOverlay"].forEach(oid=>{ const el=$(oid); if(el) el.classList[oid===id?"remove":"add"]("hidden"); });
 }
 function isTestSuccess(r){ return (r||"").toLowerCase().startsWith("convergent"); }
 
@@ -1090,6 +1232,8 @@ function buildSummary(result){
 `CogSpeed V20  —  Test Results
 ${hr}
 Subject ID:    ${result.subjectId}
+${result.profile?`Gender:        ${result.profile.gender==="M"?"Male":result.profile.gender==="F"?"Female":"Other"}
+Age:           ${result.profile.age} years`:""}
 Date / Time:   ${new Date(result.time).toLocaleString()}
 Test duration:         ${formatDuration(result.testDurationMs)}
 Location:      ${geoStr}
@@ -1749,6 +1893,24 @@ $("adminOpenBtn").onclick=()=>{
   }
 };
 $("tutNextBtn").onclick=()=>tutNext();
+
+// Profile overlay buttons
+const _psb=$("profileSaveBtn"); if(_psb) _psb.onclick=saveAndContinueProfile;
+const _prb=$("profileResetBtn"); if(_prb) _prb.onclick=resetProfile;
+// Age validation on input change
+const _pbm=$("profileBirthMonth"); if(_pbm) _pbm.onchange=validateProfileAge;
+const _pby=$("profileBirthYear"); if(_pby) _pby.oninput=validateProfileAge;
+
+// Welcome back — pre-fill email if profile exists
+(()=>{
+  const p=loadProfile();
+  if(p&&p.email){
+    const inp=$("subjectIdInput"); if(inp) inp.value=p.email;
+    const wl=$("subjectWelcome"); if(wl) wl.style.display="block";
+    const we=$("welcomeEmail"); if(we) we.textContent=p.email;
+    const hint=$("subjectHint"); if(hint) hint.textContent="Welcome back! Tap Continue to test.";
+  }
+})();
 $("tutSkipBtn").onclick=()=>tutSkip();
 $("unlockBtn").onclick=()=>{
   const v=$("adminPass").value;
