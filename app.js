@@ -1220,88 +1220,166 @@ function buildTutRespGrid(flashPos){
   return html;
 }
 
+
+// ─── Mini trial screen for tutorial background ───
+// Returns HTML showing a tiny test screen with different parts highlighted
+function buildMiniScreen(highlightPart){
+  // highlightPart: "probe" | "stim" | "both" | "resp" | "all"
+  const probeOpacity   = (highlightPart==="probe"||highlightPart==="both"||highlightPart==="all") ? 1 : 0.2;
+  const stimOpacity    = (highlightPart==="stim" ||highlightPart==="both"||highlightPart==="all") ? 1 : 0.2;
+  const respOpacity    = (highlightPart==="resp" ||highlightPart==="both"||highlightPart==="all") ? 1 : 0.2;
+  const probeGlow      = highlightPart==="probe"||highlightPart==="both"||highlightPart==="all"
+    ? "0 0 12px rgba(127,215,255,0.6)" : "none";
+
+  // Stim grid — 6 small gears with patterns
+  let stimHtml = '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:3px;width:100%">';
+  TUT_ITEMS.forEach((it,i)=>{
+    stimHtml += `<div style="aspect-ratio:1">${buildGearSVG(i+1, it.pattern, "small", "")}</div>`;
+  });
+  stimHtml += '</div>';
+
+  // Probe
+  const probeHtml = `<div style="width:clamp(44px,13vw,60px);height:clamp(44px,13vw,60px);filter:drop-shadow(${probeGlow})">
+    ${buildGearSVG(0, LINE_PATTERNS[TUT_PROBE_CNT], "probe", "")}
+  </div>`;
+
+  // Response buttons — plain numbered boxes
+  let respHtml = '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:3px;width:100%">';
+  for(let i=0;i<6;i++){
+    const isHL = highlightPart==="resp"||highlightPart==="all";
+    const bg = (isHL&&i===TUT_CORRECT_POS) ? "rgba(0,255,136,0.3)" : "rgba(255,255,255,0.06)";
+    const border = (isHL&&i===TUT_CORRECT_POS) ? "1px solid #00ff88" : "1px solid rgba(255,255,255,0.08)";
+    respHtml += `<div style="aspect-ratio:1;background:${bg};border:${border};border-radius:5px;display:flex;align-items:center;justify-content:center">
+      <span style="font-size:9px;color:rgba(255,255,255,0.35);font-weight:700">${i+1}</span>
+    </div>`;
+  }
+  respHtml += '</div>';
+
+  return `<div style="
+    position:absolute;inset:0;
+    display:flex;flex-direction:column;
+    align-items:center;justify-content:center;
+    gap:4px;
+    padding:12px;
+    opacity:0.22;
+    pointer-events:none;
+    background:#0d1520;
+    overflow:hidden;
+  ">
+    <!-- stim grid -->
+    <div style="width:min(240px,80vw);opacity:${stimOpacity};transition:opacity 0.3s">
+      ${stimHtml}
+    </div>
+    <!-- probe -->
+    <div style="margin:4px 0;opacity:${probeOpacity};transition:opacity 0.3s">
+      ${probeHtml}
+    </div>
+    <!-- response grid -->
+    <div style="width:min(240px,80vw);opacity:${respOpacity};transition:opacity 0.3s">
+      ${respHtml}
+    </div>
+  </div>`;
+}
+
 const TUT_STEPS = [
-  // Step 1: The probe
+  // Step 1: probe highlighted
   {
-    dur: 0,  // manual advance
-    build: ()=>{
-      return `
-        <div style="font-size:13px;letter-spacing:.1em;color:rgba(127,215,255,0.7);text-transform:uppercase;margin-bottom:8px">The Probe</div>
-        <div style="margin-bottom:16px">${buildTutProbe(true)}</div>
-        <div style="font-size:20px;font-weight:700;color:#f5fbff;margin-bottom:8px;max-width:300px">This glowing gear is the <span style="color:#7fd7ff">PROBE</span></div>
-        <div style="font-size:16px;color:rgba(255,255,255,0.65);max-width:300px">Count the marks inside it — dots or lines</div>
-      `;
+    dur:0,
+    build:()=>{
+      return buildMiniScreen("probe") + `
+      <div style="position:relative;z-index:1;display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;padding:16px;text-align:center">
+        <div style="font-size:13px;letter-spacing:.1em;color:rgba(127,215,255,0.8);text-transform:uppercase;margin-bottom:8px;text-shadow:0 0 12px rgba(127,215,255,0.5)">The Probe</div>
+        <div style="margin-bottom:14px">${buildTutProbe(true)}</div>
+        <div style="background:rgba(10,20,40,0.88);backdrop-filter:blur(4px);border-radius:16px;padding:14px 18px;max-width:300px;border:1px solid rgba(127,215,255,0.2)">
+          <div style="font-size:20px;font-weight:700;color:#f5fbff;margin-bottom:6px">This glowing gear is the <span style="color:#7fd7ff">PROBE</span></div>
+          <div style="font-size:15px;color:rgba(255,255,255,0.65)">Count the marks inside it — dots or lines</div>
+        </div>
+      </div>`;
     }
   },
-  // Step 2: The targets
+  // Step 2: stim grid highlighted
   {
-    dur: 0,
-    build: ()=>{
-      return `
-        <div style="font-size:13px;letter-spacing:.1em;color:rgba(127,215,255,0.7);text-transform:uppercase;margin-bottom:8px">The Targets</div>
-        <div style="margin-bottom:12px">${buildTutGearGrid(-1, true)}</div>
-        <div style="font-size:20px;font-weight:700;color:#f5fbff;margin-bottom:8px;max-width:300px">These 6 gears are your <span style="color:#7fd7ff">TARGETS</span></div>
-        <div style="font-size:16px;color:rgba(255,255,255,0.65);max-width:300px">Each has dots or lines — count them</div>
-      `;
+    dur:0,
+    build:()=>{
+      return buildMiniScreen("stim") + `
+      <div style="position:relative;z-index:1;display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;padding:16px;text-align:center">
+        <div style="font-size:13px;letter-spacing:.1em;color:rgba(127,215,255,0.8);text-transform:uppercase;margin-bottom:8px;text-shadow:0 0 12px rgba(127,215,255,0.5)">The Targets</div>
+        <div style="margin-bottom:10px">${buildTutGearGrid(-1,true)}</div>
+        <div style="background:rgba(10,20,40,0.88);backdrop-filter:blur(4px);border-radius:16px;padding:14px 18px;max-width:300px;border:1px solid rgba(127,215,255,0.2)">
+          <div style="font-size:20px;font-weight:700;color:#f5fbff;margin-bottom:6px">These 6 gears are your <span style="color:#7fd7ff">TARGETS</span></div>
+          <div style="font-size:15px;color:rgba(255,255,255,0.65)">Each has dots or lines — count them</div>
+        </div>
+      </div>`;
     }
   },
-  // Step 3: The rule
+  // Step 3: both highlighted
   {
-    dur: 0,
-    build: ()=>{
-      return `
-        <div style="font-size:13px;letter-spacing:.1em;color:rgba(127,215,255,0.7);text-transform:uppercase;margin-bottom:10px">The Rule</div>
-        <div style="display:flex;align-items:center;gap:16px;margin-bottom:16px;flex-wrap:wrap;justify-content:center">
-          <div>
-            <div style="font-size:11px;color:rgba(255,255,255,0.5);margin-bottom:4px">PROBE</div>
-            <div style="width:clamp(70px,22vw,100px);height:clamp(70px,22vw,100px)">${buildGearSVG(0, LINE_PATTERNS[3], "probe", "")}</div>
-            <div style="font-size:14px;color:#7fd7ff;margin-top:4px;font-weight:700">lines : 3</div>
+    dur:0,
+    build:()=>{
+      return buildMiniScreen("both") + `
+      <div style="position:relative;z-index:1;display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;padding:16px;text-align:center">
+        <div style="font-size:13px;letter-spacing:.1em;color:rgba(127,215,255,0.8);text-transform:uppercase;margin-bottom:8px;text-shadow:0 0 12px rgba(127,215,255,0.5)">The Rule</div>
+        <div style="background:rgba(10,20,40,0.88);backdrop-filter:blur(4px);border-radius:16px;padding:14px 18px;max-width:310px;border:1px solid rgba(127,215,255,0.25)">
+          <div style="display:flex;align-items:center;gap:14px;margin-bottom:12px;justify-content:center">
+            <div style="text-align:center">
+              <div style="font-size:10px;color:rgba(255,255,255,0.5);margin-bottom:3px">PROBE</div>
+              <div style="width:60px;height:60px">${buildGearSVG(0, LINE_PATTERNS[3], "probe", "")}</div>
+              <div style="font-size:12px;color:#7fd7ff;margin-top:3px;font-weight:700">lines : 3</div>
+            </div>
+            <div style="font-size:24px;color:#ffaa44;font-weight:900">↔</div>
+            <div style="text-align:center">
+              <div style="font-size:10px;color:rgba(255,255,255,0.5);margin-bottom:3px">MATCH</div>
+              <div style="width:60px;height:60px;border:2px solid #7fd7ff;border-radius:8px;box-shadow:0 0 10px rgba(127,215,255,0.4)">${buildGearSVG(3, DOT_PATTERNS[3], "probe", "")}</div>
+              <div style="font-size:12px;color:#00ff88;margin-top:3px;font-weight:700">dots : 3 ✓</div>
+            </div>
           </div>
-          <div style="font-size:28px;color:#ffaa44;font-weight:900">↔</div>
-          <div>
-            <div style="font-size:11px;color:rgba(255,255,255,0.5);margin-bottom:4px">MATCH</div>
-            <div style="width:clamp(70px,22vw,100px);height:clamp(70px,22vw,100px);border:2px solid #7fd7ff;border-radius:10px;box-shadow:0 0 14px rgba(127,215,255,0.5)">${buildGearSVG(3, DOT_PATTERNS[3], "probe", "")}</div>
-            <div style="font-size:14px;color:#00ff88;margin-top:4px;font-weight:700">dots : 3 ✓</div>
+          <div style="font-size:17px;font-weight:800;color:#7fd7ff">Same COUNT</div>
+          <div style="font-size:14px;color:rgba(255,255,255,0.6);margin:2px 0">3 lines → find 3 dots</div>
+          <div style="font-size:17px;font-weight:800;color:#ffaa44;margin-top:6px">Opposite TYPE</div>
+          <div style="font-size:14px;color:rgba(255,255,255,0.6)">lines ↔ dots</div>
+        </div>
+      </div>`;
+    }
+  },
+  // Step 4: all highlighted, response buttons shown
+  {
+    dur:0,
+    build:()=>{
+      return buildMiniScreen("all") + `
+      <div style="position:relative;z-index:1;display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;padding:16px;text-align:center">
+        <div style="font-size:13px;letter-spacing:.1em;color:rgba(127,215,255,0.8);text-transform:uppercase;margin-bottom:8px;text-shadow:0 0 12px rgba(127,215,255,0.5)">Tap the Match</div>
+        <div style="background:rgba(10,20,40,0.88);backdrop-filter:blur(4px);border-radius:16px;padding:12px 16px;max-width:310px;border:1px solid rgba(127,215,255,0.2)">
+          <div style="margin-bottom:6px;opacity:0.9">${buildTutGearGrid(TUT_CORRECT_POS,true)}</div>
+          <div style="display:flex;align-items:center;gap:8px;margin:6px 0">
+            <div style="flex:1;height:1px;background:rgba(255,255,255,0.15)"></div>
+            <div style="font-size:11px;color:rgba(255,255,255,0.45)">same position below</div>
+            <div style="flex:1;height:1px;background:rgba(255,255,255,0.15)"></div>
+          </div>
+          <div>${buildTutRespGrid(TUT_CORRECT_POS)}</div>
+          <div style="font-size:15px;color:rgba(255,255,255,0.7);margin-top:8px">Tap the <span style="color:#00ff88;font-weight:700">button below</span> that matches the highlighted gear</div>
+        </div>
+      </div>`;
+    }
+  },
+  // Step 5: full screen, mention fatigue question
+  {
+    dur:0,
+    build:()=>{
+      return buildMiniScreen("all") + `
+      <div style="position:relative;z-index:1;display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;padding:16px;text-align:center">
+        <div style="font-size:36px;margin-bottom:4px">⚡</div>
+        <div style="background:rgba(10,20,40,0.88);backdrop-filter:blur(4px);border-radius:16px;padding:14px 18px;max-width:310px;border:1px solid rgba(127,215,255,0.2)">
+          <div style="font-size:26px;font-weight:900;color:#7fd7ff;letter-spacing:.06em;margin-bottom:6px">REACT FAST!</div>
+          <div style="font-size:15px;color:rgba(255,255,255,0.7);margin-bottom:10px;line-height:1.5">Each gear appears for only a few seconds.<br>Respond before it disappears!</div>
+          <div style="font-size:14px;color:rgba(255,255,255,0.55);line-height:1.6;border-top:1px solid rgba(255,255,255,0.1);padding-top:8px">
+            Missing a trial is OK — the test adjusts.<br>Wrong answers are OK too.<br>
+            <strong style="color:rgba(255,255,255,0.85)">Just respond as fast as you can.</strong>
+          </div>
+          <div style="margin-top:10px;padding:8px 12px;background:rgba(127,215,255,0.08);border:1px solid rgba(127,215,255,0.3);border-radius:10px;font-size:13px;color:rgba(200,230,255,0.85);line-height:1.5">
+            <span style="color:#7fd7ff;font-weight:700">Up next:</span> A quick fatigue rating question — then the test begins!
           </div>
         </div>
-        <div style="background:rgba(127,215,255,0.08);border:1px solid rgba(127,215,255,0.3);border-radius:12px;padding:12px 16px;max-width:300px">
-          <div style="font-size:18px;font-weight:800;color:#7fd7ff">Same COUNT</div>
-          <div style="font-size:15px;color:rgba(255,255,255,0.6);margin:2px 0">3 lines → find 3 dots</div>
-          <div style="font-size:18px;font-weight:800;color:#ffaa44;margin-top:6px">Opposite TYPE</div>
-          <div style="font-size:15px;color:rgba(255,255,255,0.6)">lines ↔ dots</div>
-        </div>
-      `;
-    }
-  },
-  // Step 4: Tap the response
-  {
-    dur: 0,
-    build: ()=>{
-      return `
-        <div style="font-size:13px;letter-spacing:.1em;color:rgba(127,215,255,0.7);text-transform:uppercase;margin-bottom:8px">Tap the Match</div>
-        <div style="margin-bottom:6px;opacity:0.7">${buildTutGearGrid(TUT_CORRECT_POS, true)}</div>
-        <div style="display:flex;align-items:center;gap:8px;margin:6px 0">
-          <div style="flex:1;height:1px;background:rgba(255,255,255,0.1)"></div>
-          <div style="font-size:12px;color:rgba(255,255,255,0.4)">same position below</div>
-          <div style="flex:1;height:1px;background:rgba(255,255,255,0.1)"></div>
-        </div>
-        <div>${buildTutRespGrid(TUT_CORRECT_POS)}</div>
-        <div style="font-size:16px;color:rgba(255,255,255,0.65);margin-top:10px;max-width:300px">Tap the <span style="color:#00ff88;font-weight:700">button below</span> that matches the highlighted gear</div>
-      `;
-    }
-  },
-  // Step 5: React fast!
-  {
-    dur: 0,
-    build: ()=>{
-      return `
-        <div style="font-size:60px;margin-bottom:4px">⚡</div>
-        <div style="font-size:30px;font-weight:900;color:#7fd7ff;letter-spacing:.06em;margin-bottom:8px">REACT FAST!</div>
-        <div style="font-size:17px;color:rgba(255,255,255,0.7);max-width:300px;margin-bottom:20px;line-height:1.5">Each gear appears for only a few seconds.<br>Respond before it disappears!</div>
-        <div style="background:rgba(127,215,255,0.08);border:1px solid rgba(127,215,255,0.25);border-radius:12px;padding:14px 20px;max-width:300px;font-size:15px;color:rgba(255,255,255,0.6);line-height:1.7">
-          Missing a trial is OK — the test adjusts.<br>Wrong answers are OK too.<br><strong style="color:rgba(255,255,255,0.85)">Just respond as fast as you can.</strong>
-        </div>
-      `;
+      </div>`;
     }
   },
 ];
