@@ -50,7 +50,7 @@ const ADMIN_FIELDS=[
   ["wrongWindowSize","Wrong-answer window","number"],
   ["wrongThresholdStop","Wrong threshold","number"],
   ["maxTrialCount","Max paced trials","number"],
-  ["maxTestDurationMs","Max total paced time (ms, default 150000)","number"],
+  ["maxTestDurationMs","Max TOTAL test time (ms, default 150000)","number"],
   ["minDurationMs","Min paced duration (ms)","number"],
   ["maxDurationMs","Max paced duration (ms)","number"],
   ["initialUnusedCalibrationTrials","Unused calibration trials","number"],
@@ -321,17 +321,6 @@ function buildGearSVG(si,pattern,size,spinClass){
 }
 function lighten(hex,amt){ const n=parseInt(hex.slice(1),16),r=Math.min(255,(n>>16)+amt),g=Math.min(255,((n>>8)&0xff)+amt),b=Math.min(255,(n&0xff)+amt); return `rgb(${r},${g},${b})`; }
 function darken(hex,amt){ const n=parseInt(hex.slice(1),16),r=Math.max(0,(n>>16)-amt),g=Math.max(0,((n>>8)&0xff)-amt),b=Math.max(0,(n&0xff)-amt); return `rgb(${r},${g},${b})`; }
-
-function lighten(hex, amt) {
-  const n = parseInt(hex.slice(1),16);
-  const r = Math.min(255,(n>>16)+amt), g = Math.min(255,((n>>8)&0xff)+amt), b = Math.min(255,(n&0xff)+amt);
-  return `rgb(${r},${g},${b})`;
-}
-function darken(hex, amt) {
-  const n = parseInt(hex.slice(1),16);
-  const r = Math.max(0,(n>>16)-amt), g = Math.max(0,((n>>8)&0xff)-amt), b = Math.max(0,(n&0xff)-amt);
-  return `rgb(${r},${g},${b})`;
-}
 // ─── Render trial (gear version) ───
 function renderTrial(trial){
   const ts=$("testScreen"); if(ts) ts.classList.remove("hidden");
@@ -441,7 +430,7 @@ function finishCalibration(){
   }
   state.duration=clamp(avg*settings.initialPacedPercent,settings.minDurationMs,settings.maxDurationMs);
   state.phase="paced";
-  armMaxTestTimer();
+  // armMaxTestTimer already started at first trial — don't restart it here
   setStatus(`Machine-paced start: ${state.duration.toFixed(0)}ms`);
   openTrial("paced");
 }
@@ -488,7 +477,10 @@ function finish(){
 function openTrial(kind){
   clearTimer();
   // Track overall test duration from very first trial
-  if(state.testStartTime===null) state.testStartTime=performance.now();
+  if(state.testStartTime===null){
+    state.testStartTime=performance.now();
+    armMaxTestTimer(); // 150s wall covers entire test including calibration
+  }
   state.previous=state.current;
   const lastPos=state.current?state.current.correctPos:null;
   const lastProbe=state.current?{family:state.current.probeFamily,count:state.current.probeCount}:null;

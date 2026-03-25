@@ -6,30 +6,15 @@
   <meta name="theme-color" content="#0b1830"/>
   <link rel="manifest" href="manifest.json"/>
   <title>CogSpeed V20</title>
-  <style>
+    <style>
+
     :root{--bg:#091426;--bg2:#132746;--panel:#0d1b33;--panel2:#10213e;--text:#f5fbff;--muted:#d7e7f8;--edge:#4f6f99;--accent:#7fd7ff;--probe:#00f0ff}
     *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;margin:0;padding:0}
     body{min-height:100svh;color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;background:radial-gradient(circle at 50% 12%,rgba(103,198,255,.12),transparent 25%),linear-gradient(135deg,var(--bg2),var(--bg) 58%,#060c16);display:flex;align-items:center;justify-content:center}
-    .app{width:100%;max-width:420px;min-height:100svh;padding:8px 8px calc(10px + env(safe-area-inset-bottom));display:flex;flex-direction:column;gap:6px}
     .topbar{display:flex;justify-content:space-between;align-items:center;padding:2px 4px}
     .topbar-left{font-size:14px;color:var(--muted);font-weight:600}
     .topbar-right{font-size:14px;color:var(--muted)}
     .badge{display:inline-block;padding:4px 14px;border:1px solid var(--edge);border-radius:999px;font-size:13px;font-weight:700;color:#d9fbff;background:#0a1629;letter-spacing:.06em}
-    .panel{border:1px solid var(--edge);border-radius:20px;padding:10px;background:linear-gradient(180deg,rgba(255,255,255,.03),rgba(255,255,255,.01)),var(--panel)}
-    .stim-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
-    .stim-cell{aspect-ratio:1;border-radius:14px;border:1px solid var(--edge);background:#0a1629;display:flex;align-items:center;justify-content:center;position:relative}
-    .cell-label{position:absolute;top:5px;left:7px;font-size:11px;color:var(--muted);font-weight:700;letter-spacing:.04em}
-    .probe-row{display:flex;align-items:center;justify-content:center;padding:4px 0}
-    .probe-cell{width:clamp(96px,28vw,130px);height:clamp(96px,28vw,130px);border-radius:50%;border:3px solid var(--probe);background:#0d1b33;display:flex;align-items:center;justify-content:center;flex-direction:column;position:relative;box-shadow:0 0 22px rgba(0,234,255,.85),0 0 50px rgba(0,234,255,.55),0 0 90px rgba(0,234,255,.3),inset 0 0 14px rgba(0,234,255,.4);animation:none}
-    .probe-cell.idle{border-color:var(--edge);box-shadow:none;animation:none}
-    .probe-label{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:#baf6ff;text-shadow:0 0 8px rgba(0,234,255,.7);margin-bottom:4px;font-weight:700}
-    @keyframes probePulse{0%{transform:scale(1)}50%{transform:scale(1.05)}100%{transform:scale(1)}}
-    .resp-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
-    .resp-btn{aspect-ratio:1;border-radius:14px;border:2px solid var(--edge);background:#112244;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:transform .1s,border-color .1s,background .1s;-webkit-tap-highlight-color:transparent;position:relative}
-    .resp-btn:active{transform:scale(.95);background:#1a3366;border-color:var(--accent)}
-    .resp-btn.correct-flash{border-color:#00ff88;background:rgba(0,255,136,.18);transition:none}
-    .resp-btn.wrong-flash{border-color:#ff4466;background:rgba(255,68,102,.18);transition:none}
-    .resp-pos{position:absolute;top:5px;left:7px;font-size:11px;color:var(--muted);font-weight:700;letter-spacing:.04em}
     .metrics{display:grid;grid-template-columns:repeat(5,1fr);gap:4px}
     .metric{background:#0a1629;border:1px solid var(--edge);border-radius:12px;padding:6px 4px;text-align:center}
     .metric-label{font-size:10px;color:var(--muted);letter-spacing:.04em;margin-bottom:2px}
@@ -39,7 +24,6 @@
     .ctrl-btn{flex:1;padding:14px 8px;border-radius:14px;border:1px solid var(--edge);background:linear-gradient(180deg,#1a2e55,#0d1b33);color:var(--text);font-size:16px;font-weight:700;cursor:pointer;letter-spacing:.04em;min-height:48px}
     .ctrl-btn:active{background:#1a3366;border-color:var(--accent)}
     .statusline{font-size:13px;color:var(--muted);text-align:center;padding:4px;min-height:22px}
-    .panel.result{padding:12px;font-size:12px;color:var(--muted);white-space:pre-wrap;font-family:monospace;max-height:300px;overflow-y:auto;border-radius:14px}
     .hidden{display:none!important}
     .overlay{position:fixed;inset:0;z-index:100;display:flex;align-items:flex-start;justify-content:center;padding:10px;background:rgba(2,8,16,.72);backdrop-filter:blur(4px);overflow:auto}
     .modal{max-width:min(96vw,440px);width:100%;border-radius:24px;padding:18px 16px;background:linear-gradient(180deg,rgba(255,255,255,.04),rgba(255,255,255,.01)),var(--panel2);border:1px solid var(--edge);margin-top:8px}
@@ -95,7 +79,6 @@
     /* ── Short screens: compress everything to fit without scrolling ── */
     /* ── Compact layout for short screens (most phones in browser) ── */
     @media(max-height:720px){
-      .app{gap:3px;padding:4px 6px}
       .panel{padding:6px}
       .stim-cell,.resp-btn{aspect-ratio:unset;height:clamp(52px,11vh,80px);border-radius:10px}
       .probe-cell{width:clamp(70px,16vh,108px)!important;height:clamp(70px,16vh,108px)!important}
@@ -128,49 +111,6 @@
     }
     #testScreen.hidden{display:none!important}
     /* override old rules inside test screen */
-    #testScreen .stim-grid{
-      display:grid;grid-template-columns:repeat(3,1fr);
-      gap:5px;padding:4px 5px 0;flex:1;min-height:0;
-    }
-    #testScreen .stim-cell{
-      aspect-ratio:unset!important;border-radius:0!important;
-      border:none!important;background:transparent!important;
-      display:flex;align-items:center;justify-content:center;
-      position:relative;min-height:0;overflow:visible;
-    }
-    #testScreen .probe-row{
-      display:flex;align-items:center;justify-content:center;
-      padding:2px 0;flex-shrink:0;
-    }
-    #testScreen .probe-cell{
-      width:clamp(72px,19vw,115px)!important;
-      height:clamp(72px,19vw,115px)!important;
-      border-radius:0!important;border:none!important;
-      background:transparent!important;box-shadow:none!important;
-      animation:none!important;
-      display:flex;align-items:center;justify-content:center;
-      flex-direction:column;position:relative;overflow:visible;
-    }
-    #testScreen .probe-label{
-      font-size:9px;letter-spacing:.12em;text-transform:uppercase;
-      color:#baf6ff;font-weight:700;position:absolute;top:-14px;
-      white-space:nowrap;text-shadow:0 0 8px rgba(0,234,255,.6);
-    }
-    #testScreen .resp-grid{
-      display:grid;grid-template-columns:repeat(3,1fr);
-      gap:5px;padding:0 5px 4px;flex:1;min-height:0;
-    }
-    #testScreen .resp-btn{
-      aspect-ratio:unset!important;border-radius:0!important;
-      border:none!important;background:transparent!important;
-      display:flex;align-items:center;justify-content:center;
-      cursor:pointer;-webkit-tap-highlight-color:transparent;
-      position:relative;min-height:0;overflow:visible;
-      transition:none;
-    }
-    #testScreen .resp-btn:active{transform:none;background:transparent!important}
-    #testScreen .resp-btn.correct-flash svg{filter:brightness(2) drop-shadow(0 0 10px rgba(200,255,200,.9));transition:none}
-    #testScreen .resp-btn.wrong-flash svg{filter:brightness(0.4) saturate(0);transition:none}
     #testScreen .metrics{
       gap:3px;padding:2px 5px;flex-shrink:0;
     }
@@ -184,22 +124,8 @@
       width:100%;height:100%;display:block;overflow:visible;
     }
     /* cell label */
-    #testScreen .cell-label,#testScreen .resp-pos{
-      position:absolute;top:6px;left:8px;font-size:10px;
-      color:rgba(255,255,255,0.4);font-weight:700;z-index:2;
-      pointer-events:none;
-    }
     /* topbar */
-    #testScreen .ts-topbar{
-      display:flex;justify-content:space-between;align-items:center;
-      padding:4px 8px;flex-shrink:0;
-      font-size:11px;color:rgba(255,255,255,0.4);
-    }
     /* bottom controls */
-    #testScreen .ts-controls{
-      display:grid;grid-template-columns:repeat(3,1fr);
-      gap:5px;padding:3px 5px 5px;flex-shrink:0;
-    }
     /* curtain */
     .curtain{
       position:absolute;inset:0;z-index:20;
@@ -230,9 +156,8 @@
       box-shadow:none !important;
     }
     #testScreen .probe-cell svg{ animation:none !important; }
-  </style>
-
-  <style id="ts-style">
+  
+    /* ── Test screen (full viewport) ── */
   /* ══ TEST SCREEN — gears only, full screen, nothing else ══ */
   #testScreen{
     position:fixed !important;
@@ -366,7 +291,9 @@
     }
     #testScreen .probe-label{display:none}
   }
-</style>
+  </style>
+
+  
 </head>
 <body>
 
@@ -632,6 +559,6 @@
   <div class="resp-grid" id="respGrid"></div>
 </div>
 
-<script src="app.js?v=46"></script>
+<script src="app.js?v=48"></script>
 </body>
 </html>
