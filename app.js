@@ -1520,7 +1520,10 @@ $("fatigueStartOverBtn").onclick=()=>startOverFlow();
 const _fsb=$("fatigueStartBtn");
 if(_fsb) _fsb.onclick=startTest;
 let _adminUnlocked = false;
+let _adminReturnTo = "subjectOverlay"; // default return destination
+
 $("adminOpenBtn").onclick=()=>{
+  _adminReturnTo = "subjectOverlay"; // from subject page
   $("adminOverlay").classList.remove("hidden");
   if(_adminUnlocked){
     $("adminGate").classList.add("hidden");
@@ -1541,7 +1544,10 @@ $("unlockBtn").onclick=()=>{
     $("adminGate").classList.add("hidden"); $("adminBody").classList.remove("hidden"); renderAdmin(); setStatus("Admin unlocked");
   } else setStatus("Incorrect passcode — default is 4822");
 };
-$("closeAdminBtn").onclick=()=>$("adminOverlay").classList.add("hidden");
+$("closeAdminBtn").onclick=()=>{
+  $("adminOverlay").classList.add("hidden");
+  showOnly(_adminReturnTo);
+};
 $("closeAdminBtn2").onclick=()=>$("benchmarkOverlay").classList.add("hidden");
 $("saveAdminBtn").onclick=()=>{ readAdmin(); saveSettings(); renderAdmin(); setStatus("Settings saved"); };
 $("resetAdminBtn").onclick=()=>{ resetAdmin(); setStatus("Settings reset to defaults"); };
@@ -1576,6 +1582,7 @@ $("startOverBtn").onclick=startOverFlow;
 $("summaryRestartBtn").onclick=()=>{ $("summaryOverlay").classList.add("hidden"); goToStartPage(); };
 $("summaryEmailBtn").onclick=emailResults;
 $("summaryAdminBtn").onclick=()=>{
+  _adminReturnTo = "summaryOverlay"; // return here on close
   $("summaryOverlay").classList.add("hidden");
   $("adminOverlay").classList.remove("hidden");
   if(_adminUnlocked){
