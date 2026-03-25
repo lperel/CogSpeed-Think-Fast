@@ -391,9 +391,9 @@ function buildGearSVG(si,pattern,size,spinClass){
   let marks="";
   if(pattern){
     const iR=(g.rP-g.ded-4)*0.72;
-    const dotR=size==="probe"?6:5, lw=size==="probe"?9:7, lh=size==="probe"?14:10;
+    const dotR=size==="probe"?8:7, lw=size==="probe"?11:9, lh=size==="probe"?18:14;
     marks=pattern.map(([k,px,py])=>{
-      const ix=cx+(px/100-0.5)*iR*1.95, iy=cy+(py/100-0.5)*iR*1.95;
+      const ix=cx+(px/100-0.5)*iR*2.20, iy=cy+(py/100-0.5)*iR*2.20;
       if(k==="dot") return `<circle cx="${ix.toFixed(1)}" cy="${iy.toFixed(1)}" r="${dotR}" fill="white" stroke="black" stroke-width="1.5" opacity="0.95"/>`;
       return `<rect x="${(ix-lw/2).toFixed(1)}" y="${(iy-lh/2).toFixed(1)}" width="${lw}" height="${lh}" rx="2.5" fill="white" stroke="black" stroke-width="1.5" opacity="0.95"/>`;
     }).join("");
