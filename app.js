@@ -1285,8 +1285,30 @@ function buildSummary(result){
   const diffStr=diff!=null?`${diff>0?"+":""}${diff.toFixed(0)} ms  (${diff>0?"slower":diff<0?"faster":"no change"})`:"—";
   const cps=result.cognitivePerformanceScore;
   const sd=result.pacedResponseSdMs;
-  el.textContent=
-`CogSpeed V21  —  Test Results
+  // Row color by SPF level: top dark green → light green → yellow → orange → bottom 2 red
+  const SPF_COLOR={7:'#1a8a1a',6:'#1a8a1a',5:'#4aaa00',4:'#c8a800',3:'#cc5500',2:'#cc1100',1:'#cc1100'};
+  const esc=s=>s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const tableRows=[
+    [7,100,  600, "FUNCTIONING EXCEPTIONALLY WELL"],
+    [6, 80,  800, "FUNCTIONING VERY WELL"],
+    [5, 75, 1050, "FUNCTIONING NORMALLY"],
+    [4, 50, 1500, "FUNCTIONING SLIGHTLY LESS THAN NORMAL"],
+    [3, 25, 1950, "FUNCTIONING \u2014 STARTING TO SLOW"],
+    [2, 11, 2200, "DIFFICULT TO FUNCTION \u2014 BECOMING UNSAFE"],
+    [1,  0,   -1, "UNABLE TO FUNCTION \u2014 DEFINITELY UNSAFE"],
+  ].map(([spf,cpi,brd,cap])=>{
+    const brdStr = brd<0?"&gt;2400":String(brd);
+    const arrow = (cps!=null && cpi>=0 && (
+      (cpi===100&&result.cognitivePerformanceScore>80)||
+      (cpi===0 &&result.cognitivePerformanceScore<=0)||
+      (cpi>0&&cpi<100&&result.cognitivePerformanceScore<=cpi&&result.cognitivePerformanceScore>(cpi-25))
+    )) ? " \u2190 YOUR SCORE" : "";
+    const line=`    ${String(spf).padStart(2)}  | ${String(cpi).padStart(3)}  | ${brdStr.padStart(6)}  | ${cap}${arrow}`;
+    return `<span style="color:${SPF_COLOR[spf]};font-weight:700">${line}</span>`;
+  }).join("\n");
+
+  const mainPart=
+`CogSpeed V21  \u2014  Test Results
 ${hr}
 Subject ID:    ${result.subjectId}
 ${result.profile?`Gender:        ${result.profile.gender==="M"?"Male":result.profile.gender==="F"?"Female":"Other"}
@@ -1299,14 +1321,14 @@ FATIGUE (S-PF)
   Pre-test rating:  ${spf}
 ${hr}
 CALIBRATION
-  Average RT:  ${result.calibrationAverageMs!=null?result.calibrationAverageMs.toFixed(1)+" ms":"—"}
+  Average RT:  ${result.calibrationAverageMs!=null?result.calibrationAverageMs.toFixed(1)+" ms":"\u2014"}
 ${hr}
 MACHINE-PACED PERFORMANCE
   Block scores:
 ${blockList}
-  Avg last 2 blocks:   ${avg2!=null?avg2.toFixed(1)+" ms":"—"}
+  Avg last 2 blocks:   ${avg2!=null?avg2.toFixed(1)+" ms":"\u2014"}
   Block score diff:    ${diffStr}
-  CPS:                 ${cps!=null?cps.toFixed(1)+" / 100":"—"}
+  CPS:                 ${cps!=null?cps.toFixed(1)+" / 100":"\u2014"}
 ${hr}
 RESPONSE STATISTICS
   Total taps:            ${result.totalResponses}
@@ -1316,35 +1338,23 @@ RESPONSE STATISTICS
   Paced correct taps:    ${result.pacedResponseCount||0}
   Paced wrong taps:      ${result.pacedErrors||0}
   SP Restart wrong taps: ${result.recoveryErrors||0}
-  Mean paced RT:         ${result.pacedResponseMeanMs!=null?result.pacedResponseMeanMs.toFixed(1)+" ms":"—"}
-  Paced RT SD:           ${sd!=null?sd.toFixed(1)+" ms":"—"}
+  Mean paced RT:         ${result.pacedResponseMeanMs!=null?result.pacedResponseMeanMs.toFixed(1)+" ms":"\u2014"}
+  Paced RT SD:           ${sd!=null?sd.toFixed(1)+" ms":"\u2014"}
 ${hr}
 END REASON
   ${result.endReason}
 ${hr}
 COGNITIVE PERFORMANCE REFERENCE TABLE
   S-PF | CPI  | BRD ms  | Performance Capability
-  ─────┼──────┼─────────┼────────────────────────────────────
-${[
-  [7,100,  600, "FUNCTIONING EXCEPTIONALLY WELL"],
-  [6, 80,  800, "FUNCTIONING VERY WELL"],
-  [5, 75, 1050, "FUNCTIONING NORMALLY"],
-  [4, 50, 1500, "FUNCTIONING SLIGHTLY LESS THAN NORMAL"],
-  [3, 25, 1950, "FUNCTIONING — STARTING TO SLOW"],
-  [2, 11, 2200, "DIFFICULT TO FUNCTION — BECOMING UNSAFE"],
-  [1,  0,   -1, "UNABLE TO FUNCTION — DEFINITELY UNSAFE"],
-].map(([spf,cpi,brd,cap])=>{
-  const brdStr = brd<0?">2400":String(brd);
-  const arrow = (cps!=null && cpi>=0 && (
-    (cpi===100&&result.cognitivePerformanceScore>80)||
-    (cpi===0 &&result.cognitivePerformanceScore<=0)||
-    (cpi>0&&cpi<100&&result.cognitivePerformanceScore<=cpi&&result.cognitivePerformanceScore>(cpi-25))
-  )) ? " ← YOUR SCORE" : "";
-  return `    ${String(spf).padStart(2)}  | ${String(cpi).padStart(3)}  | ${brdStr.padStart(6)}  | ${cap}${arrow}`;
-}).join("\n")}
-  ─────┴──────┴─────────┴────────────────────────────────────
-  BRD = avg last 2 blocks  |  CPI = 0-100 scale
+  \u2500\u2500\u2500\u2500\u2500\u253c\u2500\u2500\u2500\u2500\u2500\u2500\u253c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u253c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500`;
+
+  const footerPart=
+`
+  \u2500\u2500\u2500\u2500\u2500\u2534\u2500\u2500\u2500\u2500\u2500\u2500\u2534\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2534\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+  BRD = avg last 2 blocks  |  CPS = 0-100 scale
   Source: Perelli (2026), Gray Matter Metrics, LLC`;
+
+  el.innerHTML = esc(mainPart)+"\n"+tableRows+esc(footerPart);
 }
 
 
