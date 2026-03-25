@@ -151,12 +151,19 @@ function clearNoResponseTimer(){ if(state.absoluteNoResponseTimer) clearTimeout(
 function clearMaxTestTimer(){ if(state.maxTestTimer) clearTimeout(state.maxTestTimer); state.maxTestTimer=null; }
 function armNoResponseTimer(){
   clearNoResponseTimer();
-  state.absoluteNoResponseTimer=setTimeout(()=>{ state.endReason=`No response for ${settings.noResponseTimeoutMs}ms`; finish(); },settings.noResponseTimeoutMs);
+  state.absoluteNoResponseTimer=setTimeout(()=>{
+    if(state.phase==="calibration"){
+      state.endReason="NO RESPONSE — Retest";
+    } else {
+      state.endReason="NOT RESPONDING IN TIME — Retest";
+    }
+    finish();
+  },settings.noResponseTimeoutMs);
 }
 function armMaxTestTimer(){
   clearMaxTestTimer();
   const ms=Number(settings.maxTestDurationMs)||120000;
-  state.maxTestTimer=setTimeout(()=>{ state.endReason=`Max test time reached (${(ms/1000).toFixed(0)}s)`; finish(); },ms);
+  state.maxTestTimer=setTimeout(()=>{ state.endReason="ERRATIC RESPONSES — Retest"; finish(); },ms);
 }
 function noteAnyResponse(){ armNoResponseTimer(); }
 
@@ -231,20 +238,20 @@ function makeTrial(kind,lastCorrectPos,lastProbe){
 // 0=probe, 1-6=cell/button pairs. Flat-topped teeth, proper gear geometry.
 // Colors: near-black → dark gray → medium gray → light silver
 const GEARS=[
-  // 0: PROBE — black body, bright blue rim (high contrast anchor)
-  {n:20,rP:36,add:7,ded:5,tf:0.44,body:"#0a0a0a",stroke:"#5ab0e0",rim:"#7fd7ff",hub:9,hFill:"#050505",hStroke:"#9ae0ff",spokes:5},
-  // 1: pure black, 10 teeth
-  {n:10,rP:37,add:8,ded:6,tf:0.46,body:"#080808",stroke:"#282828",rim:"#303030",hub:8,hFill:"#040404",hStroke:"#303030",spokes:0},
-  // 2: near-black, 14 teeth
-  {n:14,rP:36,add:7,ded:5,tf:0.45,body:"#141414",stroke:"#343434",rim:"#3c3c3c",hub:7,hFill:"#0a0a0a",hStroke:"#3c3c3c",spokes:3},
-  // 3: very dark charcoal, 12 teeth
-  {n:12,rP:37,add:7,ded:5,tf:0.46,body:"#1e1e1e",stroke:"#3e3e3e",rim:"#484848",hub:8,hFill:"#141414",hStroke:"#484848",spokes:0},
-  // 4: dark charcoal, 16 teeth
-  {n:16,rP:36,add:6,ded:5,tf:0.44,body:"#282828",stroke:"#484848",rim:"#525252",hub:7,hFill:"#1a1a1a",hStroke:"#525252",spokes:4},
-  // 5: medium charcoal, 11 teeth
-  {n:11,rP:37,add:8,ded:5,tf:0.46,body:"#323232",stroke:"#525252",rim:"#5c5c5c",hub:8,hFill:"#222222",hStroke:"#5c5c5c",spokes:0},
-  // 6: dark gray, 18 teeth
-  {n:18,rP:36,add:6,ded:5,tf:0.44,body:"#3c3c3c",stroke:"#5c5c5c",rim:"#686868",hub:7,hFill:"#282828",hStroke:"#686868",spokes:3},
+  // 0: PROBE — dark navy-steel, blue glow rim
+  {n:20,rP:36,add:7,ded:5,tf:0.44,body:"#1a2a3c",stroke:"#5ab0e0",rim:"#7fd7ff",hub:9,hFill:"#0e1824",hStroke:"#9ae0ff",spokes:5},
+  // 1: darkest charcoal — clearly visible on dark bg
+  {n:10,rP:37,add:8,ded:6,tf:0.46,body:"#4a4a4a",stroke:"#757575",rim:"#808080",hub:8,hFill:"#383838",hStroke:"#808080",spokes:0},
+  // 2: dark charcoal, 3 spokes
+  {n:14,rP:36,add:7,ded:5,tf:0.45,body:"#565656",stroke:"#828282",rim:"#8c8c8c",hub:7,hFill:"#424242",hStroke:"#8c8c8c",spokes:3},
+  // 3: medium-dark
+  {n:12,rP:37,add:7,ded:5,tf:0.46,body:"#626262",stroke:"#8e8e8e",rim:"#989898",hub:8,hFill:"#4e4e4e",hStroke:"#989898",spokes:0},
+  // 4: medium gray, 4 spokes
+  {n:16,rP:36,add:6,ded:5,tf:0.44,body:"#6e6e6e",stroke:"#9a9a9a",rim:"#a4a4a4",hub:7,hFill:"#5a5a5a",hStroke:"#a4a4a4",spokes:4},
+  // 5: medium-light
+  {n:11,rP:37,add:8,ded:5,tf:0.46,body:"#7c7c7c",stroke:"#a8a8a8",rim:"#b0b0b0",hub:8,hFill:"#686868",hStroke:"#b0b0b0",spokes:0},
+  // 6: light gray, 3 spokes
+  {n:18,rP:36,add:6,ded:5,tf:0.44,body:"#8c8c8c",stroke:"#b8b8b8",rim:"#c0c0c0",hub:7,hFill:"#787878",hStroke:"#c0c0c0",spokes:3},
 ];
 
 // Build realistic gear path: flat-topped teeth with root/tip circular arcs
@@ -401,11 +408,11 @@ function recordAnswer(ok,isMiss){
     if(state.rollMeanLog.length===win){
       const ratio=state.rollMeanLog.filter(v=>v===true).length/win;
       const thresh=Number(settings.rollMeanThreshold)||0.50;
-      if(ratio<thresh){ state.endReason=`Anti-spoof check: accuracy below ${(thresh*100).toFixed(0)}% (${(ratio*100).toFixed(0)}% in last ${win} responses)`; finish(); return true; }
+      if(ratio<thresh){ state.endReason="TOO MANY WRONG RESPONSES! — Retest"; finish(); return true; }
     }
     const wc=state.lastFiveAnswers.filter(v=>v===false).length;
     if(state.lastFiveAnswers.length===settings.wrongWindowSize&&wc>settings.wrongThresholdStop){
-      state.endReason=`Too many wrong (${wc}/${settings.wrongWindowSize})`; finish(); return true;
+      state.endReason="TOO MANY WRONG RESPONSES! — Retest"; finish(); return true;
     }
   }
   updateMetrics(); return false;
@@ -424,9 +431,14 @@ function maybeTriggerTerminalRule(){
   }
   return false;
 }
-function failCalibration(reason){ state.endReason=reason+" Retest required."; finish(); }
+function failCalibration(reason){ state.endReason=reason; finish(); }
 function finishCalibration(){
   const avg=mean(state.calibrationRTs);
+  // Condition 4: avg RT too slow — needs more practice
+  if(avg>settings.calibrationStopSlowMs){
+    state.endReason="NEED MORE PRACTICE!";
+    finish(); return;
+  }
   state.duration=clamp(avg*settings.initialPacedPercent,settings.minDurationMs,settings.maxDurationMs);
   state.phase="paced"; state.testStartTime=performance.now();
   armMaxTestTimer();
@@ -523,7 +535,7 @@ function onPacedFrameEnd(){
     state.phase="recovery"; state.recoveryCorrectCompleted=0; state.spCorrectStreak=0; state.spWrongCount=0;
     openTrial("recovery"); return;
   }
-  if(state.totalTrials>=settings.maxTrialCount){ state.endReason=`Trial cap (${settings.maxTrialCount})`; finish(); }
+  if(state.totalTrials>=settings.maxTrialCount){ state.endReason="ERRATIC RESPONSES — Retest"; finish(); }
   else openTrial("paced");
 }
 
@@ -540,9 +552,9 @@ function handleTap(index){
     logTrial({phase:"calibration",rt,outcome:ok?"correct":"wrong",responseIndex:index});
     if(!ok){
       state.calibrationErrors+=1; updateMetrics();
-      if(state.calibrationErrors>settings.calibrationStopErrors){ failCalibration(`>${settings.calibrationStopErrors} calibration errors.`); return; }
+      if(state.calibrationErrors>settings.calibrationStopErrors){ failCalibration("TOO MANY WRONG RESPONSES — Practice!"); return; }
     }else{
-      if(rt>settings.calibrationStopSlowMs){ failCalibration(`Calibration RT exceeded ${settings.calibrationStopSlowMs}ms.`); return; }
+      if(rt>settings.calibrationStopSlowMs){ failCalibration("NOT RESPONDING IN TIME — Practice!"); return; }
       if(state.calibrationTrialIndex>=settings.initialUnusedCalibrationTrials) state.calibrationRTs.push(rt);
     }
     state.calibrationTrialIndex+=1;
@@ -574,7 +586,7 @@ function handleTap(index){
     }else{
       state.spCorrectStreak=0; state.spWrongCount+=1; state.recoveryErrors+=1;
       const limit=Math.max(1,Number(settings.spRestartWrongLimit)||3);
-      if(state.spWrongCount>=limit){ state.endReason=`SP Restart failed: ${limit} wrong before ${settings.spRestartCorrectStreak} correct in a row`; finish(); return; }
+      if(state.spWrongCount>=limit){ state.endReason="TOO MANY WRONG RESPONSES! — Retest"; finish(); return; }
       setStatus(`SP Restart: ${state.spWrongCount}/${limit} wrong`);
       setTimeout(()=>openTrial("recovery"),160);
     }
