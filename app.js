@@ -440,7 +440,7 @@ function finishCalibration(){
     finish(); return;
   }
   state.duration=clamp(avg*settings.initialPacedPercent,settings.minDurationMs,settings.maxDurationMs);
-  state.phase="paced"; state.testStartTime=performance.now();
+  state.phase="paced";
   armMaxTestTimer();
   setStatus(`Machine-paced start: ${state.duration.toFixed(0)}ms`);
   openTrial("paced");
@@ -487,6 +487,8 @@ function finish(){
 // ─── Open trial ───
 function openTrial(kind){
   clearTimer();
+  // Track overall test duration from very first trial
+  if(state.testStartTime===null) state.testStartTime=performance.now();
   state.previous=state.current;
   const lastPos=state.current?state.current.correctPos:null;
   const lastProbe=state.current?{family:state.current.probeFamily,count:state.current.probeCount}:null;
@@ -901,7 +903,7 @@ ${hr}
 RESPONSE STATISTICS
   Total taps:            ${result.totalResponses}
     Correct:             ${result.totalCorrect}
-    Incorrect:           ${result.totalIncorrect}
+    Wrong:               ${result.totalIncorrect}
   Missed (no response):  ${result.missedTrials}
   Paced correct taps:    ${result.pacedResponseCount||0}
   Paced wrong taps:      ${result.pacedErrors||0}
