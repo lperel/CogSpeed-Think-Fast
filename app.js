@@ -1,10 +1,10 @@
 // ═══════════════════════════════════════════════════
-//  CogSpeed V18
+//  CogSpeed V19
 // ═══════════════════════════════════════════════════
 
 // ─── Version guard ───
 (function(){
-  const VER="cogspeed_v18", key="cogspeed_version";
+  const VER="cogspeed_v19", key="cogspeed_version";
   if(localStorage.getItem(key)!==VER){
     Object.keys(localStorage).forEach(k=>{ if(k.startsWith("cogspeed_")||k.startsWith("cogblock_")) localStorage.removeItem(k); });
     localStorage.setItem(key,VER);
@@ -93,13 +93,13 @@ const SAMN_PERELLI=[
 
 // ─── Settings ───
 function loadSettings(){
-  const s=JSON.parse(localStorage.getItem("cogspeed_v18_settings")||"null");
+  const s=JSON.parse(localStorage.getItem("cogspeed_v19_settings")||"null");
   if(!s) return {...DEFAULTS};
   const m={...DEFAULTS};
   Object.keys(DEFAULTS).forEach(k=>{ if(s[k]!==undefined) m[k]=s[k]; });
   return m;
 }
-function saveSettings(){ localStorage.setItem("cogspeed_v18_settings",JSON.stringify(settings)); }
+function saveSettings(){ localStorage.setItem("cogspeed_v19_settings",JSON.stringify(settings)); }
 let settings=loadSettings();
 
 // ─── State ───
@@ -108,7 +108,7 @@ const state={
   current:null, previous:null, unresolvedStreak:0,
   overloads:[], recoveries:[], recoveryCorrectCompleted:0,
   spCorrectStreak:0, spWrongCount:0, terminalBlockReason:null,
-  history:JSON.parse(localStorage.getItem("cogspeed_v18_history")||"[]"),
+  history:JSON.parse(localStorage.getItem("cogspeed_v19_history")||"[]"),
   totalTrials:0, totalResponses:0, totalCorrect:0, totalIncorrect:0,
   missedTrials:0, pacedErrors:0, recoveryErrors:0, rollMeanLog:[],
   testStartTime:null, trialTimer:null, absoluteNoResponseTimer:null, maxTestTimer:null,
@@ -231,20 +231,20 @@ function makeTrial(kind,lastCorrectPos,lastProbe){
 // 0=probe, 1-6=cell/button pairs. Flat-topped teeth, proper gear geometry.
 // Colors: near-black → dark gray → medium gray → light silver
 const GEARS=[
-  // 0: PROBE — 20 teeth, dark navy-steel, blue accent
-  {n:20,rP:36,add:7,ded:5,tf:0.44,body:"#1a2430",stroke:"#5ab0e0",rim:"#7fd7ff",hub:9,hFill:"#0e1820",hStroke:"#9ae0ff",spokes:5},
-  // 1: 10 teeth, near-black iron
-  {n:10,rP:37,add:8,ded:6,tf:0.46,body:"#1a1a1a",stroke:"#404040",rim:"#505050",hub:8,hFill:"#0e0e0e",hStroke:"#505050",spokes:0},
-  // 2: 14 teeth, dark charcoal
-  {n:14,rP:36,add:7,ded:5,tf:0.45,body:"#2e2e2e",stroke:"#505050",rim:"#606060",hub:7,hFill:"#1e1e1e",hStroke:"#606060",spokes:3},
-  // 3: 12 teeth, medium-dark steel
-  {n:12,rP:37,add:7,ded:5,tf:0.46,body:"#484848",stroke:"#686868",rim:"#787878",hub:8,hFill:"#303030",hStroke:"#787878",spokes:0},
-  // 4: 16 teeth, medium gray
-  {n:16,rP:36,add:6,ded:5,tf:0.44,body:"#686868",stroke:"#888888",rim:"#989898",hub:7,hFill:"#484848",hStroke:"#989898",spokes:4},
-  // 5: 11 teeth, light steel
-  {n:11,rP:37,add:8,ded:5,tf:0.46,body:"#909090",stroke:"#b0b0b0",rim:"#c0c0c0",hub:8,hFill:"#686868",hStroke:"#c0c0c0",spokes:0},
-  // 6: 18 teeth, bright silver
-  {n:18,rP:36,add:6,ded:5,tf:0.44,body:"#b8b8b8",stroke:"#d0d0d0",rim:"#e0e0e0",hub:7,hFill:"#909090",hStroke:"#e8e8e8",spokes:3},
+  // 0: PROBE — black body, bright blue rim (high contrast anchor)
+  {n:20,rP:36,add:7,ded:5,tf:0.44,body:"#0a0a0a",stroke:"#5ab0e0",rim:"#7fd7ff",hub:9,hFill:"#050505",hStroke:"#9ae0ff",spokes:5},
+  // 1: pure black, 10 teeth
+  {n:10,rP:37,add:8,ded:6,tf:0.46,body:"#080808",stroke:"#282828",rim:"#303030",hub:8,hFill:"#040404",hStroke:"#303030",spokes:0},
+  // 2: near-black, 14 teeth
+  {n:14,rP:36,add:7,ded:5,tf:0.45,body:"#141414",stroke:"#343434",rim:"#3c3c3c",hub:7,hFill:"#0a0a0a",hStroke:"#3c3c3c",spokes:3},
+  // 3: very dark charcoal, 12 teeth
+  {n:12,rP:37,add:7,ded:5,tf:0.46,body:"#1e1e1e",stroke:"#3e3e3e",rim:"#484848",hub:8,hFill:"#141414",hStroke:"#484848",spokes:0},
+  // 4: dark charcoal, 16 teeth
+  {n:16,rP:36,add:6,ded:5,tf:0.44,body:"#282828",stroke:"#484848",rim:"#525252",hub:7,hFill:"#1a1a1a",hStroke:"#525252",spokes:4},
+  // 5: medium charcoal, 11 teeth
+  {n:11,rP:37,add:8,ded:5,tf:0.46,body:"#323232",stroke:"#525252",rim:"#5c5c5c",hub:8,hFill:"#222222",hStroke:"#5c5c5c",spokes:0},
+  // 6: dark gray, 18 teeth
+  {n:18,rP:36,add:6,ded:5,tf:0.44,body:"#3c3c3c",stroke:"#5c5c5c",rim:"#686868",hub:7,hFill:"#282828",hStroke:"#686868",spokes:3},
 ];
 
 // Build realistic gear path: flat-topped teeth with root/tip circular arcs
@@ -464,7 +464,7 @@ function finish(){
     time:new Date().toISOString(), geo:state.geo
   };
   state.history.push(result);
-  localStorage.setItem("cogspeed_v18_history",JSON.stringify(state.history));
+  localStorage.setItem("cogspeed_v19_history",JSON.stringify(state.history));
   updateCPSDisplay(avg2); setProbeIdle();
   // Build the display text (also used for email)
   buildSummary(result);
@@ -762,12 +762,12 @@ function drawRTScatterChart(canvas,rtLog,blocks,meanRT,sdRT){
 // ─── Export / Email ───
 function exportResults(){
   const blob=new Blob([JSON.stringify({settings,history:state.history},null,2)],{type:"application/json"});
-  const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download="cogspeed_v18_results.json"; a.click();
+  const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download="cogspeed_v19_results.json"; a.click();
 }
 function emailResults(){
   const last=state.history[state.history.length-1];
   if(!last){ setStatus("No results to email."); return; }
-  window.location.href=`mailto:?subject=CogSpeed V18 Results&body=${encodeURIComponent(state.lastResultText||JSON.stringify(last,null,2))}`;
+  window.location.href=`mailto:?subject=CogSpeed V19 Results&body=${encodeURIComponent(state.lastResultText||JSON.stringify(last,null,2))}`;
 }
 
 // ─── FX (steam + sparks from each gear corner) ───
@@ -866,7 +866,7 @@ function buildSummary(result){
   const cps=result.cognitivePerformanceScore;
   const sd=result.pacedResponseSdMs;
   el.textContent=
-`CogSpeed V18  —  Test Results
+`CogSpeed V19  —  Test Results
 ${hr}
 Subject ID:    ${result.subjectId}
 Date / Time:   ${new Date(result.time).toLocaleString()}
@@ -1074,7 +1074,7 @@ function downloadTrialLogCSV(){
   ].join(",")).join("\n");
   const subj=result?result.subjectId:"current";
   const blob=new Blob([hdr+rows],{type:"text/csv"});
-  const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=`cogspeed_v18_trials_${subj}.csv`; a.click();
+  const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=`cogspeed_v19_trials_${subj}.csv`; a.click();
 }
 
 // ─── History & Graphs overlay ───
@@ -1381,7 +1381,7 @@ $("closeAdminBtn").onclick=()=>$("adminOverlay").classList.add("hidden");
 $("closeAdminBtn2").onclick=()=>$("benchmarkOverlay").classList.add("hidden");
 $("saveAdminBtn").onclick=()=>{ readAdmin(); saveSettings(); renderAdmin(); setStatus("Settings saved"); };
 $("resetAdminBtn").onclick=()=>{ resetAdmin(); setStatus("Settings reset to defaults"); };
-$("exportAdminBtn").onclick=()=>{ const blob=new Blob([JSON.stringify(settings,null,2)],{type:"application/json"}),a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download="cogspeed_v18_settings.json"; a.click(); };
+$("exportAdminBtn").onclick=()=>{ const blob=new Blob([JSON.stringify(settings,null,2)],{type:"application/json"}),a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download="cogspeed_v19_settings.json"; a.click(); };
 $("adminTrialLogBtn").onclick=()=>{ buildTrialLog(state.history.length-1); $("trialLogOverlay").classList.remove("hidden"); };
 $("adminHistoryBtn").onclick=()=>{ buildHistoryOverlay(); $("historyOverlay").classList.remove("hidden"); };
 $("adminLastResultBtn").onclick=()=>{
@@ -1396,7 +1396,7 @@ $("trialLogCsvBtn").onclick=()=>downloadTrialLogCSV();
 $("historyCloseBtn").onclick=()=>$("historyOverlay").classList.add("hidden");
 $("historyClearBtn").onclick=()=>{
   if(!confirm("Clear ALL session history? This cannot be undone.")) return;
-  state.history=[]; localStorage.removeItem("cogspeed_v18_history");
+  state.history=[]; localStorage.removeItem("cogspeed_v19_history");
   buildHistoryOverlay(); setStatus("History cleared.");
 };
 const _tsel=$("trialLogSessionSelect");
