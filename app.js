@@ -28,7 +28,7 @@ const DEFAULTS={
   qualifyingBlockGapMs:250,
   rollMeanWindow:8,
   rollMeanThreshold:0.50,
-  machinePacedNoResponseMs:3500,
+  machinePacedNoResponseMs:6000,
   recoveryNoResponseMs:10000,
   calibrationFirstNoResponseMs:20000,
   calibrationNoResponseMs:6000,
