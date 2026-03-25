@@ -22,6 +22,7 @@ const DEFAULTS={
   rollMeanWindow:8,
   rollMeanThreshold:0.50,
   noResponseTimeoutMs:20000,
+  calibrationNoResponseMs:10000,
   wrongWindowSize:5,
   wrongThresholdStop:4,
   maxTrialCount:180,
@@ -29,7 +30,7 @@ const DEFAULTS={
   minDurationMs:800,
   maxDurationMs:10000,
   initialUnusedCalibrationTrials:1,
-  initialMeasuredCalibrationTrials:20,
+  initialMeasuredCalibrationTrials:10,
   initialPacedPercent:0.70,
   calibrationStopErrors:5,
   calibrationStopSlowMs:10000,
@@ -46,7 +47,8 @@ const ADMIN_FIELDS=[
   ["qualifyingBlockGapMs","Max block diff to end (ms)","number"],
   ["rollMeanWindow","Rolling mean window (responses)","number"],
   ["rollMeanThreshold","Anti-spoof threshold (0–1, e.g. 0.50)","number"],
-  ["noResponseTimeoutMs","No-response timeout (ms)","number"],
+  ["noResponseTimeoutMs","Paced no-response timeout (ms, default 20000)","number"],
+  ["calibrationNoResponseMs","Calibration no-response timeout (ms, default 10000)","number"],
   ["wrongWindowSize","Wrong-answer window","number"],
   ["wrongThresholdStop","Wrong threshold","number"],
   ["maxTrialCount","Max paced trials","number"],
@@ -151,6 +153,11 @@ function clearNoResponseTimer(){ if(state.absoluteNoResponseTimer) clearTimeout(
 function clearMaxTestTimer(){ if(state.maxTestTimer) clearTimeout(state.maxTestTimer); state.maxTestTimer=null; }
 function armNoResponseTimer(){
   clearNoResponseTimer();
+  // Calibration phase: shorter timeout (10s) — paper spec
+  // Paced/recovery phase: longer timeout (noResponseTimeoutMs default 20s)
+  const ms = state.phase==="calibration"
+    ? (Number(settings.calibrationNoResponseMs)||10000)
+    : (Number(settings.noResponseTimeoutMs)||20000);
   state.absoluteNoResponseTimer=setTimeout(()=>{
     if(state.phase==="calibration"){
       state.endReason="NO RESPONSE — Retest";
@@ -158,7 +165,7 @@ function armNoResponseTimer(){
       state.endReason="NOT RESPONDING IN TIME — Retest";
     }
     finish();
-  },settings.noResponseTimeoutMs);
+  }, ms);
 }
 function armMaxTestTimer(){
   clearMaxTestTimer();
@@ -745,7 +752,9 @@ function drawCombinedChart(canvas,hist){
   drawSeries(spfVals,spfToY,"#88ff88");
   ctx.fillStyle="#7fd7ff"; ctx.font="bold 9px sans-serif"; ctx.textAlign="left"; ctx.fillText("■ CPS",PAD.left,PAD.top-4);
   ctx.fillStyle="#ff9f40"; ctx.fillText("■ Block ms",PAD.left+50,PAD.top-4);
-  ctx.fillStyle="#88ff88"; ctx.fillText("■ S-PF",PAD.left+110,PAD.top-4);
+  ctx.fillStyle="#88ff88"; ctx.fillText("■ S-PF",PAD.left+115,PAD.top-4);
+  ctx.fillStyle="rgba(255,159,64,0.7)"; ctx.font="9px sans-serif"; ctx.textAlign="right";
+  ctx.fillText("\u2191 better",PAD.left+cW+50,PAD.top-4);
 }
 function renderHistoryGraphs(){
   drawCombinedChart($("resultsHistChart"),state.history);
@@ -788,6 +797,34 @@ function drawRTScatterChart(canvas,rtLog,blocks,meanRT,sdRT){
 function exportResults(){
   const blob=new Blob([JSON.stringify({settings,history:state.history},null,2)],{type:"application/json"});
   const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download="cogspeed_v20_results.json"; a.click();
+}
+function exportCSV(){
+  const h=state.history; if(!h.length){setStatus("No history to export."); return;}
+  const cols=["session","subjectId","date","samnPerelli","calibAvgMs","blocks",
+    "avgLast2Ms","blockDiffMs","cps","totalTaps","correct","wrong","missed",
+    "pacedCorrect","pacedWrong","spRestartWrong","meanPacedRtMs","pacedRtSd",
+    "testDurationMs","endReason","location"];
+  const rows=h.map((r,i)=>[
+    i+1,
+    r.subjectId||"",
+    r.time?new Date(r.time).toLocaleString():"",
+    r.samnPerelli?`${r.samnPerelli.score} - ${r.samnPerelli.label}`:"",
+    r.calibrationAverageMs!=null?r.calibrationAverageMs.toFixed(1):"",
+    (r.blocks||[]).join("|"),
+    r.averageLast2BlockingScoresMs!=null?r.averageLast2BlockingScoresMs.toFixed(1):"",
+    r.blockScoreDifferenceMs!=null?r.blockScoreDifferenceMs.toFixed(1):"",
+    r.cognitivePerformanceScore!=null?r.cognitivePerformanceScore.toFixed(1):"",
+    r.totalResponses||0, r.totalCorrect||0, r.totalIncorrect||0, r.missedTrials||0,
+    r.pacedResponseCount||0, r.pacedErrors||0, r.recoveryErrors||0,
+    r.pacedResponseMeanMs!=null?r.pacedResponseMeanMs.toFixed(1):"",
+    r.pacedResponseSdMs!=null?r.pacedResponseSdMs.toFixed(1):"",
+    r.testDurationMs!=null?Math.round(r.testDurationMs):"",
+    `"${(r.endReason||"").replace(/"/g,'""')}"`,
+    `"${(r.location||"").replace(/"/g,'""')}"`
+  ].map(v=>v==null?"":v).join(","));
+  const csv=[cols.join(","), ...rows].join("\n");
+  const blob=new Blob([csv],{type:"text/csv"});
+  const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download="cogspeed_v20_history.csv"; a.click();
 }
 function emailResults(){
   const last=state.history[state.history.length-1];
@@ -928,13 +965,23 @@ ${hr}
 COGNITIVE PERFORMANCE REFERENCE TABLE
   S-PF | CPI  | BRD ms  | Performance Capability
   ─────┼──────┼─────────┼────────────────────────────────────
-    7  | 100  |   600   | FUNCTIONING EXCEPTIONALLY WELL
-    6  |  80  |   800   | FUNCTIONING VERY WELL
-    5  |  75  |  1050   | FUNCTIONING NORMALLY
-    4  |  50  |  1500   | FUNCTIONING SLIGHTLY LESS THAN NORMAL
-    3  |  25  |  1950   | FUNCTIONING — STARTING TO SLOW
-    2  |  11  |  2200   | DIFFICULT TO FUNCTION — BECOMING UNSAFE
-    1  |   0  | >2400   | UNABLE TO FUNCTION — DEFINITELY UNSAFE
+${[
+  [7,100,  600, "FUNCTIONING EXCEPTIONALLY WELL"],
+  [6, 80,  800, "FUNCTIONING VERY WELL"],
+  [5, 75, 1050, "FUNCTIONING NORMALLY"],
+  [4, 50, 1500, "FUNCTIONING SLIGHTLY LESS THAN NORMAL"],
+  [3, 25, 1950, "FUNCTIONING — STARTING TO SLOW"],
+  [2, 11, 2200, "DIFFICULT TO FUNCTION — BECOMING UNSAFE"],
+  [1,  0,   -1, "UNABLE TO FUNCTION — DEFINITELY UNSAFE"],
+].map(([spf,cpi,brd,cap])=>{
+  const brdStr = brd<0?">2400":String(brd);
+  const arrow = (cps!=null && cpi>=0 && (
+    (cpi===100&&result.cognitivePerformanceScore>=100)||
+    (cpi===0 &&result.cognitivePerformanceScore<=0)||
+    (cpi>0&&cpi<100&&result.cognitivePerformanceScore<=cpi&&result.cognitivePerformanceScore>(cpi-25))
+  )) ? " ← YOUR SCORE" : "";
+  return `    ${String(spf).padStart(2)}  | ${String(cpi).padStart(3)}  | ${brdStr.padStart(6)}  | ${cap}${arrow}`;
+}).join("\n")}
   ─────┴──────┴─────────┴────────────────────────────────────
   BRD = avg last 2 blocks  |  CPI = 0-100 scale
   Source: Perelli (2026), Gray Matter Metrics, LLC`;
@@ -1499,6 +1546,7 @@ $("closeAdminBtn2").onclick=()=>$("benchmarkOverlay").classList.add("hidden");
 $("saveAdminBtn").onclick=()=>{ readAdmin(); saveSettings(); renderAdmin(); setStatus("Settings saved"); };
 $("resetAdminBtn").onclick=()=>{ resetAdmin(); setStatus("Settings reset to defaults"); };
 $("exportAdminBtn").onclick=()=>{ const blob=new Blob([JSON.stringify(settings,null,2)],{type:"application/json"}),a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download="cogspeed_v20_settings.json"; a.click(); };
+const _ecb=$("exportCsvAdminBtn"); if(_ecb) _ecb.onclick=exportCSV;
 $("adminTrialLogBtn").onclick=()=>{ buildTrialLog(state.history.length-1); $("trialLogOverlay").classList.remove("hidden"); };
 $("adminHistoryBtn").onclick=()=>{ buildHistoryOverlay(); $("historyOverlay").classList.remove("hidden"); };
 $("adminLastResultBtn").onclick=()=>{
