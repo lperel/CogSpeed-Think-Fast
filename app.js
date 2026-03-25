@@ -1,10 +1,10 @@
 // ═══════════════════════════════════════════════════
-//  CogSpeed V20
+//  CogSpeed V21
 // ═══════════════════════════════════════════════════
 
 // ─── Version guard ───
 (function(){
-  const VER="cogspeed_v20", key="cogspeed_version";
+  const VER="cogspeed_v21", key="cogspeed_version";
   if(localStorage.getItem(key)!==VER){
     Object.keys(localStorage).forEach(k=>{ if(k.startsWith("cogspeed_")||k.startsWith("cogblock_")) localStorage.removeItem(k); });
     localStorage.setItem(key,VER);
@@ -133,13 +133,13 @@ const SAMN_PERELLI=[
 
 // ─── Settings ───
 function loadSettings(){
-  const s=JSON.parse(localStorage.getItem("cogspeed_v20_settings")||"null");
+  const s=JSON.parse(localStorage.getItem("cogspeed_v21_settings")||"null");
   if(!s) return {...DEFAULTS};
   const m={...DEFAULTS};
   Object.keys(DEFAULTS).forEach(k=>{ if(s[k]!==undefined) m[k]=s[k]; });
   return m;
 }
-function saveSettings(){ localStorage.setItem("cogspeed_v20_settings",JSON.stringify(settings)); }
+function saveSettings(){ localStorage.setItem("cogspeed_v21_settings",JSON.stringify(settings)); }
 let settings=loadSettings();
 
 // ─── State ───
@@ -148,7 +148,7 @@ const state={
   current:null, previous:null, unresolvedStreak:0,
   overloads:[], recoveries:[], recoveryCorrectCompleted:0,
   spCorrectStreak:0, spWrongCount:0, terminalBlockReason:null,
-  history:JSON.parse(localStorage.getItem("cogspeed_v20_history")||"[]"),
+  history:JSON.parse(localStorage.getItem("cogspeed_v21_history")||"[]"),
   totalTrials:0, totalResponses:0, totalCorrect:0, totalIncorrect:0,
   missedTrials:0, pacedErrors:0, recoveryErrors:0, rollMeanLog:[],
   testStartTime:null, trialTimer:null, absoluteNoResponseTimer:null, maxTestTimer:null,
@@ -234,7 +234,7 @@ function armNoResponseTimer(){
 }
 function armMaxTestTimer(){
   clearMaxTestTimer();
-  const ms=Number(settings.maxTestDurationMs)||120000;
+  const ms=Number(settings.maxTestDurationMs)||150000;
   state.maxTestTimer=setTimeout(()=>{ state.endReason="ERRATIC RESPONSES — Retest"; finish(); },ms);
 }
 function noteAnyResponse(){ armNoResponseTimer(); }
@@ -598,7 +598,7 @@ function applyPacing(rt,correct){
 // ─── TEST FINISH ──────────────────────────────────────────────
 // Called by all end conditions (success + all 8 failure modes).
 // Computes final CPS, paced RT stats, test duration.
-// Saves result to state.history (localStorage: cogspeed_v20_history).
+// Saves result to state.history (localStorage: cogspeed_v21_history).
 // Triggers gear spin outro → thinking box → outcome box → summary.
 // ──────────────────────────────────────────────────────────────
 function finish(){
@@ -625,7 +625,7 @@ function finish(){
     time:new Date().toISOString(), geo:state.geo
   };
   state.history.push(result);
-  localStorage.setItem("cogspeed_v20_history",JSON.stringify(state.history));
+  localStorage.setItem("cogspeed_v21_history",JSON.stringify(state.history));
   updateCPSDisplay(avg2); setProbeIdle();
   // Build the display text (also used for email)
   buildSummary(result);
@@ -797,7 +797,7 @@ function handleTap(index){
     if(correctForLast){
       state.previous.resolved=true;
       const eRT=rt+savedLastDur;
-      applyPacing(eRT,true); state.totalCorrect+=1; state.pacedRTs.push(rt);
+      applyPacing(eRT,true); state.totalCorrect+=1; state.pacedRTs.push(eRT);
       // Log against the PREVIOUS trial so probe/cell/response are correct
       const savedCurrent=state.current;
       state.current=state.previous;
@@ -816,7 +816,7 @@ function handleTap(index){
     }
     return;
   }
-  state.previousMissed=false; state.lastFrameDuration=null; state.lastProbe=null;
+  state.previousMissed=false; state.lastFrameDuration=null;
   if(state.current&&!state.current.resolved&&trialMatches(state.current,index)){
     state.current.resolved=true; state.totalResponses+=1; state.totalCorrect+=1;
     applyPacing(rt,true); state.pacedRTs.push(rt);
@@ -989,15 +989,15 @@ function drawRTScatterChart(canvas,rtLog,blocks,meanRT,sdRT){
 
 // ─── Export / Email ───
 // ─── EXPORT / EMAIL ───────────────────────────────────────────
-// exportResults(): downloads full history as cogspeed_v20_results.json
-// exportCSV(): downloads history as cogspeed_v20_history.csv
+// exportResults(): downloads full history as cogspeed_v21_results.json
+// exportCSV(): downloads history as cogspeed_v21_history.csv
 //   Columns: session, subjectId, date, SP-FS, calibration, blocks,
 //   CPS, taps, correct, wrong, missed, paced stats, duration, end reason.
 // emailResults(): opens mailto: with last result text in body.
 // ──────────────────────────────────────────────────────────────
 function exportResults(){
   const blob=new Blob([JSON.stringify({settings,history:state.history},null,2)],{type:"application/json"});
-  const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download="cogspeed_v20_results.json"; a.click();
+  const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download="cogspeed_v21_results.json"; a.click();
 }
 function exportCSV(){
   const h=state.history; if(!h.length){setStatus("No history to export."); return;}
@@ -1025,13 +1025,13 @@ function exportCSV(){
   ].map(v=>v==null?"":v).join(","));
   const csv=[cols.join(","), ...rows].join("\n");
   const blob=new Blob([csv],{type:"text/csv"});
-  const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download="cogspeed_v20_history.csv"; a.click();
+  const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download="cogspeed_v21_history.csv"; a.click();
 }
 function emailResults(){
   const last=state.history[state.history.length-1];
   if(!last){ setStatus("No results to email."); return; }
   const to=state.profile?.emailResults&&state.profile?.email?state.profile.email:"";
-  window.location.href=`mailto:${to}?subject=CogSpeed V20 Results&body=${encodeURIComponent(state.lastResultText||JSON.stringify(last,null,2))}`;
+  window.location.href=`mailto:${to}?subject=CogSpeed V21 Results&body=${encodeURIComponent(state.lastResultText||JSON.stringify(last,null,2))}`;
 }
 function autoEmailIfEnabled(){
   if(state.profile?.emailResults&&state.profile?.email) emailResults();
@@ -1110,11 +1110,11 @@ function stopFX(){ if(_fxRaf){ cancelAnimationFrame(_fxRaf); _fxRaf=null; } }
 // ═══════════════════════════════════════════════════════════════
 // SECTION: REGISTRATION — PROFILE
 // Collects email (subject ID), birth month/year, gender, email pref.
-// Stored in localStorage: cogspeed_v20_profile
+// Stored in localStorage: cogspeed_v21_profile
 // [PLANNED] Server-side account for population norms.
 // ═══════════════════════════════════════════════════════════════
 
-const PROFILE_KEY = "cogspeed_v20_profile";
+const PROFILE_KEY = "cogspeed_v21_profile";
 
 function loadProfile(){
   try { return JSON.parse(localStorage.getItem(PROFILE_KEY)||"null"); } catch(e){ return null; }
@@ -1256,7 +1256,7 @@ function hideAllOverlays(){
   ["subjectOverlay","profileOverlay","refresherOverlay","fatigueOverlay","tutorialOverlay","adminOverlay","resultsOverlay","summaryOverlay","trialLogOverlay","historyOverlay","thinkingOverlay","outcomeOverlay"].forEach(id=>{ const el=$(id); if(el) el.classList.add("hidden"); });
 }
 function showOnly(id){
-  ["subjectOverlay","profileOverlay","refresherOverlay","fatigueOverlay","adminOverlay","resultsOverlay","summaryOverlay","trialLogOverlay","historyOverlay"].forEach(oid=>{ const el=$(oid); if(el) el.classList[oid===id?"remove":"add"]("hidden"); });
+  ["subjectOverlay","profileOverlay","refresherOverlay","fatigueOverlay","adminOverlay","resultsOverlay","summaryOverlay","trialLogOverlay","historyOverlay","tutorialOverlay"].forEach(oid=>{ const el=$(oid); if(el) el.classList[oid===id?"remove":"add"]("hidden"); });
 }
 function isTestSuccess(r){ return (r||"").toLowerCase().startsWith("convergent"); }
 
@@ -1286,7 +1286,7 @@ function buildSummary(result){
   const cps=result.cognitivePerformanceScore;
   const sd=result.pacedResponseSdMs;
   el.textContent=
-`CogSpeed V20  —  Test Results
+`CogSpeed V21  —  Test Results
 ${hr}
 Subject ID:    ${result.subjectId}
 ${result.profile?`Gender:        ${result.profile.gender==="M"?"Male":result.profile.gender==="F"?"Female":"Other"}
@@ -1336,7 +1336,7 @@ ${[
 ].map(([spf,cpi,brd,cap])=>{
   const brdStr = brd<0?">2400":String(brd);
   const arrow = (cps!=null && cpi>=0 && (
-    (cpi===100&&result.cognitivePerformanceScore>=100)||
+    (cpi===100&&result.cognitivePerformanceScore>80)||
     (cpi===0 &&result.cognitivePerformanceScore<=0)||
     (cpi>0&&cpi<100&&result.cognitivePerformanceScore<=cpi&&result.cognitivePerformanceScore>(cpi-25))
   )) ? " ← YOUR SCORE" : "";
@@ -1348,132 +1348,14 @@ ${[
 }
 
 
-// ─── SPEEDOMETER — Brain Speed Dial ───────────────────────────
-// Draws a semicircular speedometer (0–100 CPS).
+// ─── SPEEDOMETER V2 — Vintage Auto Meter style ────────────────
+// Full 240° round dial. Cream face, chrome bezel.
 // Color arc: red(0-25) → orange(25-50) → light green(50-75) → dark green(75-100)
-// Needle points to CPS score. Block ms shown at needle tip.
-// Dithers (small oscillation) to feel alive. Fail = needle at 0.
+// Needle sweeps from 0 to final CPS in 1.4s ease-in-out, then dithers ±0.8 CPS.
+// Block ms in green LCD box appears at needle tip after sweep completes.
+// On fail: needle stays at 0, red needle, no block box.
 // ──────────────────────────────────────────────────────────────
-function drawSpeedometer(canvas, cps, blockMs, success){
-  const dpr = window.devicePixelRatio||1;
-  const W = canvas.offsetWidth||canvas.width||390;
-  const H = Math.round(W * 0.58);  // slight oval — fills screen nicely
-  canvas.width  = W * dpr;
-  canvas.height = H * dpr;
-  canvas.style.width  = W + "px";
-  canvas.style.height = H + "px";
-  const ctx = canvas.getContext("2d");
-  ctx.scale(dpr, dpr);
-
-  const cx = W/2, cy = H*0.88;  // center low so arc fills top
-  const R  = Math.min(W*0.46, H*0.86);
-
-  // Arc spans 180° — from left (π) to right (0), bottom is start
-  // Map CPS 0→100 to angle π→0 (left to right)
-  const startA = Math.PI;
-  const endA   = 0;
-  function cpsToAngle(v){ return Math.PI - (v/100)*Math.PI; }
-
-  // ── Color arc (thick) ──
-  const arcSegs = [
-    {from:0,   to:25,  color:"#cc2200"},
-    {from:25,  to:50,  color:"#e87800"},
-    {from:50,  to:75,  color:"#88cc44"},
-    {from:75,  to:100, color:"#226600"},
-  ];
-  ctx.lineWidth = R*0.14;
-  arcSegs.forEach(s=>{
-    ctx.beginPath();
-    ctx.arc(cx, cy, R, cpsToAngle(s.to), cpsToAngle(s.from), false);
-    ctx.strokeStyle = s.color;
-    ctx.stroke();
-  });
-
-  // ── Thin dark border on arc ──
-  ctx.lineWidth = 1.5;
-  ctx.strokeStyle = "rgba(0,0,0,0.4)";
-  ctx.beginPath();
-  ctx.arc(cx, cy, R*(1+0.07), startA, endA, false);
-  ctx.stroke();
-  ctx.beginPath();
-  ctx.arc(cx, cy, R*(1-0.07), startA, endA, false);
-  ctx.stroke();
-
-  // ── Tick marks ──
-  for(let v=0; v<=100; v+=5){
-    const a = cpsToAngle(v);
-    const isMaj = v%25===0;
-    const r1 = R*(isMaj?1.12:1.09);
-    const r2 = R*(isMaj?0.92:0.95);
-    ctx.beginPath();
-    ctx.moveTo(cx+r1*Math.cos(a), cy+r1*Math.sin(a));
-    ctx.lineTo(cx+r2*Math.cos(a), cy+r2*Math.sin(a));
-    ctx.strokeStyle = isMaj?"rgba(255,255,255,0.9)":"rgba(255,255,255,0.45)";
-    ctx.lineWidth = isMaj?2:1;
-    ctx.stroke();
-  }
-
-  // ── Scale labels (0,25,50,75,100) ──
-  ctx.textAlign="center"; ctx.textBaseline="middle";
-  ctx.fillStyle="rgba(255,255,255,0.85)";
-  ctx.font = `bold ${Math.round(R*0.115)}px sans-serif`;
-  [0,25,50,75,100].forEach(v=>{
-    const a = cpsToAngle(v);
-    const lr = R*1.26;
-    ctx.fillText(String(v), cx+lr*Math.cos(a), cy+lr*Math.sin(a));
-  });
-
-  // ── "CPS" label above center ──
-  ctx.font = `bold ${Math.round(R*0.1)}px sans-serif`;
-  ctx.fillStyle = "rgba(127,215,255,0.8)";
-  ctx.fillText("CPS", cx, cy - R*0.3);
-
-  // ── Hub ──
-  const hubR = R*0.07;
-  ctx.beginPath(); ctx.arc(cx,cy,hubR*1.4,0,Math.PI*2);
-  ctx.fillStyle="#1a2a3c"; ctx.fill();
-  ctx.beginPath(); ctx.arc(cx,cy,hubR,0,Math.PI*2);
-  ctx.fillStyle="#7fd7ff"; ctx.fill();
-
-  // ── Needle ──
-  const needleAngle = cpsToAngle(cps);
-  const nLen  = R*0.88;
-  const nBase = R*0.12;
-  const nTip  = {x: cx + nLen*Math.cos(needleAngle), y: cy + nLen*Math.sin(needleAngle)};
-  const perp  = needleAngle + Math.PI/2;
-  ctx.beginPath();
-  ctx.moveTo(cx + nBase*Math.cos(perp),     cy + nBase*Math.sin(perp));
-  ctx.lineTo(nTip.x, nTip.y);
-  ctx.lineTo(cx - nBase*Math.cos(perp),     cy - nBase*Math.sin(perp));
-  ctx.closePath();
-  ctx.fillStyle = success ? "#ffffff" : "#ff4444";
-  ctx.shadowColor = success ? "rgba(127,215,255,0.7)" : "rgba(255,68,68,0.7)";
-  ctx.shadowBlur = 12;
-  ctx.fill();
-  ctx.shadowBlur = 0;
-
-  // ── Block ms box at needle tip ──
-  if(blockMs!=null){
-    const bx = cx + (nLen+R*0.04)*Math.cos(needleAngle);
-    const by = cy + (nLen+R*0.04)*Math.sin(needleAngle);
-    const label = blockMs>=1000?(blockMs/1000).toFixed(2)+"s":Math.round(blockMs)+"ms";
-    const fs = Math.round(R*0.085);
-    ctx.font = `bold ${fs}px sans-serif`;
-    const tw = ctx.measureText(label).width + 12;
-    const th = fs + 10;
-    const bxL = bx-tw/2, byT = by-th/2;
-    // Keep box inside canvas
-    const bxLc = Math.max(4, Math.min(bxL, W-tw-4));
-    const byTc = Math.max(4, Math.min(byT, H-th-4));
-    ctx.fillStyle="rgba(10,20,40,0.85)";
-    ctx.strokeStyle=success?"#7fd7ff":"#ff6644";
-    ctx.lineWidth=1.5;
-    roundRect(ctx, bxLc, byTc, tw, th, 6);
-    ctx.fill(); ctx.stroke();
-    ctx.fillStyle="white"; ctx.textAlign="center"; ctx.textBaseline="middle";
-    ctx.fillText(label, bxLc+tw/2, byTc+th/2);
-  }
-}
+let _speedoRaf = null;
 
 function roundRect(ctx, x, y, w, h, r){
   ctx.beginPath();
@@ -1485,32 +1367,191 @@ function roundRect(ctx, x, y, w, h, r){
   ctx.closePath();
 }
 
-// Animated speedometer: sweep needle from 0 to target, then dither
-function animateSpeedometer(canvas, targetCps, blockMs, success){
-  const dur = 1400;  // sweep duration ms
-  const t0 = performance.now();
-  const dither = 0.8;  // ±0.8 CPS dither at rest
-  const dFreq  = 0.9;  // Hz
-  let phase = "sweep";
+function drawSpeedometer(canvas, cps, blockMs, success, showBlock){
+  const dpr = window.devicePixelRatio||1;
+  const W = canvas.offsetWidth||380;
+  const H = W; // square canvas for circular gauge
+  canvas.width  = W*dpr; canvas.height = H*dpr;
+  canvas.style.width = W+"px"; canvas.style.height = H+"px";
+  const ctx = canvas.getContext("2d");
+  ctx.scale(dpr, dpr);
 
-  function frame(now){
-    const elapsed = now - t0;
+  const cx = W/2, cy = H/2;
+  const R = W*0.375; // dial radius — leaves margin for tip box
+
+  // 240° sweep: 0 CPS at 150° (lower-left), 100 CPS at 390°=30° (lower-right)
+  const A_START = 150*Math.PI/180;
+  const A_SWEEP = 240*Math.PI/180;
+  function toAngle(v){ return A_START + (Math.max(0,Math.min(100,v))/100)*A_SWEEP; }
+
+  const na = toAngle(cps); // needle angle
+  const needleColor = success ? "#0d0a00" : "#cc0000";
+
+  // ── 1. Dark outer ring ──
+  ctx.beginPath(); ctx.arc(cx,cy,R*1.20,0,Math.PI*2);
+  ctx.fillStyle="#1a1a1a"; ctx.fill();
+
+  // ── 2. Chrome bezel (linear gradient for metallic sheen) ──
+  const cg = ctx.createLinearGradient(cx-R*1.15, cy-R*1.15, cx+R*1.15, cy+R*1.15);
+  cg.addColorStop(0.00,"#f8f8f8"); cg.addColorStop(0.15,"#c8c8c8");
+  cg.addColorStop(0.32,"#eeeeee"); cg.addColorStop(0.50,"#a0a0a0");
+  cg.addColorStop(0.68,"#e0e0e0"); cg.addColorStop(0.85,"#b4b4b4");
+  cg.addColorStop(1.00,"#d8d8d8");
+  ctx.beginPath(); ctx.arc(cx,cy,R*1.16,0,Math.PI*2);
+  ctx.fillStyle=cg; ctx.fill();
+
+  // Bezel inner shadow
+  ctx.beginPath(); ctx.arc(cx,cy,R*1.02,0,Math.PI*2);
+  ctx.strokeStyle="rgba(0,0,0,0.5)"; ctx.lineWidth=R*0.025; ctx.stroke();
+
+  // ── 3. Cream parchment face ──
+  const fg = ctx.createRadialGradient(cx-R*0.12,cy-R*0.12,0, cx,cy,R);
+  fg.addColorStop(0,"#f6edd8"); fg.addColorStop(0.55,"#efe5c8"); fg.addColorStop(1,"#d8cfb0");
+  ctx.beginPath(); ctx.arc(cx,cy,R,0,Math.PI*2);
+  ctx.fillStyle=fg; ctx.fill();
+  // Edge shadow
+  ctx.beginPath(); ctx.arc(cx,cy,R,0,Math.PI*2);
+  ctx.strokeStyle="rgba(0,0,0,0.14)"; ctx.lineWidth=R*0.018; ctx.stroke();
+
+  // ── 4. Color arc (4 wedge segments) ──
+  const arcOut = R*0.925, arcIn = R*0.815;
+  const ARC = [
+    {s:0,  e:25,  c:"#cc1100"},
+    {s:25, e:50,  c:"#ee6500"},
+    {s:50, e:75,  c:"#7ec800"},
+    {s:75, e:100, c:"#006400"},
+  ];
+  ARC.forEach(seg=>{
+    const a1=toAngle(seg.s), a2=toAngle(seg.e);
+    ctx.beginPath();
+    ctx.arc(cx,cy,arcOut,a1,a2,false);
+    ctx.arc(cx,cy,arcIn, a2,a1,true);
+    ctx.closePath(); ctx.fillStyle=seg.c; ctx.fill();
+    // Inner highlight strip
+    ctx.beginPath(); ctx.arc(cx,cy,arcIn+(arcOut-arcIn)*0.18,a1,a2,false);
+    ctx.strokeStyle="rgba(255,255,255,0.20)"; ctx.lineWidth=R*0.026; ctx.stroke();
+  });
+  // Segment dividers
+  [0,25,50,75,100].forEach(v=>{
+    const a=toAngle(v);
+    ctx.beginPath();
+    ctx.moveTo(cx+arcIn*Math.cos(a), cy+arcIn*Math.sin(a));
+    ctx.lineTo(cx+arcOut*Math.cos(a),cy+arcOut*Math.sin(a));
+    ctx.strokeStyle="rgba(0,0,0,0.45)"; ctx.lineWidth=1.2; ctx.stroke();
+  });
+
+  // ── 5. Tick marks ──
+  const TOUT = R*0.79;
+  for(let v=0;v<=100;v++){
+    const a=toAngle(v);
+    const isMaj=v%10===0, isMid=v%5===0;
+    const tLen = isMaj?R*0.175:isMid?R*0.10:R*0.055;
+    const lw   = isMaj?R*0.023:isMid?R*0.013:R*0.007;
+    ctx.beginPath();
+    ctx.moveTo(cx+TOUT*Math.cos(a), cy+TOUT*Math.sin(a));
+    ctx.lineTo(cx+(TOUT-tLen)*Math.cos(a), cy+(TOUT-tLen)*Math.sin(a));
+    ctx.strokeStyle="#111"; ctx.lineWidth=lw; ctx.lineCap="round"; ctx.stroke();
+  }
+  // Triangular arrow pointers at 0 and 100
+  [0,100].forEach(v=>{
+    const a=toAngle(v), pr=TOUT+R*0.012, sz=R*0.038;
+    ctx.save();
+    ctx.translate(cx+pr*Math.cos(a), cy+pr*Math.sin(a));
+    ctx.rotate(a+Math.PI/2);
+    ctx.beginPath();
+    ctx.moveTo(0,-sz*1.2); ctx.lineTo(sz*0.55,sz*0.6); ctx.lineTo(-sz*0.55,sz*0.6);
+    ctx.closePath(); ctx.fillStyle="#111"; ctx.fill();
+    ctx.restore();
+  });
+
+  // ── 6. Numbers ──
+  const NUM_R = R*0.595;
+  ctx.textAlign="center"; ctx.textBaseline="middle"; ctx.fillStyle="#111";
+  for(let v=0;v<=100;v+=10){
+    const a=toAngle(v), x=cx+NUM_R*Math.cos(a), y=cy+NUM_R*Math.sin(a);
+    const fs = v%20===0 ? R*0.108 : R*0.090;
+    ctx.font=`bold ${fs.toFixed(1)}px -apple-system,"Helvetica Neue",Arial,sans-serif`;
+    ctx.fillText(String(v),x,y);
+  }
+
+  // ── 7. "CPS" italic serif label (replaces "Auto Meter" branding) ──
+  ctx.font=`italic ${(R*0.105).toFixed(1)}px Georgia,"Times New Roman",serif`;
+  ctx.fillStyle="#111"; ctx.textAlign="center"; ctx.textBaseline="middle";
+  ctx.fillText("CPS", cx+R*0.13, cy+R*0.285);
+
+  // ── 8. Needle (tapered, pointed) ──
+  ctx.save();
+  ctx.translate(cx,cy); ctx.rotate(na);
+  ctx.beginPath();
+  ctx.moveTo(-R*0.155, -R*0.026);
+  ctx.lineTo(R*0.62,   -R*0.013);
+  ctx.lineTo(R*0.73,    0);
+  ctx.lineTo(R*0.62,    R*0.013);
+  ctx.lineTo(-R*0.155,  R*0.026);
+  ctx.closePath();
+  ctx.fillStyle=needleColor; ctx.fill();
+  // Highlight line
+  ctx.beginPath();
+  ctx.moveTo(-R*0.10, -R*0.009); ctx.lineTo(R*0.60, -R*0.004);
+  ctx.strokeStyle="rgba(255,255,255,0.22)"; ctx.lineWidth=R*0.007; ctx.stroke();
+  ctx.restore();
+
+  // ── 9. Block ms box at needle tip (shown after sweep completes) ──
+  if(showBlock && blockMs!=null && success){
+    const tipR = R*0.99;
+    const bx=cx+tipR*Math.cos(na), by=cy+tipR*Math.sin(na);
+    const label = Math.round(blockMs)+" ms";
+    const fs=R*0.092;
+    ctx.font=`bold ${fs.toFixed(1)}px monospace`;
+    const tw=ctx.measureText(label).width+R*0.15, th=fs*1.6;
+    let bxL=bx-tw/2, byT=by-th/2;
+    bxL=Math.max(3,Math.min(bxL,W-tw-3));
+    byT=Math.max(3,Math.min(byT,H-th-3));
+    // Dark green LCD box
+    ctx.fillStyle="#0c2808";
+    roundRect(ctx,bxL,byT,tw,th,5); ctx.fill();
+    ctx.strokeStyle="#2a7020"; ctx.lineWidth=1.5;
+    roundRect(ctx,bxL,byT,tw,th,5); ctx.stroke();
+    ctx.fillStyle="#44ff44"; ctx.textAlign="center"; ctx.textBaseline="middle";
+    ctx.fillText(label, bxL+tw/2, byT+th/2);
+  }
+
+  // ── 10. Center hub ──
+  const hubGr = ctx.createRadialGradient(cx-R*0.022,cy-R*0.022,0, cx,cy,R*0.092);
+  hubGr.addColorStop(0,"#808080"); hubGr.addColorStop(0.45,"#383838"); hubGr.addColorStop(1,"#111");
+  ctx.beginPath(); ctx.arc(cx,cy,R*0.092,0,Math.PI*2); ctx.fillStyle=hubGr; ctx.fill();
+  ctx.beginPath(); ctx.arc(cx,cy,R*0.092,0,Math.PI*2);
+  ctx.strokeStyle="#555"; ctx.lineWidth=R*0.012; ctx.stroke();
+  ctx.beginPath(); ctx.arc(cx,cy,R*0.030,0,Math.PI*2); ctx.fillStyle="#606060"; ctx.fill();
+  ctx.beginPath(); ctx.arc(cx,cy,R*0.013,0,Math.PI*2); ctx.fillStyle="#aaa"; ctx.fill();
+}
+
+// Sweep needle 0→CPS in 1.4s ease-in-out, then dither ±0.8 CPS
+function animateSpeedometer(canvas, targetCps, blockMs, success){
+  stopSpeedometer();
+  const finalCPS = success ? targetCps : 0;
+  const SWEEP_DUR = 1400;
+  let startTime=null, phase="sweep", ditherStart=null;
+
+  function frame(ts){
+    if(!startTime) startTime=ts;
+    const elapsed=ts-startTime;
     let cps;
     if(phase==="sweep"){
-      const p = Math.min(1, elapsed/dur);
-      const ease = p<0.5 ? 2*p*p : -1+(4-2*p)*p;  // ease in-out
-      cps = targetCps * ease;
-      if(p>=1) phase="dither";
+      const t=Math.min(elapsed/SWEEP_DUR,1);
+      // Cubic ease-in-out
+      const e=t<0.5?4*t*t*t:1-Math.pow(-2*t+2,3)/2;
+      cps=finalCPS*e;
+      if(t>=1){ phase="dither"; ditherStart=ts; }
     } else {
-      cps = targetCps + dither*Math.sin(2*Math.PI*dFreq*(elapsed-dur)/1000);
+      const dt=ts-ditherStart;
+      cps=finalCPS+Math.sin(dt*0.0044)*0.54+Math.sin(dt*0.0071)*0.26;
     }
-    drawSpeedometer(canvas, Math.max(0,Math.min(100,cps)), phase==="dither"?blockMs:null, success);
-    _speedoRaf = requestAnimationFrame(frame);
+    drawSpeedometer(canvas, cps, blockMs, success, phase==="dither");
+    _speedoRaf=requestAnimationFrame(frame);
   }
-  if(_speedoRaf) cancelAnimationFrame(_speedoRaf);
-  _speedoRaf = requestAnimationFrame(frame);
+  _speedoRaf=requestAnimationFrame(frame);
 }
-let _speedoRaf = null;
 function stopSpeedometer(){ if(_speedoRaf){ cancelAnimationFrame(_speedoRaf); _speedoRaf=null; } }
 
 // ─── Results page — gear spin outro then thinking box ───
@@ -1554,18 +1595,12 @@ function showResultsPage(){
           const last=state.history[state.history.length-1];
           const cps=success&&last?Math.max(0,Math.min(100,last.cognitivePerformanceScore||0)):0;
           const brd=last&&last.averageLast2BlockingScoresMs!=null?last.averageLast2BlockingScoresMs:null;
-          // Size canvas to container
           const wrap=$("speedometerWrap");
           if(wrap) canvas.style.width=wrap.offsetWidth+"px";
           setTimeout(()=>animateSpeedometer(canvas, cps, brd, success), 100);
         }
+        // Speedometer stays visible until user taps "View Results"
       }
-      setTimeout(()=>{
-        if(outcome) outcome.classList.add("hidden");
-        stopSpeedometer();
-        $("summaryOverlay").classList.remove("hidden");
-        setTestingQuiet(false);
-      },3000);
     },6000);
   },1500);
 }
@@ -1582,7 +1617,7 @@ function clearCurrentSession(){
   state.current=null; state.previous=null; state.unresolvedStreak=0;
   state.overloads=[]; state.recoveries=[]; state.recoveryCorrectCompleted=0;
   state.spCorrectStreak=0; state.spWrongCount=0; state.terminalBlockReason=null;
-  state.totalTrials=0; state.endReason=""; state.totalResponses=0; state.pacedErrors=0;
+  state.totalTrials=0; state.endReason=""; state.totalResponses=0; state.pacedErrors=0; state.recoveryErrors=0;
   state.testStartTime=null; state.totalCorrect=0; state.totalIncorrect=0;
   state.missedTrials=0; state.rollMeanLog=[]; state.lastFiveAnswers=[];
   state.calibrationTrialIndex=0; state.calibrationRTs=[]; state.calibrationErrors=0;
@@ -1732,7 +1767,7 @@ function downloadTrialLogCSV(){
   ].join(",")).join("\n");
   const subj=result?result.subjectId:"current";
   const blob=new Blob([hdr+rows],{type:"text/csv"});
-  const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=`cogspeed_v20_trials_${subj}.csv`; a.click();
+  const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=`cogspeed_v21_trials_${subj}.csv`; a.click();
 }
 
 // ─── History & Graphs overlay ───
@@ -2186,7 +2221,7 @@ const _pby=$("profileBirthYear"); if(_pby) _pby.oninput=validateProfileAge;
 $("tutSkipBtn").onclick=()=>tutSkip();
 $("unlockBtn").onclick=()=>{
   const v=$("adminPass").value;
-  if(v===settings.adminPasscode||v==="4822"){
+  if(v===settings.adminPasscode){
     _adminUnlocked=true;
     $("adminGate").classList.add("hidden"); $("adminBody").classList.remove("hidden"); renderAdmin(); setStatus("Admin unlocked");
   } else setStatus("Incorrect passcode — default is 4822");
@@ -2198,7 +2233,7 @@ $("closeAdminBtn").onclick=()=>{
 $("closeAdminBtn2").onclick=()=>$("benchmarkOverlay").classList.add("hidden");
 $("saveAdminBtn").onclick=()=>{ readAdmin(); saveSettings(); renderAdmin(); setStatus("Settings saved"); };
 $("resetAdminBtn").onclick=()=>{ resetAdmin(); setStatus("Settings reset to defaults"); };
-$("exportAdminBtn").onclick=()=>{ const blob=new Blob([JSON.stringify(settings,null,2)],{type:"application/json"}),a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download="cogspeed_v20_settings.json"; a.click(); };
+$("exportAdminBtn").onclick=()=>{ const blob=new Blob([JSON.stringify(settings,null,2)],{type:"application/json"}),a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download="cogspeed_v21_settings.json"; a.click(); };
 const _ecb=$("exportCsvAdminBtn"); if(_ecb) _ecb.onclick=exportCSV;
 $("adminTrialLogBtn").onclick=()=>{ buildTrialLog(state.history.length-1); $("trialLogOverlay").classList.remove("hidden"); };
 $("adminHistoryBtn").onclick=()=>{ buildHistoryOverlay(); $("historyOverlay").classList.remove("hidden"); };
@@ -2220,7 +2255,7 @@ $("historyClearBtn").onclick=()=>{
     btn.textContent="🗑 Clear History";
     btn.style.color="rgba(255,100,136,0.5)";
     btn.style.borderColor="rgba(255,100,136,0.3)";
-    state.history=[]; localStorage.removeItem("cogspeed_v20_history");
+    state.history=[]; localStorage.removeItem("cogspeed_v21_history");
     buildHistoryOverlay(); setStatus("History cleared.");
   } else {
     btn._confirmPending=true;
@@ -2246,6 +2281,7 @@ $("backToStartBtn").onclick=goToStartPage;
 $("startOverBtn").onclick=startOverFlow;
 $("summaryRestartBtn").onclick=()=>{ $("summaryOverlay").classList.add("hidden"); goToStartPage(); };
 $("summaryEmailBtn").onclick=emailResults;
+const _orb=$("outcomeResultsBtn"); if(_orb) _orb.onclick=()=>{ $("outcomeOverlay").classList.add("hidden"); stopSpeedometer(); $("summaryOverlay").classList.remove("hidden"); setTestingQuiet(false); };
 $("summaryAdminBtn").onclick=()=>{
   _adminReturnTo = "summaryOverlay"; // return here on close
   $("summaryOverlay").classList.add("hidden");

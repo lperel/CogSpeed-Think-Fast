@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
   <meta name="theme-color" content="#0b1830"/>
   <link rel="manifest" href="manifest.json"/>
-  <title>CogSpeed V20</title>
+  <title>CogSpeed V21</title>
     <style>
 
     :root{--bg:#091426;--bg2:#132746;--panel:#0d1b33;--panel2:#10213e;--text:#f5fbff;--muted:#d7e7f8;--edge:#4f6f99;--accent:#7fd7ff;--probe:#00f0ff}
@@ -522,13 +522,15 @@
 </div>
 
 <!-- ═══ OUTCOME OVERLAY ═══ -->
-<div id="outcomeOverlay" class="outcome-overlay hidden" style="flex-direction:column;padding:0">
-  <!-- Speedometer fills top half -->
-  <div id="speedometerWrap" style="width:100%;max-width:420px;flex-shrink:0">
-    <canvas id="speedometerCanvas" style="width:100%;display:block"></canvas>
+<div id="outcomeOverlay" class="outcome-overlay hidden" style="flex-direction:column;align-items:center;justify-content:center;gap:0;padding:10px 8px 20px">
+  <!-- Square speedometer canvas — fills ~top half of screen -->
+  <div id="speedometerWrap" style="width:min(90vw,50vh);aspect-ratio:1/1;flex-shrink:0">
+    <canvas id="speedometerCanvas" style="width:100%;height:100%;display:block"></canvas>
   </div>
-  <!-- Label below -->
-  <div id="outcomeText" class="outcome-text" style="margin-top:10px"></div>
+  <!-- SUCCESS! / Test Failed label -->
+  <div id="outcomeText" class="outcome-text" style="margin:8px 0 14px;font-size:clamp(24px,6vw,48px)"></div>
+  <!-- Results button — stays until tapped -->
+  <button class="ctrl-btn" id="outcomeResultsBtn" style="width:min(90vw,320px);font-size:17px;padding:15px 24px;background:linear-gradient(180deg,#1a3a5a,#0d1e30);border-color:#4f6f99;color:#d9fbff;letter-spacing:.06em">View Results →</button>
 </div>
 
 <!-- ═══ SUMMARY OVERLAY ═══ -->
@@ -612,7 +614,7 @@
     <span id="fatigueOut">—</span>
     <span id="modeLabel">Subject mode</span>
     <span id="phaseLabel">Ready</span>
-    <span id="statusLine">CogSpeed V20</span>
+    <span id="statusLine">CogSpeed V21</span>
     <span id="rateOut">—</span>
     <span id="blocksOut">0</span>
     <span id="recoveryOut">0</span>
@@ -645,6 +647,6 @@
   <div class="resp-grid" id="respGrid"></div>
 </div>
 
-<script src="app.js?v=63"></script>
+<script src="app.js?v=64"></script>
 </body>
 </html>
