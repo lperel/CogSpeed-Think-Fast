@@ -1862,10 +1862,20 @@ function tutSkip(){
 // ═══════════════════════════════════════════════════════════════
 // ─── Event wiring ───
 $("subjectNextBtn").onclick=()=>{
-  const raw=$("subjectIdInput").value.trim();
-  if(raw==="0"){ state.subjectId="0"; showOnly("refresherOverlay"); setStatus("Guest session"); return; }
-  if(!/^[A-Za-z0-9]{6}$/.test(raw)){ setStatus("ID must be 6 letters/numbers, or 0 for Guest"); return; }
-  state.subjectId=raw.toUpperCase(); showOnly("refresherOverlay"); setStatus(`Subject: ${state.subjectId}`);
+  const v=($("subjectIdInput")?.value||"").trim().toLowerCase();
+  if(!v){ setStatus("Enter your email address"); return; }
+  // Allow guest shortcut
+  if(v==="0"||v==="guest"){
+    state.subjectId="Guest"; state.profile=null;
+    showOnly("refresherOverlay"); setStatus("Continuing as Guest");
+    return;
+  }
+  // Basic email validation
+  if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)){
+    setStatus("Please enter a valid email address"); return;
+  }
+  $("subjectIdInput").value=v;
+  openProfileOverlay(v);
 };
 $("skipRefresherBtn").onclick=()=>{
   showTutorial(); setStatus("Tutorial");
