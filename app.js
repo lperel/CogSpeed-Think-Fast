@@ -30,7 +30,7 @@ const DEFAULTS={
   rollMeanThreshold:0.50,
   machinePacedNoResponseMs:6000,
   recoveryNoResponseMs:10000,
-  calibrationFirstNoResponseMs:10000,
+  calibrationFirstNoResponseMs:20000,
   calibrationNoResponseMs:6000,
   wrongWindowSize:5,
   wrongThresholdStop:4,
@@ -59,7 +59,7 @@ const ADMIN_FIELDS=[
   // ── Calibration (self-paced) ──
   ["initialUnusedCalibrationTrials","Initial (warm-up) cal trials","number"],
   ["initialMeasuredCalibrationTrials","Measured cal trials (default 10)","number"],
-  ["calibrationFirstNoResponseMs","Cal first-trial no-response (ms, default 10000)","number"],
+  ["calibrationFirstNoResponseMs","Cal first-trial no-response (ms, default 20000)","number"],
   ["calibrationNoResponseMs","Cal subsequent no-response (ms, default 6000)","number"],
   ["calibrationStopErrors","Cal stop after N wrong (default 4)","number"],
   ["calibrationStopSlowMs","Cal avg RT limit (ms, default 3000)","number"],
