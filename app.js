@@ -1020,9 +1020,9 @@ function startTest(){
   hideAllOverlays();
   setTestingQuiet(true);
   captureGeo();
-  noteAnyResponse();
   runGearSpinThenStart(()=>{
     state.phase="calibration";
+    noteAnyResponse();   // start no-response timer NOW — first trial is visible
     openTrial("calibration");
   });
 }
