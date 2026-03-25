@@ -12,6 +12,12 @@
 })();
 
 // ─── Defaults ───
+// ═══════════════════════════════════════════════════════════════
+// SECTION: DEFAULTS
+// All configurable test parameters. Changes here affect ALL users.
+// Admin panel allows per-device override (localStorage only).
+// To permanently change a default, edit here and push to GitHub.
+// ═══════════════════════════════════════════════════════════════
 const DEFAULTS={
   adminPasscode:"4822",
   consecutiveMissesForBlock:2,
@@ -39,6 +45,11 @@ const DEFAULTS={
   deviceBenchmarkEnabled:0
 };
 
+// ═══════════════════════════════════════════════════════════════
+// SECTION: ADMIN PANEL — FIELD DEFINITIONS
+// Each entry: [settingKey, label, type]
+// Drives the admin form UI and maps to DEFAULTS keys above.
+// ═══════════════════════════════════════════════════════════════
 const ADMIN_FIELDS=[
   ["consecutiveMissesForBlock","Consecutive misses for block","number"],
   ["spRestartSlowerByMs","SP Restart: slowdown (ms)","number"],
@@ -67,6 +78,12 @@ const ADMIN_FIELDS=[
 ];
 
 // ─── Patterns ───
+// ═══════════════════════════════════════════════════════════════
+// SECTION: DOT / LINE PATTERN DEFINITIONS
+// Patterns 1-6 for both families (dots and lines).
+// Each entry: array of [type, x%, y%] marks drawn inside gear body.
+// Type "dot"=circle, "v"=vertical rectangle (line).
+// ═══════════════════════════════════════════════════════════════
 const DOT_PATTERNS={
   1:[["dot",50,50]],
   2:[["dot",28,50],["dot",72,50]],
@@ -83,6 +100,12 @@ const LINE_PATTERNS={
   5:[["v",25,18],["v",75,18],["v",50,50],["v",25,82],["v",75,82]],
   6:[["v",17,28],["v",50,28],["v",83,28],["v",17,72],["v",50,72],["v",83,72]]
 };
+// ═══════════════════════════════════════════════════════════════
+// SECTION: SP-FS — SAMN-PERELLI FATIGUE SCALE
+// 7-point Likert scale. Score 7=fully alert, 1=unable to function.
+// Validated by Samn & Perelli (1982). Collected before each test.
+// [PLANNED] Collect post-test SP-FS for fatigue change delta.
+// ═══════════════════════════════════════════════════════════════
 const SAMN_PERELLI=[
   [7,"Full alert, wide awake"],
   [6,"Very lively, responsive, but not at peak"],
@@ -131,6 +154,7 @@ let deferredPrompt=null;
 
 // ─── Utilities ───
 function randInt(min,max){ return Math.floor(Math.random()*(max-min+1))+min; }
+// ─── MATH UTILITIES ───────────────────────────────────────────
 function clamp(v,lo,hi){ return Math.min(hi,Math.max(lo,v)); }
 function mean(a){ return a.length?a.reduce((x,y)=>x+y,0)/a.length:0; }
 function stdDev(a){ if(a.length<2) return null; const m=mean(a); return Math.sqrt(a.reduce((s,v)=>s+(v-m)**2,0)/(a.length-1)); }
@@ -140,6 +164,11 @@ function setStatus(m){ statusLine.textContent=m; }
 function formatDuration(ms){ if(ms==null) return "—"; const s=Math.round(ms/1000),m=Math.floor(s/60); return m>0?`${m}m ${s%60}s`:`${s}s`; }
 
 // ─── CPS ───
+// ─── CPS SCORE CALCULATION ────────────────────────────────────
+// Converts avg last 2 block durations (ms) to 0-100 CPS score.
+// Scale: cpsBestMs=600ms → CPS 100, cpsWorstMs=2400ms → CPS 0.
+// Source: Perelli (2026). Formula: (worst-ms)/(worst-best)*100
+// ──────────────────────────────────────────────────────────────
 function computeCPS(avgMs){
   const best=Number(settings.cpsBestMs),worst=Number(settings.cpsWorstMs),span=worst-best;
   if(!isFinite(best)||!isFinite(worst)||span<=0) return 0;
@@ -151,6 +180,12 @@ function updateCPSDisplay(avg){ cpsOut.textContent=avg!=null?computeCPS(avg).toF
 function clearTimer(){ if(state.trialTimer) clearTimeout(state.trialTimer); state.trialTimer=null; }
 function clearNoResponseTimer(){ if(state.absoluteNoResponseTimer) clearTimeout(state.absoluteNoResponseTimer); state.absoluteNoResponseTimer=null; }
 function clearMaxTestTimer(){ if(state.maxTestTimer) clearTimeout(state.maxTestTimer); state.maxTestTimer=null; }
+// ─── NO-RESPONSE TIMERS ───────────────────────────────────────
+// armNoResponseTimer(): phase-aware — 10s during calibration,
+//   20s during paced. Fires end condition if subject stops responding.
+// armMaxTestTimer(): 150s total session wall clock (cal + paced).
+// noteAnyResponse(): called on every tap to reset the 10/20s timer.
+// ──────────────────────────────────────────────────────────────
 function armNoResponseTimer(){
   clearNoResponseTimer();
   // Calibration phase: shorter timeout (10s) — paper spec
@@ -181,6 +216,11 @@ function setTestingQuiet(q){
 }
 
 // ─── Geo (fire and forget) ───
+// ─── GEO LOCATION CAPTURE ─────────────────────────────────────
+// Fire-and-forget: requests GPS coords, reverse-geocodes via
+// Nominatim API, stores human-readable address in state.geo.
+// Saved with each result record for field deployment tracking.
+// ──────────────────────────────────────────────────────────────
 async function captureGeo(){
   const now=new Date();
   const base={local_time:now.toLocaleString(),gmt_time:now.toUTCString(),date_iso:now.toISOString()};
@@ -210,6 +250,12 @@ function patternToSVG(pattern,size="large"){
 }
 
 // ─── Trial generation ───
+// ─── TRIAL GENERATION ─────────────────────────────────────────
+// Creates one trial: randomly assigns probe (family+count),
+// generates 6 target gears, places correct target at random position.
+// Rule: correct target has SAME count as probe, OPPOSITE family.
+// Constraint: consecutive trials never repeat probe family+count.
+// ──────────────────────────────────────────────────────────────
 function makeTrial(kind,lastCorrectPos,lastProbe){
   for(let attempt=0;attempt<500;attempt++){
     const probeFamily=Math.random()<0.5?"dots":"lines";
@@ -244,6 +290,13 @@ function makeTrial(kind,lastCorrectPos,lastProbe){
 // ── 7 unique realistic mechanical cog definitions ──
 // 0=probe, 1-6=cell/button pairs. Flat-topped teeth, proper gear geometry.
 // Colors: near-black → dark gray → medium gray → light silver
+// ═══════════════════════════════════════════════════════════════
+// SECTION: GEAR VISUAL DEFINITIONS
+// 7 unique mechanical cog styles: index 0=probe, 1-6=cell pairs.
+// Each: tooth count, radius, body/stroke colors, hub, spokes.
+// Range: #4a4a4a (darkest) to #8c8c8c (lightest gray).
+// Probe (0): dark navy + blue glow for clear visual distinction.
+// ═══════════════════════════════════════════════════════════════
 const GEARS=[
   // 0: PROBE — dark navy-steel, blue glow rim
   {n:20,rP:36,add:7,ded:5,tf:0.44,body:"#1a2a3c",stroke:"#5ab0e0",rim:"#7fd7ff",hub:9,hFill:"#0e1824",hStroke:"#9ae0ff",spokes:5},
@@ -262,6 +315,13 @@ const GEARS=[
 ];
 
 // Build realistic gear path: flat-topped teeth with root/tip circular arcs
+// ─── GEAR RENDERING ───────────────────────────────────────────
+// Builds realistic mechanical gear SVG path with flat-topped teeth,
+// circular root arcs, and tip chamfers.
+// buildGearSVG() assembles full SVG with gradient, spokes, hub,
+// and dot/line pattern marks rendered inside the gear body.
+// spinClass: "gspin-f"|"gspin-r"|"" (no spin during test)
+// ──────────────────────────────────────────────────────────────
 function gearPath(cx,cy,nT,rP,add,ded,tf){
   const Ra=rP+add, Rd=rP-ded;
   const ap=(2*Math.PI)/nT, ta=ap*(tf||0.46), ga=ap-ta, ch=ap*0.028;
@@ -329,6 +389,11 @@ function buildGearSVG(si,pattern,size,spinClass){
 function lighten(hex,amt){ const n=parseInt(hex.slice(1),16),r=Math.min(255,(n>>16)+amt),g=Math.min(255,((n>>8)&0xff)+amt),b=Math.min(255,(n&0xff)+amt); return `rgb(${r},${g},${b})`; }
 function darken(hex,amt){ const n=parseInt(hex.slice(1),16),r=Math.max(0,(n>>16)-amt),g=Math.max(0,((n>>8)&0xff)-amt),b=Math.max(0,(n&0xff)-amt); return `rgb(${r},${g},${b})`; }
 // ─── Render trial (gear version) ───
+// ─── TRIAL RENDERING ──────────────────────────────────────────
+// Renders probe gear + 6 stimulus gears + 6 response buttons.
+// No rotation during test (spinClass=""). Clears all spin classes
+// from probeCell to prevent carry-over from intro/outro spin.
+// ──────────────────────────────────────────────────────────────
 function renderTrial(trial){
   const ts=$("testScreen"); if(ts) ts.classList.remove("hidden");
   stimGrid.innerHTML="";
@@ -378,6 +443,11 @@ function updateMetrics(){
 }
 
 // ─── Trial log ───
+// ─── TRIAL LOGGING ────────────────────────────────────────────
+// Appends one entry to state.rtLog per trial response.
+// Captures: phase, RT, outcome, probe, correct cell, response cell.
+// Late-catch logs against previous trial (not current).
+// ──────────────────────────────────────────────────────────────
 function logTrial({phase,rt,outcome,responseIndex}){
   const trial=state.current; if(!trial) return;
   const ci=trial.topItems[trial.correctPos];
@@ -393,6 +463,13 @@ function logTrial({phase,rt,outcome,responseIndex}){
 }
 
 // ─── Answer recording ───
+// ─── ANSWER RECORDING + ANTI-SPOOF ───────────────────────────
+// recordAnswer(): updates rolling mean + wrong-window checks.
+// ANTI-SPOOF — ROLLING MEAN: if correct% < 50% in last 8 taps
+//   → "TOO MANY WRONG RESPONSES! — Retest"
+// ANTI-SPOOF — WRONG WINDOW: if >4 wrong in last 5 taps → stop.
+// Misses (isMiss=true) excluded from both checks (taps only).
+// ──────────────────────────────────────────────────────────────
 function trialMatches(trial,index){ return trial&&index===trial.correctPos; }
 function recordAnswer(ok,isMiss){
   if(!isMiss){
@@ -413,6 +490,12 @@ function recordAnswer(ok,isMiss){
   }
   updateMetrics(); return false;
 }
+// ─── TERMINAL RECOVERY RULE ───────────────────────────────────
+// maybeTriggerTerminalRule(): fires when 2 consecutive block scores
+//   fall within qualifyingBlockGapMs (250ms) of each other.
+// → Triggers 2 final self-paced trials, then finishes with SUCCESS.
+// avgLast2Blocks(): mean of the last 2 overload (block) durations.
+// ──────────────────────────────────────────────────────────────
 function avgLast2Blocks(){
   if(state.overloads.length<2) return null;
   return(state.overloads[state.overloads.length-1]+state.overloads[state.overloads.length-2])/2;
@@ -428,6 +511,14 @@ function maybeTriggerTerminalRule(){
   return false;
 }
 function failCalibration(reason){ state.endReason=reason; finish(); }
+// ─── CALIBRATION — SELF-PACED ─────────────────────────────────
+// 1 unused + 10 measured self-paced trials.
+// CHECK ADEQUATELY TRAINED: >5 errors → "TOO MANY WRONG RESPONSES"
+// CHECK ADEQUATELY TRAINED: single RT >10s → "NOT RESPONDING IN TIME"
+// DETERMINE BASELINE RT: avg of 10 measured RTs → paced start duration
+//   (initialPacedPercent=0.70 × avg, clamped to 800-10000ms).
+// CONDITION 4: avg RT >10s → "NEED MORE PRACTICE!"
+// ──────────────────────────────────────────────────────────────
 function finishCalibration(){
   const avg=mean(state.calibrationRTs);
   // Condition 4: avg RT too slow — needs more practice
@@ -443,12 +534,24 @@ function finishCalibration(){
 }
 
 // ─── Pacing ───
+// ─── PACING ALGORITHM — MACHINE-PACED ────────────────────────
+// SPEED UP ON CORRECT: delta = (0.1×r - 0.1) × duration
+//   where r = RT/duration. Faster response → bigger speedup.
+// SLOW DOWN ON WRONG: +100ms flat penalty per wrong tap.
+// Duration clamped to [minDurationMs=800, maxDurationMs=10000].
+// ──────────────────────────────────────────────────────────────
 function applyPacing(rt,correct){
   if(correct){ const r=rt/state.duration; state.duration=clamp(state.duration+(0.1*r-0.1)*state.duration,settings.minDurationMs,settings.maxDurationMs); }
   else{ state.duration=clamp(state.duration+100,settings.minDurationMs,settings.maxDurationMs); }
 }
 
 // ─── Finish ───
+// ─── TEST FINISH ──────────────────────────────────────────────
+// Called by all end conditions (success + all 8 failure modes).
+// Computes final CPS, paced RT stats, test duration.
+// Saves result to state.history (localStorage: cogspeed_v20_history).
+// Triggers gear spin outro → thinking box → outcome box → summary.
+// ──────────────────────────────────────────────────────────────
 function finish(){
   clearTimer(); clearNoResponseTimer(); clearMaxTestTimer();
   state.phase="finished";
@@ -481,6 +584,13 @@ function finish(){
 }
 
 // ─── Open trial ───
+// ─── TRIAL LIFECYCLE ──────────────────────────────────────────
+// openTrial(): opens one trial for calibration/paced/recovery/terminal.
+//   Sets testStartTime on first call (starts 150s total wall clock).
+//   Sets paced frame timer (onPacedFrameEnd) for machine-paced trials.
+// onPacedFrameEnd(): fires when paced frame expires (subject missed or
+//   wrong). Increments miss streak → triggers block if ≥2 true misses.
+// ──────────────────────────────────────────────────────────────
 function openTrial(kind){
   clearTimer();
   // Track overall test duration from very first trial
@@ -541,6 +651,15 @@ function onPacedFrameEnd(){
 }
 
 // ─── Handle tap ───
+// ─── TAP HANDLER ──────────────────────────────────────────────
+// Entry point for all subject responses (pointerdown on resp-btn).
+// Routes to: calibration | paced | recovery | terminal_recovery.
+// LATE CATCH: if tap within 600ms of frame start after a miss,
+//   resolves PREVIOUS trial (savedLastDur for correct effectiveRT).
+// BLOCKING ALGORITHM: onPacedFrameEnd counts consecutive true misses
+//   (hadResponse=false). 2 consecutive → block recorded in overloads[].
+//   Wrong taps (hadResponse=true) reset miss streak to 0.
+// ──────────────────────────────────────────────────────────────
 function handleTap(index){
   if(!["calibration","paced","recovery","terminal_recovery"].includes(state.phase)) return;
   noteAnyResponse();
@@ -668,6 +787,11 @@ function renderRefresher(){
 }
 
 // ─── Fatigue checklist ───
+// ─── SP-FS PAGE RENDERING ─────────────────────────────────────
+// Full-page overlay. 7 items with large cyan numbers (1-7).
+// Subject taps one item → reveals "▶ Start Test!" button.
+// Title: Samn-Perelli Fatigue Scale (SP-FS).
+// ──────────────────────────────────────────────────────────────
 function renderFatigueChecklist(){
   const f=$("fatigueList"); f.innerHTML="";
   f.style.cssText="display:flex;flex-direction:column;gap:8px;flex:1";
@@ -691,6 +815,15 @@ function renderFatigueChecklist(){
 }
 
 // ─── Admin ───
+// ─── ADMIN PANEL ──────────────────────────────────────────────
+// Password-protected (default: 4822). Stays unlocked per session.
+// HISTORY AND GRAPHS: combined CPS/Block ms/SP-FS chart (last 20).
+// TRIAL DETAIL: per-trial table with session selector + CSV download.
+// LAST RESULTS: shows summary overlay for most recent test.
+// EXPORT JSON: full history + settings as .json file.
+// EXPORT CSV: history as spreadsheet-ready .csv file.
+// BENCHMARK: device timing calibration test.
+// ──────────────────────────────────────────────────────────────
 function renderAdmin(){
   const w=$("adminSettings"); w.innerHTML="";
   for(const [k,l,t] of ADMIN_FIELDS){
@@ -705,6 +838,13 @@ function readAdmin(){ for(const [k,,t] of ADMIN_FIELDS){ const el=$("adm_"+k); i
 function resetAdmin(){ settings={...DEFAULTS}; saveSettings(); renderAdmin(); }
 
 // ─── Charts ───
+// ─── HISTORY AND GRAPHS ───────────────────────────────────────
+// drawCombinedChart(): 3-series chart — CPS (cyan, left axis 0-100),
+//   Block ms (amber, right axis REVERSED: smaller ms at top = better),
+//   SP-FS (green, left axis 1-7). Shows last 20 sessions.
+//   "↑ better" label on right axis. Each series rises with improvement.
+// drawRTScatterChart(): per-trial RT scatter (reversed Y: fast=top).
+// ──────────────────────────────────────────────────────────────
 function drawCombinedChart(canvas,hist){
   if(!canvas) return;
   const ctx=canvas.getContext("2d"),W=canvas.width,H=canvas.height;
@@ -794,6 +934,13 @@ function drawRTScatterChart(canvas,rtLog,blocks,meanRT,sdRT){
 }
 
 // ─── Export / Email ───
+// ─── EXPORT / EMAIL ───────────────────────────────────────────
+// exportResults(): downloads full history as cogspeed_v20_results.json
+// exportCSV(): downloads history as cogspeed_v20_history.csv
+//   Columns: session, subjectId, date, SP-FS, calibration, blocks,
+//   CPS, taps, correct, wrong, missed, paced stats, duration, end reason.
+// emailResults(): opens mailto: with last result text in body.
+// ──────────────────────────────────────────────────────────────
 function exportResults(){
   const blob=new Blob([JSON.stringify({settings,history:state.history},null,2)],{type:"application/json"});
   const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download="cogspeed_v20_results.json"; a.click();
@@ -901,6 +1048,11 @@ function startFX(){
 function stopFX(){ if(_fxRaf){ cancelAnimationFrame(_fxRaf); _fxRaf=null; } }
 
 // ─── Overlay management ───
+// ─── OVERLAY / NAVIGATION UTILITIES ──────────────────────────
+// hideAllOverlays(): hides every overlay (used at test start).
+// showOnly(id): shows one overlay, hides all others.
+// _adminReturnTo: tracks which page opened admin so Close returns there.
+// ──────────────────────────────────────────────────────────────
 function hideAllOverlays(){
   ["subjectOverlay","refresherOverlay","fatigueOverlay","tutorialOverlay","adminOverlay","resultsOverlay","summaryOverlay","trialLogOverlay","historyOverlay","thinkingOverlay","outcomeOverlay"].forEach(id=>{ const el=$(id); if(el) el.classList.add("hidden"); });
 }
@@ -910,6 +1062,13 @@ function showOnly(id){
 function isTestSuccess(r){ return (r||"").toLowerCase().startsWith("convergent"); }
 
 // ─── Summary ───
+// ─── SUMMARY TEST RESULTS ─────────────────────────────────────
+// Formats full monospace result text (state.lastResultText).
+// Includes: subject ID, date/time, location, SP-FS, calibration,
+//   block scores, CPS, response stats, end reason, reference table.
+// REFERENCE TABLE: 7-row S-PF/CPI/BRD lookup from Perelli (2026)
+//   with ← YOUR SCORE arrow on the matching CPS band.
+// ──────────────────────────────────────────────────────────────
 function buildSummary(result){
   const el=$("summaryText"); if(!el) return;
   const hr="─────────────────────────";
@@ -988,6 +1147,13 @@ ${[
 }
 
 // ─── Results page — gear spin outro then thinking box ───
+// ─── RESULTS PAGE FLOW ────────────────────────────────────────
+// THINKING BOX: 6s animated steam+sparks FX after test ends.
+// SUCCESS/FAIL BOX: 3s outcome overlay (green=SUCCESS/red=Test Failed).
+// Then shows summary overlay with full result text.
+// LAST RESULTS: accessible from admin → 📄 Last Results button.
+// E-MAIL: emailResults() opens mailto: with full result text body.
+// ──────────────────────────────────────────────────────────────
 function showResultsPage(){
   const last=state.history[state.history.length-1];
   const success=last?isTestSuccess(last.endReason):false;
@@ -1026,6 +1192,11 @@ function showResultsPage(){
 }
 
 // ─── Session control ───
+// ─── SESSION STATE MANAGEMENT ─────────────────────────────────
+// clearCurrentSession(): resets all trial/block/calibration state
+//   while preserving subjectId and samnPerelli for retests.
+// saveSettings() / loadSettings(): persist to localStorage.
+// ──────────────────────────────────────────────────────────────
 function clearCurrentSession(){
   clearTimer(); clearNoResponseTimer(); clearMaxTestTimer();
   state.phase="idle"; state.duration=null; state.blockDuration=null;
@@ -1040,6 +1211,10 @@ function clearCurrentSession(){
   state.geo=null; state.benchmark=null; state.lastResultText=null;
   updateCPSDisplay(null); updateMetrics(); setProbeIdle(); setTestingQuiet(false);
 }
+// ─── PAGE NAVIGATION ──────────────────────────────────────────
+// goToStartPage(): returns to subject ID entry, clears test state.
+// startOverFlow(): full reset including subject ID and SP-FS.
+// ──────────────────────────────────────────────────────────────
 function goToStartPage(){
   clearCurrentSession();
   ["thinkingOverlay","outcomeOverlay","testScreen"].forEach(id=>{ const el=$(id); if(el) el.classList.add("hidden"); });
@@ -1055,6 +1230,13 @@ function startOverFlow(){
 }
 
 // ─── Gear spin intro then start ───
+// ─── GEAR SPIN INTRO / OUTRO ──────────────────────────────────
+// runGearSpinThenStart(): shows all gears spinning fast (1.8s),
+//   then opens curtain (0.75s transition), then fires callback.
+// Outro spin triggered in showResultsPage() after test ends.
+// CURTAIN TRANSITION: left/right panels slide apart on open,
+//   slide closed on test end (CSS transform translateX).
+// ──────────────────────────────────────────────────────────────
 function runGearSpinThenStart(callback) {
   // Show test screen with gears, no pattern, spin fast for 2s, then callback
   const ts = $("testScreen"); if(ts) ts.classList.remove("hidden");
@@ -1084,6 +1266,12 @@ function runGearSpinThenStart(callback) {
 }
 
 // ─── START TEST ───
+// ─── TEST START ───────────────────────────────────────────────
+// Validates subjectId + samnPerelli, clears session state,
+// captures geo, fires gear spin intro, then opens first trial.
+// noteAnyResponse() starts the no-response timer AFTER spin completes
+//   so the 10s calibration clock only runs when gears are visible.
+// ──────────────────────────────────────────────────────────────
 function startTest(){
   if(!state.subjectId){ showOnly("subjectOverlay"); setStatus("Enter Subject ID first"); return; }
   if(!state.samnPerelli){ showOnly("fatigueOverlay"); setStatus("Select fatigue rating first"); return; }
@@ -1102,6 +1290,11 @@ function startTest(){
 }
 
 // ─── Trial detail log ───
+// ─── TRIAL DETAIL LOG ─────────────────────────────────────────
+// Full per-trial table: trial#, phase, RT, outcome, probe, correct
+//   cell, response. Session selector dropdown. CSV download button.
+// Accessible from admin → 📋 Trial Detail button.
+// ──────────────────────────────────────────────────────────────
 function buildTrialLog(sessionIndex){
   const tbody=$("trialLogBody"); if(!tbody) return;
   // Populate session selector
@@ -1164,6 +1357,11 @@ function downloadTrialLogCSV(){
 }
 
 // ─── History & Graphs overlay ───
+// ─── HISTORY OVERLAY ──────────────────────────────────────────
+// Table of all sessions (newest first) with CPS, blocks, duration.
+// Clickable rows show that session's full summary.
+// Rendered inside admin → 📈 History & Graphs button.
+// ──────────────────────────────────────────────────────────────
 function buildHistoryOverlay(){
   // Draw chart
   drawCombinedChart($("histGraphChart"),state.history);
@@ -1476,6 +1674,13 @@ function tutSetStep(n){
   if(btn) btn.style.color = n===4 ? "#00ff88" : "";
 }
 
+// ─── TUTORIAL / TRAINING ──────────────────────────────────────
+// 5-step walkthrough: Probe → Targets → Rule → Tap Match → React Fast!
+// Each step shows mini trial screen (22% opacity) in background
+//   with relevant parts highlighted. Last step mentions SP-FS next.
+// Appears after Pattern Refresher, before SP-FS page.
+// Skip button on every step.
+// ──────────────────────────────────────────────────────────────
 function showTutorial(){
   tutFillPatterns();
   _tutStep = 0;
@@ -1503,6 +1708,14 @@ function tutSkip(){
   showOnly("fatigueOverlay");
 }
 
+// ═══════════════════════════════════════════════════════════════
+// SECTION: REGISTRATION
+// Current: subject ID (6 chars or "0" for Guest).
+// [PLANNED] GENDER: add male/female/other selector to subject overlay.
+// [PLANNED] AGE CHECK: add birth year + month fields.
+//   → Use to flag age-related norms, adjust CPS interpretation.
+//   → Store with each result record for demographic analysis.
+// ═══════════════════════════════════════════════════════════════
 // ─── Event wiring ───
 $("subjectNextBtn").onclick=()=>{
   const raw=$("subjectIdInput").value.trim();
