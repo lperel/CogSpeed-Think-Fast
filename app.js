@@ -600,6 +600,8 @@ function handleTap(index){
   if(state.previousMissed&&rt<600){
     const correctForLast=state.previous&&!state.previous.resolved&&trialMatches(state.previous,index);
     state.totalResponses+=1; state.previousMissed=false; state.lastFrameDuration=null;
+    // Subject responded during this frame — mark it so the current trial is NOT a true miss
+    state.hadResponse=true;
     if(correctForLast){
       state.previous.resolved=true; const eRT=rt+(state.lastFrameDuration||state.duration);
       applyPacing(eRT,true); state.totalCorrect+=1; state.pacedRTs.push(rt);
@@ -822,7 +824,7 @@ function stopFX(){ if(_fxRaf){ cancelAnimationFrame(_fxRaf); _fxRaf=null; } }
 
 // ─── Overlay management ───
 function hideAllOverlays(){
-  ["subjectOverlay","refresherOverlay","fatigueOverlay","adminOverlay","resultsOverlay","summaryOverlay","trialLogOverlay","historyOverlay","thinkingOverlay","outcomeOverlay"].forEach(id=>{ const el=$(id); if(el) el.classList.add("hidden"); });
+  ["subjectOverlay","refresherOverlay","fatigueOverlay","tutorialOverlay","adminOverlay","resultsOverlay","summaryOverlay","trialLogOverlay","historyOverlay","thinkingOverlay","outcomeOverlay"].forEach(id=>{ const el=$(id); if(el) el.classList.add("hidden"); });
 }
 function showOnly(id){
   ["subjectOverlay","refresherOverlay","fatigueOverlay","adminOverlay","resultsOverlay","summaryOverlay","trialLogOverlay","historyOverlay"].forEach(oid=>{ const el=$(oid); if(el) el.classList[oid===id?"remove":"add"]("hidden"); });
@@ -1125,6 +1127,202 @@ async function runDeviceBenchmark(force){
   if(bb) bb.style.display="grid";
 }
 
+
+// ═══════════════════════════════════════════════════
+//  TUTORIAL
+// ═══════════════════════════════════════════════════
+
+let _tutStep = 0;
+let _tutTimer = null;
+
+// Demo trial: probe=lines:3, correct=dots:3 @position 3
+const TUT_PROBE_FAM  = "lines";
+const TUT_PROBE_CNT  = 3;
+const TUT_CORRECT_POS = 2;  // 0-based, position 3
+const TUT_ITEMS = [
+  {family:"dots",  count:5, pattern:null},
+  {family:"lines", count:1, pattern:null},
+  {family:"dots",  count:3, pattern:null},  // ← correct answer
+  {family:"lines", count:4, pattern:null},
+  {family:"dots",  count:2, pattern:null},
+  {family:"lines", count:6, pattern:null},
+];
+// Fill patterns after patterns are defined
+function tutFillPatterns(){
+  TUT_ITEMS.forEach(it=>{
+    it.pattern = it.family==="dots" ? DOT_PATTERNS[it.count] : LINE_PATTERNS[it.count];
+  });
+}
+
+function buildTutGearGrid(highlightPos, showPatterns){
+  let html = '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;width:100%;max-width:340px">';
+  TUT_ITEMS.forEach((it,i)=>{
+    const isHL = highlightPos===i;
+    const border = isHL ? "2px solid #7fd7ff" : "2px solid transparent";
+    const glow = isHL ? "drop-shadow(0 0 8px rgba(127,215,255,0.8))" : "none";
+    const pat = showPatterns ? it.pattern : null;
+    html += `<div style="border:${border};border-radius:10px;filter:${glow};aspect-ratio:1">
+      ${buildGearSVG(i+1, pat, "large", "")}
+    </div>`;
+  });
+  html += '</div>';
+  return html;
+}
+
+function buildTutProbe(pulsing){
+  const pat = LINE_PATTERNS[TUT_PROBE_CNT];
+  const anim = pulsing ? "animation:probePulseG 1.2s ease-in-out infinite" : "animation:none";
+  return `<div style="width:clamp(110px,32vw,170px);height:clamp(110px,32vw,170px);${anim}">
+    ${buildGearSVG(0, pat, "probe", "")}
+  </div>`;
+}
+
+function buildTutRespGrid(flashPos){
+  let html = '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;width:100%;max-width:340px">';
+  for(let i=0;i<6;i++){
+    const isFL = flashPos===i;
+    const bg = isFL ? "rgba(0,255,136,0.25)" : "rgba(255,255,255,0.04)";
+    const border = isFL ? "2px solid #00ff88" : "2px solid rgba(255,255,255,0.1)";
+    const scale = isFL ? "transform:scale(0.92)" : "";
+    html += `<div style="aspect-ratio:1;border-radius:10px;background:${bg};border:${border};display:flex;align-items:center;justify-content:center;${scale}">
+      <span style="font-size:20px;font-weight:800;color:rgba(255,255,255,0.4)">${i+1}</span>
+    </div>`;
+  }
+  html += '</div>';
+  return html;
+}
+
+const TUT_STEPS = [
+  // Step 1: The probe
+  {
+    dur: 0,  // manual advance
+    build: ()=>{
+      return `
+        <div style="font-size:13px;letter-spacing:.1em;color:rgba(127,215,255,0.7);text-transform:uppercase;margin-bottom:8px">The Probe</div>
+        <div style="margin-bottom:16px">${buildTutProbe(true)}</div>
+        <div style="font-size:20px;font-weight:700;color:#f5fbff;margin-bottom:8px;max-width:300px">This glowing gear is the <span style="color:#7fd7ff">PROBE</span></div>
+        <div style="font-size:16px;color:rgba(255,255,255,0.65);max-width:300px">Count the marks inside it — dots or lines</div>
+      `;
+    }
+  },
+  // Step 2: The targets
+  {
+    dur: 0,
+    build: ()=>{
+      return `
+        <div style="font-size:13px;letter-spacing:.1em;color:rgba(127,215,255,0.7);text-transform:uppercase;margin-bottom:8px">The Targets</div>
+        <div style="margin-bottom:12px">${buildTutGearGrid(-1, true)}</div>
+        <div style="font-size:20px;font-weight:700;color:#f5fbff;margin-bottom:8px;max-width:300px">These 6 gears are your <span style="color:#7fd7ff">TARGETS</span></div>
+        <div style="font-size:16px;color:rgba(255,255,255,0.65);max-width:300px">Each has dots or lines — count them</div>
+      `;
+    }
+  },
+  // Step 3: The rule
+  {
+    dur: 0,
+    build: ()=>{
+      return `
+        <div style="font-size:13px;letter-spacing:.1em;color:rgba(127,215,255,0.7);text-transform:uppercase;margin-bottom:10px">The Rule</div>
+        <div style="display:flex;align-items:center;gap:16px;margin-bottom:16px;flex-wrap:wrap;justify-content:center">
+          <div>
+            <div style="font-size:11px;color:rgba(255,255,255,0.5);margin-bottom:4px">PROBE</div>
+            <div style="width:clamp(70px,22vw,100px);height:clamp(70px,22vw,100px)">${buildGearSVG(0, LINE_PATTERNS[3], "probe", "")}</div>
+            <div style="font-size:14px;color:#7fd7ff;margin-top:4px;font-weight:700">lines : 3</div>
+          </div>
+          <div style="font-size:28px;color:#ffaa44;font-weight:900">↔</div>
+          <div>
+            <div style="font-size:11px;color:rgba(255,255,255,0.5);margin-bottom:4px">MATCH</div>
+            <div style="width:clamp(70px,22vw,100px);height:clamp(70px,22vw,100px);border:2px solid #7fd7ff;border-radius:10px;box-shadow:0 0 14px rgba(127,215,255,0.5)">${buildGearSVG(3, DOT_PATTERNS[3], "probe", "")}</div>
+            <div style="font-size:14px;color:#00ff88;margin-top:4px;font-weight:700">dots : 3 ✓</div>
+          </div>
+        </div>
+        <div style="background:rgba(127,215,255,0.08);border:1px solid rgba(127,215,255,0.3);border-radius:12px;padding:12px 16px;max-width:300px">
+          <div style="font-size:18px;font-weight:800;color:#7fd7ff">Same COUNT</div>
+          <div style="font-size:15px;color:rgba(255,255,255,0.6);margin:2px 0">3 lines → find 3 dots</div>
+          <div style="font-size:18px;font-weight:800;color:#ffaa44;margin-top:6px">Opposite TYPE</div>
+          <div style="font-size:15px;color:rgba(255,255,255,0.6)">lines ↔ dots</div>
+        </div>
+      `;
+    }
+  },
+  // Step 4: Tap the response
+  {
+    dur: 0,
+    build: ()=>{
+      return `
+        <div style="font-size:13px;letter-spacing:.1em;color:rgba(127,215,255,0.7);text-transform:uppercase;margin-bottom:8px">Tap the Match</div>
+        <div style="margin-bottom:6px;opacity:0.7">${buildTutGearGrid(TUT_CORRECT_POS, true)}</div>
+        <div style="display:flex;align-items:center;gap:8px;margin:6px 0">
+          <div style="flex:1;height:1px;background:rgba(255,255,255,0.1)"></div>
+          <div style="font-size:12px;color:rgba(255,255,255,0.4)">same position below</div>
+          <div style="flex:1;height:1px;background:rgba(255,255,255,0.1)"></div>
+        </div>
+        <div>${buildTutRespGrid(TUT_CORRECT_POS)}</div>
+        <div style="font-size:16px;color:rgba(255,255,255,0.65);margin-top:10px;max-width:300px">Tap the <span style="color:#00ff88;font-weight:700">button below</span> that matches the highlighted gear</div>
+      `;
+    }
+  },
+  // Step 5: React fast!
+  {
+    dur: 0,
+    build: ()=>{
+      return `
+        <div style="font-size:60px;margin-bottom:4px">⚡</div>
+        <div style="font-size:30px;font-weight:900;color:#7fd7ff;letter-spacing:.06em;margin-bottom:8px">REACT FAST!</div>
+        <div style="font-size:17px;color:rgba(255,255,255,0.7);max-width:300px;margin-bottom:20px;line-height:1.5">Each gear appears for only a few seconds.<br>Respond before it disappears!</div>
+        <div style="background:rgba(127,215,255,0.08);border:1px solid rgba(127,215,255,0.25);border-radius:12px;padding:14px 20px;max-width:300px;font-size:15px;color:rgba(255,255,255,0.6);line-height:1.7">
+          Missing a trial is OK — the test adjusts.<br>Wrong answers are OK too.<br><strong style="color:rgba(255,255,255,0.85)">Just respond as fast as you can.</strong>
+        </div>
+      `;
+    }
+  },
+];
+
+function tutSetStep(n){
+  _tutStep = n;
+  // Update dots
+  for(let i=0;i<5;i++){
+    const d=$("tdot"+i);
+    if(d) d.style.background = i===n ? "#7fd7ff" : "rgba(127,215,255,0.25)";
+  }
+  // Update content
+  const content=$("tutorialContent");
+  if(content) content.innerHTML = TUT_STEPS[n].build();
+  // Update next button
+  const btn=$("tutNextBtn");
+  if(btn) btn.textContent = n===4 ? "▶ Start Test!" : "Next →";
+  if(btn) btn.style.background = n===4 ? "linear-gradient(180deg,#0d4a1a,#062a10)" : "";
+  if(btn) btn.style.borderColor = n===4 ? "#00ff88" : "";
+  if(btn) btn.style.color = n===4 ? "#00ff88" : "";
+}
+
+function showTutorial(){
+  tutFillPatterns();
+  _tutStep = 0;
+  $("tutorialOverlay").classList.remove("hidden");
+  tutSetStep(0);
+}
+
+function tutNext(){
+  if(_tutStep < 4){
+    tutSetStep(_tutStep + 1);
+  } else {
+    // Done — go to fatigue
+    $("tutorialOverlay").classList.add("hidden");
+    const sb=$("fatigueStartBtn"); if(sb) sb.classList.add("hidden");
+    $("fatigueList").querySelectorAll(".fatigue-item").forEach(el=>el.style.background="");
+    showOnly("fatigueOverlay");
+  }
+}
+
+function tutSkip(){
+  if(_tutTimer) clearTimeout(_tutTimer);
+  $("tutorialOverlay").classList.add("hidden");
+  const sb=$("fatigueStartBtn"); if(sb) sb.classList.add("hidden");
+  $("fatigueList").querySelectorAll(".fatigue-item").forEach(el=>el.style.background="");
+  showOnly("fatigueOverlay");
+}
+
 // ─── Event wiring ───
 $("subjectNextBtn").onclick=()=>{
   const raw=$("subjectIdInput").value.trim();
@@ -1133,9 +1331,7 @@ $("subjectNextBtn").onclick=()=>{
   state.subjectId=raw.toUpperCase(); showOnly("refresherOverlay"); setStatus(`Subject: ${state.subjectId}`);
 };
 $("skipRefresherBtn").onclick=()=>{
-  const sb=$("fatigueStartBtn"); if(sb) sb.classList.add("hidden");
-  $("fatigueList").querySelectorAll(".fatigue-item").forEach(el=>el.style.background="");
-  showOnly("fatigueOverlay"); setStatus("Refresher skipped");
+  showTutorial(); setStatus("Tutorial");
 };
 $("refBackBtn").onclick=()=>goToStartPage();
 $("refStartOverBtn").onclick=()=>startOverFlow();
@@ -1156,6 +1352,8 @@ $("adminOpenBtn").onclick=()=>{
     $("adminPass").value="";
   }
 };
+$("tutNextBtn").onclick=()=>tutNext();
+$("tutSkipBtn").onclick=()=>tutSkip();
 $("unlockBtn").onclick=()=>{
   const v=$("adminPass").value;
   if(v===settings.adminPasscode||v==="4822"){
