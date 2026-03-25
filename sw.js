@@ -1,5 +1,5 @@
 // CogSpeed V17 — service worker — network first, delete all old caches
-const CACHE = "cogspeed-v19";
+const CACHE = "cogspeed-v20";
 self.addEventListener("install", () => self.skipWaiting());
 self.addEventListener("activate", e => {
   e.waitUntil(caches.keys().then(keys => Promise.all(keys.map(k => caches.delete(k)))).then(() => self.clients.claim()));

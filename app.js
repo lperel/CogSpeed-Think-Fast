@@ -1,10 +1,10 @@
 // ═══════════════════════════════════════════════════
-//  CogSpeed V19
+//  CogSpeed V20
 // ═══════════════════════════════════════════════════
 
 // ─── Version guard ───
 (function(){
-  const VER="cogspeed_v19", key="cogspeed_version";
+  const VER="cogspeed_v20", key="cogspeed_version";
   if(localStorage.getItem(key)!==VER){
     Object.keys(localStorage).forEach(k=>{ if(k.startsWith("cogspeed_")||k.startsWith("cogblock_")) localStorage.removeItem(k); });
     localStorage.setItem(key,VER);
@@ -93,13 +93,13 @@ const SAMN_PERELLI=[
 
 // ─── Settings ───
 function loadSettings(){
-  const s=JSON.parse(localStorage.getItem("cogspeed_v19_settings")||"null");
+  const s=JSON.parse(localStorage.getItem("cogspeed_v20_settings")||"null");
   if(!s) return {...DEFAULTS};
   const m={...DEFAULTS};
   Object.keys(DEFAULTS).forEach(k=>{ if(s[k]!==undefined) m[k]=s[k]; });
   return m;
 }
-function saveSettings(){ localStorage.setItem("cogspeed_v19_settings",JSON.stringify(settings)); }
+function saveSettings(){ localStorage.setItem("cogspeed_v20_settings",JSON.stringify(settings)); }
 let settings=loadSettings();
 
 // ─── State ───
@@ -108,7 +108,7 @@ const state={
   current:null, previous:null, unresolvedStreak:0,
   overloads:[], recoveries:[], recoveryCorrectCompleted:0,
   spCorrectStreak:0, spWrongCount:0, terminalBlockReason:null,
-  history:JSON.parse(localStorage.getItem("cogspeed_v19_history")||"[]"),
+  history:JSON.parse(localStorage.getItem("cogspeed_v20_history")||"[]"),
   totalTrials:0, totalResponses:0, totalCorrect:0, totalIncorrect:0,
   missedTrials:0, pacedErrors:0, recoveryErrors:0, rollMeanLog:[],
   testStartTime:null, trialTimer:null, absoluteNoResponseTimer:null, maxTestTimer:null,
@@ -476,7 +476,7 @@ function finish(){
     time:new Date().toISOString(), geo:state.geo
   };
   state.history.push(result);
-  localStorage.setItem("cogspeed_v19_history",JSON.stringify(state.history));
+  localStorage.setItem("cogspeed_v20_history",JSON.stringify(state.history));
   updateCPSDisplay(avg2); setProbeIdle();
   // Build the display text (also used for email)
   buildSummary(result);
@@ -774,12 +774,12 @@ function drawRTScatterChart(canvas,rtLog,blocks,meanRT,sdRT){
 // ─── Export / Email ───
 function exportResults(){
   const blob=new Blob([JSON.stringify({settings,history:state.history},null,2)],{type:"application/json"});
-  const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download="cogspeed_v19_results.json"; a.click();
+  const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download="cogspeed_v20_results.json"; a.click();
 }
 function emailResults(){
   const last=state.history[state.history.length-1];
   if(!last){ setStatus("No results to email."); return; }
-  window.location.href=`mailto:?subject=CogSpeed V19 Results&body=${encodeURIComponent(state.lastResultText||JSON.stringify(last,null,2))}`;
+  window.location.href=`mailto:?subject=CogSpeed V20 Results&body=${encodeURIComponent(state.lastResultText||JSON.stringify(last,null,2))}`;
 }
 
 // ─── FX (steam + sparks from each gear corner) ───
@@ -878,7 +878,7 @@ function buildSummary(result){
   const cps=result.cognitivePerformanceScore;
   const sd=result.pacedResponseSdMs;
   el.textContent=
-`CogSpeed V19  —  Test Results
+`CogSpeed V20  —  Test Results
 ${hr}
 Subject ID:    ${result.subjectId}
 Date / Time:   ${new Date(result.time).toLocaleString()}
@@ -1086,7 +1086,7 @@ function downloadTrialLogCSV(){
   ].join(",")).join("\n");
   const subj=result?result.subjectId:"current";
   const blob=new Blob([hdr+rows],{type:"text/csv"});
-  const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=`cogspeed_v19_trials_${subj}.csv`; a.click();
+  const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=`cogspeed_v20_trials_${subj}.csv`; a.click();
 }
 
 // ─── History & Graphs overlay ───
@@ -1209,11 +1209,11 @@ function buildTutRespGrid(flashPos){
   let html = '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;width:100%;max-width:340px">';
   for(let i=0;i<6;i++){
     const isFL = flashPos===i;
-    const bg = isFL ? "rgba(0,255,136,0.25)" : "rgba(255,255,255,0.04)";
-    const border = isFL ? "2px solid #00ff88" : "2px solid rgba(255,255,255,0.1)";
-    const scale = isFL ? "transform:scale(0.92)" : "";
-    html += `<div style="aspect-ratio:1;border-radius:10px;background:${bg};border:${border};display:flex;align-items:center;justify-content:center;${scale}">
-      <span style="font-size:20px;font-weight:800;color:rgba(255,255,255,0.4)">${i+1}</span>
+    const glow   = isFL ? "drop-shadow(0 0 8px rgba(0,255,136,0.9))" : "none";
+    const border = isFL ? "2px solid #00ff88" : "2px solid transparent";
+    const sc     = i%2===0?"gspin-f":"gspin-r";  // keep blank gears static — no spin during tutorial
+    html += `<div style="aspect-ratio:1;border-radius:10px;border:${border};filter:${glow};position:relative">
+      ${buildGearSVG(i+1, null, "large", "")}
     </div>`;
   }
   html += '</div>';
@@ -1243,14 +1243,14 @@ function buildMiniScreen(highlightPart){
     ${buildGearSVG(0, LINE_PATTERNS[TUT_PROBE_CNT], "probe", "")}
   </div>`;
 
-  // Response buttons — plain numbered boxes
+  // Response buttons — real gear SVGs (no pattern), correct one glowing green
   let respHtml = '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:3px;width:100%">';
   for(let i=0;i<6;i++){
-    const isHL = highlightPart==="resp"||highlightPart==="all";
-    const bg = (isHL&&i===TUT_CORRECT_POS) ? "rgba(0,255,136,0.3)" : "rgba(255,255,255,0.06)";
-    const border = (isHL&&i===TUT_CORRECT_POS) ? "1px solid #00ff88" : "1px solid rgba(255,255,255,0.08)";
-    respHtml += `<div style="aspect-ratio:1;background:${bg};border:${border};border-radius:5px;display:flex;align-items:center;justify-content:center">
-      <span style="font-size:9px;color:rgba(255,255,255,0.35);font-weight:700">${i+1}</span>
+    const isHL = (highlightPart==="resp"||highlightPart==="all") && i===TUT_CORRECT_POS;
+    const glow = isHL ? "drop-shadow(0 0 6px rgba(0,255,136,0.8))" : "none";
+    const border = isHL ? "1px solid #00ff88" : "1px solid transparent";
+    respHtml += `<div style="aspect-ratio:1;border-radius:5px;border:${border};filter:${glow}">
+      ${buildGearSVG(i+1, null, "small", "")}
     </div>`;
   }
   respHtml += '</div>';
@@ -1471,7 +1471,7 @@ $("closeAdminBtn").onclick=()=>$("adminOverlay").classList.add("hidden");
 $("closeAdminBtn2").onclick=()=>$("benchmarkOverlay").classList.add("hidden");
 $("saveAdminBtn").onclick=()=>{ readAdmin(); saveSettings(); renderAdmin(); setStatus("Settings saved"); };
 $("resetAdminBtn").onclick=()=>{ resetAdmin(); setStatus("Settings reset to defaults"); };
-$("exportAdminBtn").onclick=()=>{ const blob=new Blob([JSON.stringify(settings,null,2)],{type:"application/json"}),a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download="cogspeed_v19_settings.json"; a.click(); };
+$("exportAdminBtn").onclick=()=>{ const blob=new Blob([JSON.stringify(settings,null,2)],{type:"application/json"}),a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download="cogspeed_v20_settings.json"; a.click(); };
 $("adminTrialLogBtn").onclick=()=>{ buildTrialLog(state.history.length-1); $("trialLogOverlay").classList.remove("hidden"); };
 $("adminHistoryBtn").onclick=()=>{ buildHistoryOverlay(); $("historyOverlay").classList.remove("hidden"); };
 $("adminLastResultBtn").onclick=()=>{
@@ -1486,7 +1486,7 @@ $("trialLogCsvBtn").onclick=()=>downloadTrialLogCSV();
 $("historyCloseBtn").onclick=()=>$("historyOverlay").classList.add("hidden");
 $("historyClearBtn").onclick=()=>{
   if(!confirm("Clear ALL session history? This cannot be undone.")) return;
-  state.history=[]; localStorage.removeItem("cogspeed_v19_history");
+  state.history=[]; localStorage.removeItem("cogspeed_v20_history");
   buildHistoryOverlay(); setStatus("History cleared.");
 };
 const _tsel=$("trialLogSessionSelect");
