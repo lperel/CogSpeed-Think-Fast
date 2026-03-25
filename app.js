@@ -28,7 +28,7 @@ const DEFAULTS={
   qualifyingBlockGapMs:250,
   rollMeanWindow:8,
   rollMeanThreshold:0.50,
-  machinePacedNoResponseMs:6000,
+  machinePacedNoResponseMs:10000,
   recoveryNoResponseMs:10000,
   calibrationFirstNoResponseMs:20000,
   calibrationNoResponseMs:6000,
@@ -67,7 +67,7 @@ const ADMIN_FIELDS=[
   ["initialPacedPercent","MP start: % of cal avg (default 0.70)","number"],
   ["minDurationMs","MP min frame duration (ms, default 600)","number"],
   ["maxDurationMs","MP max frame duration (ms, default 3500)","number"],
-  ["machinePacedNoResponseMs","MP no-response timeout (ms, default 6000)","number"],
+  ["machinePacedNoResponseMs","MP no-response timeout (ms, default 10000)","number"],
   ["maxTestDurationMs","Max TOTAL test time (ms, default 150000)","number"],
   ["maxTrialCount","MP max paced trials","number"],
   // ── Block detection ──
@@ -215,7 +215,7 @@ function armNoResponseTimer(){
       break;
     case "paced":
       // Machine-paced: frame ends anyway, 6s safety net
-      ms = Number(settings.machinePacedNoResponseMs)||6000;
+      ms = Number(settings.machinePacedNoResponseMs)||10000;
       break;
     case "recovery":
     case "terminal_recovery":
@@ -566,10 +566,28 @@ function finishCalibration(){
 
 // ─── Pacing ───
 // ─── PACING ALGORITHM — MACHINE-PACED ────────────────────────
-// SPEED UP ON CORRECT: delta = (0.1×r - 0.1) × duration
-//   where r = RT/duration. Faster response → bigger speedup.
-// SLOW DOWN ON WRONG: +100ms flat penalty per wrong tap.
-// Duration clamped to [minDurationMs=800, maxDurationMs=10000].
+//
+// SPEED UP ON CORRECT RESPONSE:
+//   r = RT / currentDuration  (ratio of response time to frame window)
+//   delta = (0.1 × r - 0.1) × currentDuration
+//   newDuration = currentDuration + delta
+//
+//   Interpretation:
+//   • If r < 1.0 (responded well before frame end): delta is NEGATIVE → speeds up
+//   • If r = 1.0 (responded at exactly frame end): delta = 0 → no change
+//   • If r > 1.0 (shouldn't happen on correct): delta is POSITIVE → slows slightly
+//   • The faster the response relative to the frame, the larger the speedup
+//   Example: frame=1000ms, RT=600ms → r=0.6, delta=(0.06-0.1)×1000 = -40ms
+//   Example: frame=1000ms, RT=900ms → r=0.9, delta=(0.09-0.1)×1000 = -10ms
+//
+// SLOW DOWN ON WRONG RESPONSE:
+//   newDuration = currentDuration + 100ms (flat penalty)
+//   This gives the subject more time after an error.
+//
+// RESULT: Algorithm hunts for the fastest rate the subject can
+//   sustain accurately — converging toward their cognitive speed limit.
+//
+// Duration always clamped to [minDurationMs=600, maxDurationMs=3500].
 // ──────────────────────────────────────────────────────────────
 function applyPacing(rt,correct){
   if(correct){ const r=rt/state.duration; state.duration=clamp(state.duration+(0.1*r-0.1)*state.duration,settings.minDurationMs,settings.maxDurationMs); }
