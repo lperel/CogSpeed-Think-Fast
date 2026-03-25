@@ -21,9 +21,10 @@
 const DEFAULTS={
   adminPasscode:"4822",
   consecutiveMissesForBlock:2,
-  spRestartSlowerByMs:375,
+  spRestartMultiplier:1.3,
   spRestartWrongLimit:3,
   spRestartCorrectStreak:2,
+  maxBlockCount:6,
   qualifyingBlockGapMs:250,
   rollMeanWindow:8,
   rollMeanThreshold:0.50,
@@ -72,7 +73,8 @@ const ADMIN_FIELDS=[
   // ── Block detection ──
   ["consecutiveMissesForBlock","Misses to trigger block (default 2)","number"],
   // ── Block recovery (SP self-paced after block) ──
-  ["spRestartSlowerByMs","Block recovery: slower than block by (ms, default 375)","number"],
+  ["spRestartMultiplier","Block recovery speed: last block × (default 1.3)","number"],
+  ["maxBlockCount","Max total blocks before fail (default 6)","number"],
   ["spRestartWrongLimit","Block recovery: max wrong before fail (default 3)","number"],
   ["spRestartCorrectStreak","Block recovery: correct streak to resume (default 2)","number"],
   ["recoveryNoResponseMs","Block recovery no-response (ms, default 10000)","number"],
@@ -672,6 +674,9 @@ function onPacedFrameEnd(){
     state.blockDuration=state.duration; state.overloads.push(state.blockDuration);
     state.unresolvedStreak=0; state.previousMissed=false; state.lastFrameDuration=null;
     updateCPSDisplay(avgLast2Blocks());
+    // Check max block count
+    const maxB=Math.max(2,Number(settings.maxBlockCount)||6);
+    if(state.overloads.length>=maxB){ state.endReason="ERRATIC RESPONSES — Retest"; finish(); return; }
     if(maybeTriggerTerminalRule()) return;
     state.phase="recovery"; state.recoveryCorrectCompleted=0; state.spCorrectStreak=0; state.spWrongCount=0;
     openTrial("recovery"); return;
@@ -724,10 +729,11 @@ function handleTap(index){
       state.spCorrectStreak+=1; state.current.resolved=true;
       const need=Math.max(1,Number(settings.spRestartCorrectStreak)||2);
       if(state.spCorrectStreak>=need){
-        const slower=clamp(state.blockDuration+(Number(settings.spRestartSlowerByMs)||375),settings.minDurationMs,settings.maxDurationMs);
+        const mult=Math.max(1.0,Number(settings.spRestartMultiplier)||1.3);
+        const slower=clamp(Math.round(state.blockDuration*mult),settings.minDurationMs,settings.maxDurationMs);
         state.recoveries.push(slower); state.phase="paced"; state.duration=slower;
         state.spCorrectStreak=0; state.spWrongCount=0;
-        setStatus(`SP Restart passed — resuming at ${slower.toFixed(0)}ms`);
+        setStatus(`Block recovery passed — resuming at ${slower.toFixed(0)}ms (${mult.toFixed(1)}× block)`);
         setTimeout(()=>openTrial("paced"),180);
       }else{
         setStatus(`SP Restart: ${state.spCorrectStreak}/${need} correct`);
