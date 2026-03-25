@@ -28,7 +28,7 @@ const DEFAULTS={
   qualifyingBlockGapMs:250,
   rollMeanWindow:8,
   rollMeanThreshold:0.50,
-  machinePacedNoResponseMs:10000,
+  machinePacedNoResponseMs:3500,
   recoveryNoResponseMs:10000,
   calibrationFirstNoResponseMs:20000,
   calibrationNoResponseMs:6000,
@@ -42,7 +42,7 @@ const DEFAULTS={
   initialMeasuredCalibrationTrials:10,
   initialPacedPercent:0.70,
   calibrationStopErrors:4,
-  calibrationStopSlowMs:3000,
+  calibrationStopSlowMs:5000,
   cpsBestMs:600,
   cpsWorstMs:2400,
   deviceBenchmarkEnabled:0
@@ -273,8 +273,8 @@ function patternToSVG(pattern,size="large"){
   const marks=pattern.map(([k,x,y])=>{
     const px=(x/100)*dim,py=(y/100)*dim;
     return k==="dot"
-      ?`<circle cx="${px.toFixed(1)}" cy="${py.toFixed(1)}" r="${dotR}" fill="var(--text)"/>`
-      :`<rect x="${(px-lw/2).toFixed(1)}" y="${(py-lh/2).toFixed(1)}" width="${lw}" height="${lh}" rx="2" fill="var(--text)"/>`;
+      ?`<circle cx="${px.toFixed(1)}" cy="${py.toFixed(1)}" r="${dotR}" fill="var(--text)" stroke="black" stroke-width="1.5"/>`
+      :`<rect x="${(px-lw/2).toFixed(1)}" y="${(py-lh/2).toFixed(1)}" width="${lw}" height="${lh}" rx="2" fill="var(--text)" stroke="black" stroke-width="1.5"/>`;
   }).join("");
   return `<svg width="${dim}" height="${dim}" viewBox="0 0 ${dim} ${dim}" xmlns="http://www.w3.org/2000/svg">${marks}</svg>`;
 }
@@ -394,8 +394,8 @@ function buildGearSVG(si,pattern,size,spinClass){
     const dotR=size==="probe"?6:5, lw=size==="probe"?9:7, lh=size==="probe"?14:10;
     marks=pattern.map(([k,px,py])=>{
       const ix=cx+(px/100-0.5)*iR*1.95, iy=cy+(py/100-0.5)*iR*1.95;
-      if(k==="dot") return `<circle cx="${ix.toFixed(1)}" cy="${iy.toFixed(1)}" r="${dotR}" fill="white" opacity="0.95"/>`;
-      return `<rect x="${(ix-lw/2).toFixed(1)}" y="${(iy-lh/2).toFixed(1)}" width="${lw}" height="${lh}" rx="2.5" fill="white" opacity="0.95"/>`;
+      if(k==="dot") return `<circle cx="${ix.toFixed(1)}" cy="${iy.toFixed(1)}" r="${dotR}" fill="white" stroke="black" stroke-width="1.5" opacity="0.95"/>`;
+      return `<rect x="${(ix-lw/2).toFixed(1)}" y="${(iy-lh/2).toFixed(1)}" width="${lw}" height="${lh}" rx="2.5" fill="white" stroke="black" stroke-width="1.5" opacity="0.95"/>`;
     }).join("");
   }
   const sc=spinClass||"";
