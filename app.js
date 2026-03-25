@@ -1151,8 +1151,11 @@ function openProfileOverlay(email){
   showOnly("profileOverlay");
 }
 
+let _profileReturnTo = "refresherOverlay"; // where to go after saving profile
+
 function saveAndContinueProfile(){
-  const email = ($("subjectIdInput")?.value||"").trim().toLowerCase();
+  const email = ($("subjectIdInput")?.value||"").trim().toLowerCase() ||
+                loadProfile()?.email || "";
   const bMonth = parseInt($("profileBirthMonth")?.value||"0");
   const bYear  = parseInt($("profileBirthYear")?.value||"0");
   const emailResults = !!$("profileEmailResults")?.checked;
@@ -1169,8 +1172,9 @@ function saveAndContinueProfile(){
   state.subjectId = email;
   state.profile = profile;
 
-  // Proceed to refresher
-  showOnly("refresherOverlay");
+  // Return to appropriate page
+  showOnly(_profileReturnTo);
+  _profileReturnTo = "refresherOverlay"; // reset for next time
   setStatus("Profile saved");
 }
 
@@ -1906,6 +1910,28 @@ $("tutNextBtn").onclick=()=>tutNext();
 
 // Profile overlay buttons
 const _psb=$("profileSaveBtn"); if(_psb) _psb.onclick=saveAndContinueProfile;
+
+// Profile edit button — from subject page (email must already be entered)
+const _peb=$("profileEditBtn"); if(_peb) _peb.onclick=()=>{
+  const email=($("subjectIdInput")?.value||"").trim().toLowerCase();
+  if(!email||!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){
+    setStatus("Enter your email first, then tap ⚙ profile"); return;
+  }
+  openProfileOverlay(email);
+};
+
+// Profile button from summary page
+const _spb=$("summaryProfileBtn"); if(_spb) _spb.onclick=()=>{
+  const p=loadProfile();
+  const email=p?.email||state.subjectId||"";
+  if(email&&/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){
+    // After saving profile from summary, return to summary
+    _profileReturnTo="summaryOverlay";
+    openProfileOverlay(email);
+  } else {
+    setStatus("No profile to edit — enter email on start page");
+  }
+};
 const _prb=$("profileResetBtn"); if(_prb) _prb.onclick=resetProfile;
 // Age validation on input change
 const _pbm=$("profileBirthMonth"); if(_pbm) _pbm.onchange=validateProfileAge;
