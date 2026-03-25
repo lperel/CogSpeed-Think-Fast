@@ -27,15 +27,16 @@ const DEFAULTS={
   qualifyingBlockGapMs:250,
   rollMeanWindow:8,
   rollMeanThreshold:0.50,
-  noResponseTimeoutMs:20000,
+  machinePacedNoResponseMs:6000,
+  recoveryNoResponseMs:10000,
   calibrationFirstNoResponseMs:10000,
   calibrationNoResponseMs:6000,
   wrongWindowSize:5,
   wrongThresholdStop:4,
   maxTrialCount:180,
   maxTestDurationMs:150000,
-  minDurationMs:800,
-  maxDurationMs:10000,
+  minDurationMs:600,
+  maxDurationMs:3500,
   initialUnusedCalibrationTrials:1,
   initialMeasuredCalibrationTrials:10,
   initialPacedPercent:0.70,
@@ -52,31 +53,41 @@ const DEFAULTS={
 // Drives the admin form UI and maps to DEFAULTS keys above.
 // ═══════════════════════════════════════════════════════════════
 const ADMIN_FIELDS=[
-  ["consecutiveMissesForBlock","Consecutive misses for block","number"],
-  ["spRestartSlowerByMs","SP Restart: slowdown (ms)","number"],
-  ["spRestartWrongLimit","SP Restart: wrong limit","number"],
-  ["spRestartCorrectStreak","SP Restart: correct streak needed","number"],
-  ["qualifyingBlockGapMs","Max block diff to end (ms)","number"],
-  ["rollMeanWindow","Rolling mean window (responses)","number"],
-  ["rollMeanThreshold","Anti-spoof threshold (0–1, e.g. 0.50)","number"],
-  ["noResponseTimeoutMs","Paced no-response timeout (ms, default 20000)","number"],
+  // ── Admin ──
+  ["adminPasscode","Admin passcode","text"],
+  // ── Calibration (self-paced) ──
+  ["initialUnusedCalibrationTrials","Initial (warm-up) cal trials","number"],
+  ["initialMeasuredCalibrationTrials","Measured cal trials (default 10)","number"],
   ["calibrationFirstNoResponseMs","Cal first-trial no-response (ms, default 10000)","number"],
   ["calibrationNoResponseMs","Cal subsequent no-response (ms, default 6000)","number"],
-  ["wrongWindowSize","Wrong-answer window","number"],
-  ["wrongThresholdStop","Wrong threshold","number"],
-  ["maxTrialCount","Max paced trials","number"],
-  ["maxTestDurationMs","Max TOTAL test time (ms, default 150000)","number"],
-  ["minDurationMs","Min paced duration (ms)","number"],
-  ["maxDurationMs","Max paced duration (ms)","number"],
-  ["initialUnusedCalibrationTrials","Unused calibration trials","number"],
-  ["initialMeasuredCalibrationTrials","Measured calibration trials","number"],
-  ["initialPacedPercent","Initial paced % of calibration","number"],
   ["calibrationStopErrors","Cal stop after N wrong (default 4)","number"],
   ["calibrationStopSlowMs","Cal avg RT limit (ms, default 3000)","number"],
-  ["cpsBestMs","CPS best ms (score 100)","number"],
-  ["cpsWorstMs","CPS worst ms (score 0)","number"],
-  ["deviceBenchmarkEnabled","Benchmark before test (0/1)","number"],
-  ["adminPasscode","Admin passcode","password"]
+  // ── Machine-paced ──
+  ["initialPacedPercent","MP start: % of cal avg (default 0.70)","number"],
+  ["minDurationMs","MP min frame duration (ms, default 600)","number"],
+  ["maxDurationMs","MP max frame duration (ms, default 3500)","number"],
+  ["machinePacedNoResponseMs","MP no-response timeout (ms, default 6000)","number"],
+  ["maxTestDurationMs","Max TOTAL test time (ms, default 150000)","number"],
+  ["maxTrialCount","MP max paced trials","number"],
+  // ── Block detection ──
+  ["consecutiveMissesForBlock","Misses to trigger block (default 2)","number"],
+  // ── Block recovery (SP self-paced after block) ──
+  ["spRestartSlowerByMs","Block recovery: slower than block by (ms, default 375)","number"],
+  ["spRestartWrongLimit","Block recovery: max wrong before fail (default 3)","number"],
+  ["spRestartCorrectStreak","Block recovery: correct streak to resume (default 2)","number"],
+  ["recoveryNoResponseMs","Block recovery no-response (ms, default 10000)","number"],
+  // ── Convergence ──
+  ["qualifyingBlockGapMs","Convergence: max gap between blocks (ms, default 250)","number"],
+  // ── Anti-spoof ──
+  ["wrongWindowSize","Anti-spoof: wrong window size","number"],
+  ["wrongThresholdStop","Anti-spoof: max wrong in window","number"],
+  ["rollMeanWindow","Anti-spoof: rolling mean window (responses)","number"],
+  ["rollMeanThreshold","Anti-spoof threshold (0–1, e.g. 0.50)","number"],
+  // ── Scoring ──
+  ["cpsBestMs","CPS best ms (default 600)","number"],
+  ["cpsWorstMs","CPS worst ms (default 2400)","number"],
+  // ── System ──
+  ["deviceBenchmarkEnabled","Device benchmark (0=off, 1=on)","number"],
 ];
 
 // ─── Patterns ───
@@ -183,30 +194,39 @@ function clearTimer(){ if(state.trialTimer) clearTimeout(state.trialTimer); stat
 function clearNoResponseTimer(){ if(state.absoluteNoResponseTimer) clearTimeout(state.absoluteNoResponseTimer); state.absoluteNoResponseTimer=null; }
 function clearMaxTestTimer(){ if(state.maxTestTimer) clearTimeout(state.maxTestTimer); state.maxTestTimer=null; }
 // ─── NO-RESPONSE TIMERS ───────────────────────────────────────
-// armNoResponseTimer(): phase-aware — 10s during calibration,
-//   20s during paced. Fires end condition if subject stops responding.
+// armNoResponseTimer(): phase-aware timeouts by phase:
+//   calibration trial 1: 10s | cal trials 2+: 6s
+//   machine-paced: 6s (frame ends anyway) | recovery: 10s
+//   Fires end condition if subject stops responding.
 // armMaxTestTimer(): 150s total session wall clock (cal + paced).
 // noteAnyResponse(): called on every tap to reset the 10/20s timer.
 // ──────────────────────────────────────────────────────────────
 function armNoResponseTimer(){
   clearNoResponseTimer();
   let ms;
-  if(state.phase==="calibration"){
-    // First trial: 10s (subject may still be reading instructions)
-    // Subsequent trials: 6s
-    const isFirst = (state.calibrationTrialIndex||0) === 0;
-    ms = isFirst
-      ? (Number(settings.calibrationFirstNoResponseMs)||10000)
-      : (Number(settings.calibrationNoResponseMs)||6000);
-  } else {
-    ms = Number(settings.noResponseTimeoutMs)||20000;
+  switch(state.phase){
+    case "calibration":
+      // First trial 10s (orienting), subsequent 6s
+      ms = (state.calibrationTrialIndex||0)===0
+        ? (Number(settings.calibrationFirstNoResponseMs)||10000)
+        : (Number(settings.calibrationNoResponseMs)||6000);
+      break;
+    case "paced":
+      // Machine-paced: frame ends anyway, 6s safety net
+      ms = Number(settings.machinePacedNoResponseMs)||6000;
+      break;
+    case "recovery":
+    case "terminal_recovery":
+      // Self-paced recovery after block: more time to stabilize
+      ms = Number(settings.recoveryNoResponseMs)||10000;
+      break;
+    default:
+      ms = 20000;
   }
   state.absoluteNoResponseTimer=setTimeout(()=>{
-    if(state.phase==="calibration"){
-      state.endReason="NO RESPONSE — Retest";
-    } else {
-      state.endReason="NOT RESPONDING IN TIME — Retest";
-    }
+    state.endReason = state.phase==="calibration"
+      ? "NO RESPONSE — Retest"
+      : "NOT RESPONDING IN TIME — Retest";
     finish();
   }, ms);
 }
@@ -1877,18 +1897,23 @@ function tutSkip(){
 $("subjectNextBtn").onclick=()=>{
   const v=($("subjectIdInput")?.value||"").trim().toLowerCase();
   if(!v){ setStatus("Enter your email address"); return; }
-  // Allow guest shortcut
   if(v==="0"||v==="guest"){
     state.subjectId="Guest"; state.profile=null;
-    showOnly("refresherOverlay"); setStatus("Continuing as Guest");
-    return;
+    showOnly("refresherOverlay"); setStatus("Continuing as Guest"); return;
   }
-  // Basic email validation
   if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)){
     setStatus("Please enter a valid email address"); return;
   }
   $("subjectIdInput").value=v;
-  openProfileOverlay(v);
+  // If profile already saved for this email → skip profile page
+  const saved=loadProfile();
+  if(saved&&saved.email===v){
+    state.subjectId=v; state.profile=saved;
+    showOnly("refresherOverlay"); setStatus("Welcome back, "+v);
+  } else {
+    // New user or different email → collect profile
+    openProfileOverlay(v);
+  }
 };
 $("skipRefresherBtn").onclick=()=>{
   showTutorial(); setStatus("Tutorial");
