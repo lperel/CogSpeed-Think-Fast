@@ -33,8 +33,8 @@ const DEFAULTS={
   initialPacedPercent:0.70,
   calibrationStopErrors:5,
   calibrationStopSlowMs:10000,
-  cpsBestMs:800,
-  cpsWorstMs:3000,
+  cpsBestMs:600,
+  cpsWorstMs:2400,
   deviceBenchmarkEnabled:0
 };
 
@@ -923,7 +923,21 @@ RESPONSE STATISTICS
   Paced RT SD:           ${sd!=null?sd.toFixed(1)+" ms":"—"}
 ${hr}
 END REASON
-  ${result.endReason}`;
+  ${result.endReason}
+${hr}
+COGNITIVE PERFORMANCE REFERENCE TABLE
+  S-PF | CPI  | BRD ms  | Performance Capability
+  ─────┼──────┼─────────┼────────────────────────────────────
+    7  | 100  |   600   | FUNCTIONING EXCEPTIONALLY WELL
+    6  |  80  |   800   | FUNCTIONING VERY WELL
+    5  |  75  |  1050   | FUNCTIONING NORMALLY
+    4  |  50  |  1500   | FUNCTIONING SLIGHTLY LESS THAN NORMAL
+    3  |  25  |  1950   | FUNCTIONING — STARTING TO SLOW
+    2  |  11  |  2200   | DIFFICULT TO FUNCTION — BECOMING UNSAFE
+    1  |   0  | >2400   | UNABLE TO FUNCTION — DEFINITELY UNSAFE
+  ─────┴──────┴─────────┴────────────────────────────────────
+  BRD = avg last 2 blocks  |  CPI = 0-100 scale
+  Source: Perelli (2026), Gray Matter Metrics, LLC`;
 }
 
 // ─── Results page — gear spin outro then thinking box ───
