@@ -20,6 +20,7 @@ const DEFAULTS={
   spRestartCorrectStreak:2,
   qualifyingBlockGapMs:250,
   rollMeanWindow:8,
+  rollMeanThreshold:0.50,
   noResponseTimeoutMs:20000,
   wrongWindowSize:5,
   wrongThresholdStop:4,
@@ -43,7 +44,8 @@ const ADMIN_FIELDS=[
   ["spRestartWrongLimit","SP Restart: wrong limit","number"],
   ["spRestartCorrectStreak","SP Restart: correct streak needed","number"],
   ["qualifyingBlockGapMs","Max block diff to end (ms)","number"],
-  ["rollMeanWindow","Rolling mean window","number"],
+  ["rollMeanWindow","Rolling mean window (responses)","number"],
+  ["rollMeanThreshold","Anti-spoof threshold (0–1, e.g. 0.50)","number"],
   ["noResponseTimeoutMs","No-response timeout (ms)","number"],
   ["wrongWindowSize","Wrong-answer window","number"],
   ["wrongThresholdStop","Wrong threshold","number"],
@@ -398,7 +400,8 @@ function recordAnswer(ok,isMiss){
     if(state.rollMeanLog.length>win) state.rollMeanLog.shift();
     if(state.rollMeanLog.length===win){
       const ratio=state.rollMeanLog.filter(v=>v===true).length/win;
-      if(ratio<0.70){ state.endReason=`Rolling accuracy below 70% (${(ratio*100).toFixed(0)}%)`; finish(); return true; }
+      const thresh=Number(settings.rollMeanThreshold)||0.50;
+      if(ratio<thresh){ state.endReason=`Anti-spoof check: accuracy below ${(thresh*100).toFixed(0)}% (${(ratio*100).toFixed(0)}% in last ${win} responses)`; finish(); return true; }
     }
     const wc=state.lastFiveAnswers.filter(v=>v===false).length;
     if(state.lastFiveAnswers.length===settings.wrongWindowSize&&wc>settings.wrongThresholdStop){
