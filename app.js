@@ -599,17 +599,30 @@ function handleTap(index){
   const rt=performance.now()-state.trialOpenedAt;
   if(state.previousMissed&&rt<600){
     const correctForLast=state.previous&&!state.previous.resolved&&trialMatches(state.previous,index);
-    state.totalResponses+=1; state.previousMissed=false; state.lastFrameDuration=null;
+    state.totalResponses+=1;
+    // Save lastFrameDuration BEFORE clearing it
+    const savedLastDur=state.lastFrameDuration||state.duration;
+    state.previousMissed=false; state.lastFrameDuration=null;
     // Subject responded during this frame — mark it so the current trial is NOT a true miss
     state.hadResponse=true;
     if(correctForLast){
-      state.previous.resolved=true; const eRT=rt+(state.lastFrameDuration||state.duration);
+      state.previous.resolved=true;
+      const eRT=rt+savedLastDur;
       applyPacing(eRT,true); state.totalCorrect+=1; state.pacedRTs.push(rt);
-      logTrial({phase:"paced_late_correct",rt,outcome:"correct",responseIndex:index}); flashBtn(index,true);
+      // Log against the PREVIOUS trial so probe/cell/response are correct
+      const savedCurrent=state.current;
+      state.current=state.previous;
+      logTrial({phase:"paced_late_correct",rt,outcome:"correct",responseIndex:index});
+      state.current=savedCurrent;
+      flashBtn(index,true);
       if(recordAnswer(true)) return;
     }else{
       applyPacing(null,false); state.totalIncorrect+=1; state.pacedErrors+=1;
-      logTrial({phase:"paced_late_wrong",rt,outcome:"wrong",responseIndex:index}); flashBtn(index,false);
+      const savedCurrent=state.current;
+      state.current=state.previous;
+      logTrial({phase:"paced_late_wrong",rt,outcome:"wrong",responseIndex:index});
+      state.current=savedCurrent;
+      flashBtn(index,false);
       if(recordAnswer(false)) return;
     }
     return;
