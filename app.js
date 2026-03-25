@@ -1347,6 +1347,172 @@ ${[
   Source: Perelli (2026), Gray Matter Metrics, LLC`;
 }
 
+
+// ─── SPEEDOMETER — Brain Speed Dial ───────────────────────────
+// Draws a semicircular speedometer (0–100 CPS).
+// Color arc: red(0-25) → orange(25-50) → light green(50-75) → dark green(75-100)
+// Needle points to CPS score. Block ms shown at needle tip.
+// Dithers (small oscillation) to feel alive. Fail = needle at 0.
+// ──────────────────────────────────────────────────────────────
+function drawSpeedometer(canvas, cps, blockMs, success){
+  const dpr = window.devicePixelRatio||1;
+  const W = canvas.offsetWidth||canvas.width||390;
+  const H = Math.round(W * 0.58);  // slight oval — fills screen nicely
+  canvas.width  = W * dpr;
+  canvas.height = H * dpr;
+  canvas.style.width  = W + "px";
+  canvas.style.height = H + "px";
+  const ctx = canvas.getContext("2d");
+  ctx.scale(dpr, dpr);
+
+  const cx = W/2, cy = H*0.88;  // center low so arc fills top
+  const R  = Math.min(W*0.46, H*0.86);
+
+  // Arc spans 180° — from left (π) to right (0), bottom is start
+  // Map CPS 0→100 to angle π→0 (left to right)
+  const startA = Math.PI;
+  const endA   = 0;
+  function cpsToAngle(v){ return Math.PI - (v/100)*Math.PI; }
+
+  // ── Color arc (thick) ──
+  const arcSegs = [
+    {from:0,   to:25,  color:"#cc2200"},
+    {from:25,  to:50,  color:"#e87800"},
+    {from:50,  to:75,  color:"#88cc44"},
+    {from:75,  to:100, color:"#226600"},
+  ];
+  ctx.lineWidth = R*0.14;
+  arcSegs.forEach(s=>{
+    ctx.beginPath();
+    ctx.arc(cx, cy, R, cpsToAngle(s.to), cpsToAngle(s.from), false);
+    ctx.strokeStyle = s.color;
+    ctx.stroke();
+  });
+
+  // ── Thin dark border on arc ──
+  ctx.lineWidth = 1.5;
+  ctx.strokeStyle = "rgba(0,0,0,0.4)";
+  ctx.beginPath();
+  ctx.arc(cx, cy, R*(1+0.07), startA, endA, false);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.arc(cx, cy, R*(1-0.07), startA, endA, false);
+  ctx.stroke();
+
+  // ── Tick marks ──
+  for(let v=0; v<=100; v+=5){
+    const a = cpsToAngle(v);
+    const isMaj = v%25===0;
+    const r1 = R*(isMaj?1.12:1.09);
+    const r2 = R*(isMaj?0.92:0.95);
+    ctx.beginPath();
+    ctx.moveTo(cx+r1*Math.cos(a), cy+r1*Math.sin(a));
+    ctx.lineTo(cx+r2*Math.cos(a), cy+r2*Math.sin(a));
+    ctx.strokeStyle = isMaj?"rgba(255,255,255,0.9)":"rgba(255,255,255,0.45)";
+    ctx.lineWidth = isMaj?2:1;
+    ctx.stroke();
+  }
+
+  // ── Scale labels (0,25,50,75,100) ──
+  ctx.textAlign="center"; ctx.textBaseline="middle";
+  ctx.fillStyle="rgba(255,255,255,0.85)";
+  ctx.font = `bold ${Math.round(R*0.115)}px sans-serif`;
+  [0,25,50,75,100].forEach(v=>{
+    const a = cpsToAngle(v);
+    const lr = R*1.26;
+    ctx.fillText(String(v), cx+lr*Math.cos(a), cy+lr*Math.sin(a));
+  });
+
+  // ── "CPS" label above center ──
+  ctx.font = `bold ${Math.round(R*0.1)}px sans-serif`;
+  ctx.fillStyle = "rgba(127,215,255,0.8)";
+  ctx.fillText("CPS", cx, cy - R*0.3);
+
+  // ── Hub ──
+  const hubR = R*0.07;
+  ctx.beginPath(); ctx.arc(cx,cy,hubR*1.4,0,Math.PI*2);
+  ctx.fillStyle="#1a2a3c"; ctx.fill();
+  ctx.beginPath(); ctx.arc(cx,cy,hubR,0,Math.PI*2);
+  ctx.fillStyle="#7fd7ff"; ctx.fill();
+
+  // ── Needle ──
+  const needleAngle = cpsToAngle(cps);
+  const nLen  = R*0.88;
+  const nBase = R*0.12;
+  const nTip  = {x: cx + nLen*Math.cos(needleAngle), y: cy + nLen*Math.sin(needleAngle)};
+  const perp  = needleAngle + Math.PI/2;
+  ctx.beginPath();
+  ctx.moveTo(cx + nBase*Math.cos(perp),     cy + nBase*Math.sin(perp));
+  ctx.lineTo(nTip.x, nTip.y);
+  ctx.lineTo(cx - nBase*Math.cos(perp),     cy - nBase*Math.sin(perp));
+  ctx.closePath();
+  ctx.fillStyle = success ? "#ffffff" : "#ff4444";
+  ctx.shadowColor = success ? "rgba(127,215,255,0.7)" : "rgba(255,68,68,0.7)";
+  ctx.shadowBlur = 12;
+  ctx.fill();
+  ctx.shadowBlur = 0;
+
+  // ── Block ms box at needle tip ──
+  if(blockMs!=null){
+    const bx = cx + (nLen+R*0.04)*Math.cos(needleAngle);
+    const by = cy + (nLen+R*0.04)*Math.sin(needleAngle);
+    const label = blockMs>=1000?(blockMs/1000).toFixed(2)+"s":Math.round(blockMs)+"ms";
+    const fs = Math.round(R*0.085);
+    ctx.font = `bold ${fs}px sans-serif`;
+    const tw = ctx.measureText(label).width + 12;
+    const th = fs + 10;
+    const bxL = bx-tw/2, byT = by-th/2;
+    // Keep box inside canvas
+    const bxLc = Math.max(4, Math.min(bxL, W-tw-4));
+    const byTc = Math.max(4, Math.min(byT, H-th-4));
+    ctx.fillStyle="rgba(10,20,40,0.85)";
+    ctx.strokeStyle=success?"#7fd7ff":"#ff6644";
+    ctx.lineWidth=1.5;
+    roundRect(ctx, bxLc, byTc, tw, th, 6);
+    ctx.fill(); ctx.stroke();
+    ctx.fillStyle="white"; ctx.textAlign="center"; ctx.textBaseline="middle";
+    ctx.fillText(label, bxLc+tw/2, byTc+th/2);
+  }
+}
+
+function roundRect(ctx, x, y, w, h, r){
+  ctx.beginPath();
+  ctx.moveTo(x+r, y);
+  ctx.lineTo(x+w-r, y); ctx.arcTo(x+w, y, x+w, y+r, r);
+  ctx.lineTo(x+w, y+h-r); ctx.arcTo(x+w, y+h, x+w-r, y+h, r);
+  ctx.lineTo(x+r, y+h); ctx.arcTo(x, y+h, x, y+h-r, r);
+  ctx.lineTo(x, y+r); ctx.arcTo(x, y, x+r, y, r);
+  ctx.closePath();
+}
+
+// Animated speedometer: sweep needle from 0 to target, then dither
+function animateSpeedometer(canvas, targetCps, blockMs, success){
+  const dur = 1400;  // sweep duration ms
+  const t0 = performance.now();
+  const dither = 0.8;  // ±0.8 CPS dither at rest
+  const dFreq  = 0.9;  // Hz
+  let phase = "sweep";
+
+  function frame(now){
+    const elapsed = now - t0;
+    let cps;
+    if(phase==="sweep"){
+      const p = Math.min(1, elapsed/dur);
+      const ease = p<0.5 ? 2*p*p : -1+(4-2*p)*p;  // ease in-out
+      cps = targetCps * ease;
+      if(p>=1) phase="dither";
+    } else {
+      cps = targetCps + dither*Math.sin(2*Math.PI*dFreq*(elapsed-dur)/1000);
+    }
+    drawSpeedometer(canvas, Math.max(0,Math.min(100,cps)), phase==="dither"?blockMs:null, success);
+    _speedoRaf = requestAnimationFrame(frame);
+  }
+  if(_speedoRaf) cancelAnimationFrame(_speedoRaf);
+  _speedoRaf = requestAnimationFrame(frame);
+}
+let _speedoRaf = null;
+function stopSpeedometer(){ if(_speedoRaf){ cancelAnimationFrame(_speedoRaf); _speedoRaf=null; } }
+
 // ─── Results page — gear spin outro then thinking box ───
 // ─── RESULTS PAGE FLOW ────────────────────────────────────────
 // THINKING BOX: 6s animated steam+sparks FX after test ends.
@@ -1382,9 +1548,21 @@ function showResultsPage(){
         outcomeText.textContent=success?"SUCCESS!":"Test Failed";
         outcomeText.className="outcome-text "+(success?"success":"failed");
         outcome.classList.remove("hidden");
+        // Draw speedometer
+        const canvas=$("speedometerCanvas");
+        if(canvas){
+          const last=state.history[state.history.length-1];
+          const cps=success&&last?Math.max(0,Math.min(100,last.cognitivePerformanceScore||0)):0;
+          const brd=last&&last.averageLast2BlockingScoresMs!=null?last.averageLast2BlockingScoresMs:null;
+          // Size canvas to container
+          const wrap=$("speedometerWrap");
+          if(wrap) canvas.style.width=wrap.offsetWidth+"px";
+          setTimeout(()=>animateSpeedometer(canvas, cps, brd, success), 100);
+        }
       }
       setTimeout(()=>{
         if(outcome) outcome.classList.add("hidden");
+        stopSpeedometer();
         $("summaryOverlay").classList.remove("hidden");
         setTestingQuiet(false);
       },3000);
