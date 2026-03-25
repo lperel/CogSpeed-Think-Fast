@@ -28,7 +28,8 @@ const DEFAULTS={
   rollMeanWindow:8,
   rollMeanThreshold:0.50,
   noResponseTimeoutMs:20000,
-  calibrationNoResponseMs:10000,
+  calibrationFirstNoResponseMs:10000,
+  calibrationNoResponseMs:6000,
   wrongWindowSize:5,
   wrongThresholdStop:4,
   maxTrialCount:180,
@@ -38,8 +39,8 @@ const DEFAULTS={
   initialUnusedCalibrationTrials:1,
   initialMeasuredCalibrationTrials:10,
   initialPacedPercent:0.70,
-  calibrationStopErrors:5,
-  calibrationStopSlowMs:10000,
+  calibrationStopErrors:4,
+  calibrationStopSlowMs:3000,
   cpsBestMs:600,
   cpsWorstMs:2400,
   deviceBenchmarkEnabled:0
@@ -59,7 +60,8 @@ const ADMIN_FIELDS=[
   ["rollMeanWindow","Rolling mean window (responses)","number"],
   ["rollMeanThreshold","Anti-spoof threshold (0–1, e.g. 0.50)","number"],
   ["noResponseTimeoutMs","Paced no-response timeout (ms, default 20000)","number"],
-  ["calibrationNoResponseMs","Calibration no-response timeout (ms, default 10000)","number"],
+  ["calibrationFirstNoResponseMs","Cal first-trial no-response (ms, default 10000)","number"],
+  ["calibrationNoResponseMs","Cal subsequent no-response (ms, default 6000)","number"],
   ["wrongWindowSize","Wrong-answer window","number"],
   ["wrongThresholdStop","Wrong threshold","number"],
   ["maxTrialCount","Max paced trials","number"],
@@ -69,8 +71,8 @@ const ADMIN_FIELDS=[
   ["initialUnusedCalibrationTrials","Unused calibration trials","number"],
   ["initialMeasuredCalibrationTrials","Measured calibration trials","number"],
   ["initialPacedPercent","Initial paced % of calibration","number"],
-  ["calibrationStopErrors","Cal stop after N errors","number"],
-  ["calibrationStopSlowMs","Cal stop if RT exceeds (ms)","number"],
+  ["calibrationStopErrors","Cal stop after N wrong (default 4)","number"],
+  ["calibrationStopSlowMs","Cal avg RT limit (ms, default 3000)","number"],
   ["cpsBestMs","CPS best ms (score 100)","number"],
   ["cpsWorstMs","CPS worst ms (score 0)","number"],
   ["deviceBenchmarkEnabled","Benchmark before test (0/1)","number"],
@@ -188,11 +190,17 @@ function clearMaxTestTimer(){ if(state.maxTestTimer) clearTimeout(state.maxTestT
 // ──────────────────────────────────────────────────────────────
 function armNoResponseTimer(){
   clearNoResponseTimer();
-  // Calibration phase: shorter timeout (10s) — paper spec
-  // Paced/recovery phase: longer timeout (noResponseTimeoutMs default 20s)
-  const ms = state.phase==="calibration"
-    ? (Number(settings.calibrationNoResponseMs)||10000)
-    : (Number(settings.noResponseTimeoutMs)||20000);
+  let ms;
+  if(state.phase==="calibration"){
+    // First trial: 10s (subject may still be reading instructions)
+    // Subsequent trials: 6s
+    const isFirst = (state.calibrationTrialIndex||0) === 0;
+    ms = isFirst
+      ? (Number(settings.calibrationFirstNoResponseMs)||10000)
+      : (Number(settings.calibrationNoResponseMs)||6000);
+  } else {
+    ms = Number(settings.noResponseTimeoutMs)||20000;
+  }
   state.absoluteNoResponseTimer=setTimeout(()=>{
     if(state.phase==="calibration"){
       state.endReason="NO RESPONSE — Retest";
@@ -513,11 +521,12 @@ function maybeTriggerTerminalRule(){
 function failCalibration(reason){ state.endReason=reason; finish(); }
 // ─── CALIBRATION — SELF-PACED ─────────────────────────────────
 // 1 unused + 10 measured self-paced trials.
-// CHECK ADEQUATELY TRAINED: >5 errors → "TOO MANY WRONG RESPONSES"
-// CHECK ADEQUATELY TRAINED: single RT >10s → "NOT RESPONDING IN TIME"
+// CHECK ADEQUATELY TRAINED: >4 errors → "TOO MANY WRONG RESPONSES"
+// CHECK RESPONSE SPEED: single RT >3000ms → "NOT RESPONDING IN TIME — Practice!"
 // DETERMINE BASELINE RT: avg of 10 measured RTs → paced start duration
-//   (initialPacedPercent=0.70 × avg, clamped to 800-10000ms).
-// CONDITION 4: avg RT >10s → "NEED MORE PRACTICE!"
+//   (initialPacedPercent=0.70 × avg, clamped to 800ms-maxDurationMs).
+// CONDITION 4: avg RT >3000ms → "NEED MORE PRACTICE!"
+// NO-RESPONSE TIMEOUTS: first trial=10s, subsequent=6s
 // ──────────────────────────────────────────────────────────────
 function finishCalibration(){
   const avg=mean(state.calibrationRTs);
@@ -1977,9 +1986,27 @@ $("trialLogCloseBtn").onclick=()=>$("trialLogOverlay").classList.add("hidden");
 $("trialLogCsvBtn").onclick=()=>downloadTrialLogCSV();
 $("historyCloseBtn").onclick=()=>$("historyOverlay").classList.add("hidden");
 $("historyClearBtn").onclick=()=>{
-  if(!confirm("Clear ALL session history? This cannot be undone.")) return;
-  state.history=[]; localStorage.removeItem("cogspeed_v20_history");
-  buildHistoryOverlay(); setStatus("History cleared.");
+  const btn=$("historyClearBtn");
+  if(btn._confirmPending){
+    clearTimeout(btn._confirmTimer);
+    btn._confirmPending=false;
+    btn.textContent="🗑 Clear History";
+    btn.style.color="rgba(255,100,136,0.5)";
+    btn.style.borderColor="rgba(255,100,136,0.3)";
+    state.history=[]; localStorage.removeItem("cogspeed_v20_history");
+    buildHistoryOverlay(); setStatus("History cleared.");
+  } else {
+    btn._confirmPending=true;
+    btn.textContent="Tap again to confirm";
+    btn.style.color="#ff6688";
+    btn.style.borderColor="#ff6688";
+    btn._confirmTimer=setTimeout(()=>{
+      btn._confirmPending=false;
+      btn.textContent="🗑 Clear History";
+      btn.style.color="rgba(255,100,136,0.5)";
+      btn.style.borderColor="rgba(255,100,136,0.3)";
+    },3000);
+  }
 };
 const _tsel=$("trialLogSessionSelect");
 if(_tsel) _tsel.onchange=()=>buildTrialLog();
