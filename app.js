@@ -725,17 +725,28 @@ function drawCombinedChart(canvas,hist){
   [0,25,50,75,100].forEach(v=>{ const y=yL(v,0,100); ctx.beginPath(); ctx.moveTo(PAD.left,y); ctx.lineTo(PAD.left+cW,y); ctx.stroke(); });
   ctx.font="10px sans-serif"; ctx.fillStyle="#7fd7ff"; ctx.textAlign="right";
   [0,25,50,75,100].forEach(v=>ctx.fillText(String(v),PAD.left-4,yL(v,0,100)+4));
+  // ms axis: RIGHT side — REVERSED (smaller ms = better = higher on chart)
+  // t=0 → y=PAD.top (top of chart) = bMax (worst/highest ms)
+  // t=5 → y=PAD.top+cH (bottom of chart) = bMin (best/lowest ms)
   ctx.fillStyle="#ff9f40"; ctx.textAlign="left";
-  for(let t=0;t<=5;t++){ const v=bMin+(t/5)*(bMax-bMin); ctx.fillText(v>=1000?(v/1000).toFixed(1)+"s":Math.round(v)+"ms",PAD.left+cW+4,PAD.top+cH-(t/5)*cH+4); }
+  for(let t=0;t<=5;t++){
+    const v=bMax-(t/5)*(bMax-bMin);  // bMax at top label, bMin at bottom
+    const y=PAD.top+(t/5)*cH;
+    const label=v>=1000?(v/1000).toFixed(1)+"s":Math.round(v)+"ms";
+    ctx.fillText(label,PAD.left+cW+4,y+4);
+  }
+  // x-axis session labels
   ctx.fillStyle="#7fa0c0"; ctx.font="10px sans-serif"; ctx.textAlign="center";
   for(let i=0;i<n;i++) ctx.fillText(String(i+1),xO(i),PAD.top+cH+14);
+  // drawSeries: draw line + dots + value labels
   function drawSeries(vals,toY,color){
     ctx.strokeStyle=color; ctx.lineWidth=2.2; ctx.beginPath(); let started=false;
     vals.forEach((v,i)=>{ if(v==null){started=false;return;} const x=xO(i),y=toY(v); if(!started){ctx.moveTo(x,y);started=true;}else ctx.lineTo(x,y); });
     ctx.stroke();
     vals.forEach((v,i)=>{ if(v==null) return; ctx.fillStyle=color; ctx.beginPath(); ctx.arc(xO(i),toY(v),3.5,0,Math.PI*2); ctx.fill(); ctx.font="9px sans-serif"; ctx.textAlign="center"; ctx.fillText(v>100?(v/1000).toFixed(1)+"s":v.toFixed(0),xO(i),toY(v)-6); ctx.textAlign="left"; });
   }
-  function blockToY(v){ return PAD.top+cH-((v-bMin)/((bMax-bMin)||1))*cH; }
+  // blockToY: REVERSED — smaller ms → smaller y → higher on chart
+  function blockToY(v){ return PAD.top+((v-bMin)/((bMax-bMin)||1))*cH; }
   function spfToY(v){ return yL(v,1,7); }
   drawSeries(blockVals,blockToY,"#ff9f40");
   drawSeries(cpsVals,v=>yL(v,0,100),"#7fd7ff");
@@ -757,12 +768,20 @@ function drawRTScatterChart(canvas,rtLog,blocks,meanRT,sdRT){
   const PAD={top:20,right:20,bottom:30,left:48},cW=W-PAD.left-PAD.right,cH=H-PAD.top-PAD.bottom;
   const rts=rtLog.filter(e=>e.rt!=null).map(e=>e.rt);
   if(!rts.length) return;
-  const maxRT=Math.max(...rts,1000);
+  const maxRT=Math.ceil(Math.max(...rts,1000)/500)*500;
+  const minRT=Math.max(0,Math.floor(Math.min(...rts)/500)*500);
   const n=rtLog.length;
   function xO(i){ return PAD.left+(i/(n-1||1))*cW; }
-  function yO(v){ return PAD.top+cH-(v/maxRT)*cH; }
+  // REVERSED: smaller RT → smaller y → higher on chart
+  function yO(v){ return PAD.top+((v-minRT)/((maxRT-minRT)||1))*cH; }
   ctx.strokeStyle="rgba(79,111,153,0.2)"; ctx.lineWidth=1;
-  [250,500,750,1000].filter(v=>v<=maxRT+100).forEach(v=>{ ctx.beginPath(); ctx.moveTo(PAD.left,yO(v)); ctx.lineTo(PAD.left+cW,yO(v)); ctx.stroke(); ctx.fillStyle="#7fa0c0"; ctx.font="9px sans-serif"; ctx.textAlign="right"; ctx.fillText(`${v}ms`,PAD.left-3,yO(v)+3); });
+  // Gridlines and labels — larger ms at bottom, smaller at top
+  [250,500,750,1000,1500,2000,2500,3000].filter(v=>v>=minRT&&v<=maxRT+100).forEach(v=>{
+    const y=yO(v);
+    ctx.beginPath(); ctx.moveTo(PAD.left,y); ctx.lineTo(PAD.left+cW,y); ctx.stroke();
+    ctx.fillStyle="#7fa0c0"; ctx.font="9px sans-serif"; ctx.textAlign="right";
+    ctx.fillText(`${v}ms`,PAD.left-3,y+3);
+  });
   const colorMap={correct:"#00ff88",wrong:"#ff4466",missed:"#888",paced:"#00ff88",paced_wrong:"#ff4466","paced_late_correct":"#ffff00","paced_late_wrong":"#ff8800",calibration:"#88aaff",recovery:"#ffaa00",terminal_recovery:"#ff88ff"};
   rtLog.forEach((e,i)=>{
     if(e.rt==null) return;
