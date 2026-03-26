@@ -272,8 +272,8 @@ function patternToSVG(pattern,size="large"){
   const marks=pattern.map(([k,x,y])=>{
     const px=(x/100)*dim,py=(y/100)*dim;
     return k==="dot"
-      ?`<circle cx="${px.toFixed(1)}" cy="${py.toFixed(1)}" r="${dotR}" fill="var(--text)" stroke="black" stroke-width="1.5"/>`
-      :`<rect x="${(px-lw/2).toFixed(1)}" y="${(py-lh/2).toFixed(1)}" width="${lw}" height="${lh}" rx="2" fill="var(--text)" stroke="black" stroke-width="1.5"/>`;
+      ?`<circle cx="${px.toFixed(1)}" cy="${py.toFixed(1)}" r="${dotR}" fill="var(--text)" stroke="black" stroke-width="2"/>`
+      :`<rect x="${(px-lw/2).toFixed(1)}" y="${(py-lh/2).toFixed(1)}" width="${lw}" height="${lh}" rx="2" fill="var(--text)" stroke="black" stroke-width="2"/>`;
   }).join("");
   return `<svg width="${dim}" height="${dim}" viewBox="0 0 ${dim} ${dim}" xmlns="http://www.w3.org/2000/svg">${marks}</svg>`;
 }
@@ -393,8 +393,8 @@ function buildGearSVG(si,pattern,size,spinClass){
     const dotR=size==="probe"?8:7, lw=size==="probe"?11:9, lh=size==="probe"?18:14;
     marks=pattern.map(([k,px,py])=>{
       const ix=cx+(px/100-0.5)*iR*2.20, iy=cy+(py/100-0.5)*iR*2.20;
-      if(k==="dot") return `<circle cx="${ix.toFixed(1)}" cy="${iy.toFixed(1)}" r="${dotR}" fill="white" stroke="black" stroke-width="1.5" opacity="0.95"/>`;
-      return `<rect x="${(ix-lw/2).toFixed(1)}" y="${(iy-lh/2).toFixed(1)}" width="${lw}" height="${lh}" rx="2.5" fill="white" stroke="black" stroke-width="1.5" opacity="0.95"/>`;
+      if(k==="dot") return `<circle cx="${ix.toFixed(1)}" cy="${iy.toFixed(1)}" r="${dotR}" fill="white" stroke="black" stroke-width="2" opacity="0.95"/>`;
+      return `<rect x="${(ix-lw/2).toFixed(1)}" y="${(iy-lh/2).toFixed(1)}" width="${lw}" height="${lh}" rx="2.5" fill="white" stroke="black" stroke-width="2" opacity="0.95"/>`;
     }).join("");
   }
   const sc=spinClass||"";
@@ -1469,7 +1469,7 @@ function drawSpeedometer(canvas, cps, blockMs, success, showBlock){
   });
 
   // ── 6. Numbers ──
-  const NUM_R = R*0.595;
+  const NUM_R = R*0.545;
   ctx.textAlign="center"; ctx.textBaseline="middle"; ctx.fillStyle="#111";
   for(let v=0;v<=100;v+=10){
     const a=toAngle(v), x=cx+NUM_R*Math.cos(a), y=cy+NUM_R*Math.sin(a);
