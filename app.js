@@ -35,6 +35,7 @@ const DEFAULTS={
   wrongWindowSize:5,
   wrongThresholdStop:4,
   maxTrialCount:180,
+  maxPacedWrong:20,
   maxTestDurationMs:150000,
   minDurationMs:600,
   maxDurationMs:3500,
@@ -43,8 +44,8 @@ const DEFAULTS={
   initialPacedPercent:0.70,
   calibrationStopErrors:4,
   calibrationStopSlowMs:5000,
-  cpsBestMs:900,
-  cpsWorstMs:3400,
+  cpiBestMs:900,
+  cpiWorstMs:3400,
   deviceBenchmarkEnabled:0
 };
 
@@ -70,6 +71,7 @@ const ADMIN_FIELDS=[
   ["machinePacedNoResponseMs","MP no-response timeout (ms, default 15000)","number"],
   ["maxTestDurationMs","Max TOTAL test time (ms, default 150000)","number"],
   ["maxTrialCount","MP max paced trials","number"],
+  ["maxPacedWrong","MP max total wrong before fail (default 20)","number"],
   // ── Block detection ──
   ["consecutiveMissesForBlock","Misses to trigger block (default 2)","number"],
   // ── Block recovery (SP self-paced after block) ──
@@ -86,8 +88,8 @@ const ADMIN_FIELDS=[
   ["rollMeanWindow","Anti-spoof: rolling mean window (responses)","number"],
   ["rollMeanThreshold","Anti-spoof threshold (0–1, e.g. 0.50)","number"],
   // ── Scoring ──
-  ["cpsBestMs","CPS best ms (default 900)","number"],
-  ["cpsWorstMs","CPS worst ms (default 3400)","number"],
+  ["cpiBestMs","CPI best ms (default 900)","number"],
+  ["cpiWorstMs","CPI worst ms (default 3400)","number"],
   // ── System ──
   ["deviceBenchmarkEnabled","Device benchmark (0=off, 1=on)","number"],
 ];
@@ -163,7 +165,7 @@ const $=id=>document.getElementById(id);
 const stimGrid=$("stimGrid"), probeCell=$("probeCell"), probeInner=$("probeInner"),
       respGrid=$("respGrid"), rateOut=$("rateOut"), blocksOut=$("blocksOut"),
       recoveryOut=$("recoveryOut"), wrongOut=$("wrongOut"), fatigueOut=$("fatigueOut"),
-      cpsOut=$("cpsOut"), statusLine=$("statusLine"), resultBox=$("resultBox"),
+      cpiOut=$("cpiOut"), statusLine=$("statusLine"), resultBox=$("resultBox"),
       phaseLabel=$("phaseLabel"), modeLabel=$("modeLabel"), metricsPanel=$("metricsPanel");
 let deferredPrompt=null;
 
@@ -178,18 +180,18 @@ function subjectKey(id){ return id==="0"?"Guest":id; }
 function setStatus(m){ statusLine.textContent=m; }
 function formatDuration(ms){ if(ms==null) return "—"; const s=Math.round(ms/1000),m=Math.floor(s/60); return m>0?`${m}m ${s%60}s`:`${s}s`; }
 
-// ─── CPS ───
-// ─── CPS SCORE CALCULATION ────────────────────────────────────
-// Converts avg last 2 block durations (ms) to 0-100 CPS score.
-// Scale: cpsBestMs=900ms → CPS 100, cpsWorstMs=3400ms → CPS 0.
+// ─── CPI ───
+// ─── CPI SCORE CALCULATION ────────────────────────────────────
+// Converts avg last 2 block durations (ms) to 0-100 CPI score.
+// Scale: cpiBestMs=900ms → CPI 100, cpiWorstMs=3400ms → CPI 0.
 // Source: Perelli (2026). Formula: (worst-ms)/(worst-best)*100
 // ──────────────────────────────────────────────────────────────
-function computeCPS(avgMs){
-  const best=Number(settings.cpsBestMs),worst=Number(settings.cpsWorstMs),span=worst-best;
+function computeCPI(avgMs){
+  const best=Number(settings.cpiBestMs),worst=Number(settings.cpiWorstMs),span=worst-best;
   if(!isFinite(best)||!isFinite(worst)||span<=0) return 0;
   return Math.max(0,Math.min(100,((worst-avgMs)/span)*100));
 }
-function updateCPSDisplay(avg){ cpsOut.textContent=avg!=null?computeCPS(avg).toFixed(0):"—"; }
+function updateCPIDisplay(avg){ cpiOut.textContent=avg!=null?computeCPI(avg).toFixed(0):"—"; }
 
 // ─── Timers ───
 function clearTimer(){ if(state.trialTimer) clearTimeout(state.trialTimer); state.trialTimer=null; }
@@ -500,6 +502,16 @@ function logTrial({phase,rt,outcome,responseIndex}){
 // Misses (isMiss=true) excluded from both checks (taps only).
 // ──────────────────────────────────────────────────────────────
 function trialMatches(trial,index){ return trial&&index===trial.correctPos; }
+// ─── MAX PACED WRONG CHECK ───────────────────────────
+// checkMaxPacedWrong(): ends test if total paced wrong
+//   responses reach maxPacedWrong (default 20).
+// Called after every pacedErrors increment.
+// ──────────────────────────────────────────────────────
+function checkMaxPacedWrong(){
+  const limit=Number(settings.maxPacedWrong)||20;
+  if(state.pacedErrors>=limit){ state.endReason="TOO MANY WRONG RESPONSES — Retest"; finish(); return true; }
+  return false;
+}
 function recordAnswer(ok,isMiss){
   if(!isMiss){
     state.lastFiveAnswers.push(ok);
@@ -596,14 +608,14 @@ function applyPacing(rt,correct){
 // ─── Finish ───
 // ─── TEST FINISH ──────────────────────────────────────────────
 // Called by all end conditions (success + all 8 failure modes).
-// Computes final CPS, paced RT stats, test duration.
+// Computes final CPI, paced RT stats, test duration.
 // Saves result to state.history (localStorage: cogspeed_v21_history).
 // Triggers gear spin outro → thinking box → outcome box → summary.
 // ──────────────────────────────────────────────────────────────
 function finish(){
   clearTimer(); clearNoResponseTimer(); clearMaxTestTimer();
   state.phase="finished";
-  const avg2=avgLast2Blocks(), cps=avg2!=null?computeCPS(avg2):null;
+  const avg2=avgLast2Blocks(), cps=avg2!=null?computeCPI(avg2):null;
   const sd=stdDev(state.pacedRTs);
   const blockDiff=state.overloads.length>=2?state.overloads[state.overloads.length-1]-state.overloads[state.overloads.length-2]:null;
   const testDurMs=state.testStartTime!=null?performance.now()-state.testStartTime:null;
@@ -614,7 +626,7 @@ function finish(){
     calibrationAverageMs:state.calibrationRTs.length?mean(state.calibrationRTs):null,
     blocks:[...state.overloads], blockCount:state.overloads.length,
     averageLast2BlockingScoresMs:avg2, blockScoreDifferenceMs:blockDiff,
-    cognitivePerformanceScore:cps, totalResponses:state.totalResponses,
+    cognitivePerformanceIndex:cps, totalResponses:state.totalResponses,
     totalTrials:state.totalTrials, totalCorrect:state.totalCorrect,
     totalIncorrect:state.totalIncorrect, missedTrials:state.missedTrials,
     pacedErrors:state.pacedErrors, recoveryErrors:state.recoveryErrors, pacedResponseCount:state.pacedRTs.length,
@@ -625,7 +637,7 @@ function finish(){
   };
   state.history.push(result);
   localStorage.setItem("cogspeed_v21_history",JSON.stringify(state.history));
-  updateCPSDisplay(avg2); setProbeIdle();
+  updateCPIDisplay(avg2); setProbeIdle();
   // Build the display text (also used for email)
   buildSummary(result);
   state.lastResultText = $("summaryText") ? $("summaryText").textContent : "";
@@ -690,7 +702,7 @@ function onPacedFrameEnd(){
   if(state.unresolvedStreak>=settings.consecutiveMissesForBlock){
     state.blockDuration=state.duration; state.overloads.push(state.blockDuration);
     state.unresolvedStreak=0; state.previousMissed=false; state.lastFrameDuration=null;
-    updateCPSDisplay(avgLast2Blocks());
+    updateCPIDisplay(avgLast2Blocks());
     // Check max block count
     const maxB=Math.max(2,Number(settings.maxBlockCount)||6);
     if(state.overloads.length>=maxB){ state.endReason="ERRATIC RESPONSES — Retest"; finish(); return; }
@@ -806,6 +818,7 @@ function handleTap(index){
       if(recordAnswer(true)) return;
     }else{
       applyPacing(null,false); state.totalIncorrect+=1; state.pacedErrors+=1;
+      if(checkMaxPacedWrong()) return;
       const savedCurrent=state.current;
       state.current=state.previous;
       logTrial({phase:"paced_late_wrong",rt,outcome:"wrong",responseIndex:index});
@@ -824,6 +837,7 @@ function handleTap(index){
   }
   state.hadResponse=true;
   state.totalResponses+=1; state.totalIncorrect+=1; state.pacedErrors+=1;
+  if(checkMaxPacedWrong()) return;
   applyPacing(null,false);
   logTrial({phase:"paced_wrong",rt:performance.now()-state.trialOpenedAt,outcome:"wrong",responseIndex:index});
   flashBtn(index,false); recordAnswer(false);
@@ -870,7 +884,7 @@ function renderFatigueChecklist(){
 // ─── Admin ───
 // ─── ADMIN PANEL ──────────────────────────────────────────────
 // Password-protected (default: 4822). Stays unlocked per session.
-// HISTORY AND GRAPHS: combined CPS/Block ms/SP-FS chart (last 20).
+// HISTORY AND GRAPHS: combined CPI/MBS ms/SP-FS chart (last 20).
 // TRIAL DETAIL: per-trial table with session selector + CSV download.
 // LAST RESULTS: shows summary overlay for most recent test.
 // EXPORT JSON: full history + settings as .json file.
@@ -891,7 +905,7 @@ function resetAdmin(){ settings={...DEFAULTS}; saveSettings(); renderAdmin(); }
 
 // ─── Charts ───
 // ─── HISTORY AND GRAPHS ───────────────────────────────────────
-// drawCombinedChart(): 3-series chart — CPS (cyan, left axis 0-100),
+// drawCombinedChart(): 3-series chart — CPI (cyan, left axis 0-100),
 //   Block ms (amber, right axis REVERSED: smaller ms at top = better),
 //   SP-FS (green, left axis 1-7). Shows last 20 sessions.
 //   "↑ better" label on right axis. Each series rises with improvement.
@@ -904,7 +918,7 @@ function drawCombinedChart(canvas,hist){
   const PAD={top:32,right:52,bottom:38,left:48},cW=W-PAD.left-PAD.right,cH=H-PAD.top-PAD.bottom;
   if(!hist.length){ ctx.fillStyle="#d7e7f8"; ctx.font="bold 13px sans-serif"; ctx.textAlign="center"; ctx.fillText("No data yet",W/2,H/2); return; }
   const slice=hist.slice(-20),n=slice.length,xStep=n>1?cW/(n-1):cW;
-  const cpsVals=slice.map(x=>x.cognitivePerformanceScore??null);
+  const cpsVals=slice.map(x=>x.cognitivePerformanceIndex??null);
   const blockVals=slice.map(x=>x.averageLast2BlockingScoresMs??null);
   const spfVals=slice.map(x=>x.samnPerelli?x.samnPerelli.score:null);
   const bValid=blockVals.filter(v=>v!=null);
@@ -942,8 +956,8 @@ function drawCombinedChart(canvas,hist){
   drawSeries(blockVals,blockToY,"#ff9f40");
   drawSeries(cpsVals,v=>yL(v,0,100),"#7fd7ff");
   drawSeries(spfVals,spfToY,"#88ff88");
-  ctx.fillStyle="#7fd7ff"; ctx.font="bold 9px sans-serif"; ctx.textAlign="left"; ctx.fillText("■ CPS",PAD.left,PAD.top-4);
-  ctx.fillStyle="#ff9f40"; ctx.fillText("■ Block ms",PAD.left+50,PAD.top-4);
+  ctx.fillStyle="#7fd7ff"; ctx.font="bold 9px sans-serif"; ctx.textAlign="left"; ctx.fillText("■ CPI",PAD.left,PAD.top-4);
+  ctx.fillStyle="#ff9f40"; ctx.fillText("■ MBS ms",PAD.left+50,PAD.top-4);
   ctx.fillStyle="#88ff88"; ctx.fillText("■ S-PF",PAD.left+115,PAD.top-4);
   ctx.fillStyle="rgba(255,159,64,0.7)"; ctx.font="9px sans-serif"; ctx.textAlign="right";
   ctx.fillText("\u2191 better",PAD.left+cW+50,PAD.top-4);
@@ -987,7 +1001,7 @@ function drawRTScatterChart(canvas,rtLog,blocks,meanRT,sdRT){
 // exportResults(): downloads full history as cogspeed_v21_results.json
 // exportCSV(): downloads history as cogspeed_v21_history.csv
 //   Columns: session, subjectId, date, SP-FS, calibration, blocks,
-//   CPS, taps, correct, wrong, missed, paced stats, duration, end reason.
+//   CPI, taps, correct, wrong, missed, paced stats, duration, end reason.
 // emailResults(): opens mailto: with last result text in body.
 // ──────────────────────────────────────────────────────────────
 function exportResults(){
@@ -997,7 +1011,7 @@ function exportResults(){
 function exportCSV(){
   const h=state.history; if(!h.length){setStatus("No history to export."); return;}
   const cols=["session","subjectId","date","samnPerelli","calibAvgMs","blocks",
-    "avgLast2Ms","blockDiffMs","cps","totalTaps","correct","wrong","missed",
+    "avgLast2Ms","blockDiffMs","cpi","totalTaps","correct","wrong","missed",
     "pacedCorrect","pacedWrong","spRestartWrong","meanPacedRtMs","pacedRtSd",
     "testDurationMs","endReason","location"];
   const rows=h.map((r,i)=>[
@@ -1009,7 +1023,7 @@ function exportCSV(){
     (r.blocks||[]).join("|"),
     r.averageLast2BlockingScoresMs!=null?r.averageLast2BlockingScoresMs.toFixed(1):"",
     r.blockScoreDifferenceMs!=null?r.blockScoreDifferenceMs.toFixed(1):"",
-    r.cognitivePerformanceScore!=null?r.cognitivePerformanceScore.toFixed(1):"",
+    r.cognitivePerformanceIndex!=null?r.cognitivePerformanceIndex.toFixed(1):"",
     r.totalResponses||0, r.totalCorrect||0, r.totalIncorrect||0, r.missedTrials||0,
     r.pacedResponseCount||0, r.pacedErrors||0, r.recoveryErrors||0,
     r.pacedResponseMeanMs!=null?r.pacedResponseMeanMs.toFixed(1):"",
@@ -1257,9 +1271,9 @@ function isTestSuccess(r){ return (r||"").toLowerCase().startsWith("convergent")
 // ─── SUMMARY TEST RESULTS ─────────────────────────────────────
 // Formats full monospace result text (state.lastResultText).
 // Includes: subject ID, date/time, location, SP-FS, calibration,
-//   block scores, CPS, response stats, end reason, reference table.
-// REFERENCE TABLE: 7-row S-PF/CPI/BRD lookup from Perelli (2026)
-//   with ← YOUR SCORE arrow on the matching CPS band.
+//   block scores, CPI, response stats, end reason, reference table.
+// REFERENCE TABLE: 7-row S-PF/CPI/MBS lookup from Perelli (2026)
+//   with ← YOUR SCORE arrow on the matching CPI band.
 // ──────────────────────────────────────────────────────────────
 function buildSummary(result){
   const el=$("summaryText"); if(!el) return;
@@ -1276,7 +1290,7 @@ function buildSummary(result){
   const avg2=result.averageLast2BlockingScoresMs;
   const diff=result.blockScoreDifferenceMs;
   const diffStr=diff!=null?`${diff>0?"+":""}${diff.toFixed(0)} ms  (${diff>0?"slower":diff<0?"faster":"no change"})`:"—";
-  const cps=result.cognitivePerformanceScore;
+  const cps=result.cognitivePerformanceIndex;
   const sd=result.pacedResponseSdMs;
   // Row color by SPF level: top dark green → light green → yellow → orange → bottom 2 red
   const SPF_COLOR={7:'#1a8a1a',6:'#1a8a1a',5:'#4aaa00',4:'#c8a800',3:'#cc5500',2:'#cc1100',1:'#cc1100'};
@@ -1291,13 +1305,13 @@ function buildSummary(result){
     [1,  0,   -1, "UNABLE TO FUNCTION \u2014 DEFINITELY UNSAFE"],
   ];
   const tableRows=tableData.map(([spf,cpi,brd,cap],i)=>{
-    const brdStr = brd<0?"&gt;2400":String(brd);
+    const mbsStr = brd<0?"&gt;2400":String(brd);
     // Each row owns scores > next row's cpi and <= this row's cpi.
     // Last row owns everything <= 0.
     const loBound = i+1 < tableData.length ? tableData[i+1][1] : -Infinity;
     const inBand  = cps!=null && cps > loBound && cps <= cpi;
     const arrow   = inBand ? " \u2190 YOUR SCORE" : "";
-    const line=`    ${String(spf).padStart(2)}  | ${String(cpi).padStart(3)}  | ${brdStr.padStart(6)}  | ${cap}${arrow}`;
+    const line=`    ${String(spf).padStart(2)}  | ${String(cpi).padStart(3)}  | ${mbsStr.padStart(6)}  | ${cap}${arrow}`;
     return `<span style="color:${SPF_COLOR[spf]};font-weight:700">${line}</span>`;
   }).join("\n");
 
@@ -1322,7 +1336,7 @@ MACHINE-PACED PERFORMANCE
 ${blockList}
   Avg last 2 blocks:   ${avg2!=null?avg2.toFixed(1)+" ms":"\u2014"}
   Block score diff:    ${diffStr}
-  CPS:                 ${cps!=null?cps.toFixed(1)+" / 100":"\u2014"}
+  CPI:                 ${cps!=null?cps.toFixed(1)+" / 100":"\u2014"}
 ${hr}
 RESPONSE STATISTICS
   Total taps:            ${result.totalResponses}
@@ -1339,13 +1353,13 @@ END REASON
   ${result.endReason}
 ${hr}
 COGNITIVE PERFORMANCE REFERENCE TABLE
-  S-PF | CPI  | BRD ms  | Performance Capability
+  S-PF | CPI  | MBS ms  | Performance Capability
   \u2500\u2500\u2500\u2500\u2500\u253c\u2500\u2500\u2500\u2500\u2500\u2500\u253c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u253c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500`;
 
   const footerPart=
 `
   \u2500\u2500\u2500\u2500\u2500\u2534\u2500\u2500\u2500\u2500\u2500\u2500\u2534\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2534\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
-  BRD = avg last 2 blocks  |  CPS = 0-100 scale
+  MBS = avg last 2 blocks  |  CPI = 0-100 scale
   Source: Perelli (2026), Gray Matter Metrics, LLC`;
 
   el.innerHTML = esc(mainPart)+"\n"+tableRows+esc(footerPart);
@@ -1355,7 +1369,7 @@ COGNITIVE PERFORMANCE REFERENCE TABLE
 // ─── SPEEDOMETER V2 — Vintage Auto Meter style ────────────────
 // Full 240° round dial. Cream face, chrome bezel.
 // Color arc: red(0-25) → orange(25-50) → light green(50-75) → dark green(75-100)
-// Needle sweeps from 0 to final CPS in 1.4s ease-in-out, then dithers ±0.8 CPS.
+// Needle sweeps from 0 to final CPI in 1.4s ease-in-out, then dithers ±0.8 CPI.
 // Block ms in green LCD box appears at needle tip after sweep completes.
 // On fail: needle stays at 0, red needle, no block box.
 // ──────────────────────────────────────────────────────────────
@@ -1383,7 +1397,7 @@ function drawSpeedometer(canvas, cps, blockMs, success, showBlock){
   const cx = W/2, cy = H/2;
   const R = W*0.375; // dial radius — leaves margin for tip box
 
-  // 240° sweep: 0 CPS at 150° (lower-left), 100 CPS at 390°=30° (lower-right)
+  // 240° sweep: 0 CPI at 150° (lower-left), 100 CPI at 390°=30° (lower-right)
   const A_START = 150*Math.PI/180;
   const A_SWEEP = 240*Math.PI/180;
   function toAngle(v){ return A_START + (Math.max(0,Math.min(100,v))/100)*A_SWEEP; }
@@ -1478,10 +1492,10 @@ function drawSpeedometer(canvas, cps, blockMs, success, showBlock){
     ctx.fillText(String(v),x,y);
   }
 
-  // ── 7. "CPS" italic serif label (replaces "Auto Meter" branding) ──
+  // ── 7. "CPI" italic serif label (replaces "Auto Meter" branding) ──
   ctx.font=`italic ${(R*0.105).toFixed(1)}px Georgia,"Times New Roman",serif`;
   ctx.fillStyle="#111"; ctx.textAlign="center"; ctx.textBaseline="middle";
-  ctx.fillText("CPS", cx+R*0.13, cy+R*0.285);
+  ctx.fillText("CPI", cx+R*0.13, cy+R*0.285);
 
   // ── 8. Needle (tapered, pointed) ──
   ctx.save();
@@ -1530,10 +1544,10 @@ function drawSpeedometer(canvas, cps, blockMs, success, showBlock){
   ctx.beginPath(); ctx.arc(cx,cy,R*0.013,0,Math.PI*2); ctx.fillStyle="#aaa"; ctx.fill();
 }
 
-// Sweep needle 0→CPS in 1.4s ease-in-out, then dither ±0.8 CPS
+// Sweep needle 0→CPI in 1.4s ease-in-out, then dither ±0.8 CPI
 function animateSpeedometer(canvas, targetCps, blockMs, success){
   stopSpeedometer();
-  const finalCPS = success ? targetCps : 0;
+  const finalCPI = success ? targetCps : 0;
   const SWEEP_DUR = 1400;
   let startTime=null, phase="sweep", ditherStart=null;
 
@@ -1545,11 +1559,11 @@ function animateSpeedometer(canvas, targetCps, blockMs, success){
       const t=Math.min(elapsed/SWEEP_DUR,1);
       // Cubic ease-in-out
       const e=t<0.5?4*t*t*t:1-Math.pow(-2*t+2,3)/2;
-      cps=finalCPS*e;
+      cps=finalCPI*e;
       if(t>=1){ phase="dither"; ditherStart=ts; }
     } else {
       const dt=ts-ditherStart;
-      cps=finalCPS+Math.sin(dt*0.0044)*0.54+Math.sin(dt*0.0071)*0.26;
+      cps=finalCPI+Math.sin(dt*0.0044)*0.54+Math.sin(dt*0.0071)*0.26;
     }
     drawSpeedometer(canvas, cps, blockMs, success, phase==="dither");
     _speedoRaf=requestAnimationFrame(frame);
@@ -1596,11 +1610,11 @@ function showResultsPage(){
         // Draw speedometer
         const canvas=$("speedometerCanvas");
         if(canvas){
-          const cps=success&&last?Math.max(0,Math.min(100,last.cognitivePerformanceScore||0)):0;
-          const brd=last&&last.averageLast2BlockingScoresMs!=null?last.averageLast2BlockingScoresMs:null;
+          const cps=success&&last?Math.max(0,Math.min(100,last.cognitivePerformanceIndex||0)):0;
+          const mbs=last&&last.averageLast2BlockingScoresMs!=null?last.averageLast2BlockingScoresMs:null;
           const wrap=$("speedometerWrap");
           if(wrap) canvas.style.width=wrap.offsetWidth+"px";
-          setTimeout(()=>animateSpeedometer(canvas, cps, brd, success), 100);
+          setTimeout(()=>animateSpeedometer(canvas, cps, mbs, success), 100);
         }
         // Speedometer stays visible until user taps "View Results"
       }
@@ -1626,7 +1640,7 @@ function clearCurrentSession(){
   state.calibrationTrialIndex=0; state.calibrationRTs=[]; state.calibrationErrors=0;
   state.pacedRTs=[]; state.rtLog=[]; state.previousMissed=false; state.lastFrameDuration=null;
   state.geo=null; state.benchmark=null; state.lastResultText=null;
-  updateCPSDisplay(null); updateMetrics(); setProbeIdle(); setTestingQuiet(false);
+  updateCPIDisplay(null); updateMetrics(); setProbeIdle(); setTestingQuiet(false);
 }
 // ─── PAGE NAVIGATION ──────────────────────────────────────────
 // goToStartPage(): returns to subject ID entry, clears test state.
@@ -1723,7 +1737,7 @@ function buildTrialLog(sessionIndex){
       const idx=state.history.length-1-i;
       const opt=document.createElement("option");
       opt.value=String(idx);
-      opt.textContent=`Session ${idx+1} — ${r.subjectId} — ${new Date(r.time).toLocaleString()} — CPS: ${r.cognitivePerformanceScore!=null?r.cognitivePerformanceScore.toFixed(0):"—"}`;
+      opt.textContent=`Session ${idx+1} — ${r.subjectId} — ${new Date(r.time).toLocaleString()} — CPI: ${r.cognitivePerformanceIndex!=null?r.cognitivePerformanceIndex.toFixed(0):"—"}`;
       sel.appendChild(opt);
     });
     if(sessionIndex!=null) sel.value=String(sessionIndex);
@@ -1775,7 +1789,7 @@ function downloadTrialLogCSV(){
 
 // ─── History & Graphs overlay ───
 // ─── HISTORY OVERLAY ──────────────────────────────────────────
-// Table of all sessions (newest first) with CPS, blocks, duration.
+// Table of all sessions (newest first) with CPI, blocks, duration.
 // Clickable rows show that session's full summary.
 // Rendered inside admin → 📈 History & Graphs button.
 // ──────────────────────────────────────────────────────────────
@@ -1796,7 +1810,7 @@ function buildHistoryOverlay(){
     const spf=r.samnPerelli?r.samnPerelli.score:"—";
     const calRT=r.calibrationAverageMs!=null?r.calibrationAverageMs.toFixed(0)+"ms":"—";
     const avgBlk=r.averageLast2BlockingScoresMs!=null?r.averageLast2BlockingScoresMs.toFixed(0)+"ms":"—";
-    const cps=r.cognitivePerformanceScore!=null?r.cognitivePerformanceScore.toFixed(1):"—";
+    const cps=r.cognitivePerformanceIndex!=null?r.cognitivePerformanceIndex.toFixed(1):"—";
     const dur=formatDuration(r.testDurationMs);
     const endShort=(r.endReason||"").substring(0,30)+((r.endReason||"").length>30?"…":"");
     tr.style.cursor="pointer";
@@ -2201,7 +2215,7 @@ const _pby=$("profileBirthYear"); if(_pby) _pby.oninput=validateProfileAge;
     const inp=$("subjectIdInput"); if(inp) inp.value=p.email;
     const wl=$("subjectWelcome"); if(wl) wl.style.display="block";
     const we=$("welcomeEmail"); if(we) we.textContent=p.email;
-    const hint=$("subjectHint"); if(hint) hint.textContent="Welcome back! Tap Continue to test.";
+    const hint=$("subjectHint"); if(hint) hint.textContent="";
   }
 })();
 $("tutSkipBtn").onclick=()=>tutSkip();
