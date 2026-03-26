@@ -1,5 +1,5 @@
 // CogSpeed V21 — offline app shell service worker
-const CACHE_NAME = "cogspeed-v21-shell-v2";
+const CACHE_NAME = "cogspeed-v21-shell-v3";
 const APP_SHELL = [
   "./",
   "./index.html",
