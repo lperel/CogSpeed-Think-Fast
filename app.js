@@ -165,7 +165,7 @@ const $=id=>document.getElementById(id);
 const stimGrid=$("stimGrid"), probeCell=$("probeCell"), probeInner=$("probeInner"),
       respGrid=$("respGrid"), rateOut=$("rateOut"), blocksOut=$("blocksOut"),
       recoveryOut=$("recoveryOut"), wrongOut=$("wrongOut"), fatigueOut=$("fatigueOut"),
-      cpiOut=$("cpiOut")||$("cpsOut"), statusLine=$("statusLine"), resultBox=$("resultBox"),
+      cpiOut=$("cpiOut"), statusLine=$("statusLine"), resultBox=$("resultBox"),
       phaseLabel=$("phaseLabel"), modeLabel=$("modeLabel"), metricsPanel=$("metricsPanel");
 let deferredPrompt=null;
 
@@ -191,7 +191,7 @@ function computeCPI(avgMs){
   if(!isFinite(best)||!isFinite(worst)||span<=0) return 0;
   return Math.max(0,Math.min(100,((worst-avgMs)/span)*100));
 }
-function updateCPIDisplay(avg){ if(!cpiOut) return; cpiOut.textContent=avg!=null?computeCPI(avg).toFixed(0):"—"; }
+function updateCPIDisplay(avg){ cpiOut.textContent=avg!=null?computeCPI(avg).toFixed(0):"—"; }
 
 // ─── Timers ───
 function clearTimer(){ if(state.trialTimer) clearTimeout(state.trialTimer); state.trialTimer=null; }
@@ -387,6 +387,7 @@ function buildGearSVG(si,pattern,size,spinClass){
       spokes+=`<line x1="${(cx+rI*Math.cos(a)).toFixed(1)}" y1="${(cy+rI*Math.sin(a)).toFixed(1)}" x2="${(cx+rO*Math.cos(a)).toFixed(1)}" y2="${(cy+rO*Math.sin(a)).toFixed(1)}" stroke="${g.stroke}" stroke-width="3" stroke-linecap="round"/>`;
     }
   }
+  const ringR=g.rP-g.ded-3;
   // Pattern marks — fill inside gear body
   let marks="";
   if(pattern){
@@ -468,7 +469,7 @@ function updateMetrics(){
   rateOut.textContent=state.duration?`${Math.round(state.duration)}ms`:"—";
   blocksOut.textContent=String(state.overloads.length);
   recoveryOut.textContent=String(state.recoveries.length);
-  wrongOut.textContent=String(state.lastFiveAnswers.filter(v=>v===false).length+state.calibrationErrors);
+  wrongOut.textContent=String(state.totalIncorrect||0);
   fatigueOut.textContent=state.samnPerelli?String(state.samnPerelli.score):"—";
 }
 
@@ -501,6 +502,11 @@ function logTrial({phase,rt,outcome,responseIndex}){
 // Misses (isMiss=true) excluded from both checks (taps only).
 // ──────────────────────────────────────────────────────────────
 function trialMatches(trial,index){ return trial&&index===trial.correctPos; }
+function failWrongReason(reason){
+  state.endReason=reason;
+  finish();
+  return true;
+}
 // ─── MAX PACED WRONG CHECK ───────────────────────────
 // checkMaxPacedWrong(): ends test if total paced wrong
 //   responses reach maxPacedWrong (default 20).
@@ -508,7 +514,9 @@ function trialMatches(trial,index){ return trial&&index===trial.correctPos; }
 // ──────────────────────────────────────────────────────
 function checkMaxPacedWrong(){
   const limit=Number(settings.maxPacedWrong)||20;
-  if(state.pacedErrors>=limit){ state.endReason="TOO MANY WRONG RESPONSES — Retest"; finish(); return true; }
+  if(state.pacedErrors>=limit){
+    return failWrongReason(`FAILED — paced wrong taps reached ${state.pacedErrors} (limit ${limit}). Misses are tracked separately and are not counted as wrong taps.`);
+  }
   return false;
 }
 function recordAnswer(ok,isMiss){
@@ -519,13 +527,17 @@ function recordAnswer(ok,isMiss){
     const win=Math.max(1,Math.round(Number(settings.rollMeanWindow)||8));
     if(state.rollMeanLog.length>win) state.rollMeanLog.shift();
     if(state.rollMeanLog.length===win){
-      const ratio=state.rollMeanLog.filter(v=>v===true).length/win;
+      const correctCount=state.rollMeanLog.filter(v=>v===true).length;
+      const ratio=correctCount/win;
       const thresh=Number(settings.rollMeanThreshold)||0.50;
-      if(ratio<thresh){ state.endReason="TOO MANY WRONG RESPONSES! — Retest"; finish(); return true; }
+      if(ratio<thresh){
+        const pct=Math.round(thresh*100);
+        return failWrongReason(`FAILED — last ${win} tapped responses were ${correctCount}/${win} correct (${Math.round(ratio*100)}%), below the ${pct}% minimum. Misses are tracked separately and are not counted as wrong taps.`);
+      }
     }
     const wc=state.lastFiveAnswers.filter(v=>v===false).length;
     if(state.lastFiveAnswers.length===settings.wrongWindowSize&&wc>settings.wrongThresholdStop){
-      state.endReason="TOO MANY WRONG RESPONSES! — Retest"; finish(); return true;
+      return failWrongReason(`FAILED — ${wc} wrong taps in the last ${settings.wrongWindowSize} tapped responses (limit ${settings.wrongThresholdStop}). Misses are tracked separately and are not counted as wrong taps.`);
     }
   }
   updateMetrics(); return false;
@@ -670,7 +682,6 @@ function openTrial(kind){
     const idx=state.calibrationTrialIndex+1,total=settings.initialUnusedCalibrationTrials+settings.initialMeasuredCalibrationTrials;
     phaseLabel.textContent=`Cal ${idx}/${total}`;
     setStatus(idx<=settings.initialUnusedCalibrationTrials?"Self-paced (unused)":"Self-paced (measured)");
-    armNoResponseTimer();
   }else if(kind==="paced"){
     phaseLabel.textContent=`Paced · ${Math.round(state.duration)}ms`;
     setStatus("Machine-paced");
@@ -678,11 +689,9 @@ function openTrial(kind){
   }else if(kind==="recovery"){
     phaseLabel.textContent=`SP Restart ${state.spCorrectStreak}✓ ${state.spWrongCount}✗`;
     setStatus(`SP Restart — need ${settings.spRestartCorrectStreak} correct in a row`);
-    armNoResponseTimer();
   }else if(kind==="terminal_recovery"){
     phaseLabel.textContent=`Final SP ${state.recoveryCorrectCompleted+1}/${settings.spRestartCorrectStreak}`;
     setStatus("Final self-paced recovery");
-    armNoResponseTimer();
   }
 }
 
@@ -693,6 +702,7 @@ function onPacedFrameEnd(){
   // True miss = no tap at all. Wrong tap = had response but unresolved.
   // Only true misses count toward block threshold.
   const truelyMissed=state.current&&!state.current.resolved&&!state.hadResponse;
+  const wrongAndUnresolved=state.current&&!state.current.resolved&&state.hadResponse;
   if(truelyMissed){
     logTrial({phase:"missed",rt:null,outcome:"missed",responseIndex:null});
     state.missedTrials+=1; state.previousMissed=true; state.lastFrameDuration=state.duration;
@@ -737,7 +747,7 @@ function handleTap(index){
     logTrial({phase:"calibration",rt,outcome:ok?"correct":"wrong",responseIndex:index});
     if(!ok){
       state.calibrationErrors+=1; updateMetrics();
-      if(state.calibrationErrors>settings.calibrationStopErrors){ failCalibration("TOO MANY WRONG RESPONSES — Practice!"); return; }
+      if(state.calibrationErrors>settings.calibrationStopErrors){ failCalibration(`FAILED — calibration wrong taps reached ${state.calibrationErrors} after warm-up/measured calibration (limit ${settings.calibrationStopErrors}). Practice and retry.`); return; }
     }else{
       if(rt>settings.calibrationStopSlowMs){ failCalibration("NOT RESPONDING IN TIME — Practice!"); return; }
       if(state.calibrationTrialIndex>=settings.initialUnusedCalibrationTrials) state.calibrationRTs.push(rt);
@@ -772,7 +782,7 @@ function handleTap(index){
     }else{
       state.spCorrectStreak=0; state.spWrongCount+=1; state.recoveryErrors+=1;
       const limit=Math.max(1,Number(settings.spRestartWrongLimit)||3);
-      if(state.spWrongCount>=limit){ state.endReason="TOO MANY WRONG RESPONSES! — Retest"; finish(); return; }
+      if(state.spWrongCount>=limit){ failWrongReason(`FAILED — SP Restart wrong taps reached ${state.spWrongCount} (limit ${limit}). Misses are tracked separately and are not counted as wrong taps.`); return; }
       setStatus(`SP Restart: ${state.spWrongCount}/${limit} wrong`);
       setTimeout(()=>openTrial("recovery"),160);
     }
@@ -1340,13 +1350,14 @@ ${blockList}
   CPI:                 ${cps!=null?cps.toFixed(1)+" / 100":"\u2014"}
 ${hr}
 RESPONSE STATISTICS
-  Total taps:            ${result.totalResponses}
-    Correct:             ${result.totalCorrect}
-    Wrong:               ${result.totalIncorrect}
-  Missed (no response):  ${result.missedTrials}
-  Paced correct taps:    ${result.pacedResponseCount||0}
-  Paced wrong taps:      ${result.pacedErrors||0}
-  SP Restart wrong taps: ${result.recoveryErrors||0}
+  Total taps:              ${result.totalResponses}
+    Correct:               ${result.totalCorrect}
+    Wrong taps total:      ${result.totalIncorrect}
+  Missed (no response):    ${result.missedTrials}
+  Calibration wrong taps:  ${Math.max(0,(result.totalIncorrect||0)-((result.pacedErrors||0)+(result.recoveryErrors||0)))}
+  Paced wrong taps:        ${result.pacedErrors||0}
+  SP Restart wrong taps:   ${result.recoveryErrors||0}
+  Paced correct taps:      ${result.pacedResponseCount||0}
   Mean paced RT:         ${result.pacedResponseMeanMs!=null?result.pacedResponseMeanMs.toFixed(1)+" ms":"\u2014"}
   Paced RT SD:           ${sd!=null?sd.toFixed(1)+" ms":"\u2014"}
 ${hr}
@@ -1605,7 +1616,8 @@ function showResultsPage(){
       stopFX(); if(thinking) thinking.classList.add("hidden");
       const outcome=$("outcomeOverlay"),outcomeText=$("outcomeText");
       if(outcome&&outcomeText){
-        outcomeText.textContent=success?"SUCCESS!":"Test Failed";
+        const failText=last&&!success?(last.endReason||"Test Failed"):"";
+        outcomeText.textContent=success?"SUCCESS!":`Test Failed — ${failText}`;
         outcomeText.className="outcome-text "+(success?"success":"failed");
         outcome.classList.remove("hidden");
         // Draw speedometer
@@ -1716,6 +1728,7 @@ function startTest(){
   captureGeo();
   runGearSpinThenStart(()=>{
     state.phase="calibration";
+    noteAnyResponse();   // start no-response timer NOW — first trial is visible
     openTrial("calibration");
   });
 }
@@ -2305,38 +2318,6 @@ async function _doInstall(){
   setStatus(msg);
 }
 const _ihb=$("installBtnHome"); if(_ihb) _ihb.onclick=_doInstall;
-
-// ─── Service worker ───
-if ("serviceWorker" in navigator) {
-  let _swRefreshing = false;
-  navigator.serviceWorker.addEventListener("controllerchange", () => {
-    if (_swRefreshing) return;
-    _swRefreshing = true;
-    window.location.reload();
-  });
-  window.addEventListener("load", () => {
-    navigator.serviceWorker.register("./sw.js").then(reg => {
-      if (reg.waiting) reg.waiting.postMessage({type:"SKIP_WAITING"});
-      reg.addEventListener("updatefound", () => {
-        const nw = reg.installing;
-        if (!nw) return;
-        nw.addEventListener("statechange", () => {
-          if (nw.state === "installed" && navigator.serviceWorker.controller) {
-            nw.postMessage({type:"SKIP_WAITING"});
-          }
-        });
-      });
-      reg.update().catch(()=>{});
-      setStatus("App ready. Offline support enabled after first load.");
-    }).catch(err => {
-      console.warn("Service worker registration failed:", err);
-      setStatus("Offline mode unavailable on this browser.");
-    });
-  });
-}
-
-window.addEventListener("online", () => setStatus("Back online."));
-window.addEventListener("offline", () => setStatus("Offline mode: using cached app files."));
 
 // ─── Init ───
 modeLabel.textContent="Subject mode";
