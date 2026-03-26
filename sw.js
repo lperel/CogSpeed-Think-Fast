@@ -1,10 +1,12 @@
 // CogSpeed V21 — offline app shell service worker
-const CACHE_NAME = "cogspeed-v21-shell-v3";
+const CACHE_NAME = "cogspeed-v21-shell-v4";
 const APP_SHELL = [
   "./",
   "./index.html",
   "./app.js",
   "./manifest.json",
+  "./privacy.html",
+  "./terms.html",
   "./icon-192.png",
   "./icon-512.png"
 ];
@@ -39,14 +41,21 @@ self.addEventListener("fetch", event => {
   if (url.origin !== self.location.origin) return;
 
   if (request.mode === "navigate") {
+    const pathname = url.pathname;
+    const isPrivacy = pathname.endsWith("/privacy.html") || pathname.endsWith("privacy.html");
+    const isTerms = pathname.endsWith("/terms.html") || pathname.endsWith("terms.html");
+    const fallback = isPrivacy ? "./privacy.html" : isTerms ? "./terms.html" : "./index.html";
+
     event.respondWith(
       fetch(request)
         .then(response => {
-          const copy = response.clone();
-          caches.open(CACHE_NAME).then(cache => cache.put("./index.html", copy)).catch(() => {});
+          if (response && response.ok) {
+            const copy = response.clone();
+            caches.open(CACHE_NAME).then(cache => cache.put(fallback, copy)).catch(() => {});
+          }
           return response;
         })
-        .catch(() => caches.match("./index.html"))
+        .catch(() => caches.match(fallback))
     );
     return;
   }
