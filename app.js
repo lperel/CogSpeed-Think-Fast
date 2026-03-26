@@ -63,7 +63,7 @@ const ADMIN_FIELDS=[
   ["calibrationFirstNoResponseMs","Cal first-trial no-response (ms, default 20000)","number"],
   ["calibrationNoResponseMs","Cal subsequent no-response (ms, default 6000)","number"],
   ["calibrationStopErrors","Cal stop after N wrong (default 4)","number"],
-  ["calibrationStopSlowMs","Cal avg RT limit (ms, default 5000)","number"],
+  ["calibrationStopSlowMs","Cal avg RT limit (ms, default 3000)","number"],
   // ── Machine-paced ──
   ["initialPacedPercent","MP start: % of cal avg (default 0.70)","number"],
   ["minDurationMs","MP min frame duration (ms, default 600)","number"],
@@ -166,7 +166,7 @@ const stimGrid=$("stimGrid"), probeCell=$("probeCell"), probeInner=$("probeInner
       respGrid=$("respGrid"), rateOut=$("rateOut"), blocksOut=$("blocksOut"),
       recoveryOut=$("recoveryOut"), wrongOut=$("wrongOut"), fatigueOut=$("fatigueOut"),
       cpiOut=$("cpiOut"), statusLine=$("statusLine"), resultBox=$("resultBox"),
-      phaseLabel=$("phaseLabel"), modeLabel=$("modeLabel");
+      phaseLabel=$("phaseLabel"), modeLabel=$("modeLabel"), metricsPanel=$("metricsPanel");
 let deferredPrompt=null;
 
 // ─── Utilities ───
@@ -199,24 +199,24 @@ function clearNoResponseTimer(){ if(state.absoluteNoResponseTimer) clearTimeout(
 function clearMaxTestTimer(){ if(state.maxTestTimer) clearTimeout(state.maxTestTimer); state.maxTestTimer=null; }
 // ─── NO-RESPONSE TIMERS ───────────────────────────────────────
 // armNoResponseTimer(): phase-aware timeouts by phase:
-//   calibration trial 1: settings.calibrationFirstNoResponseMs | cal trials 2+: settings.calibrationNoResponseMs
-//   machine-paced: settings.machinePacedNoResponseMs | recovery: settings.recoveryNoResponseMs
+//   calibration trial 1: 10s | cal trials 2+: 6s
+//   machine-paced: 6s (frame ends anyway) | recovery: 10s
 //   Fires end condition if subject stops responding.
 // armMaxTestTimer(): 150s total session wall clock (cal + paced).
-// noteAnyResponse(): called on every tap to reset the active no-response timer.
+// noteAnyResponse(): called on every tap to reset the 10/20s timer.
 // ──────────────────────────────────────────────────────────────
 function armNoResponseTimer(){
   clearNoResponseTimer();
   let ms;
   switch(state.phase){
     case "calibration":
-      // First trial uses calibrationFirstNoResponseMs, subsequent uses calibrationNoResponseMs
+      // First trial 10s (orienting), subsequent 6s
       ms = (state.calibrationTrialIndex||0)===0
         ? (Number(settings.calibrationFirstNoResponseMs)||10000)
         : (Number(settings.calibrationNoResponseMs)||6000);
       break;
     case "paced":
-      // Machine-paced: frame ends anyway; this is an additional safety net
+      // Machine-paced: frame ends anyway, 6s safety net
       ms = Number(settings.machinePacedNoResponseMs)||15000;
       break;
     case "recovery":
@@ -287,7 +287,7 @@ function patternToSVG(pattern,size="large"){
 // Rule: correct target has SAME count as probe, OPPOSITE family.
 // Constraint: consecutive trials never repeat probe family+count.
 // ──────────────────────────────────────────────────────────────
-function makeTrial(lastCorrectPos,lastProbe){
+function makeTrial(kind,lastCorrectPos,lastProbe){
   for(let attempt=0;attempt<500;attempt++){
     const probeFamily=Math.random()<0.5?"dots":"lines";
     const probeCount=randInt(1,6);
@@ -312,7 +312,7 @@ function makeTrial(lastCorrectPos,lastProbe){
     if(correct.length!==1) continue;
     if(topItems[correctPos].count!==probeCount||topItems[correctPos].family!==oppFamily) continue;
     if(correctPos===lastCorrectPos) continue;
-    return { probePattern,probeCount,probeFamily,topItems,correctPos,resolved:false };
+    return { kind,probePattern,probeCount,probeFamily,topItems,correctPos,resolved:false };
   }
   throw new Error("makeTrial: could not generate valid trial after 500 attempts");
 }
@@ -387,6 +387,7 @@ function buildGearSVG(si,pattern,size,spinClass){
       spokes+=`<line x1="${(cx+rI*Math.cos(a)).toFixed(1)}" y1="${(cy+rI*Math.sin(a)).toFixed(1)}" x2="${(cx+rO*Math.cos(a)).toFixed(1)}" y2="${(cy+rO*Math.sin(a)).toFixed(1)}" stroke="${g.stroke}" stroke-width="3" stroke-linecap="round"/>`;
     }
   }
+  const ringR=g.rP-g.ded-3;
   // Pattern marks — fill inside gear body
   let marks="";
   if(pattern){
@@ -554,11 +555,11 @@ function failCalibration(reason){ state.endReason=reason; finish(); }
 // ─── CALIBRATION — SELF-PACED ─────────────────────────────────
 // 1 unused + 10 measured self-paced trials.
 // CHECK ADEQUATELY TRAINED: >4 errors → "TOO MANY WRONG RESPONSES"
-// CHECK RESPONSE SPEED: single RT > calibrationStopSlowMs → "NOT RESPONDING IN TIME — Practice!"
-// DETERMINE BASELINE RT: avg of measured RTs → paced start duration
-//   (initialPacedPercent × avg, clamped to minDurationMs-maxDurationMs).
-// CONDITION 4: avg RT > calibrationStopSlowMs → "NEED MORE PRACTICE!"
-// NO-RESPONSE TIMEOUTS: controlled by calibrationFirstNoResponseMs / calibrationNoResponseMs
+// CHECK RESPONSE SPEED: single RT >3000ms → "NOT RESPONDING IN TIME — Practice!"
+// DETERMINE BASELINE RT: avg of 10 measured RTs → paced start duration
+//   (initialPacedPercent=0.70 × avg, clamped to 800ms-maxDurationMs).
+// CONDITION 4: avg RT >3000ms → "NEED MORE PRACTICE!"
+// NO-RESPONSE TIMEOUTS: first trial=10s, subsequent=6s
 // ──────────────────────────────────────────────────────────────
 function finishCalibration(){
   const avg=mean(state.calibrationRTs);
@@ -661,7 +662,7 @@ function openTrial(kind){
   state.previous=state.current;
   const lastPos=state.current?state.current.correctPos:null;
   const lastProbe=state.current?{family:state.current.probeFamily,count:state.current.probeCount}:null;
-  state.current=makeTrial(lastPos,lastProbe);
+  state.current=makeTrial(kind,lastPos,lastProbe);
   state.hadResponse=false;
   state.trialOpenedAt=performance.now();
   renderTrial(state.current);
@@ -670,7 +671,6 @@ function openTrial(kind){
     const idx=state.calibrationTrialIndex+1,total=settings.initialUnusedCalibrationTrials+settings.initialMeasuredCalibrationTrials;
     phaseLabel.textContent=`Cal ${idx}/${total}`;
     setStatus(idx<=settings.initialUnusedCalibrationTrials?"Self-paced (unused)":"Self-paced (measured)");
-    armNoResponseTimer();
   }else if(kind==="paced"){
     phaseLabel.textContent=`Paced · ${Math.round(state.duration)}ms`;
     setStatus("Machine-paced");
@@ -678,11 +678,9 @@ function openTrial(kind){
   }else if(kind==="recovery"){
     phaseLabel.textContent=`SP Restart ${state.spCorrectStreak}✓ ${state.spWrongCount}✗`;
     setStatus(`SP Restart — need ${settings.spRestartCorrectStreak} correct in a row`);
-    armNoResponseTimer();
   }else if(kind==="terminal_recovery"){
     phaseLabel.textContent=`Final SP ${state.recoveryCorrectCompleted+1}/${settings.spRestartCorrectStreak}`;
     setStatus("Final self-paced recovery");
-    armNoResponseTimer();
   }
 }
 
@@ -693,6 +691,7 @@ function onPacedFrameEnd(){
   // True miss = no tap at all. Wrong tap = had response but unresolved.
   // Only true misses count toward block threshold.
   const truelyMissed=state.current&&!state.current.resolved&&!state.hadResponse;
+  const wrongAndUnresolved=state.current&&!state.current.resolved&&state.hadResponse;
   if(truelyMissed){
     logTrial({phase:"missed",rt:null,outcome:"missed",responseIndex:null});
     state.missedTrials+=1; state.previousMissed=true; state.lastFrameDuration=state.duration;
@@ -834,7 +833,7 @@ function handleTap(index){
     state.current.resolved=true; state.totalResponses+=1; state.totalCorrect+=1;
     applyPacing(rt,true); state.pacedRTs.push(rt);
     logTrial({phase:"paced",rt,outcome:"correct",responseIndex:index}); flashBtn(index,true);
-    recordAnswer(true); return;
+    if(recordAnswer(true)) return; return;
   }
   state.hadResponse=true;
   state.totalResponses+=1; state.totalIncorrect+=1; state.pacedErrors+=1;
@@ -1701,8 +1700,8 @@ function runGearSpinThenStart(callback) {
 // ─── TEST START ───────────────────────────────────────────────
 // Validates subjectId + samnPerelli, clears session state,
 // captures geo, fires gear spin intro, then opens first trial.
-// openTrial() starts the no-response timer after the intro spin
-//   so the calibration clock only runs when the first trial is visible.
+// noteAnyResponse() starts the no-response timer AFTER spin completes
+//   so the 10s calibration clock only runs when gears are visible.
 // ──────────────────────────────────────────────────────────────
 function startTest(){
   if(!state.subjectId){ showOnly("subjectOverlay"); setStatus("Enter Subject ID first"); return; }
@@ -1716,6 +1715,7 @@ function startTest(){
   captureGeo();
   runGearSpinThenStart(()=>{
     state.phase="calibration";
+    noteAnyResponse();   // start no-response timer NOW — first trial is visible
     openTrial("calibration");
   });
 }
@@ -1838,7 +1838,7 @@ async function runDeviceBenchmark(force){
   if(bs) bs.textContent="Phase 1: Processor speed…";
   await new Promise(r=>setTimeout(r,50));
   const pt=[];
-  for(let i=0;i<BENCH;i++){ const t0=performance.now(); const tr=makeTrial(i>0?i%6:null,null); renderTrial(tr); pt.push(performance.now()-t0); if(bs&&i%10===9) bs.textContent=`Phase 1: ${i+1}/${BENCH}…`; }
+  for(let i=0;i<BENCH;i++){ const t0=performance.now(); const tr=makeTrial("paced",i>0?i%6:null); renderTrial(tr); pt.push(performance.now()-t0); if(bs&&i%10===9) bs.textContent=`Phase 1: ${i+1}/${BENCH}…`; }
   setProbeIdle();
   const avgP=mean(pt),minP=Math.min(...pt),maxP=Math.max(...pt),sdP=stdDev(pt)||0,floor=Math.ceil(avgP+sdP*2);
   if(bs) bs.textContent="Phase 2: Scheduler speed…";
@@ -2306,20 +2306,52 @@ async function _doInstall(){
 }
 const _ihb=$("installBtnHome"); if(_ihb) _ihb.onclick=_doInstall;
 
+
 // ─── Service worker ───
-if ("serviceWorker" in navigator) {
+(function setupServiceWorker(){
+  const APP_BUILD_LABEL = "V21 · sw2";
+  const vb = $("versionBadge");
+  if (vb) vb.textContent = APP_BUILD_LABEL;
+
+  if (!("serviceWorker" in navigator)) return;
+
+  let refreshing = false;
+
+  navigator.serviceWorker.addEventListener("controllerchange", () => {
+    if (refreshing) return;
+    refreshing = true;
+    window.location.reload();
+  });
+
   window.addEventListener("load", () => {
-    navigator.serviceWorker.register("./sw.js").then(() => {
+    navigator.serviceWorker.register("./sw.js").then(reg => {
+      reg.update().catch(() => {});
       setStatus("App ready. Offline support enabled after first load.");
+
+      if (reg.waiting) {
+        setStatus("Updating app… reloading.");
+        reg.waiting.postMessage({ type: "SKIP_WAITING" });
+      }
+
+      reg.addEventListener("updatefound", () => {
+        const newWorker = reg.installing;
+        if (!newWorker) return;
+        newWorker.addEventListener("statechange", () => {
+          if (newWorker.state === "installed" && navigator.serviceWorker.controller) {
+            setStatus("New version found. Reloading…");
+            newWorker.postMessage({ type: "SKIP_WAITING" });
+          }
+        });
+      });
     }).catch(err => {
       console.warn("Service worker registration failed:", err);
       setStatus("Offline mode unavailable on this browser.");
     });
   });
-}
 
-window.addEventListener("online", () => setStatus("Back online."));
-window.addEventListener("offline", () => setStatus("Offline mode: using cached app files."));
+  window.addEventListener("online", () => setStatus("Back online."));
+  window.addEventListener("offline", () => setStatus("Offline mode: using cached app files."));
+})();
 
 // ─── Init ───
 modeLabel.textContent="Subject mode";
