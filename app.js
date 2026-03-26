@@ -28,7 +28,7 @@ const DEFAULTS={
   qualifyingBlockGapMs:250,
   rollMeanWindow:8,
   rollMeanThreshold:0.50,
-  machinePacedNoResponseMs:6000,
+  machinePacedNoResponseMs:15000,
   recoveryNoResponseMs:10000,
   calibrationFirstNoResponseMs:20000,
   calibrationNoResponseMs:6000,
@@ -43,8 +43,8 @@ const DEFAULTS={
   initialPacedPercent:0.70,
   calibrationStopErrors:4,
   calibrationStopSlowMs:5000,
-  cpsBestMs:600,
-  cpsWorstMs:2400,
+  cpsBestMs:900,
+  cpsWorstMs:3400,
   deviceBenchmarkEnabled:0
 };
 
@@ -67,7 +67,7 @@ const ADMIN_FIELDS=[
   ["initialPacedPercent","MP start: % of cal avg (default 0.70)","number"],
   ["minDurationMs","MP min frame duration (ms, default 600)","number"],
   ["maxDurationMs","MP max frame duration (ms, default 3500)","number"],
-  ["machinePacedNoResponseMs","MP no-response timeout (ms, default 10000)","number"],
+  ["machinePacedNoResponseMs","MP no-response timeout (ms, default 15000)","number"],
   ["maxTestDurationMs","Max TOTAL test time (ms, default 150000)","number"],
   ["maxTrialCount","MP max paced trials","number"],
   // ── Block detection ──
@@ -86,8 +86,8 @@ const ADMIN_FIELDS=[
   ["rollMeanWindow","Anti-spoof: rolling mean window (responses)","number"],
   ["rollMeanThreshold","Anti-spoof threshold (0–1, e.g. 0.50)","number"],
   // ── Scoring ──
-  ["cpsBestMs","CPS best ms (default 600)","number"],
-  ["cpsWorstMs","CPS worst ms (default 2400)","number"],
+  ["cpsBestMs","CPS best ms (default 900)","number"],
+  ["cpsWorstMs","CPS worst ms (default 3400)","number"],
   // ── System ──
   ["deviceBenchmarkEnabled","Device benchmark (0=off, 1=on)","number"],
 ];
@@ -181,7 +181,7 @@ function formatDuration(ms){ if(ms==null) return "—"; const s=Math.round(ms/10
 // ─── CPS ───
 // ─── CPS SCORE CALCULATION ────────────────────────────────────
 // Converts avg last 2 block durations (ms) to 0-100 CPS score.
-// Scale: cpsBestMs=600ms → CPS 100, cpsWorstMs=2400ms → CPS 0.
+// Scale: cpsBestMs=900ms → CPS 100, cpsWorstMs=3400ms → CPS 0.
 // Source: Perelli (2026). Formula: (worst-ms)/(worst-best)*100
 // ──────────────────────────────────────────────────────────────
 function computeCPS(avgMs){
@@ -215,7 +215,7 @@ function armNoResponseTimer(){
       break;
     case "paced":
       // Machine-paced: frame ends anyway, 6s safety net
-      ms = Number(settings.machinePacedNoResponseMs)||10000;
+      ms = Number(settings.machinePacedNoResponseMs)||15000;
       break;
     case "recovery":
     case "terminal_recovery":
