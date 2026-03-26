@@ -146,60 +146,10 @@
       .ctrl-btn{padding:5px 4px;font-size:10px;min-height:30px}
     }
 
-    /* ══ TEST SCREEN — full screen gear layout ══ */
-    #testScreen{
-      position:fixed!important;inset:0;z-index:10;
-      display:flex;flex-direction:column;
-      background:#0d1520;
-    }
-    #testScreen.hidden{display:none!important}
-    /* override old rules inside test screen */
-    #testScreen .metrics{
-      gap:3px;padding:2px 5px;flex-shrink:0;
-    }
-    #testScreen .metric{padding:2px 2px;border-radius:6px}
-    #testScreen .metric-label{font-size:9px}
-    #testScreen .metric-val{font-size:12px}
-    /* gear SVG fills its container */
-    #testScreen .stim-cell svg,
-    #testScreen .probe-cell svg,
-    #testScreen .resp-btn svg{
-      width:100%;height:100%;display:block;overflow:visible;
-    }
-    /* cell label */
-    /* topbar */
-    /* bottom controls */
-    /* curtain */
-    .curtain{
-      position:absolute;inset:0;z-index:20;
-      pointer-events:none;display:flex;
-    }
-    .curtain-left,.curtain-right{
-      flex:1;
-      background:linear-gradient(135deg,#0d1b33,#060c18);
-      transition:transform 0.75s cubic-bezier(.77,0,.18,1);
-    }
-    .curtain-left{transform-origin:left center}
-    .curtain-right{transform-origin:right center}
-    .curtain.open .curtain-left{transform:translateX(-100%)}
-    .curtain.open .curtain-right{transform:translateX(100%)}
-    /* gear rotation */
-    @keyframes gSpinF{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
-    @keyframes gSpinR{from{transform:rotate(0deg)}to{transform:rotate(-360deg)}}
-    .gspin-f .g-rot{animation:gSpinF 1.1s linear infinite;transform-origin:50% 50%}
-    .gspin-r .g-rot{animation:gSpinR 1.1s linear infinite;transform-origin:50% 50%}
+    /* ── Idle gear spin (used outside test screen) ── */
     .gidle-f .g-rot{animation:gSpinF 9s linear infinite;transform-origin:50% 50%}
     .gidle-r .g-rot{animation:gSpinR 9s linear infinite;transform-origin:50% 50%}
-    /* probe pulse */
-    /* probe: no animation during test */
-    #testScreen .probe-cell, #testScreen .probe-cell:not(.idle){
-      animation:none !important;
-      border-radius:0 !important;
-      border:none !important;
-      box-shadow:none !important;
-    }
-    #testScreen .probe-cell svg{ animation:none !important; }
-  
+
     /* ── Test screen (full viewport) ── */
   /* ══ TEST SCREEN — gears only, full screen, nothing else ══ */
   #testScreen{
@@ -216,6 +166,10 @@
     width:100vw !important;
   }
   #testScreen.hidden{display:none !important}
+  #testScreen .metrics{gap:3px;padding:2px 5px;flex-shrink:0}
+  #testScreen .metric{padding:2px 2px;border-radius:6px}
+  #testScreen .metric-label{font-size:9px}
+  #testScreen .metric-val{font-size:12px}
 
   /* Stim grid — top third */
   #testScreen .stim-grid{
@@ -553,7 +507,6 @@
     <p class="modal-hint" id="benchStatusLine">Running…</p>
     <div id="benchGrade" class="bench-grade" style="display:none"></div>
     <div id="benchStats"></div>
-    <canvas id="benchChart" width="380" height="160" style="margin-top:8px;display:none"></canvas>
     <div id="benchBtns" class="controls" style="margin-top:10px;display:none">
       <button class="ctrl-btn" id="closeAdminBtn2">Close</button>
     </div>
@@ -595,19 +548,6 @@
       <button id="summaryProfileBtn" style="background:none;border:none;color:rgba(127,215,255,0.5);font-size:18px;padding:4px 10px;cursor:pointer">⚙</button>
       <button id="summaryAdminBtn" style="background:none;border:none;color:rgba(127,215,255,0.3);font-size:11px;padding:4px 10px;cursor:pointer;font-family:inherit;letter-spacing:.05em">Admin →</button>
     </div>
-  </div>
-</div>
-
-<!-- Results handled via Admin > History & Graphs -->
-<div id="resultsOverlay" class="overlay hidden">
-  <div class="modal">
-    <div id="resultsPageBox" style="display:none"></div>
-    <canvas id="resultsRTChart" style="display:none"></canvas>
-    <canvas id="resultsHistChart" style="display:none"></canvas>
-    <button id="resultsBackBtn" style="display:none"></button>
-    <button id="resultsStartOverBtn" style="display:none"></button>
-    <button id="resultsExportBtn" style="display:none"></button>
-    <button id="resultsEmailBtn" style="display:none"></button>
   </div>
 </div>
 

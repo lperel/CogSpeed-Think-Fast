@@ -241,8 +241,7 @@ function noteAnyResponse(){ armNoResponseTimer(); }
 
 // ─── Quiet mode ───
 function setTestingQuiet(q){
-  // Test screen is gears-only — nothing to show/hide during test
-  if(resultBox) resultBox.classList.add("hidden");
+  if(resultBox) resultBox.classList[q?"add":"remove"]("hidden");
 }
 
 // ─── Geo (fire and forget) ───
@@ -886,7 +885,6 @@ function renderAdmin(){
     r.innerHTML=`<label style="font-size:14px;color:var(--text)">${l}<div style="font-size:11px;color:var(--muted)">${k}</div></label><input id="adm_${k}" type="${t}" value="${settings[k]}" style="padding:9px;border:1px solid var(--edge);border-radius:10px;background:#0a1629;color:var(--text);font-size:14px;width:100%">`;
     w.appendChild(r);
   }
-  renderHistoryGraphs();
 }
 function readAdmin(){ for(const [k,,t] of ADMIN_FIELDS){ const el=$("adm_"+k); if(el) settings[k]=t==="number"?Number(el.value):el.value; } }
 function resetAdmin(){ settings={...DEFAULTS}; saveSettings(); renderAdmin(); }
@@ -950,10 +948,7 @@ function drawCombinedChart(canvas,hist){
   ctx.fillStyle="rgba(255,159,64,0.7)"; ctx.font="9px sans-serif"; ctx.textAlign="right";
   ctx.fillText("\u2191 better",PAD.left+cW+50,PAD.top-4);
 }
-function renderHistoryGraphs(){
-  drawCombinedChart($("resultsHistChart"),state.history);
-  // adminHistChart removed — history now in historyOverlay
-}
+
 
 // ─── RT scatter chart ───
 function drawRTScatterChart(canvas,rtLog,blocks,meanRT,sdRT){
@@ -1033,9 +1028,7 @@ function emailResults(){
   const to=state.profile?.emailResults&&state.profile?.email?state.profile.email:"";
   window.location.href=`mailto:${to}?subject=CogSpeed V21 Results&body=${encodeURIComponent(state.lastResultText||JSON.stringify(last,null,2))}`;
 }
-function autoEmailIfEnabled(){
-  if(state.profile?.emailResults&&state.profile?.email) emailResults();
-}
+
 
 // ─── FX (steam + sparks from each gear corner) ───
 let _fxRaf=null, _fxParticles=[];
@@ -1288,7 +1281,7 @@ function buildSummary(result){
   // Row color by SPF level: top dark green → light green → yellow → orange → bottom 2 red
   const SPF_COLOR={7:'#1a8a1a',6:'#1a8a1a',5:'#4aaa00',4:'#c8a800',3:'#cc5500',2:'#cc1100',1:'#cc1100'};
   const esc=s=>s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-  const tableRows=[
+  const tableData=[
     [7,100,  600, "FUNCTIONING EXCEPTIONALLY WELL"],
     [6, 80,  800, "FUNCTIONING VERY WELL"],
     [5, 75, 1050, "FUNCTIONING NORMALLY"],
@@ -1296,13 +1289,14 @@ function buildSummary(result){
     [3, 25, 1950, "FUNCTIONING \u2014 STARTING TO SLOW"],
     [2, 11, 2200, "DIFFICULT TO FUNCTION \u2014 BECOMING UNSAFE"],
     [1,  0,   -1, "UNABLE TO FUNCTION \u2014 DEFINITELY UNSAFE"],
-  ].map(([spf,cpi,brd,cap])=>{
+  ];
+  const tableRows=tableData.map(([spf,cpi,brd,cap],i)=>{
     const brdStr = brd<0?"&gt;2400":String(brd);
-    const arrow = (cps!=null && cpi>=0 && (
-      (cpi===100&&result.cognitivePerformanceScore>80)||
-      (cpi===0 &&result.cognitivePerformanceScore<=0)||
-      (cpi>0&&cpi<100&&result.cognitivePerformanceScore<=cpi&&result.cognitivePerformanceScore>(cpi-25))
-    )) ? " \u2190 YOUR SCORE" : "";
+    // Each row owns scores > next row's cpi and <= this row's cpi.
+    // Last row owns everything <= 0.
+    const loBound = i+1 < tableData.length ? tableData[i+1][1] : -Infinity;
+    const inBand  = cps!=null && cps > loBound && cps <= cpi;
+    const arrow   = inBand ? " \u2190 YOUR SCORE" : "";
     const line=`    ${String(spf).padStart(2)}  | ${String(cpi).padStart(3)}  | ${brdStr.padStart(6)}  | ${cap}${arrow}`;
     return `<span style="color:${SPF_COLOR[spf]};font-weight:700">${line}</span>`;
   }).join("\n");
@@ -1602,7 +1596,6 @@ function showResultsPage(){
         // Draw speedometer
         const canvas=$("speedometerCanvas");
         if(canvas){
-          const last=state.history[state.history.length-1];
           const cps=success&&last?Math.max(0,Math.min(100,last.cognitivePerformanceScore||0)):0;
           const brd=last&&last.averageLast2BlockingScoresMs!=null?last.averageLast2BlockingScoresMs:null;
           const wrap=$("speedometerWrap");
@@ -1857,10 +1850,8 @@ async function runDeviceBenchmark(force){
 // ═══════════════════════════════════════════════════
 
 let _tutStep = 0;
-let _tutTimer = null;
 
 // Demo trial: probe=lines:3, correct=dots:3 @position 3
-const TUT_PROBE_FAM  = "lines";
 const TUT_PROBE_CNT  = 3;
 const TUT_CORRECT_POS = 2;  // 0-based, position 3
 const TUT_ITEMS = [
@@ -1907,7 +1898,6 @@ function buildTutRespGrid(flashPos){
     const isFL = flashPos===i;
     const glow   = isFL ? "drop-shadow(0 0 8px rgba(0,255,136,0.9))" : "none";
     const border = isFL ? "2px solid #00ff88" : "2px solid transparent";
-    const sc     = i%2===0?"gspin-f":"gspin-r";  // keep blank gears static — no spin during tutorial
     html += `<div style="aspect-ratio:1;border-radius:10px;border:${border};filter:${glow};position:relative">
       ${buildGearSVG(i+1, null, "large", "")}
     </div>`;
@@ -1980,7 +1970,6 @@ function buildMiniScreen(highlightPart){
 const TUT_STEPS = [
   // Step 1: probe highlighted
   {
-    dur:0,
     build:()=>{
       return buildMiniScreen("probe") + `
       <div style="position:relative;z-index:1;display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;padding:16px;text-align:center">
@@ -1995,7 +1984,6 @@ const TUT_STEPS = [
   },
   // Step 2: stim grid highlighted
   {
-    dur:0,
     build:()=>{
       return buildMiniScreen("stim") + `
       <div style="position:relative;z-index:1;display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;padding:16px;text-align:center">
@@ -2010,7 +1998,6 @@ const TUT_STEPS = [
   },
   // Step 3: both highlighted
   {
-    dur:0,
     build:()=>{
       return buildMiniScreen("both") + `
       <div style="position:relative;z-index:1;display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;padding:16px;text-align:center">
@@ -2039,7 +2026,6 @@ const TUT_STEPS = [
   },
   // Step 4: all highlighted, response buttons shown
   {
-    dur:0,
     build:()=>{
       return buildMiniScreen("all") + `
       <div style="position:relative;z-index:1;display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;padding:16px;text-align:center">
@@ -2059,7 +2045,6 @@ const TUT_STEPS = [
   },
   // Step 5: full screen, mention fatigue question
   {
-    dur:0,
     build:()=>{
       return buildMiniScreen("all") + `
       <div style="position:relative;z-index:1;display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;padding:16px;text-align:center">
@@ -2125,21 +2110,12 @@ function tutNext(){
 }
 
 function tutSkip(){
-  if(_tutTimer) clearTimeout(_tutTimer);
   $("tutorialOverlay").classList.add("hidden");
   const sb=$("fatigueStartBtn"); if(sb) sb.classList.add("hidden");
   $("fatigueList").querySelectorAll(".fatigue-item").forEach(el=>el.style.background="");
   showOnly("fatigueOverlay");
 }
 
-// ═══════════════════════════════════════════════════════════════
-// SECTION: REGISTRATION
-// Current: subject ID (6 chars or "0" for Guest).
-// [PLANNED] GENDER: add male/female/other selector to subject overlay.
-// [PLANNED] AGE CHECK: add birth year + month fields.
-//   → Use to flag age-related norms, adjust CPS interpretation.
-//   → Store with each result record for demographic analysis.
-// ═══════════════════════════════════════════════════════════════
 // ─── Event wiring ───
 $("subjectNextBtn").onclick=()=>{
   const v=($("subjectIdInput")?.value||"").trim().toLowerCase();
@@ -2302,10 +2278,6 @@ $("summaryAdminBtn").onclick=()=>{
     $("adminGate").classList.remove("hidden"); $("adminBody").classList.add("hidden"); $("adminPass").value="";
   }
 };
-$("resultsBackBtn").onclick=goToStartPage;
-$("resultsStartOverBtn").onclick=startOverFlow;
-$("resultsExportBtn").onclick=exportResults;
-$("resultsEmailBtn").onclick=emailResults;
 window.addEventListener("beforeinstallprompt",e=>{
   e.preventDefault(); deferredPrompt=e;
   const hb=$("installBtnHome"); if(hb) hb.disabled=false;
@@ -2325,4 +2297,3 @@ modeLabel.textContent="Subject mode";
 renderFatigueChecklist();
 renderRefresher();
 updateMetrics();
-renderHistoryGraphs();
