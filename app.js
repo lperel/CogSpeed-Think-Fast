@@ -45,7 +45,7 @@ const DEFAULTS={
   calibrationStopErrors:4,
   calibrationStopSlowMs:5000,
   cpiBestMs:900,
-  cpiWorstMs:3400,
+  cpiWorstMs:2400,
   deviceBenchmarkEnabled:0
 };
 
@@ -89,7 +89,7 @@ const ADMIN_FIELDS=[
   ["rollMeanThreshold","Anti-spoof threshold (0–1, e.g. 0.50)","number"],
   // ── Scoring ──
   ["cpiBestMs","CPI best ms (default 900)","number"],
-  ["cpiWorstMs","CPI worst ms (default 3400)","number"],
+  ["cpiWorstMs","CPI worst ms (default 2400)","number"],
   // ── System ──
   ["deviceBenchmarkEnabled","Device benchmark (0=off, 1=on)","number"],
 ];
@@ -183,7 +183,7 @@ function formatDuration(ms){ if(ms==null) return "—"; const s=Math.round(ms/10
 // ─── CPI ───
 // ─── CPI SCORE CALCULATION ────────────────────────────────────
 // Converts avg last 2 block durations (ms) to 0-100 CPI score.
-// Scale: cpiBestMs=900ms → CPI 100, cpiWorstMs=3400ms → CPI 0.
+// Scale: cpiBestMs=900ms → CPI 100, cpiWorstMs=2400ms → CPI 0.
 // Source: Perelli (2026). Formula: (worst-ms)/(worst-best)*100
 // ──────────────────────────────────────────────────────────────
 function computeCPI(avgMs){
@@ -1296,15 +1296,22 @@ function buildSummary(result){
   // Row color by SPF level: top dark green → light green → yellow → orange → bottom 2 red
   const SPF_COLOR={7:'#1a8a1a',6:'#1a8a1a',5:'#4aaa00',4:'#c8a800',3:'#cc5500',2:'#cc1100',1:'#cc1100'};
   const esc=s=>s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-    const tableData=[
-    [7,100,  900, "FUNCTIONING EXCEPTIONALLY WELL"],
-    [6, 80, 1400, "FUNCTIONING VERY WELL"],
-    [5, 75, 1525, "FUNCTIONING NORMALLY"],
-    [4, 50, 2150, "FUNCTIONING SLIGHTLY LESS THAN NORMAL"],
-    [3, 25, 2775, "FUNCTIONING — STARTING TO SLOW"],
-    [2, 11, 3125, "DIFFICULT TO FUNCTION — BECOMING UNSAFE"],
-    [1,  0, 3400, "UNABLE TO FUNCTION — DEFINITELY UNSAFE"],
+    const refRows=[
+    [7,100, "FUNCTIONING EXCEPTIONALLY WELL"],
+    [6, 80, "FUNCTIONING VERY WELL"],
+    [5, 75, "FUNCTIONING NORMALLY"],
+    [4, 50, "FUNCTIONING SLIGHTLY LESS THAN NORMAL"],
+    [3, 25, "FUNCTIONING — STARTING TO SLOW"],
+    [2, 11, "DIFFICULT TO FUNCTION — BECOMING UNSAFE"],
+    [1,  0, "UNABLE TO FUNCTION — DEFINITELY UNSAFE"],
   ];
+  const bestMs = Number(settings.cpiBestMs)||900;
+  const worstMs = Number(settings.cpiWorstMs)||2400;
+  const spanMs = Math.max(1, worstMs - bestMs);
+  const tableData=refRows.map(([spf,cpi,cap])=>{
+    const mbs = Math.round(bestMs + ((100-cpi)/100) * spanMs);
+    return [spf,cpi,mbs,cap];
+  });
   const tableRows=tableData.map(([spf,cpi,brd,cap],i)=>{
     const mbsStr = String(brd);
     // Each row owns scores > next row's cpi and <= this row's cpi.
@@ -1360,7 +1367,7 @@ COGNITIVE PERFORMANCE REFERENCE TABLE
   const footerPart=
 `
   \u2500\u2500\u2500\u2500\u2500\u2534\u2500\u2500\u2500\u2500\u2500\u2500\u2534\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2534\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
-  MBS = avg last 2 blocks (ms)  |  CPI = 0-100 scale
+  MBS = avg last 2 blocks (ms)  |  CPI = 0-100 scale (from current Admin best/worst ms settings)
   Source: Perelli (2026), Gray Matter Metrics, LLC`;
 
   el.innerHTML = esc(mainPart)+"\n"+tableRows+esc(footerPart);
@@ -1921,6 +1928,37 @@ function buildTutRespGrid(flashPos){
 }
 
 
+
+function buildTutGearGridAnimated(showPatterns){
+  let html = `<style>
+    @keyframes tutPairFlash {
+      0%, 13.888% { border-color: transparent; filter: none; box-shadow:none; opacity:.72; }
+      16.666%, 30.555% { border-color: #7fd7ff; filter: drop-shadow(0 0 10px rgba(127,215,255,0.95)); box-shadow: 0 0 16px rgba(127,215,255,0.30) inset; opacity:1; }
+      33.333%, 100% { border-color: transparent; filter: none; box-shadow:none; opacity:.72; }
+    }
+  </style>`;
+  html += '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;width:100%;max-width:340px">';
+  TUT_ITEMS.forEach((it,i)=>{
+    const pat = showPatterns ? it.pattern : null;
+    html += `<div style="border:2px solid transparent;border-radius:10px;aspect-ratio:1;animation:tutPairFlash 18s linear infinite;animation-delay:${i*3}s">
+      ${buildGearSVG(i+1, pat, "large", "")}
+    </div>`;
+  });
+  html += '</div>';
+  return html;
+}
+
+function buildTutRespGridAnimated(){
+  let html = '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;width:100%;max-width:340px">';
+  for(let i=0;i<6;i++){
+    html += `<div style="aspect-ratio:1;border-radius:10px;border:2px solid transparent;position:relative;animation:tutPairFlash 18s linear infinite;animation-delay:${i*3}s">
+      ${buildGearSVG(i+1, null, "large", "")}
+    </div>`;
+  }
+  html += '</div>';
+  return html;
+}
+
 // ─── Mini trial screen for tutorial background ───
 // Returns HTML showing a tiny test screen with different parts highlighted
 function buildMiniScreen(highlightPart){
@@ -2044,15 +2082,19 @@ const TUT_STEPS = [
       return buildMiniScreen("all") + `
       <div style="position:relative;z-index:1;display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;padding:16px;text-align:center">
         <div style="font-size:13px;letter-spacing:.1em;color:rgba(127,215,255,0.8);text-transform:uppercase;margin-bottom:8px;text-shadow:0 0 12px rgba(127,215,255,0.5)">Tap the Match</div>
-        <div style="background:rgba(10,20,40,0.88);backdrop-filter:blur(4px);border-radius:16px;padding:12px 16px;max-width:310px;border:1px solid rgba(127,215,255,0.2)">
-          <div style="margin-bottom:6px;opacity:0.9">${buildTutGearGrid(TUT_CORRECT_POS,true)}</div>
+        <div style="background:rgba(10,20,40,0.88);backdrop-filter:blur(4px);border-radius:16px;padding:12px 16px;max-width:320px;border:1px solid rgba(127,215,255,0.2)">
+          <div style="margin-bottom:6px;opacity:0.95">${buildTutGearGridAnimated(true)}</div>
           <div style="display:flex;align-items:center;gap:8px;margin:6px 0">
             <div style="flex:1;height:1px;background:rgba(255,255,255,0.15)"></div>
             <div style="font-size:11px;color:rgba(255,255,255,0.45)">same position below</div>
             <div style="flex:1;height:1px;background:rgba(255,255,255,0.15)"></div>
           </div>
-          <div>${buildTutRespGrid(TUT_CORRECT_POS)}</div>
-          <div style="font-size:15px;color:rgba(255,255,255,0.7);margin-top:8px">Tap the <span style="color:#00ff88;font-weight:700">button below</span> that matches the highlighted gear</div>
+          <div>${buildTutRespGridAnimated()}</div>
+          <div style="font-size:14px;color:rgba(255,255,255,0.72);margin-top:8px;line-height:1.45">
+            Each <span style="color:#7fd7ff;font-weight:700">upper gear</span> flashes with its matching
+            <span style="color:#00ff88;font-weight:700">response gear below</span> for 3 seconds, in sequence.
+            Watch the cycle, then tap <span style="color:#00ff88;font-weight:700">Next</span> when ready.
+          </div>
         </div>
       </div>`;
     }
