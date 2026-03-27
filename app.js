@@ -268,9 +268,9 @@ async function captureGeo(){
 // ─── SVG rendering ───
 function patternToSVG(pattern,size="large"){
   const dim=size==="probe"?72:size==="small"?40:56;
-  const dotR=size==="probe"?9:size==="small"?5.5:8;
+  const dotR=size==="probe"?9.5:size==="small"?6:8.5;
   const lw=size==="probe"?8:size==="small"?5:7;
-  const lh=size==="probe"?30:size==="small"?18:24;
+  const lh=size==="probe"?32:size==="small"?20:26;
   const marks=pattern.map(([k,x,y])=>{
     const px=(x/100)*dim,py=(y/100)*dim;
     return k==="dot"
@@ -447,9 +447,9 @@ function buildGearSVG(si,pattern,size,spinClass){
     const marks = [];
     if(pattern){
       const scale = size==="probe" ? 0.74 : 0.70;
-      const dotR = size==="probe" ? 11 : 9;
+      const dotR = size==="probe" ? 11.5 : 9.5;
       const lw   = size==="probe" ? 11 : 9;
-      const lh   = size==="probe" ? 28 : 20;
+      const lh   = size==="probe" ? 30 : 22;
       pattern.forEach(([k,px,py], idx)=>{
         const left = 50 + ((px/100)-0.5) * scale * 100;
         const top  = 50 + ((py/100)-0.5) * scale * 100;
@@ -1040,18 +1040,30 @@ function drawCombinedChart(canvas,hist){
   ctx.fillStyle="#7fa0c0"; ctx.font="10px sans-serif"; ctx.textAlign="center";
   for(let i=0;i<n;i++) ctx.fillText(String(i+1),xO(i),PAD.top+cH+14);
   // drawSeries: draw line + dots + value labels
-  function drawSeries(vals,toY,color){
+  function drawOffsetSeries(vals,toY,color,dx,dy,labelDy){
     ctx.strokeStyle=color; ctx.lineWidth=2.2; ctx.beginPath(); let started=false;
-    vals.forEach((v,i)=>{ if(v==null){started=false;return;} const x=xO(i),y=toY(v); if(!started){ctx.moveTo(x,y);started=true;}else ctx.lineTo(x,y); });
+    vals.forEach((v,i)=>{
+      if(v==null){started=false;return;}
+      const x=xO(i)+dx,y=toY(v)+dy;
+      if(!started){ctx.moveTo(x,y);started=true;} else ctx.lineTo(x,y);
+    });
     ctx.stroke();
-    vals.forEach((v,i)=>{ if(v==null) return; ctx.fillStyle=color; ctx.beginPath(); ctx.arc(xO(i),toY(v),3.5,0,Math.PI*2); ctx.fill(); ctx.font="9px sans-serif"; ctx.textAlign="center"; ctx.fillText(v>100?(v/1000).toFixed(1)+"s":v.toFixed(0),xO(i),toY(v)-6); ctx.textAlign="left"; });
+    vals.forEach((v,i)=>{
+      if(v==null) return;
+      const x=xO(i)+dx,y=toY(v)+dy;
+      ctx.fillStyle=color;
+      ctx.beginPath(); ctx.arc(x,y,3.5,0,Math.PI*2); ctx.fill();
+      ctx.font="9px sans-serif"; ctx.textAlign="center";
+      ctx.fillText(v>100?(v/1000).toFixed(1)+"s":v.toFixed(0),x,y+labelDy);
+      ctx.textAlign="left";
+    });
   }
   // blockToY: map MBS ms through CPI anchors so CPI and MBS occupy the same vertical location.
   function blockToY(v){ return yL(cpiFromMs(v),0,100); }
   function spfToY(v){ return yL(v,1,7); }
-  drawSeries(blockVals,blockToY,"#ff9f40");
-  drawSeries(cpsVals,v=>yL(v,0,100),"#7fd7ff");
-  drawSeries(spfVals,spfToY,"#88ff88");
+  drawOffsetSeries(blockVals,blockToY,"#ff9f40",4,2,12);
+  drawOffsetSeries(cpsVals,v=>yL(v,0,100),"#7fd7ff",-4,-2,-8);
+  drawOffsetSeries(spfVals,spfToY,"#88ff88",0,0,-6);
   ctx.fillStyle="#7fd7ff"; ctx.font="bold 9px sans-serif"; ctx.textAlign="left"; ctx.fillText("■ CPI",PAD.left,PAD.top-4);
   ctx.fillStyle="#ff9f40"; ctx.fillText("■ MBS ms",PAD.left+50,PAD.top-4);
   ctx.fillStyle="#88ff88"; ctx.fillText("■ S-PF",PAD.left+115,PAD.top-4);
@@ -1995,7 +2007,7 @@ function buildTutGearGrid(highlightPos, showPatterns){
 
 function buildTutProbe(pulsing){
   const pat = LINE_PATTERNS[TUT_PROBE_CNT];
-  const anim = pulsing ? "animation:probePulseG 1.2s ease-in-out infinite" : "animation:none";
+  const anim = pulsing ? "animation:probePulseG 1.2s ease-in-out infinite;filter:drop-shadow(0 0 16px rgba(127,215,255,1)) drop-shadow(0 0 30px rgba(127,215,255,0.65))" : "animation:none";
   return `<div style="width:clamp(110px,32vw,170px);height:clamp(110px,32vw,170px);${anim}">
     ${buildGearSVG(0, pat, "probe", "")}
   </div>`;
