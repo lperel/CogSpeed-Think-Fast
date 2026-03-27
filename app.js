@@ -268,9 +268,9 @@ async function captureGeo(){
 // ─── SVG rendering ───
 function patternToSVG(pattern,size="large"){
   const dim=size==="probe"?72:size==="small"?40:56;
-  const dotR=size==="probe"?10.5:size==="small"?6.5:9.5;
-  const lw=size==="probe"?10:size==="small"?6:8;
-  const lh=size==="probe"?36:size==="small"?22:30;
+  const dotR=size==="probe"?11:size==="small"?7:10;
+  const lw=size==="probe"?12:size==="small"?7:9;
+  const lh=size==="probe"?40:size==="small"?24:34;
   const marks=pattern.map(([k,x,y])=>{
     const px=(x/100)*dim,py=(y/100)*dim;
     return k==="dot"
@@ -291,7 +291,7 @@ function makeTrial(kind,lastCorrectPos,lastProbe){
   for(let attempt=0;attempt<500;attempt++){
     const probeFamily=Math.random()<0.5?"dots":"lines";
     const probeCount=randInt(1,6);
-    // Reject if same probe as previous trial (subject can't tell a new trial started)
+    // Reject if same probe as previous trial — never show the same probe twice in a row
     if(lastProbe&&probeFamily===lastProbe.family&&probeCount===lastProbe.count) continue;
     const probePattern=probeFamily==="dots"?DOT_PATTERNS[probeCount]:LINE_PATTERNS[probeCount];
     const oppFamily=probeFamily==="dots"?"lines":"dots";
@@ -304,9 +304,14 @@ function makeTrial(kind,lastCorrectPos,lastProbe){
     [counts[correctPos],counts[ei]]=[counts[ei],counts[correctPos]];
     const families=[];
     for(let i=0;i<6;i++){
-      if(i===correctPos){ families.push(oppFamily); }
-      else{ families.push(counts[i]===probeCount?probeFamily:(Math.random()<0.5?"dots":"lines")); }
+      if(i===correctPos){
+        families.push(oppFamily);
+      } else {
+        families.push(counts[i]===probeCount ? probeFamily : (Math.random()<0.5 ? "dots" : "lines"));
+      }
     }
+    // Force a true mix of dots and lines on the top targets while preserving exactly one correct answer.
+    if(!families.includes("dots") || !families.includes("lines")) continue;
     const topItems=counts.map((c,i)=>({ count:c,family:families[i],pattern:families[i]==="dots"?DOT_PATTERNS[c]:LINE_PATTERNS[c] }));
     const correct=topItems.filter(x=>x.count===probeCount&&x.family===oppFamily);
     if(correct.length!==1) continue;
@@ -447,9 +452,9 @@ function buildGearSVG(si,pattern,size,spinClass){
     const marks = [];
     if(pattern){
       const scale = size==="probe" ? 0.74 : 0.70;
-      const dotR = size==="probe" ? 12.5 : 10.5;
-      const lw   = size==="probe" ? 13 : 11;
-      const lh   = size==="probe" ? 34 : 26;
+      const dotR = size==="probe" ? 13 : 11;
+      const lw   = size==="probe" ? 15 : 13;
+      const lh   = size==="probe" ? 38 : 30;
       pattern.forEach(([k,px,py], idx)=>{
         const left = 50 + ((px/100)-0.5) * scale * 100;
         const top  = 50 + ((py/100)-0.5) * scale * 100;
@@ -1682,7 +1687,7 @@ function stopSpeedometer(){ if(_speedoRaf){ cancelAnimationFrame(_speedoRaf); _s
 
 // ─── Results page — gear spin outro then thinking box ───
 // ─── RESULTS PAGE FLOW ────────────────────────────────────────
-// THINKING BOX: 6s animated steam+sparks FX after test ends.
+// THINKING BOX: 2s animated steam+sparks FX after test ends.
 // SUCCESS/FAIL BOX: 3s outcome overlay (green=SUCCESS/red=Test Failed).
 // Then shows summary overlay with full result text.
 // LAST RESULTS: accessible from admin → 📄 Last Results button.
@@ -2007,7 +2012,7 @@ function buildTutGearGrid(highlightPos, showPatterns){
 
 function buildTutProbe(pulsing){
   const pat = LINE_PATTERNS[TUT_PROBE_CNT];
-  const anim = pulsing ? "animation:probePulseG 1.2s ease-in-out infinite;filter:drop-shadow(0 0 16px rgba(127,215,255,1)) drop-shadow(0 0 30px rgba(127,215,255,0.65))" : "animation:none";
+  const anim = pulsing ? "animation:probePulseG 1.2s ease-in-out infinite;filter:drop-shadow(0 0 20px rgba(127,215,255,1)) drop-shadow(0 0 36px rgba(127,215,255,0.75))" : "animation:none";
   return `<div style="width:clamp(110px,32vw,170px);height:clamp(110px,32vw,170px);${anim}">
     ${buildGearSVG(0, pat, "probe", "")}
   </div>`;
@@ -2408,7 +2413,7 @@ $("historyClearBtn").onclick=()=>{
       btn.textContent="🗑 Clear History";
       btn.style.color="rgba(255,100,136,0.5)";
       btn.style.borderColor="rgba(255,100,136,0.3)";
-    },3000);
+    },2000);
   }
 };
 const _tsel=$("trialLogSessionSelect");
