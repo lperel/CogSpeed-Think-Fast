@@ -268,9 +268,9 @@ async function captureGeo(){
 // ─── SVG rendering ───
 function patternToSVG(pattern,size="large"){
   const dim=size==="probe"?72:size==="small"?40:56;
-  const dotR=size==="probe"?9.5:size==="small"?6:8.5;
-  const lw=size==="probe"?8:size==="small"?5:7;
-  const lh=size==="probe"?32:size==="small"?20:26;
+  const dotR=size==="probe"?10.5:size==="small"?6.5:9.5;
+  const lw=size==="probe"?10:size==="small"?6:8;
+  const lh=size==="probe"?36:size==="small"?22:30;
   const marks=pattern.map(([k,x,y])=>{
     const px=(x/100)*dim,py=(y/100)*dim;
     return k==="dot"
@@ -394,7 +394,7 @@ function ensureGearImageStyles(){
       transform:translate(-50%,-50%);
       background:#ffffff;
       border:3px solid #111;
-      box-shadow:0 0 3px rgba(0,0,0,0.55);
+      box-shadow:0 0 4px rgba(0,0,0,0.6);
       opacity:0.98;
       pointer-events:none;
     }
@@ -447,9 +447,9 @@ function buildGearSVG(si,pattern,size,spinClass){
     const marks = [];
     if(pattern){
       const scale = size==="probe" ? 0.74 : 0.70;
-      const dotR = size==="probe" ? 11.5 : 9.5;
-      const lw   = size==="probe" ? 11 : 9;
-      const lh   = size==="probe" ? 30 : 22;
+      const dotR = size==="probe" ? 12.5 : 10.5;
+      const lw   = size==="probe" ? 13 : 11;
+      const lh   = size==="probe" ? 34 : 26;
       pattern.forEach(([k,px,py], idx)=>{
         const left = 50 + ((px/100)-0.5) * scale * 100;
         const top  = 50 + ((py/100)-0.5) * scale * 100;
