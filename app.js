@@ -447,7 +447,7 @@ function buildGearSVG(si,pattern,size,spinClass){
     const marks = [];
     if(pattern){
       const scale = size==="probe" ? 0.76 : 0.72;
-      const dotR = size==="probe" ? 10.5 : 8.5;
+      const dotR = size==="probe" ? 10.2 : 8.2;
       const lw   = size==="probe" ? 13 : 10;
       const lh   = size==="probe" ? 22 : 16;
       pattern.forEach(([k,px,py], idx)=>{
