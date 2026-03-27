@@ -45,7 +45,7 @@ const DEFAULTS={
   calibrationStopErrors:4,
   calibrationStopSlowMs:5000,
   cpiBestMs:900,
-  cpiWorstMs:2400,
+  cpiWorstMs:3400,
   deviceBenchmarkEnabled:0
 };
 
@@ -89,7 +89,7 @@ const ADMIN_FIELDS=[
   ["rollMeanThreshold","Anti-spoof threshold (0–1, e.g. 0.50)","number"],
   // ── Scoring ──
   ["cpiBestMs","CPI best ms (default 900)","number"],
-  ["cpiWorstMs","CPI worst ms (default 2400)","number"],
+  ["cpiWorstMs","CPI worst ms (default 3400)","number"],
   // ── System ──
   ["deviceBenchmarkEnabled","Device benchmark (0=off, 1=on)","number"],
 ];
@@ -165,7 +165,7 @@ const $=id=>document.getElementById(id);
 const stimGrid=$("stimGrid"), probeCell=$("probeCell"), probeInner=$("probeInner"),
       respGrid=$("respGrid"), rateOut=$("rateOut"), blocksOut=$("blocksOut"),
       recoveryOut=$("recoveryOut"), wrongOut=$("wrongOut"), fatigueOut=$("fatigueOut"),
-      cpiOut=$("cpiOut")||$("cpsOut"), statusLine=$("statusLine"), resultBox=$("resultBox"),
+      cpiOut=$("cpiOut"), statusLine=$("statusLine"), resultBox=$("resultBox"),
       phaseLabel=$("phaseLabel"), modeLabel=$("modeLabel"), metricsPanel=$("metricsPanel");
 let deferredPrompt=null;
 
@@ -183,7 +183,7 @@ function formatDuration(ms){ if(ms==null) return "—"; const s=Math.round(ms/10
 // ─── CPI ───
 // ─── CPI SCORE CALCULATION ────────────────────────────────────
 // Converts avg last 2 block durations (ms) to 0-100 CPI score.
-// Scale: cpiBestMs=900ms → CPI 100, cpiWorstMs=2400ms → CPI 0.
+// Scale: cpiBestMs=900ms → CPI 100, cpiWorstMs=3400ms → CPI 0.
 // Source: Perelli (2026). Formula: (worst-ms)/(worst-best)*100
 // ──────────────────────────────────────────────────────────────
 function computeCPI(avgMs){
@@ -191,7 +191,7 @@ function computeCPI(avgMs){
   if(!isFinite(best)||!isFinite(worst)||span<=0) return 0;
   return Math.max(0,Math.min(100,((worst-avgMs)/span)*100));
 }
-function updateCPIDisplay(avg){ if(!cpiOut) return; cpiOut.textContent=avg!=null?computeCPI(avg).toFixed(0):"—"; }
+function updateCPIDisplay(avg){ cpiOut.textContent=avg!=null?computeCPI(avg).toFixed(0):"—"; }
 
 // ─── Timers ───
 function clearTimer(){ if(state.trialTimer) clearTimeout(state.trialTimer); state.trialTimer=null; }
@@ -387,6 +387,7 @@ function buildGearSVG(si,pattern,size,spinClass){
       spokes+=`<line x1="${(cx+rI*Math.cos(a)).toFixed(1)}" y1="${(cy+rI*Math.sin(a)).toFixed(1)}" x2="${(cx+rO*Math.cos(a)).toFixed(1)}" y2="${(cy+rO*Math.sin(a)).toFixed(1)}" stroke="${g.stroke}" stroke-width="3" stroke-linecap="round"/>`;
     }
   }
+  const ringR=g.rP-g.ded-3;
   // Pattern marks — fill inside gear body
   let marks="";
   if(pattern){
@@ -468,7 +469,7 @@ function updateMetrics(){
   rateOut.textContent=state.duration?`${Math.round(state.duration)}ms`:"—";
   blocksOut.textContent=String(state.overloads.length);
   recoveryOut.textContent=String(state.recoveries.length);
-  wrongOut.textContent=String(state.totalIncorrect||0);
+  wrongOut.textContent=String(state.lastFiveAnswers.filter(v=>v===false).length+state.calibrationErrors);
   fatigueOut.textContent=state.samnPerelli?String(state.samnPerelli.score):"—";
 }
 
@@ -508,7 +509,7 @@ function trialMatches(trial,index){ return trial&&index===trial.correctPos; }
 // ──────────────────────────────────────────────────────
 function checkMaxPacedWrong(){
   const limit=Number(settings.maxPacedWrong)||20;
-  if(state.pacedErrors>=limit){ state.endReason=`FAILED — paced wrong-tap limit reached (${state.pacedErrors}/${limit})`; finish(); return true; }
+  if(state.pacedErrors>=limit){ state.endReason="TOO MANY WRONG RESPONSES — Retest"; finish(); return true; }
   return false;
 }
 function recordAnswer(ok,isMiss){
@@ -521,11 +522,11 @@ function recordAnswer(ok,isMiss){
     if(state.rollMeanLog.length===win){
       const ratio=state.rollMeanLog.filter(v=>v===true).length/win;
       const thresh=Number(settings.rollMeanThreshold)||0.50;
-      if(ratio<thresh){ const pct=Math.round(ratio*100); state.endReason=`FAILED — rolling last ${win} tapped responses fell below ${Math.round(thresh*100)}% correct (${pct}% correct)`; finish(); return true; }
+      if(ratio<thresh){ state.endReason="TOO MANY WRONG RESPONSES! — Retest"; finish(); return true; }
     }
     const wc=state.lastFiveAnswers.filter(v=>v===false).length;
     if(state.lastFiveAnswers.length===settings.wrongWindowSize&&wc>settings.wrongThresholdStop){
-      state.endReason=`FAILED — too many wrong taps in the last ${settings.wrongWindowSize} responses (${wc} wrong)`; finish(); return true;
+      state.endReason="TOO MANY WRONG RESPONSES! — Retest"; finish(); return true;
     }
   }
   updateMetrics(); return false;
@@ -670,7 +671,6 @@ function openTrial(kind){
     const idx=state.calibrationTrialIndex+1,total=settings.initialUnusedCalibrationTrials+settings.initialMeasuredCalibrationTrials;
     phaseLabel.textContent=`Cal ${idx}/${total}`;
     setStatus(idx<=settings.initialUnusedCalibrationTrials?"Self-paced (unused)":"Self-paced (measured)");
-    armNoResponseTimer();
   }else if(kind==="paced"){
     phaseLabel.textContent=`Paced · ${Math.round(state.duration)}ms`;
     setStatus("Machine-paced");
@@ -678,11 +678,9 @@ function openTrial(kind){
   }else if(kind==="recovery"){
     phaseLabel.textContent=`SP Restart ${state.spCorrectStreak}✓ ${state.spWrongCount}✗`;
     setStatus(`SP Restart — need ${settings.spRestartCorrectStreak} correct in a row`);
-    armNoResponseTimer();
   }else if(kind==="terminal_recovery"){
     phaseLabel.textContent=`Final SP ${state.recoveryCorrectCompleted+1}/${settings.spRestartCorrectStreak}`;
     setStatus("Final self-paced recovery");
-    armNoResponseTimer();
   }
 }
 
@@ -693,6 +691,7 @@ function onPacedFrameEnd(){
   // True miss = no tap at all. Wrong tap = had response but unresolved.
   // Only true misses count toward block threshold.
   const truelyMissed=state.current&&!state.current.resolved&&!state.hadResponse;
+  const wrongAndUnresolved=state.current&&!state.current.resolved&&state.hadResponse;
   if(truelyMissed){
     logTrial({phase:"missed",rt:null,outcome:"missed",responseIndex:null});
     state.missedTrials+=1; state.previousMissed=true; state.lastFrameDuration=state.duration;
@@ -737,7 +736,7 @@ function handleTap(index){
     logTrial({phase:"calibration",rt,outcome:ok?"correct":"wrong",responseIndex:index});
     if(!ok){
       state.calibrationErrors+=1; updateMetrics();
-      if(state.calibrationErrors>settings.calibrationStopErrors){ failCalibration(`FAILED — calibration wrong-tap limit reached (${state.calibrationErrors}/${settings.calibrationStopErrors})`); return; }
+      if(state.calibrationErrors>settings.calibrationStopErrors){ failCalibration("TOO MANY WRONG RESPONSES — Practice!"); return; }
     }else{
       if(rt>settings.calibrationStopSlowMs){ failCalibration("NOT RESPONDING IN TIME — Practice!"); return; }
       if(state.calibrationTrialIndex>=settings.initialUnusedCalibrationTrials) state.calibrationRTs.push(rt);
@@ -772,7 +771,7 @@ function handleTap(index){
     }else{
       state.spCorrectStreak=0; state.spWrongCount+=1; state.recoveryErrors+=1;
       const limit=Math.max(1,Number(settings.spRestartWrongLimit)||3);
-      if(state.spWrongCount>=limit){ state.endReason=`FAILED — SP Restart wrong-tap limit reached (${state.spWrongCount}/${limit})`; finish(); return; }
+      if(state.spWrongCount>=limit){ state.endReason="TOO MANY WRONG RESPONSES! — Retest"; finish(); return; }
       setStatus(`SP Restart: ${state.spWrongCount}/${limit} wrong`);
       setTimeout(()=>openTrial("recovery"),160);
     }
@@ -959,7 +958,7 @@ function drawCombinedChart(canvas,hist){
   drawSeries(spfVals,spfToY,"#88ff88");
   ctx.fillStyle="#7fd7ff"; ctx.font="bold 9px sans-serif"; ctx.textAlign="left"; ctx.fillText("■ CPI",PAD.left,PAD.top-4);
   ctx.fillStyle="#ff9f40"; ctx.fillText("■ MBS ms",PAD.left+50,PAD.top-4);
-  ctx.fillStyle="#88ff88"; ctx.fillText("■ SP-FS",PAD.left+115,PAD.top-4);
+  ctx.fillStyle="#88ff88"; ctx.fillText("■ S-PF",PAD.left+115,PAD.top-4);
   ctx.fillStyle="rgba(255,159,64,0.7)"; ctx.font="9px sans-serif"; ctx.textAlign="right";
   ctx.fillText("\u2191 better",PAD.left+cW+50,PAD.top-4);
 }
@@ -1273,7 +1272,7 @@ function isTestSuccess(r){ return (r||"").toLowerCase().startsWith("convergent")
 // Formats full monospace result text (state.lastResultText).
 // Includes: subject ID, date/time, location, SP-FS, calibration,
 //   block scores, CPI, response stats, end reason, reference table.
-// REFERENCE TABLE: 7-row SP-FS/CPI/MBS lookup from Perelli (2026)
+// REFERENCE TABLE: 7-row S-PF/CPI/MBS lookup from Perelli (2026)
 //   with ← YOUR SCORE arrow on the matching CPI band.
 // ──────────────────────────────────────────────────────────────
 function buildSummary(result){
@@ -1296,24 +1295,17 @@ function buildSummary(result){
   // Row color by SPF level: top dark green → light green → yellow → orange → bottom 2 red
   const SPF_COLOR={7:'#1a8a1a',6:'#1a8a1a',5:'#4aaa00',4:'#c8a800',3:'#cc5500',2:'#cc1100',1:'#cc1100'};
   const esc=s=>s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-    const refRows=[
-    [7,100, "FUNCTIONING EXCEPTIONALLY WELL"],
-    [6, 80, "FUNCTIONING VERY WELL"],
-    [5, 75, "FUNCTIONING NORMALLY"],
-    [4, 50, "FUNCTIONING SLIGHTLY LESS THAN NORMAL"],
-    [3, 25, "FUNCTIONING — STARTING TO SLOW"],
-    [2, 11, "DIFFICULT TO FUNCTION — BECOMING UNSAFE"],
-    [1,  0, "UNABLE TO FUNCTION — DEFINITELY UNSAFE"],
+  const tableData=[
+    [7,100,  600, "FUNCTIONING EXCEPTIONALLY WELL"],
+    [6, 80,  800, "FUNCTIONING VERY WELL"],
+    [5, 75, 1050, "FUNCTIONING NORMALLY"],
+    [4, 50, 1500, "FUNCTIONING SLIGHTLY LESS THAN NORMAL"],
+    [3, 25, 1950, "FUNCTIONING \u2014 STARTING TO SLOW"],
+    [2, 11, 2200, "DIFFICULT TO FUNCTION \u2014 BECOMING UNSAFE"],
+    [1,  0,   -1, "UNABLE TO FUNCTION \u2014 DEFINITELY UNSAFE"],
   ];
-  const bestMs = Number(settings.cpiBestMs)||900;
-  const worstMs = Number(settings.cpiWorstMs)||2400;
-  const spanMs = Math.max(1, worstMs - bestMs);
-  const tableData=refRows.map(([spf,cpi,cap])=>{
-    const mbs = Math.round(bestMs + ((100-cpi)/100) * spanMs);
-    return [spf,cpi,mbs,cap];
-  });
   const tableRows=tableData.map(([spf,cpi,brd,cap],i)=>{
-    const mbsStr = String(brd);
+    const mbsStr = brd<0?"&gt;2400":String(brd);
     // Each row owns scores > next row's cpi and <= this row's cpi.
     // Last row owns everything <= 0.
     const loBound = i+1 < tableData.length ? tableData[i+1][1] : -Infinity;
@@ -1333,7 +1325,7 @@ Date / Time:   ${new Date(result.time).toLocaleString()}
 Test duration:         ${formatDuration(result.testDurationMs)}
 Location:      ${geoStr}
 ${hr}
-FATIGUE (SP-FS)
+FATIGUE (S-PF)
   Pre-test rating:  ${spf}
 ${hr}
 CALIBRATION
@@ -1361,13 +1353,13 @@ END REASON
   ${result.endReason}
 ${hr}
 COGNITIVE PERFORMANCE REFERENCE TABLE
-  SP-FS | CPI  | MBS ms  | Performance Capability
+  S-PF | CPI  | MBS ms  | Performance Capability
   \u2500\u2500\u2500\u2500\u2500\u253c\u2500\u2500\u2500\u2500\u2500\u2500\u253c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u253c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500`;
 
   const footerPart=
 `
   \u2500\u2500\u2500\u2500\u2500\u2534\u2500\u2500\u2500\u2500\u2500\u2500\u2534\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2534\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
-  MBS = avg last 2 blocks (ms)  |  CPI = 0-100 scale (from current Admin best/worst ms settings)
+  MBS = avg last 2 blocks  |  CPI = 0-100 scale
   Source: Perelli (2026), Gray Matter Metrics, LLC`;
 
   el.innerHTML = esc(mainPart)+"\n"+tableRows+esc(footerPart);
@@ -1723,6 +1715,7 @@ function startTest(){
   captureGeo();
   runGearSpinThenStart(()=>{
     state.phase="calibration";
+    noteAnyResponse();   // start no-response timer NOW — first trial is visible
     openTrial("calibration");
   });
 }
@@ -1928,19 +1921,17 @@ function buildTutRespGrid(flashPos){
 }
 
 
-
 function buildTutGearGridAnimated(showPatterns){
   let html = `<style>
     @keyframes tutPairFlash {
-      0%, 13.888% { border-color: transparent; filter: none; box-shadow:none; opacity:.72; }
-      16.666%, 30.555% { border-color: #7fd7ff; filter: drop-shadow(0 0 10px rgba(127,215,255,0.95)); box-shadow: 0 0 16px rgba(127,215,255,0.30) inset; opacity:1; }
-      33.333%, 100% { border-color: transparent; filter: none; box-shadow:none; opacity:.72; }
+      0%, 16.666% { border-color:#7fd7ff; filter:drop-shadow(0 0 10px rgba(127,215,255,0.95)); box-shadow:0 0 16px rgba(127,215,255,0.30) inset; opacity:1; }
+      20%, 100% { border-color:transparent; filter:none; box-shadow:none; opacity:.72; }
     }
   </style>`;
   html += '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;width:100%;max-width:340px">';
   TUT_ITEMS.forEach((it,i)=>{
     const pat = showPatterns ? it.pattern : null;
-    html += `<div style="border:2px solid transparent;border-radius:10px;aspect-ratio:1;animation:tutPairFlash 18s linear infinite;animation-delay:${i*3}s">
+    html += `<div style="border:2px solid transparent;border-radius:10px;aspect-ratio:1;animation:tutPairFlash 12s linear infinite;animation-delay:${i*2}s">
       ${buildGearSVG(i+1, pat, "large", "")}
     </div>`;
   });
@@ -1951,13 +1942,14 @@ function buildTutGearGridAnimated(showPatterns){
 function buildTutRespGridAnimated(){
   let html = '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;width:100%;max-width:340px">';
   for(let i=0;i<6;i++){
-    html += `<div style="aspect-ratio:1;border-radius:10px;border:2px solid transparent;position:relative;animation:tutPairFlash 18s linear infinite;animation-delay:${i*3}s">
+    html += `<div style="aspect-ratio:1;border-radius:10px;border:2px solid transparent;position:relative;animation:tutPairFlash 12s linear infinite;animation-delay:${i*2}s">
       ${buildGearSVG(i+1, null, "large", "")}
     </div>`;
   }
   html += '</div>';
   return html;
 }
+
 
 // ─── Mini trial screen for tutorial background ───
 // Returns HTML showing a tiny test screen with different parts highlighted
@@ -2024,12 +2016,12 @@ const TUT_STEPS = [
   {
     build:()=>{
       return buildMiniScreen("probe") + `
-      <div style="position:relative;z-index:1;display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;padding:16px;text-align:center">
-        <div style="font-size:13px;letter-spacing:.1em;color:rgba(127,215,255,0.8);text-transform:uppercase;margin-bottom:8px;text-shadow:0 0 12px rgba(127,215,255,0.5)">The Probe</div>
-        <div style="margin-bottom:14px">${buildTutProbe(true)}</div>
-        <div style="background:rgba(10,20,40,0.88);backdrop-filter:blur(4px);border-radius:16px;padding:14px 18px;max-width:300px;border:1px solid rgba(127,215,255,0.2)">
-          <div style="font-size:20px;font-weight:700;color:#f5fbff;margin-bottom:6px">This glowing gear is the <span style="color:#7fd7ff">PROBE</span></div>
-          <div style="font-size:15px;color:rgba(255,255,255,0.65)">Count the marks inside it — the same dot and line patterns used in the test</div>
+      <div style="position:relative;z-index:1;display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;padding:8px 12px;text-align:center">
+        <div style="font-size:12px;letter-spacing:.09em;color:rgba(127,215,255,0.8);text-transform:uppercase;margin-bottom:6px;text-shadow:0 0 10px rgba(127,215,255,0.5)">The Probe</div>
+        <div style="margin-bottom:8px;transform:scale(.9)">${buildTutProbe(true)}</div>
+        <div style="background:rgba(10,20,40,0.88);backdrop-filter:blur(4px);border-radius:16px;padding:10px 14px;max-width:280px;border:1px solid rgba(127,215,255,0.2)">
+          <div style="font-size:18px;font-weight:700;color:#f5fbff;margin-bottom:5px">This glowing gear is the <span style="color:#7fd7ff">PROBE</span></div>
+          <div style="font-size:14px;color:rgba(255,255,255,0.68);line-height:1.35">Count the marks inside it — dots or lines</div>
         </div>
       </div>`;
     }
@@ -2043,7 +2035,7 @@ const TUT_STEPS = [
         <div style="margin-bottom:10px">${buildTutGearGrid(-1,true)}</div>
         <div style="background:rgba(10,20,40,0.88);backdrop-filter:blur(4px);border-radius:16px;padding:14px 18px;max-width:300px;border:1px solid rgba(127,215,255,0.2)">
           <div style="font-size:20px;font-weight:700;color:#f5fbff;margin-bottom:6px">These 6 gears are your <span style="color:#7fd7ff">TARGETS</span></div>
-          <div style="font-size:15px;color:rgba(255,255,255,0.65)">These are the same dot and line patterns you will see during the test</div>
+          <div style="font-size:15px;color:rgba(255,255,255,0.65)">Each has dots or lines — count them</div>
         </div>
       </div>`;
     }
@@ -2064,7 +2056,7 @@ const TUT_STEPS = [
             <div style="font-size:24px;color:#ffaa44;font-weight:900">↔</div>
             <div style="text-align:center">
               <div style="font-size:10px;color:rgba(255,255,255,0.5);margin-bottom:3px">MATCH</div>
-              <div style="width:60px;height:60px;border:2px solid #7fd7ff;border-radius:8px;box-shadow:0 0 10px rgba(127,215,255,0.4)">${buildGearSVG(3, DOT_PATTERNS[3], "large", "")}</div>
+              <div style="width:60px;height:60px;border:2px solid #7fd7ff;border-radius:8px;box-shadow:0 0 10px rgba(127,215,255,0.4)">${buildGearSVG(3, DOT_PATTERNS[3], "probe", "")}</div>
               <div style="font-size:12px;color:#00ff88;margin-top:3px;font-weight:700">dots : 3 ✓</div>
             </div>
           </div>
@@ -2091,8 +2083,8 @@ const TUT_STEPS = [
           </div>
           <div>${buildTutRespGridAnimated()}</div>
           <div style="font-size:14px;color:rgba(255,255,255,0.72);margin-top:8px;line-height:1.45">
-            Each <span style="color:#7fd7ff;font-weight:700">upper gear</span> flashes with its matching
-            <span style="color:#00ff88;font-weight:700">response gear below</span> for 3 seconds, in sequence.
+            Each <span style="color:#7fd7ff;font-weight:700">upper gear</span> starts flashing immediately with its matching
+            <span style="color:#00ff88;font-weight:700">response gear below</span> for 2 seconds, in sequence.
             Watch the cycle, then tap <span style="color:#00ff88;font-weight:700">Next</span> when ready.
           </div>
         </div>
@@ -2347,38 +2339,6 @@ async function _doInstall(){
   setStatus(msg);
 }
 const _ihb=$("installBtnHome"); if(_ihb) _ihb.onclick=_doInstall;
-
-// ─── Service worker ───
-if ("serviceWorker" in navigator) {
-  let _swRefreshing = false;
-  navigator.serviceWorker.addEventListener("controllerchange", () => {
-    if (_swRefreshing) return;
-    _swRefreshing = true;
-    window.location.reload();
-  });
-  window.addEventListener("load", () => {
-    navigator.serviceWorker.register("./sw.js").then(reg => {
-      if (reg.waiting) reg.waiting.postMessage({type:"SKIP_WAITING"});
-      reg.addEventListener("updatefound", () => {
-        const nw = reg.installing;
-        if (!nw) return;
-        nw.addEventListener("statechange", () => {
-          if (nw.state === "installed" && navigator.serviceWorker.controller) {
-            nw.postMessage({type:"SKIP_WAITING"});
-          }
-        });
-      });
-      reg.update().catch(()=>{});
-      setStatus("App ready. Offline support enabled after first load.");
-    }).catch(err => {
-      console.warn("Service worker registration failed:", err);
-      setStatus("Offline mode unavailable on this browser.");
-    });
-  });
-}
-
-window.addEventListener("online", () => setStatus("Back online."));
-window.addEventListener("offline", () => setStatus("Offline mode: using cached app files."));
 
 // ─── Init ───
 modeLabel.textContent="Subject mode";
