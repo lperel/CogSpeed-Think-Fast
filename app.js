@@ -66,8 +66,8 @@ const ADMIN_FIELDS=[
   ["calibrationStopSlowMs","Cal avg RT limit (ms, default 3000)","number"],
   // ── Machine-paced ──
   ["initialPacedPercent","MP start: % of cal avg (default 0.70)","number"],
-  ["minDurationMs","MP min frame duration (ms, default 800)","number"],
-  ["maxDurationMs","MP max frame duration (ms, default 3000)","number"],
+  ["minDurationMs","MP FRAME RANGE — minimum frame duration (ms, default 800)","number"],
+  ["maxDurationMs","MP FRAME RANGE — maximum frame duration (ms, default 3000)","number"],
   ["machinePacedNoResponseMs","MP no-response timeout (ms, default 15000)","number"],
   ["maxTestDurationMs","Max TOTAL test time (ms, default 150000)","number"],
   ["maxTrialCount","MP max paced trials","number"],
@@ -88,8 +88,8 @@ const ADMIN_FIELDS=[
   ["rollMeanWindow","Anti-spoof: rolling mean window (responses)","number"],
   ["rollMeanThreshold","Anti-spoof threshold (0–1, e.g. 0.50)","number"],
   // ── Scoring ──
-  ["cpiBestMs","CPI best ms (default 900)","number"],
-  ["cpiWorstMs","CPI worst ms (default 3400)","number"],
+  ["cpiBestMs","CPI SCORING ANCHOR — best ms (default 900, not MP min)","number"],
+  ["cpiWorstMs","CPI SCORING ANCHOR — worst ms (default 3400, not MP max)","number"],
   // ── System ──
   ["deviceBenchmarkEnabled","Device benchmark (0=off, 1=on)","number"],
 ];
