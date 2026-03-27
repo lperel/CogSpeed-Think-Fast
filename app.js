@@ -346,6 +346,7 @@ const GEARS=[
 ];
 
 const GEAR_IMAGE_SRCS = {
+  0: "./gear0.png",
   1: "./gear1.png",
   2: "./gear2.png",
   3: "./gear3.png",
@@ -359,7 +360,7 @@ function ensureGearImageStyles(){
   const st=document.createElement("style");
   st.id="gearImageStyles";
   st.textContent=`
-    #testScreen{background:#969696!important;}
+    #testScreen{background:#9b9b9b!important;}
     .gear-img-wrap{
       position:relative;
       width:100%;
@@ -374,7 +375,7 @@ function ensureGearImageStyles(){
       height:100%;
       object-fit:contain;
       display:block;
-      filter:contrast(1.08) saturate(0.92);
+      filter:contrast(1.14) saturate(0.95) brightness(1.02);
     }
     .gear-pattern-backdrop{
       position:absolute;
@@ -384,8 +385,8 @@ function ensureGearImageStyles(){
       height:54%;
       transform:translate(-50%,-50%);
       border-radius:50%;
-      background:rgba(70,70,70,0.30);
-      box-shadow:0 0 16px rgba(0,0,0,0.18) inset;
+      background:rgba(110,110,110,0.24);
+      box-shadow:0 0 14px rgba(0,0,0,0.16) inset;
       pointer-events:none;
     }
     .gear-mark{
@@ -442,13 +443,13 @@ function gearPath(cx,cy,nT,rP,add,ded,tf){
 
 function buildGearSVG(si,pattern,size,spinClass){
   ensureGearImageStyles();
-  if(si>0 && GEAR_IMAGE_SRCS[si]){
+  if(GEAR_IMAGE_SRCS[si]){
     const marks = [];
     if(pattern){
-      const scale = size==="probe" ? 0.78 : 0.72;
-      const dotR = size==="probe" ? 9 : 8;
-      const lw   = size==="probe" ? 12 : 10;
-      const lh   = size==="probe" ? 20 : 16;
+      const scale = size==="probe" ? 0.76 : 0.72;
+      const dotR = size==="probe" ? 10 : 8;
+      const lw   = size==="probe" ? 13 : 10;
+      const lh   = size==="probe" ? 22 : 16;
       pattern.forEach(([k,px,py], idx)=>{
         const left = 50 + ((px/100)-0.5) * scale * 100;
         const top  = 50 + ((py/100)-0.5) * scale * 100;
@@ -2009,6 +2010,36 @@ function buildTutRespGrid(flashPos){
 }
 
 
+function buildTutGearGridAnimated(showPatterns){
+  let html = `<style>
+    @keyframes tutPairFlash {
+      0%, 16.666% { border-color:#7fd7ff; filter:drop-shadow(0 0 10px rgba(127,215,255,0.95)); box-shadow:0 0 16px rgba(127,215,255,0.30) inset; opacity:1; }
+      20%, 100% { border-color:transparent; filter:none; box-shadow:none; opacity:.72; }
+    }
+  </style>`;
+  html += '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;width:100%;max-width:340px">';
+  TUT_ITEMS.forEach((it,i)=>{
+    const pat = showPatterns ? it.pattern : null;
+    html += `<div style="border:2px solid transparent;border-radius:10px;aspect-ratio:1;animation:tutPairFlash 12s linear infinite;animation-delay:${i*2}s">
+      ${buildGearSVG(i+1, pat, "large", "")}
+    </div>`;
+  });
+  html += '</div>';
+  return html;
+}
+
+function buildTutRespGridAnimated(){
+  let html = '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;width:100%;max-width:340px">';
+  for(let i=0;i<6;i++){
+    html += `<div style="aspect-ratio:1;border-radius:10px;border:2px solid transparent;position:relative;animation:tutPairFlash 12s linear infinite;animation-delay:${i*2}s">
+      ${buildGearSVG(i+1, null, "large", "")}
+    </div>`;
+  }
+  html += '</div>';
+  return html;
+}
+
+
 // ─── Mini trial screen for tutorial background ───
 // Returns HTML showing a tiny test screen with different parts highlighted
 function buildMiniScreen(highlightPart){
@@ -2132,15 +2163,19 @@ const TUT_STEPS = [
       return buildMiniScreen("all") + `
       <div style="position:relative;z-index:1;display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;padding:16px;text-align:center">
         <div style="font-size:13px;letter-spacing:.1em;color:rgba(127,215,255,0.8);text-transform:uppercase;margin-bottom:8px;text-shadow:0 0 12px rgba(127,215,255,0.5)">Tap the Match</div>
-        <div style="background:rgba(10,20,40,0.88);backdrop-filter:blur(4px);border-radius:16px;padding:12px 16px;max-width:310px;border:1px solid rgba(127,215,255,0.2)">
-          <div style="margin-bottom:6px;opacity:0.9">${buildTutGearGrid(TUT_CORRECT_POS,true)}</div>
+        <div style="background:rgba(10,20,40,0.88);backdrop-filter:blur(4px);border-radius:16px;padding:12px 16px;max-width:320px;border:1px solid rgba(127,215,255,0.2)">
+          <div style="margin-bottom:6px;opacity:0.95">${buildTutGearGridAnimated(true)}</div>
           <div style="display:flex;align-items:center;gap:8px;margin:6px 0">
             <div style="flex:1;height:1px;background:rgba(255,255,255,0.15)"></div>
             <div style="font-size:11px;color:rgba(255,255,255,0.45)">same position below</div>
             <div style="flex:1;height:1px;background:rgba(255,255,255,0.15)"></div>
           </div>
-          <div>${buildTutRespGrid(TUT_CORRECT_POS)}</div>
-          <div style="font-size:15px;color:rgba(255,255,255,0.7);margin-top:8px">Tap the <span style="color:#00ff88;font-weight:700">button below</span> that matches the highlighted gear</div>
+          <div>${buildTutRespGridAnimated()}</div>
+          <div style="font-size:14px;color:rgba(255,255,255,0.72);margin-top:8px;line-height:1.45">
+            Each <span style="color:#7fd7ff;font-weight:700">upper gear</span> starts flashing immediately with its matching
+            <span style="color:#00ff88;font-weight:700">response gear below</span> for 2 seconds, in sequence.
+            Watch the cycle, then tap <span style="color:#00ff88;font-weight:700">Next</span> when ready.
+          </div>
         </div>
       </div>`;
     }
