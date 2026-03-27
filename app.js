@@ -4,7 +4,7 @@
 
 // ─── Version guard ───
 (function(){
-  const VER="cogspeed_v21r2", key="cogspeed_version";
+  const VER="cogspeed_v21r5", key="cogspeed_version";
   if(localStorage.getItem(key)!==VER){
     Object.keys(localStorage).forEach(k=>{ if(k.startsWith("cogspeed_")||k.startsWith("cogblock_")) localStorage.removeItem(k); });
     localStorage.setItem(key,VER);
@@ -135,13 +135,13 @@ const SAMN_PERELLI=[
 
 // ─── Settings ───
 function loadSettings(){
-  const s=JSON.parse(localStorage.getItem("cogspeed_v21_settings")||"null");
+  const s=JSON.parse(localStorage.getItem("cogspeed_v21r5_settings")||"null");
   if(!s) return {...DEFAULTS};
   const m={...DEFAULTS};
   Object.keys(DEFAULTS).forEach(k=>{ if(s[k]!==undefined) m[k]=s[k]; });
   return m;
 }
-function saveSettings(){ localStorage.setItem("cogspeed_v21_settings",JSON.stringify(settings)); }
+function saveSettings(){ localStorage.setItem("cogspeed_v21r5_settings",JSON.stringify(settings)); }
 let settings=loadSettings();
 
 // ─── State ───
@@ -150,7 +150,7 @@ const state={
   current:null, previous:null, unresolvedStreak:0,
   overloads:[], recoveries:[], recoveryCorrectCompleted:0,
   spCorrectStreak:0, spWrongCount:0, terminalBlockReason:null,
-  history:JSON.parse(localStorage.getItem("cogspeed_v21_history")||"[]"),
+  history:JSON.parse(localStorage.getItem("cogspeed_v21r5_history")||"[]"),
   totalTrials:0, totalResponses:0, totalCorrect:0, totalIncorrect:0,
   missedTrials:0, pacedErrors:0, recoveryErrors:0, rollMeanLog:[],
   testStartTime:null, trialTimer:null, absoluteNoResponseTimer:null, maxTestTimer:null,
@@ -446,10 +446,10 @@ function buildGearSVG(si,pattern,size,spinClass){
   if(GEAR_IMAGE_SRCS[si]){
     const marks = [];
     if(pattern){
-      const scale = size==="probe" ? 0.74 : 0.69;
+      const scale = size==="probe" ? 0.76 : 0.72;
       const dotR = size==="probe" ? 10 : 8;
       const lw   = size==="probe" ? 14 : 11;
-      const lh   = size==="probe" ? 23 : 17;
+      const lh   = size==="probe" ? 22 : 16;
       pattern.forEach(([k,px,py], idx)=>{
         const left = 50 + ((px/100)-0.5) * scale * 100;
         const top  = 50 + ((py/100)-0.5) * scale * 100;
@@ -725,7 +725,7 @@ function finish(){
     time:new Date().toISOString(), geo:state.geo
   };
   state.history.push(result);
-  localStorage.setItem("cogspeed_v21_history",JSON.stringify(state.history));
+  localStorage.setItem("cogspeed_v21r5_history",JSON.stringify(state.history));
   updateCPIDisplay(avg2); setProbeIdle();
   // Build the display text (also used for email)
   buildSummary(result);
@@ -1388,21 +1388,21 @@ function buildSummary(result){
   const SPF_COLOR={7:'#1a8a1a',6:'#1a8a1a',5:'#4aaa00',4:'#c8a800',3:'#cc5500',2:'#cc1100',1:'#cc1100'};
   const esc=s=>s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   const tableData=[
-    [7,100,  600, "FUNCTIONING EXCEPTIONALLY WELL"],
-    [6, 80,  800, "FUNCTIONING VERY WELL"],
-    [5, 75, 1050, "FUNCTIONING NORMALLY"],
-    [4, 50, 1500, "FUNCTIONING SLIGHTLY LESS THAN NORMAL"],
-    [3, 25, 1950, "FUNCTIONING \u2014 STARTING TO SLOW"],
-    [2, 11, 2200, "DIFFICULT TO FUNCTION \u2014 BECOMING UNSAFE"],
-    [1,  0,   -1, "UNABLE TO FUNCTION \u2014 DEFINITELY UNSAFE"],
+    [7,100,  800, "FUNCTIONING EXCEPTIONALLY WELL"],
+    [6, 80, 1240, "FUNCTIONING VERY WELL"],
+    [5, 75, 1350, "FUNCTIONING NORMALLY"],
+    [4, 50, 1900, "FUNCTIONING SLIGHTLY LESS THAN NORMAL"],
+    [3, 25, 2450, "FUNCTIONING — STARTING TO SLOW"],
+    [2, 11, 2758, "DIFFICULT TO FUNCTION — BECOMING UNSAFE"],
+    [1,  0, 3000, "UNABLE TO FUNCTION — DEFINITELY UNSAFE"],
   ];
   const tableRows=tableData.map(([spf,cpi,brd,cap],i)=>{
-    const mbsStr = brd<0?"&gt;2400":String(brd);
+    const mbsStr = String(brd);
     // Each row owns scores > next row's cpi and <= this row's cpi.
     // Last row owns everything <= 0.
     const loBound = i+1 < tableData.length ? tableData[i+1][1] : -Infinity;
     const inBand  = cps!=null && cps > loBound && cps <= cpi;
-    const arrow   = inBand ? " \u2190 YOUR SCORE" : "";
+    const arrow   = inBand ? " ← YOUR SCORE" : "";
     const line=`    ${String(spf).padStart(2)}  | ${String(cpi).padStart(3)}  | ${mbsStr.padStart(6)}  | ${cap}${arrow}`;
     return `<span style="color:${SPF_COLOR[spf]};font-weight:700">${line}</span>`;
   }).join("\n");
@@ -1451,7 +1451,7 @@ COGNITIVE PERFORMANCE REFERENCE TABLE
   const footerPart=
 `
   \u2500\u2500\u2500\u2500\u2500\u2534\u2500\u2500\u2500\u2500\u2500\u2500\u2534\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2534\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
-  MBS = avg last 2 blocks  |  CPI = 0-100 scale
+  MBS table mapped from current MP min/max defaults (800–3000)  |  CPI = 0-100 scale
   Source: Perelli (2026), Gray Matter Metrics, LLC`;
 
   el.innerHTML = esc(mainPart)+"\n"+tableRows+esc(footerPart);
@@ -2380,7 +2380,7 @@ $("historyClearBtn").onclick=()=>{
     btn.textContent="🗑 Clear History";
     btn.style.color="rgba(255,100,136,0.5)";
     btn.style.borderColor="rgba(255,100,136,0.3)";
-    state.history=[]; localStorage.removeItem("cogspeed_v21_history");
+    state.history=[]; localStorage.removeItem("cogspeed_v21r5_history");
     buildHistoryOverlay(); setStatus("History cleared.");
   } else {
     btn._confirmPending=true;
