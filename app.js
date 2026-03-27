@@ -381,8 +381,8 @@ function ensureGearImageStyles(){
       position:absolute;
       left:50%;
       top:50%;
-      width:54%;
-      height:54%;
+      width:52%;
+      height:52%;
       transform:translate(-50%,-50%);
       border-radius:50%;
       background:rgba(110,110,110,0.24);
@@ -393,8 +393,8 @@ function ensureGearImageStyles(){
       position:absolute;
       transform:translate(-50%,-50%);
       background:#ffffff;
-      border:2px solid #111;
-      box-shadow:0 0 2px rgba(0,0,0,0.5);
+      border:3px solid #111;
+      box-shadow:0 0 3px rgba(0,0,0,0.55);
       opacity:0.98;
       pointer-events:none;
     }
@@ -447,9 +447,9 @@ function buildGearSVG(si,pattern,size,spinClass){
     const marks = [];
     if(pattern){
       const scale = size==="probe" ? 0.76 : 0.72;
-      const dotR = size==="probe" ? 10 : 8;
-      const lw   = size==="probe" ? 13 : 10;
-      const lh   = size==="probe" ? 22 : 16;
+      const dotR = size==="probe" ? 11 : 9;
+      const lw   = size==="probe" ? 15 : 12;
+      const lh   = size==="probe" ? 24 : 18;
       pattern.forEach(([k,px,py], idx)=>{
         const left = 50 + ((px/100)-0.5) * scale * 100;
         const top  = 50 + ((py/100)-0.5) * scale * 100;
