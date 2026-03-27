@@ -44,8 +44,8 @@ const DEFAULTS={
   initialPacedPercent:0.70,
   calibrationStopErrors:4,
   calibrationStopSlowMs:5000,
-  cpiBestMs:900,
-  cpiWorstMs:3400,
+  cpiBestMs:800,
+  cpiWorstMs:3000,
   deviceBenchmarkEnabled:0
 };
 
@@ -88,8 +88,8 @@ const ADMIN_FIELDS=[
   ["rollMeanWindow","Anti-spoof: rolling mean window (responses)","number"],
   ["rollMeanThreshold","Anti-spoof threshold (0–1, e.g. 0.50)","number"],
   // ── Scoring ──
-  ["cpiBestMs","CPI SCORING ANCHOR — best ms (default 900, not MP min)","number"],
-  ["cpiWorstMs","CPI SCORING ANCHOR — worst ms (default 3400, not MP max)","number"],
+  ["cpiBestMs","CPI SCORING ANCHOR — best ms (default 800, matches MP min)","number"],
+  ["cpiWorstMs","CPI SCORING ANCHOR — worst ms (default 3000, matches MP max)","number"],
   // ── System ──
   ["deviceBenchmarkEnabled","Device benchmark (0=off, 1=on)","number"],
 ];
@@ -135,13 +135,13 @@ const SAMN_PERELLI=[
 
 // ─── Settings ───
 function loadSettings(){
-  const s=JSON.parse(localStorage.getItem("cogspeed_v21r9_settings")||"null");
+  const s=JSON.parse(localStorage.getItem("cogspeed_v21r10_settings")||"null");
   if(!s) return {...DEFAULTS};
   const m={...DEFAULTS};
   Object.keys(DEFAULTS).forEach(k=>{ if(s[k]!==undefined) m[k]=s[k]; });
   return m;
 }
-function saveSettings(){ localStorage.setItem("cogspeed_v21r9_settings",JSON.stringify(settings)); }
+function saveSettings(){ localStorage.setItem("cogspeed_v21r10_settings",JSON.stringify(settings)); }
 let settings=loadSettings();
 
 // ─── State ───
@@ -150,7 +150,7 @@ const state={
   current:null, previous:null, unresolvedStreak:0,
   overloads:[], recoveries:[], recoveryCorrectCompleted:0,
   spCorrectStreak:0, spWrongCount:0, terminalBlockReason:null,
-  history:JSON.parse(localStorage.getItem("cogspeed_v21r9_history")||"[]"),
+  history:JSON.parse(localStorage.getItem("cogspeed_v21r10_history")||"[]"),
   totalTrials:0, totalResponses:0, totalCorrect:0, totalIncorrect:0,
   missedTrials:0, pacedErrors:0, recoveryErrors:0, rollMeanLog:[],
   testStartTime:null, trialTimer:null, absoluteNoResponseTimer:null, maxTestTimer:null,
@@ -725,7 +725,7 @@ function finish(){
     time:new Date().toISOString(), geo:state.geo
   };
   state.history.push(result);
-  localStorage.setItem("cogspeed_v21r9_history",JSON.stringify(state.history));
+  localStorage.setItem("cogspeed_v21r10_history",JSON.stringify(state.history));
   updateCPIDisplay(avg2); setProbeIdle();
   // Build the display text (also used for email)
   buildSummary(result);
@@ -2380,7 +2380,7 @@ $("historyClearBtn").onclick=()=>{
     btn.textContent="🗑 Clear History";
     btn.style.color="rgba(255,100,136,0.5)";
     btn.style.borderColor="rgba(255,100,136,0.3)";
-    state.history=[]; localStorage.removeItem("cogspeed_v21r9_history");
+    state.history=[]; localStorage.removeItem("cogspeed_v21r10_history");
     buildHistoryOverlay(); setStatus("History cleared.");
   } else {
     btn._confirmPending=true;
