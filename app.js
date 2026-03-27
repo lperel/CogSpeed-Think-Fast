@@ -31,7 +31,7 @@ const DEFAULTS={
   machinePacedNoResponseMs:15000,
   recoveryNoResponseMs:10000,
   calibrationFirstNoResponseMs:20000,
-  calibrationNoResponseMs:6000,
+  calibrationNoResponseMs:10000,
   wrongWindowSize:5,
   wrongThresholdStop:4,
   maxTrialCount:180,
@@ -61,7 +61,7 @@ const ADMIN_FIELDS=[
   ["initialUnusedCalibrationTrials","Initial (warm-up) cal trials","number"],
   ["initialMeasuredCalibrationTrials","Measured cal trials (default 10)","number"],
   ["calibrationFirstNoResponseMs","Cal first-trial no-response (ms, default 20000)","number"],
-  ["calibrationNoResponseMs","Cal subsequent no-response (ms, default 6000)","number"],
+  ["calibrationNoResponseMs","Cal subsequent no-response (ms, default 10000)","number"],
   ["calibrationStopErrors","Cal stop after N wrong (default 4)","number"],
   ["calibrationStopSlowMs","Cal avg RT limit (ms, default 3000)","number"],
   // ── Machine-paced ──
@@ -653,7 +653,7 @@ function failCalibration(reason){ state.endReason=reason; finish(); }
 // DETERMINE BASELINE RT: avg of 10 measured RTs → paced start duration
 //   (initialPacedPercent=0.70 × avg, clamped to 800ms-maxDurationMs).
 // CONDITION 4: avg RT >3000ms → "NEED MORE PRACTICE!"
-// NO-RESPONSE TIMEOUTS: first trial=10s, subsequent=6s
+// NO-RESPONSE TIMEOUTS: first trial=20s, subsequent=10s
 // ──────────────────────────────────────────────────────────────
 function finishCalibration(){
   const avg=mean(state.calibrationRTs);
@@ -1685,7 +1685,7 @@ function animateSpeedometer(canvas, targetCps, blockMs, success){
 }
 function stopSpeedometer(){ if(_speedoRaf){ cancelAnimationFrame(_speedoRaf); _speedoRaf=null; } }
 
-// ─── Results page — gear spin outro then thinking box ───
+// ─── Results page — gear spin outro (0.5s) then thinking box ───
 // ─── RESULTS PAGE FLOW ────────────────────────────────────────
 // THINKING BOX: 2s animated steam+sparks FX after test ends.
 // SUCCESS/FAIL BOX: 3s outcome overlay (green=SUCCESS/red=Test Failed).
@@ -1732,7 +1732,7 @@ function showResultsPage(){
         // Speedometer stays visible until user taps "View Results"
       }
     },6000);
-  },1500);
+  },500);
 }
 
 // ─── Session control ───
