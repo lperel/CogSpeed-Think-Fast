@@ -166,7 +166,7 @@ const stimGrid=$("stimGrid"), probeCell=$("probeCell"), probeInner=$("probeInner
       respGrid=$("respGrid"), rateOut=$("rateOut"), blocksOut=$("blocksOut"),
       recoveryOut=$("recoveryOut"), wrongOut=$("wrongOut"), fatigueOut=$("fatigueOut"),
       cpiOut=$("cpiOut"), statusLine=$("statusLine"), resultBox=$("resultBox"),
-      phaseLabel=$("phaseLabel"), modeLabel=$("modeLabel"), metricsPanel=$("metricsPanel");
+      phaseLabel=$("phaseLabel"), modeLabel=$("modeLabel");
 let deferredPrompt=null;
 
 // ─── Utilities ───
@@ -345,75 +345,6 @@ const GEARS=[
   {n:18,rP:36,add:6,ded:5,tf:0.44,body:"#8c8c8c",stroke:"#b8b8b8",rim:"#c0c0c0",hub:7,hFill:"#787878",hStroke:"#c0c0c0",spokes:3},
 ];
 
-const GEAR_IMAGE_SRCS = {
-  0: "./gear0.png",
-  1: "./gear1.png",
-  2: "./gear2.png",
-  3: "./gear3.png",
-  4: "./gear4.png",
-  5: "./gear5.png",
-  6: "./gear6.png",
-};
-
-function ensureGearImageStyles(){
-  if(document.getElementById("gearImageStyles")) return;
-  const st=document.createElement("style");
-  st.id="gearImageStyles";
-  st.textContent=`
-    #testScreen{background:#9b9b9b!important;}
-    .gear-img-wrap{
-      position:relative;
-      width:100%;
-      height:100%;
-      display:flex;
-      align-items:center;
-      justify-content:center;
-      overflow:visible;
-    }
-    .gear-img-wrap img{
-      width:100%;
-      height:100%;
-      object-fit:contain;
-      display:block;
-      filter:contrast(1.14) saturate(0.95) brightness(1.02);
-    }
-    .gear-pattern-backdrop{
-      position:absolute;
-      left:50%;
-      top:50%;
-      width:54%;
-      height:54%;
-      transform:translate(-50%,-50%);
-      border-radius:50%;
-      background:rgba(110,110,110,0.24);
-      box-shadow:0 0 14px rgba(0,0,0,0.16) inset;
-      pointer-events:none;
-    }
-    .gear-mark{
-      position:absolute;
-      transform:translate(-50%,-50%);
-      background:#ffffff;
-      border:2px solid #111;
-      box-shadow:0 0 2px rgba(0,0,0,0.5);
-      opacity:0.98;
-      pointer-events:none;
-    }
-    .gear-mark.dot{
-      border-radius:50%;
-    }
-    .gear-mark.line{
-      border-radius:3px;
-    }
-    #testScreen .resp-btn.correct-flash .gear-img-wrap{
-      filter:brightness(1.45) drop-shadow(0 0 16px rgba(220,255,220,.95));
-    }
-    #testScreen .resp-btn.wrong-flash .gear-img-wrap{
-      filter:brightness(0.55) saturate(0);
-    }
-  `;
-  document.head.appendChild(st);
-}
-
 // Build realistic gear path: flat-topped teeth with root/tip circular arcs
 // ─── GEAR RENDERING ───────────────────────────────────────────
 // Builds realistic mechanical gear SVG path with flat-topped teeth,
@@ -442,37 +373,12 @@ function gearPath(cx,cy,nT,rP,add,ded,tf){
 }
 
 function buildGearSVG(si,pattern,size,spinClass){
-  ensureGearImageStyles();
-  if(GEAR_IMAGE_SRCS[si]){
-    const marks = [];
-    if(pattern){
-      const scale = size==="probe" ? 0.76 : 0.72;
-      const dotR = size==="probe" ? 10 : 8;
-      const lw   = size==="probe" ? 13 : 10;
-      const lh   = size==="probe" ? 22 : 16;
-      pattern.forEach(([k,px,py], idx)=>{
-        const left = 50 + ((px/100)-0.5) * scale * 100;
-        const top  = 50 + ((py/100)-0.5) * scale * 100;
-        if(k==="dot"){
-          marks.push(`<div class="gear-mark dot" style="left:${left.toFixed(1)}%;top:${top.toFixed(1)}%;width:${dotR*2}px;height:${dotR*2}px"></div>`);
-        } else {
-          marks.push(`<div class="gear-mark line" style="left:${left.toFixed(1)}%;top:${top.toFixed(1)}%;width:${lw}px;height:${lh}px"></div>`);
-        }
-      });
-    }
-    const backdrop = pattern ? '<div class="gear-pattern-backdrop"></div>' : '';
-    return `<div class="gear-img-wrap ${spinClass||""}">
-      <img src="${GEAR_IMAGE_SRCS[si]}" alt="gear ${si}" draggable="false"/>
-      ${backdrop}
-      ${marks.join("")}
-    </div>`;
-  }
-
   const g=GEARS[si];
   const uid=si+"_"+(Math.random()*9999|0).toString(36);
   const cx=50,cy=50;
   const path=gearPath(cx,cy,g.n,g.rP,g.add,g.ded,g.tf);
   const lgt=lighten(g.body,30), drk=darken(g.body,10);
+  // Spokes
   let spokes="";
   if(g.spokes>0){
     const rI=g.hub+2, rO=g.rP-g.ded-5;
@@ -481,6 +387,8 @@ function buildGearSVG(si,pattern,size,spinClass){
       spokes+=`<line x1="${(cx+rI*Math.cos(a)).toFixed(1)}" y1="${(cy+rI*Math.sin(a)).toFixed(1)}" x2="${(cx+rO*Math.cos(a)).toFixed(1)}" y2="${(cy+rO*Math.sin(a)).toFixed(1)}" stroke="${g.stroke}" stroke-width="3" stroke-linecap="round"/>`;
     }
   }
+  const ringR=g.rP-g.ded-3;
+  // Pattern marks — fill inside gear body
   let marks="";
   if(pattern){
     const iR=(g.rP-g.ded-4)*0.72;
@@ -498,10 +406,13 @@ function buildGearSVG(si,pattern,size,spinClass){
       <stop offset="0%" stop-color="${lgt}"/>
       <stop offset="100%" stop-color="${drk}"/>
     </radialGradient>
+    <!-- hub gradient removed -->
   </defs>
   <g class="g-rot" style="transform-origin:50px 50px">
     <path d="${path}" fill="url(#rg${uid})" stroke="${g.stroke}" stroke-width="0.8"/>
+    <!-- inner ring removed -->
     ${spokes}
+    <!-- hub removed to avoid obscuring pattern -->
   </g>
   <g class="g-pat">${marks}</g>
 </svg>`;
@@ -558,7 +469,7 @@ function updateMetrics(){
   rateOut.textContent=state.duration?`${Math.round(state.duration)}ms`:"—";
   blocksOut.textContent=String(state.overloads.length);
   recoveryOut.textContent=String(state.recoveries.length);
-  wrongOut.textContent=String(state.lastFiveAnswers.filter(v=>v===false).length+state.calibrationErrors);
+  wrongOut.textContent=String(state.totalIncorrect);
   fatigueOut.textContent=state.samnPerelli?String(state.samnPerelli.score):"—";
 }
 
@@ -598,7 +509,7 @@ function trialMatches(trial,index){ return trial&&index===trial.correctPos; }
 // ──────────────────────────────────────────────────────
 function checkMaxPacedWrong(){
   const limit=Number(settings.maxPacedWrong)||20;
-  if(state.pacedErrors>=limit){ state.endReason="TOO MANY WRONG RESPONSES — Retest"; finish(); return true; }
+  if(state.pacedErrors>=limit){ state.endReason=`FAILED: reached paced wrong-tap limit (${limit})`; finish(); return true; }
   return false;
 }
 function recordAnswer(ok,isMiss){
@@ -611,11 +522,11 @@ function recordAnswer(ok,isMiss){
     if(state.rollMeanLog.length===win){
       const ratio=state.rollMeanLog.filter(v=>v===true).length/win;
       const thresh=Number(settings.rollMeanThreshold)||0.50;
-      if(ratio<thresh){ state.endReason="TOO MANY WRONG RESPONSES! — Retest"; finish(); return true; }
+      if(ratio<thresh){ state.endReason=`FAILED: rolling mean below threshold (${win} responses, threshold ${thresh})`; finish(); return true; }
     }
     const wc=state.lastFiveAnswers.filter(v=>v===false).length;
     if(state.lastFiveAnswers.length===settings.wrongWindowSize&&wc>settings.wrongThresholdStop){
-      state.endReason="TOO MANY WRONG RESPONSES! — Retest"; finish(); return true;
+      state.endReason=`FAILED: too many wrong in last ${settings.wrongWindowSize} responses`; finish(); return true;
     }
   }
   updateMetrics(); return false;
@@ -760,6 +671,7 @@ function openTrial(kind){
     const idx=state.calibrationTrialIndex+1,total=settings.initialUnusedCalibrationTrials+settings.initialMeasuredCalibrationTrials;
     phaseLabel.textContent=`Cal ${idx}/${total}`;
     setStatus(idx<=settings.initialUnusedCalibrationTrials?"Self-paced (unused)":"Self-paced (measured)");
+    armNoResponseTimer();
   }else if(kind==="paced"){
     phaseLabel.textContent=`Paced · ${Math.round(state.duration)}ms`;
     setStatus("Machine-paced");
@@ -767,9 +679,11 @@ function openTrial(kind){
   }else if(kind==="recovery"){
     phaseLabel.textContent=`SP Restart ${state.spCorrectStreak}✓ ${state.spWrongCount}✗`;
     setStatus(`SP Restart — need ${settings.spRestartCorrectStreak} correct in a row`);
+    armNoResponseTimer();
   }else if(kind==="terminal_recovery"){
     phaseLabel.textContent=`Final SP ${state.recoveryCorrectCompleted+1}/${settings.spRestartCorrectStreak}`;
     setStatus("Final self-paced recovery");
+    armNoResponseTimer();
   }
 }
 
@@ -860,7 +774,7 @@ function handleTap(index){
     }else{
       state.spCorrectStreak=0; state.spWrongCount+=1; state.recoveryErrors+=1;
       const limit=Math.max(1,Number(settings.spRestartWrongLimit)||3);
-      if(state.spWrongCount>=limit){ state.endReason="TOO MANY WRONG RESPONSES! — Retest"; finish(); return; }
+      if(state.spWrongCount>=limit){ state.endReason=`FAILED: reached SP restart wrong-tap limit (${limit})`; finish(); return; }
       setStatus(`SP Restart: ${state.spWrongCount}/${limit} wrong`);
       setTimeout(()=>openTrial("recovery"),160);
     }
@@ -1804,7 +1718,6 @@ function startTest(){
   captureGeo();
   runGearSpinThenStart(()=>{
     state.phase="calibration";
-    noteAnyResponse();   // start no-response timer NOW — first trial is visible
     openTrial("calibration");
   });
 }
@@ -2010,36 +1923,6 @@ function buildTutRespGrid(flashPos){
 }
 
 
-function buildTutGearGridAnimated(showPatterns){
-  let html = `<style>
-    @keyframes tutPairFlash {
-      0%, 16.666% { border-color:#7fd7ff; filter:drop-shadow(0 0 10px rgba(127,215,255,0.95)); box-shadow:0 0 16px rgba(127,215,255,0.30) inset; opacity:1; }
-      20%, 100% { border-color:transparent; filter:none; box-shadow:none; opacity:.72; }
-    }
-  </style>`;
-  html += '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;width:100%;max-width:340px">';
-  TUT_ITEMS.forEach((it,i)=>{
-    const pat = showPatterns ? it.pattern : null;
-    html += `<div style="border:2px solid transparent;border-radius:10px;aspect-ratio:1;animation:tutPairFlash 12s linear infinite;animation-delay:${i*2}s">
-      ${buildGearSVG(i+1, pat, "large", "")}
-    </div>`;
-  });
-  html += '</div>';
-  return html;
-}
-
-function buildTutRespGridAnimated(){
-  let html = '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;width:100%;max-width:340px">';
-  for(let i=0;i<6;i++){
-    html += `<div style="aspect-ratio:1;border-radius:10px;border:2px solid transparent;position:relative;animation:tutPairFlash 12s linear infinite;animation-delay:${i*2}s">
-      ${buildGearSVG(i+1, null, "large", "")}
-    </div>`;
-  }
-  html += '</div>';
-  return html;
-}
-
-
 // ─── Mini trial screen for tutorial background ───
 // Returns HTML showing a tiny test screen with different parts highlighted
 function buildMiniScreen(highlightPart){
@@ -2082,7 +1965,7 @@ function buildMiniScreen(highlightPart){
     padding:12px;
     opacity:0.22;
     pointer-events:none;
-    background:#969696;
+    background:#0d1520;
     overflow:hidden;
   ">
     <!-- stim grid -->
@@ -2160,22 +2043,18 @@ const TUT_STEPS = [
   // Step 4: all highlighted, response buttons shown
   {
     build:()=>{
-      return `
-      <div style="position:relative;z-index:1;display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;padding:10px 12px;text-align:center;background:#9b9b9b">
-        <div style="font-size:13px;letter-spacing:.1em;color:rgba(20,40,60,0.85);text-transform:uppercase;margin-bottom:8px;text-shadow:none">Tap the Match</div>
-        <div style="background:rgba(255,255,255,0.10);backdrop-filter:blur(2px);border-radius:16px;padding:12px 16px;max-width:340px;border:1px solid rgba(0,0,0,0.12)">
-          <div style="margin-bottom:8px;opacity:1">${buildTutGearGridAnimated(true)}</div>
-          <div style="display:flex;justify-content:center;align-items:center;margin:4px 0 10px 0">
-            <div style="width:110px;height:110px;display:flex;align-items:center;justify-content:center;filter:drop-shadow(0 0 10px rgba(60,60,60,0.35))">
-              ${buildTutProbe(true)}
-            </div>
+      return buildMiniScreen("all") + `
+      <div style="position:relative;z-index:1;display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;padding:16px;text-align:center">
+        <div style="font-size:13px;letter-spacing:.1em;color:rgba(127,215,255,0.8);text-transform:uppercase;margin-bottom:8px;text-shadow:0 0 12px rgba(127,215,255,0.5)">Tap the Match</div>
+        <div style="background:rgba(10,20,40,0.88);backdrop-filter:blur(4px);border-radius:16px;padding:12px 16px;max-width:310px;border:1px solid rgba(127,215,255,0.2)">
+          <div style="margin-bottom:6px;opacity:0.9">${buildTutGearGrid(TUT_CORRECT_POS,true)}</div>
+          <div style="display:flex;align-items:center;gap:8px;margin:6px 0">
+            <div style="flex:1;height:1px;background:rgba(255,255,255,0.15)"></div>
+            <div style="font-size:11px;color:rgba(255,255,255,0.45)">same position below</div>
+            <div style="flex:1;height:1px;background:rgba(255,255,255,0.15)"></div>
           </div>
-          <div style="margin-top:2px">${buildTutRespGridAnimated()}</div>
-          <div style="font-size:14px;color:rgba(20,20,20,0.72);margin-top:10px;line-height:1.45">
-            The center <span style="font-weight:700">probe</span> matches one gear above and the
-            response gear in the <span style="font-weight:700">same position below</span>.
-            Each matching top/bottom pair flashes for 2 seconds in sequence.
-          </div>
+          <div>${buildTutRespGrid(TUT_CORRECT_POS)}</div>
+          <div style="font-size:15px;color:rgba(255,255,255,0.7);margin-top:8px">Tap the <span style="color:#00ff88;font-weight:700">button below</span> that matches the highlighted gear</div>
         </div>
       </div>`;
     }
@@ -2434,3 +2313,20 @@ modeLabel.textContent="Subject mode";
 renderFatigueChecklist();
 renderRefresher();
 updateMetrics();
+
+
+if ("serviceWorker" in navigator) {
+  let __swRefreshing = false;
+  navigator.serviceWorker.addEventListener("controllerchange", () => {
+    if (__swRefreshing) return;
+    __swRefreshing = true;
+    window.location.reload();
+  });
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("./sw.js").then(reg => {
+      reg.update();
+    }).catch(err => {
+      console.warn("SW registration failed:", err);
+    });
+  });
+}
