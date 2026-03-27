@@ -2160,21 +2160,21 @@ const TUT_STEPS = [
   // Step 4: all highlighted, response buttons shown
   {
     build:()=>{
-      return buildMiniScreen("all") + `
-      <div style="position:relative;z-index:1;display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;padding:16px;text-align:center">
-        <div style="font-size:13px;letter-spacing:.1em;color:rgba(127,215,255,0.8);text-transform:uppercase;margin-bottom:8px;text-shadow:0 0 12px rgba(127,215,255,0.5)">Tap the Match</div>
-        <div style="background:rgba(10,20,40,0.88);backdrop-filter:blur(4px);border-radius:16px;padding:12px 16px;max-width:320px;border:1px solid rgba(127,215,255,0.2)">
-          <div style="margin-bottom:6px;opacity:0.95">${buildTutGearGridAnimated(true)}</div>
-          <div style="display:flex;align-items:center;gap:8px;margin:6px 0">
-            <div style="flex:1;height:1px;background:rgba(255,255,255,0.15)"></div>
-            <div style="font-size:11px;color:rgba(255,255,255,0.45)">same position below</div>
-            <div style="flex:1;height:1px;background:rgba(255,255,255,0.15)"></div>
+      return `
+      <div style="position:relative;z-index:1;display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;padding:10px 12px;text-align:center;background:#9b9b9b">
+        <div style="font-size:13px;letter-spacing:.1em;color:rgba(20,40,60,0.85);text-transform:uppercase;margin-bottom:8px;text-shadow:none">Tap the Match</div>
+        <div style="background:rgba(255,255,255,0.10);backdrop-filter:blur(2px);border-radius:16px;padding:12px 16px;max-width:340px;border:1px solid rgba(0,0,0,0.12)">
+          <div style="margin-bottom:8px;opacity:1">${buildTutGearGridAnimated(true)}</div>
+          <div style="display:flex;justify-content:center;align-items:center;margin:4px 0 10px 0">
+            <div style="width:110px;height:110px;display:flex;align-items:center;justify-content:center;filter:drop-shadow(0 0 10px rgba(60,60,60,0.35))">
+              ${buildTutProbe(true)}
+            </div>
           </div>
-          <div>${buildTutRespGridAnimated()}</div>
-          <div style="font-size:14px;color:rgba(255,255,255,0.72);margin-top:8px;line-height:1.45">
-            Each <span style="color:#7fd7ff;font-weight:700">upper gear</span> starts flashing immediately with its matching
-            <span style="color:#00ff88;font-weight:700">response gear below</span> for 2 seconds, in sequence.
-            Watch the cycle, then tap <span style="color:#00ff88;font-weight:700">Next</span> when ready.
+          <div style="margin-top:2px">${buildTutRespGridAnimated()}</div>
+          <div style="font-size:14px;color:rgba(20,20,20,0.72);margin-top:10px;line-height:1.45">
+            The center <span style="font-weight:700">probe</span> matches one gear above and the
+            response gear in the <span style="font-weight:700">same position below</span>.
+            Each matching top/bottom pair flashes for 2 seconds in sequence.
           </div>
         </div>
       </div>`;
