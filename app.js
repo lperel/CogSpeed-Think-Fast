@@ -345,6 +345,74 @@ const GEARS=[
   {n:18,rP:36,add:6,ded:5,tf:0.44,body:"#8c8c8c",stroke:"#b8b8b8",rim:"#c0c0c0",hub:7,hFill:"#787878",hStroke:"#c0c0c0",spokes:3},
 ];
 
+const GEAR_IMAGE_SRCS = {
+  1: "./gear1.png",
+  2: "./gear2.png",
+  3: "./gear3.png",
+  4: "./gear4.png",
+  5: "./gear5.png",
+  6: "./gear6.png",
+};
+
+function ensureGearImageStyles(){
+  if(document.getElementById("gearImageStyles")) return;
+  const st=document.createElement("style");
+  st.id="gearImageStyles";
+  st.textContent=`
+    #testScreen{background:#969696!important;}
+    .gear-img-wrap{
+      position:relative;
+      width:100%;
+      height:100%;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      overflow:visible;
+    }
+    .gear-img-wrap img{
+      width:100%;
+      height:100%;
+      object-fit:contain;
+      display:block;
+      filter:contrast(1.08) saturate(0.92);
+    }
+    .gear-pattern-backdrop{
+      position:absolute;
+      left:50%;
+      top:50%;
+      width:54%;
+      height:54%;
+      transform:translate(-50%,-50%);
+      border-radius:50%;
+      background:rgba(70,70,70,0.30);
+      box-shadow:0 0 16px rgba(0,0,0,0.18) inset;
+      pointer-events:none;
+    }
+    .gear-mark{
+      position:absolute;
+      transform:translate(-50%,-50%);
+      background:#ffffff;
+      border:2px solid #111;
+      box-shadow:0 0 2px rgba(0,0,0,0.5);
+      opacity:0.98;
+      pointer-events:none;
+    }
+    .gear-mark.dot{
+      border-radius:50%;
+    }
+    .gear-mark.line{
+      border-radius:3px;
+    }
+    #testScreen .resp-btn.correct-flash .gear-img-wrap{
+      filter:brightness(1.45) drop-shadow(0 0 16px rgba(220,255,220,.95));
+    }
+    #testScreen .resp-btn.wrong-flash .gear-img-wrap{
+      filter:brightness(0.55) saturate(0);
+    }
+  `;
+  document.head.appendChild(st);
+}
+
 // Build realistic gear path: flat-topped teeth with root/tip circular arcs
 // ─── GEAR RENDERING ───────────────────────────────────────────
 // Builds realistic mechanical gear SVG path with flat-topped teeth,
@@ -373,12 +441,37 @@ function gearPath(cx,cy,nT,rP,add,ded,tf){
 }
 
 function buildGearSVG(si,pattern,size,spinClass){
+  ensureGearImageStyles();
+  if(si>0 && GEAR_IMAGE_SRCS[si]){
+    const marks = [];
+    if(pattern){
+      const scale = size==="probe" ? 0.78 : 0.72;
+      const dotR = size==="probe" ? 9 : 8;
+      const lw   = size==="probe" ? 12 : 10;
+      const lh   = size==="probe" ? 20 : 16;
+      pattern.forEach(([k,px,py], idx)=>{
+        const left = 50 + ((px/100)-0.5) * scale * 100;
+        const top  = 50 + ((py/100)-0.5) * scale * 100;
+        if(k==="dot"){
+          marks.push(`<div class="gear-mark dot" style="left:${left.toFixed(1)}%;top:${top.toFixed(1)}%;width:${dotR*2}px;height:${dotR*2}px"></div>`);
+        } else {
+          marks.push(`<div class="gear-mark line" style="left:${left.toFixed(1)}%;top:${top.toFixed(1)}%;width:${lw}px;height:${lh}px"></div>`);
+        }
+      });
+    }
+    const backdrop = pattern ? '<div class="gear-pattern-backdrop"></div>' : '';
+    return `<div class="gear-img-wrap ${spinClass||""}">
+      <img src="${GEAR_IMAGE_SRCS[si]}" alt="gear ${si}" draggable="false"/>
+      ${backdrop}
+      ${marks.join("")}
+    </div>`;
+  }
+
   const g=GEARS[si];
   const uid=si+"_"+(Math.random()*9999|0).toString(36);
   const cx=50,cy=50;
   const path=gearPath(cx,cy,g.n,g.rP,g.add,g.ded,g.tf);
   const lgt=lighten(g.body,30), drk=darken(g.body,10);
-  // Spokes
   let spokes="";
   if(g.spokes>0){
     const rI=g.hub+2, rO=g.rP-g.ded-5;
@@ -387,8 +480,6 @@ function buildGearSVG(si,pattern,size,spinClass){
       spokes+=`<line x1="${(cx+rI*Math.cos(a)).toFixed(1)}" y1="${(cy+rI*Math.sin(a)).toFixed(1)}" x2="${(cx+rO*Math.cos(a)).toFixed(1)}" y2="${(cy+rO*Math.sin(a)).toFixed(1)}" stroke="${g.stroke}" stroke-width="3" stroke-linecap="round"/>`;
     }
   }
-  const ringR=g.rP-g.ded-3;
-  // Pattern marks — fill inside gear body
   let marks="";
   if(pattern){
     const iR=(g.rP-g.ded-4)*0.72;
@@ -406,13 +497,10 @@ function buildGearSVG(si,pattern,size,spinClass){
       <stop offset="0%" stop-color="${lgt}"/>
       <stop offset="100%" stop-color="${drk}"/>
     </radialGradient>
-    <!-- hub gradient removed -->
   </defs>
   <g class="g-rot" style="transform-origin:50px 50px">
     <path d="${path}" fill="url(#rg${uid})" stroke="${g.stroke}" stroke-width="0.8"/>
-    <!-- inner ring removed -->
     ${spokes}
-    <!-- hub removed to avoid obscuring pattern -->
   </g>
   <g class="g-pat">${marks}</g>
 </svg>`;
@@ -1921,36 +2009,6 @@ function buildTutRespGrid(flashPos){
 }
 
 
-function buildTutGearGridAnimated(showPatterns){
-  let html = `<style>
-    @keyframes tutPairFlash {
-      0%, 16.666% { border-color:#7fd7ff; filter:drop-shadow(0 0 10px rgba(127,215,255,0.95)); box-shadow:0 0 16px rgba(127,215,255,0.30) inset; opacity:1; }
-      20%, 100% { border-color:transparent; filter:none; box-shadow:none; opacity:.72; }
-    }
-  </style>`;
-  html += '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;width:100%;max-width:340px">';
-  TUT_ITEMS.forEach((it,i)=>{
-    const pat = showPatterns ? it.pattern : null;
-    html += `<div style="border:2px solid transparent;border-radius:10px;aspect-ratio:1;animation:tutPairFlash 12s linear infinite;animation-delay:${i*2}s">
-      ${buildGearSVG(i+1, pat, "large", "")}
-    </div>`;
-  });
-  html += '</div>';
-  return html;
-}
-
-function buildTutRespGridAnimated(){
-  let html = '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;width:100%;max-width:340px">';
-  for(let i=0;i<6;i++){
-    html += `<div style="aspect-ratio:1;border-radius:10px;border:2px solid transparent;position:relative;animation:tutPairFlash 12s linear infinite;animation-delay:${i*2}s">
-      ${buildGearSVG(i+1, null, "large", "")}
-    </div>`;
-  }
-  html += '</div>';
-  return html;
-}
-
-
 // ─── Mini trial screen for tutorial background ───
 // Returns HTML showing a tiny test screen with different parts highlighted
 function buildMiniScreen(highlightPart){
@@ -1993,7 +2051,7 @@ function buildMiniScreen(highlightPart){
     padding:12px;
     opacity:0.22;
     pointer-events:none;
-    background:#0d1520;
+    background:#969696;
     overflow:hidden;
   ">
     <!-- stim grid -->
@@ -2016,12 +2074,12 @@ const TUT_STEPS = [
   {
     build:()=>{
       return buildMiniScreen("probe") + `
-      <div style="position:relative;z-index:1;display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;padding:8px 12px;text-align:center">
-        <div style="font-size:12px;letter-spacing:.09em;color:rgba(127,215,255,0.8);text-transform:uppercase;margin-bottom:6px;text-shadow:0 0 10px rgba(127,215,255,0.5)">The Probe</div>
-        <div style="margin-bottom:8px;transform:scale(.9)">${buildTutProbe(true)}</div>
-        <div style="background:rgba(10,20,40,0.88);backdrop-filter:blur(4px);border-radius:16px;padding:10px 14px;max-width:280px;border:1px solid rgba(127,215,255,0.2)">
-          <div style="font-size:18px;font-weight:700;color:#f5fbff;margin-bottom:5px">This glowing gear is the <span style="color:#7fd7ff">PROBE</span></div>
-          <div style="font-size:14px;color:rgba(255,255,255,0.68);line-height:1.35">Count the marks inside it — dots or lines</div>
+      <div style="position:relative;z-index:1;display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;padding:16px;text-align:center">
+        <div style="font-size:13px;letter-spacing:.1em;color:rgba(127,215,255,0.8);text-transform:uppercase;margin-bottom:8px;text-shadow:0 0 12px rgba(127,215,255,0.5)">The Probe</div>
+        <div style="margin-bottom:14px">${buildTutProbe(true)}</div>
+        <div style="background:rgba(10,20,40,0.88);backdrop-filter:blur(4px);border-radius:16px;padding:14px 18px;max-width:300px;border:1px solid rgba(127,215,255,0.2)">
+          <div style="font-size:20px;font-weight:700;color:#f5fbff;margin-bottom:6px">This glowing gear is the <span style="color:#7fd7ff">PROBE</span></div>
+          <div style="font-size:15px;color:rgba(255,255,255,0.65)">Count the marks inside it — dots or lines</div>
         </div>
       </div>`;
     }
@@ -2074,19 +2132,15 @@ const TUT_STEPS = [
       return buildMiniScreen("all") + `
       <div style="position:relative;z-index:1;display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;padding:16px;text-align:center">
         <div style="font-size:13px;letter-spacing:.1em;color:rgba(127,215,255,0.8);text-transform:uppercase;margin-bottom:8px;text-shadow:0 0 12px rgba(127,215,255,0.5)">Tap the Match</div>
-        <div style="background:rgba(10,20,40,0.88);backdrop-filter:blur(4px);border-radius:16px;padding:12px 16px;max-width:320px;border:1px solid rgba(127,215,255,0.2)">
-          <div style="margin-bottom:6px;opacity:0.95">${buildTutGearGridAnimated(true)}</div>
+        <div style="background:rgba(10,20,40,0.88);backdrop-filter:blur(4px);border-radius:16px;padding:12px 16px;max-width:310px;border:1px solid rgba(127,215,255,0.2)">
+          <div style="margin-bottom:6px;opacity:0.9">${buildTutGearGrid(TUT_CORRECT_POS,true)}</div>
           <div style="display:flex;align-items:center;gap:8px;margin:6px 0">
             <div style="flex:1;height:1px;background:rgba(255,255,255,0.15)"></div>
             <div style="font-size:11px;color:rgba(255,255,255,0.45)">same position below</div>
             <div style="flex:1;height:1px;background:rgba(255,255,255,0.15)"></div>
           </div>
-          <div>${buildTutRespGridAnimated()}</div>
-          <div style="font-size:14px;color:rgba(255,255,255,0.72);margin-top:8px;line-height:1.45">
-            Each <span style="color:#7fd7ff;font-weight:700">upper gear</span> starts flashing immediately with its matching
-            <span style="color:#00ff88;font-weight:700">response gear below</span> for 2 seconds, in sequence.
-            Watch the cycle, then tap <span style="color:#00ff88;font-weight:700">Next</span> when ready.
-          </div>
+          <div>${buildTutRespGrid(TUT_CORRECT_POS)}</div>
+          <div style="font-size:15px;color:rgba(255,255,255,0.7);margin-top:8px">Tap the <span style="color:#00ff88;font-weight:700">button below</span> that matches the highlighted gear</div>
         </div>
       </div>`;
     }
