@@ -4,7 +4,7 @@
 
 // ─── Version guard ───
 (function(){
-  const VER="cogspeed_v21r5", key="cogspeed_version";
+  const VER="cogspeed_v21", key="cogspeed_version";
   if(localStorage.getItem(key)!==VER){
     Object.keys(localStorage).forEach(k=>{ if(k.startsWith("cogspeed_")||k.startsWith("cogblock_")) localStorage.removeItem(k); });
     localStorage.setItem(key,VER);
@@ -135,13 +135,13 @@ const SAMN_PERELLI=[
 
 // ─── Settings ───
 function loadSettings(){
-  const s=JSON.parse(localStorage.getItem("cogspeed_v21r5_settings")||"null");
+  const s=JSON.parse(localStorage.getItem("cogspeed_v21r6_settings")||"null");
   if(!s) return {...DEFAULTS};
   const m={...DEFAULTS};
   Object.keys(DEFAULTS).forEach(k=>{ if(s[k]!==undefined) m[k]=s[k]; });
   return m;
 }
-function saveSettings(){ localStorage.setItem("cogspeed_v21r5_settings",JSON.stringify(settings)); }
+function saveSettings(){ localStorage.setItem("cogspeed_v21r6_settings",JSON.stringify(settings)); }
 let settings=loadSettings();
 
 // ─── State ───
@@ -150,7 +150,7 @@ const state={
   current:null, previous:null, unresolvedStreak:0,
   overloads:[], recoveries:[], recoveryCorrectCompleted:0,
   spCorrectStreak:0, spWrongCount:0, terminalBlockReason:null,
-  history:JSON.parse(localStorage.getItem("cogspeed_v21r5_history")||"[]"),
+  history:JSON.parse(localStorage.getItem("cogspeed_v21r6_history")||"[]"),
   totalTrials:0, totalResponses:0, totalCorrect:0, totalIncorrect:0,
   missedTrials:0, pacedErrors:0, recoveryErrors:0, rollMeanLog:[],
   testStartTime:null, trialTimer:null, absoluteNoResponseTimer:null, maxTestTimer:null,
@@ -381,8 +381,8 @@ function ensureGearImageStyles(){
       position:absolute;
       left:50%;
       top:50%;
-      width:51%;
-      height:51%;
+      width:54%;
+      height:54%;
       transform:translate(-50%,-50%);
       border-radius:50%;
       background:rgba(110,110,110,0.24);
@@ -394,7 +394,7 @@ function ensureGearImageStyles(){
       transform:translate(-50%,-50%);
       background:#ffffff;
       border:3px solid #111;
-      box-shadow:0 0 2px rgba(0,0,0,0.55);
+      box-shadow:0 0 2px rgba(0,0,0,0.5);
       opacity:0.98;
       pointer-events:none;
     }
@@ -447,8 +447,8 @@ function buildGearSVG(si,pattern,size,spinClass){
     const marks = [];
     if(pattern){
       const scale = size==="probe" ? 0.76 : 0.72;
-      const dotR = size==="probe" ? 10 : 8;
-      const lw   = size==="probe" ? 14 : 11;
+      const dotR = size==="probe" ? 10.5 : 8.5;
+      const lw   = size==="probe" ? 13 : 10;
       const lh   = size==="probe" ? 22 : 16;
       pattern.forEach(([k,px,py], idx)=>{
         const left = 50 + ((px/100)-0.5) * scale * 100;
@@ -725,7 +725,7 @@ function finish(){
     time:new Date().toISOString(), geo:state.geo
   };
   state.history.push(result);
-  localStorage.setItem("cogspeed_v21r5_history",JSON.stringify(state.history));
+  localStorage.setItem("cogspeed_v21r6_history",JSON.stringify(state.history));
   updateCPIDisplay(avg2); setProbeIdle();
   // Build the display text (also used for email)
   buildSummary(result);
@@ -2380,7 +2380,7 @@ $("historyClearBtn").onclick=()=>{
     btn.textContent="🗑 Clear History";
     btn.style.color="rgba(255,100,136,0.5)";
     btn.style.borderColor="rgba(255,100,136,0.3)";
-    state.history=[]; localStorage.removeItem("cogspeed_v21r5_history");
+    state.history=[]; localStorage.removeItem("cogspeed_v21r6_history");
     buildHistoryOverlay(); setStatus("History cleared.");
   } else {
     btn._confirmPending=true;
