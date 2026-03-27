@@ -4,7 +4,7 @@
 
 // ─── Version guard ───
 (function(){
-  const VER="cogspeed_v21", key="cogspeed_version";
+  const VER="cogspeed_v21r2", key="cogspeed_version";
   if(localStorage.getItem(key)!==VER){
     Object.keys(localStorage).forEach(k=>{ if(k.startsWith("cogspeed_")||k.startsWith("cogblock_")) localStorage.removeItem(k); });
     localStorage.setItem(key,VER);
@@ -37,8 +37,8 @@ const DEFAULTS={
   maxTrialCount:180,
   maxPacedWrong:20,
   maxTestDurationMs:150000,
-  minDurationMs:600,
-  maxDurationMs:3500,
+  minDurationMs:800,
+  maxDurationMs:3000,
   initialUnusedCalibrationTrials:1,
   initialMeasuredCalibrationTrials:10,
   initialPacedPercent:0.70,
@@ -66,8 +66,8 @@ const ADMIN_FIELDS=[
   ["calibrationStopSlowMs","Cal avg RT limit (ms, default 3000)","number"],
   // ── Machine-paced ──
   ["initialPacedPercent","MP start: % of cal avg (default 0.70)","number"],
-  ["minDurationMs","MP min frame duration (ms, default 600)","number"],
-  ["maxDurationMs","MP max frame duration (ms, default 3500)","number"],
+  ["minDurationMs","MP min frame duration (ms, default 800)","number"],
+  ["maxDurationMs","MP max frame duration (ms, default 3000)","number"],
   ["machinePacedNoResponseMs","MP no-response timeout (ms, default 15000)","number"],
   ["maxTestDurationMs","Max TOTAL test time (ms, default 150000)","number"],
   ["maxTrialCount","MP max paced trials","number"],
@@ -381,8 +381,8 @@ function ensureGearImageStyles(){
       position:absolute;
       left:50%;
       top:50%;
-      width:52%;
-      height:52%;
+      width:51%;
+      height:51%;
       transform:translate(-50%,-50%);
       border-radius:50%;
       background:rgba(110,110,110,0.24);
@@ -394,7 +394,7 @@ function ensureGearImageStyles(){
       transform:translate(-50%,-50%);
       background:#ffffff;
       border:3px solid #111;
-      box-shadow:0 0 3px rgba(0,0,0,0.55);
+      box-shadow:0 0 2px rgba(0,0,0,0.55);
       opacity:0.98;
       pointer-events:none;
     }
@@ -446,10 +446,10 @@ function buildGearSVG(si,pattern,size,spinClass){
   if(GEAR_IMAGE_SRCS[si]){
     const marks = [];
     if(pattern){
-      const scale = size==="probe" ? 0.76 : 0.72;
-      const dotR = size==="probe" ? 11 : 9;
-      const lw   = size==="probe" ? 15 : 12;
-      const lh   = size==="probe" ? 24 : 18;
+      const scale = size==="probe" ? 0.74 : 0.69;
+      const dotR = size==="probe" ? 10 : 8;
+      const lw   = size==="probe" ? 14 : 11;
+      const lh   = size==="probe" ? 23 : 17;
       pattern.forEach(([k,px,py], idx)=>{
         const left = 50 + ((px/100)-0.5) * scale * 100;
         const top  = 50 + ((py/100)-0.5) * scale * 100;
