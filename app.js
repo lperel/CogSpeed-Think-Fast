@@ -268,14 +268,14 @@ async function captureGeo(){
 // ─── SVG rendering ───
 function patternToSVG(pattern,size="large"){
   const dim=size==="probe"?72:size==="small"?40:56;
-  const dotR=size==="probe"?8:size==="small"?5:7;
-  const lw=size==="probe"?10:size==="small"?6:9;
-  const lh=size==="probe"?26:size==="small"?15:22;
+  const dotR=size==="probe"?9:size==="small"?5.5:8;
+  const lw=size==="probe"?8:size==="small"?5:7;
+  const lh=size==="probe"?30:size==="small"?18:24;
   const marks=pattern.map(([k,x,y])=>{
     const px=(x/100)*dim,py=(y/100)*dim;
     return k==="dot"
-      ?`<circle cx="${px.toFixed(1)}" cy="${py.toFixed(1)}" r="${dotR}" fill="var(--text)" stroke="black" stroke-width="2"/>`
-      :`<rect x="${(px-lw/2).toFixed(1)}" y="${(py-lh/2).toFixed(1)}" width="${lw}" height="${lh}" rx="2" fill="var(--text)" stroke="black" stroke-width="2"/>`;
+      ?`<circle cx="${px.toFixed(1)}" cy="${py.toFixed(1)}" r="${dotR}" fill="var(--text)" stroke="black" stroke-width="3"/>`
+      :`<rect x="${(px-lw/2).toFixed(1)}" y="${(py-lh/2).toFixed(1)}" width="${lw}" height="${lh}" rx="2" fill="var(--text)" stroke="black" stroke-width="3"/>`;
   }).join("");
   return `<svg width="${dim}" height="${dim}" viewBox="0 0 ${dim} ${dim}" xmlns="http://www.w3.org/2000/svg">${marks}</svg>`;
 }
@@ -393,8 +393,8 @@ function ensureGearImageStyles(){
       position:absolute;
       transform:translate(-50%,-50%);
       background:#ffffff;
-      border:2px solid #111;
-      box-shadow:0 0 2px rgba(0,0,0,0.5);
+      border:3px solid #111;
+      box-shadow:0 0 3px rgba(0,0,0,0.55);
       opacity:0.98;
       pointer-events:none;
     }
@@ -446,10 +446,10 @@ function buildGearSVG(si,pattern,size,spinClass){
   if(GEAR_IMAGE_SRCS[si]){
     const marks = [];
     if(pattern){
-      const scale = size==="probe" ? 0.76 : 0.72;
-      const dotR = size==="probe" ? 10 : 8;
-      const lw   = size==="probe" ? 13 : 10;
-      const lh   = size==="probe" ? 22 : 16;
+      const scale = size==="probe" ? 0.74 : 0.70;
+      const dotR = size==="probe" ? 11 : 9;
+      const lw   = size==="probe" ? 11 : 9;
+      const lh   = size==="probe" ? 28 : 20;
       pattern.forEach(([k,px,py], idx)=>{
         const left = 50 + ((px/100)-0.5) * scale * 100;
         const top  = 50 + ((py/100)-0.5) * scale * 100;
@@ -487,8 +487,8 @@ function buildGearSVG(si,pattern,size,spinClass){
     const dotR=size==="probe"?8:7, lw=size==="probe"?11:9, lh=size==="probe"?18:14;
     marks=pattern.map(([k,px,py])=>{
       const ix=cx+(px/100-0.5)*iR*2.20, iy=cy+(py/100-0.5)*iR*2.20;
-      if(k==="dot") return `<circle cx="${ix.toFixed(1)}" cy="${iy.toFixed(1)}" r="${dotR}" fill="white" stroke="black" stroke-width="2" opacity="0.95"/>`;
-      return `<rect x="${(ix-lw/2).toFixed(1)}" y="${(iy-lh/2).toFixed(1)}" width="${lw}" height="${lh}" rx="2.5" fill="white" stroke="black" stroke-width="2" opacity="0.95"/>`;
+      if(k==="dot") return `<circle cx="${ix.toFixed(1)}" cy="${iy.toFixed(1)}" r="${dotR}" fill="white" stroke="black" stroke-width="3" opacity="0.95"/>`;
+      return `<rect x="${(ix-lw/2).toFixed(1)}" y="${(iy-lh/2).toFixed(1)}" width="${lw}" height="${lh}" rx="2.5" fill="white" stroke="black" stroke-width="3" opacity="0.95"/>`;
     }).join("");
   }
   const sc=spinClass||"";
@@ -783,7 +783,6 @@ function onPacedFrameEnd(){
   // True miss = no tap at all. Wrong tap = had response but unresolved.
   // Only true misses count toward block threshold.
   const truelyMissed=state.current&&!state.current.resolved&&!state.hadResponse;
-  const wrongAndUnresolved=state.current&&!state.current.resolved&&state.hadResponse;
   if(truelyMissed){
     logTrial({phase:"missed",rt:null,outcome:"missed",responseIndex:null});
     state.missedTrials+=1; state.previousMissed=true; state.lastFrameDuration=state.duration;
@@ -925,7 +924,7 @@ function handleTap(index){
     state.current.resolved=true; state.totalResponses+=1; state.totalCorrect+=1;
     applyPacing(rt,true); state.pacedRTs.push(rt);
     logTrial({phase:"paced",rt,outcome:"correct",responseIndex:index}); flashBtn(index,true);
-    if(recordAnswer(true)) return; return;
+    recordAnswer(true); return;
   }
   state.hadResponse=true;
   state.totalResponses+=1; state.totalIncorrect+=1; state.pacedErrors+=1;
@@ -1013,25 +1012,30 @@ function drawCombinedChart(canvas,hist){
   const cpsVals=slice.map(x=>x.cognitivePerformanceIndex??null);
   const blockVals=slice.map(x=>x.averageLast2BlockingScoresMs??null);
   const spfVals=slice.map(x=>x.samnPerelli?x.samnPerelli.score:null);
-  const bValid=blockVals.filter(v=>v!=null);
-  const bMax=bValid.length?Math.ceil(Math.max(...bValid)/500)*500||3000:3000;
-  const bMin=bValid.length?Math.max(0,Math.floor(Math.min(...bValid)/500)*500):0;
+  const bestMs = Number(settings.cpiBestMs)||800;
+  const worstMs = Number(settings.cpiWorstMs)||3000;
   function yL(v,lo,hi){ return PAD.top+cH-((v-lo)/((hi-lo)||1))*cH; }
   function xO(i){ return PAD.left+(n>1?i*xStep:cW/2); }
+  function cpiFromMs(ms){
+    const span = (worstMs-bestMs)||1;
+    return Math.max(0,Math.min(100,100*(worstMs-ms)/span));
+  }
+  function msFromCpi(cpi){
+    const span = (worstMs-bestMs)||1;
+    return bestMs + ((100-cpi)/100)*span;
+  }
   ctx.strokeStyle="rgba(79,111,153,0.25)"; ctx.lineWidth=1;
   [0,25,50,75,100].forEach(v=>{ const y=yL(v,0,100); ctx.beginPath(); ctx.moveTo(PAD.left,y); ctx.lineTo(PAD.left+cW,y); ctx.stroke(); });
   ctx.font="10px sans-serif"; ctx.fillStyle="#7fd7ff"; ctx.textAlign="right";
   [0,25,50,75,100].forEach(v=>ctx.fillText(String(v),PAD.left-4,yL(v,0,100)+4));
-  // ms axis: RIGHT side — REVERSED (smaller ms = better = higher on chart)
-  // t=0 → y=PAD.top (top of chart) = bMax (worst/highest ms)
-  // t=5 → y=PAD.top+cH (bottom of chart) = bMin (best/lowest ms)
+  // ms axis on the right, aligned to the same vertical locations as CPI because MBS is derived from CPI.
   ctx.fillStyle="#ff9f40"; ctx.textAlign="left";
-  for(let t=0;t<=5;t++){
-    const v=bMax-(t/5)*(bMax-bMin);  // bMax at top label, bMin at bottom
-    const y=PAD.top+(t/5)*cH;
+  [100,75,50,25,0].forEach(cpi=>{
+    const y=yL(cpi,0,100);
+    const v=msFromCpi(cpi);
     const label=v>=1000?(v/1000).toFixed(1)+"s":Math.round(v)+"ms";
     ctx.fillText(label,PAD.left+cW+4,y+4);
-  }
+  });
   // x-axis session labels
   ctx.fillStyle="#7fa0c0"; ctx.font="10px sans-serif"; ctx.textAlign="center";
   for(let i=0;i<n;i++) ctx.fillText(String(i+1),xO(i),PAD.top+cH+14);
@@ -1042,8 +1046,8 @@ function drawCombinedChart(canvas,hist){
     ctx.stroke();
     vals.forEach((v,i)=>{ if(v==null) return; ctx.fillStyle=color; ctx.beginPath(); ctx.arc(xO(i),toY(v),3.5,0,Math.PI*2); ctx.fill(); ctx.font="9px sans-serif"; ctx.textAlign="center"; ctx.fillText(v>100?(v/1000).toFixed(1)+"s":v.toFixed(0),xO(i),toY(v)-6); ctx.textAlign="left"; });
   }
-  // blockToY: REVERSED — smaller ms → smaller y → higher on chart
-  function blockToY(v){ return PAD.top+((v-bMin)/((bMax-bMin)||1))*cH; }
+  // blockToY: map MBS ms through CPI anchors so CPI and MBS occupy the same vertical location.
+  function blockToY(v){ return yL(cpiFromMs(v),0,100); }
   function spfToY(v){ return yL(v,1,7); }
   drawSeries(blockVals,blockToY,"#ff9f40");
   drawSeries(cpsVals,v=>yL(v,0,100),"#7fd7ff");
