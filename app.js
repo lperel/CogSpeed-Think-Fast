@@ -135,13 +135,13 @@ const SAMN_PERELLI=[
 
 // ─── Settings ───
 function loadSettings(){
-  const s=JSON.parse(localStorage.getItem("cogspeed_v21r6_settings")||"null");
+  const s=JSON.parse(localStorage.getItem("cogspeed_v21r7_settings")||"null");
   if(!s) return {...DEFAULTS};
   const m={...DEFAULTS};
   Object.keys(DEFAULTS).forEach(k=>{ if(s[k]!==undefined) m[k]=s[k]; });
   return m;
 }
-function saveSettings(){ localStorage.setItem("cogspeed_v21r6_settings",JSON.stringify(settings)); }
+function saveSettings(){ localStorage.setItem("cogspeed_v21r7_settings",JSON.stringify(settings)); }
 let settings=loadSettings();
 
 // ─── State ───
@@ -150,7 +150,7 @@ const state={
   current:null, previous:null, unresolvedStreak:0,
   overloads:[], recoveries:[], recoveryCorrectCompleted:0,
   spCorrectStreak:0, spWrongCount:0, terminalBlockReason:null,
-  history:JSON.parse(localStorage.getItem("cogspeed_v21r6_history")||"[]"),
+  history:JSON.parse(localStorage.getItem("cogspeed_v21r7_history")||"[]"),
   totalTrials:0, totalResponses:0, totalCorrect:0, totalIncorrect:0,
   missedTrials:0, pacedErrors:0, recoveryErrors:0, rollMeanLog:[],
   testStartTime:null, trialTimer:null, absoluteNoResponseTimer:null, maxTestTimer:null,
@@ -393,7 +393,7 @@ function ensureGearImageStyles(){
       position:absolute;
       transform:translate(-50%,-50%);
       background:#ffffff;
-      border:3px solid #111;
+      border:2px solid #111;
       box-shadow:0 0 2px rgba(0,0,0,0.5);
       opacity:0.98;
       pointer-events:none;
@@ -447,7 +447,7 @@ function buildGearSVG(si,pattern,size,spinClass){
     const marks = [];
     if(pattern){
       const scale = size==="probe" ? 0.76 : 0.72;
-      const dotR = size==="probe" ? 10.2 : 8.2;
+      const dotR = size==="probe" ? 10 : 8;
       const lw   = size==="probe" ? 13 : 10;
       const lh   = size==="probe" ? 22 : 16;
       pattern.forEach(([k,px,py], idx)=>{
@@ -725,7 +725,7 @@ function finish(){
     time:new Date().toISOString(), geo:state.geo
   };
   state.history.push(result);
-  localStorage.setItem("cogspeed_v21r6_history",JSON.stringify(state.history));
+  localStorage.setItem("cogspeed_v21r7_history",JSON.stringify(state.history));
   updateCPIDisplay(avg2); setProbeIdle();
   // Build the display text (also used for email)
   buildSummary(result);
@@ -2380,7 +2380,7 @@ $("historyClearBtn").onclick=()=>{
     btn.textContent="🗑 Clear History";
     btn.style.color="rgba(255,100,136,0.5)";
     btn.style.borderColor="rgba(255,100,136,0.3)";
-    state.history=[]; localStorage.removeItem("cogspeed_v21r6_history");
+    state.history=[]; localStorage.removeItem("cogspeed_v21r7_history");
     buildHistoryOverlay(); setStatus("History cleared.");
   } else {
     btn._confirmPending=true;
