@@ -1,6 +1,7 @@
 // ═══════════════════════════════════════════════════
-// CogSpeed V21
+// CogSpeed V126
 // ═══════════════════════════════════════════════════
+const APP_VERSION = "V126";
 
 // ─── Version guard ───
 (function(){
@@ -1232,7 +1233,8 @@ function emailResults(){
  const last=state.history[state.history.length-1];
  if(!last){ setStatus("No results to email."); return; }
  const to=state.profile?.emailResults&&state.profile?.email?state.profile.email:"";
- window.location.href=`mailto:${to}?subject=CogSpeed V21 Results&body=${encodeURIComponent(state.lastResultText||JSON.stringify(last,null,2))}`;
+ const bodyText = `${APP_VERSION}\n\n${state.lastResultText||JSON.stringify(last,null,2)}`;
+ window.location.href=`mailto:${to}?subject=CogSpeed ${APP_VERSION} Results&body=${encodeURIComponent(bodyText)}`;
 }
 
 
