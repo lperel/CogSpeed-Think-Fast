@@ -2659,3 +2659,30 @@ if ("serviceWorker" in navigator) {
  });
 }
 
+
+
+const _tutNext=$("tutNextBtn");
+const _tutSkip=$("tutSkipBtn");
+if(_tutNext) _tutNext.textContent="TUTORIAL";
+if(_tutSkip) _tutSkip.textContent="START TEST";
+if(_tutNext && _tutSkip){
+ _tutNext.style.flex="1";
+ _tutSkip.style.flex="1";
+ _tutNext.style.width="100%";
+ _tutSkip.style.width="100%";
+ const parent=_tutNext.parentElement;
+ if(parent){
+  parent.style.display="grid";
+  parent.style.gridTemplateColumns="1fr 1fr";
+  parent.style.gap="10px";
+  parent.style.width="100%";
+  // left button = TUTORIAL, right button = START TEST
+  if(parent.firstElementChild !== _tutNext){
+   parent.insertBefore(_tutNext, parent.firstChild);
+  }
+  if(parent.lastElementChild !== _tutSkip){
+   parent.appendChild(_tutSkip);
+  }
+ }
+}
+
