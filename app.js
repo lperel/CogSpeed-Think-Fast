@@ -2416,12 +2416,48 @@ function tutSetStep(n){
  // Update content
  const content=$("tutorialContent");
  if(content) content.innerHTML = TUT_STEPS[n].build();
- // Update next button
- const btn=$("tutNextBtn");
- if(btn) btn.textContent = n===4 ? "▶ Start Test!" : "Next →";
- if(btn) btn.style.background = n===4 ? "linear-gradient(180deg,#0d4a1a,#062a10)" : "";
- if(btn) btn.style.borderColor = n===4 ? "#00ff88" : "";
- if(btn) btn.style.color = n===4 ? "#00ff88" : "";
+
+ // Direct button labeling/layout logic
+ const nextBtn=$("tutNextBtn");
+ const skipBtn=$("tutSkipBtn");
+ if(nextBtn && skipBtn){
+  nextBtn.style.width="100%";
+  skipBtn.style.width="100%";
+  nextBtn.style.minHeight="52px";
+  skipBtn.style.minHeight="52px";
+
+  if(n===0){
+   nextBtn.textContent="TUTORIAL";
+   skipBtn.textContent="START TEST";
+   nextBtn.style.background="";
+   nextBtn.style.borderColor="";
+   nextBtn.style.color="";
+   skipBtn.style.background="";
+   skipBtn.style.borderColor="";
+   skipBtn.style.color="";
+   skipBtn.style.opacity="0.9";
+  }else if(n===4){
+   nextBtn.textContent="▶ Start Test!";
+   skipBtn.textContent="START TEST";
+   nextBtn.style.background="linear-gradient(180deg,#0d4a1a,#062a10)";
+   nextBtn.style.borderColor="#00ff88";
+   nextBtn.style.color="#00ff88";
+   skipBtn.style.background="";
+   skipBtn.style.borderColor="";
+   skipBtn.style.color="";
+   skipBtn.style.opacity="0.9";
+  }else{
+   nextBtn.textContent="Next →";
+   skipBtn.textContent="START TEST";
+   nextBtn.style.background="";
+   nextBtn.style.borderColor="";
+   nextBtn.style.color="";
+   skipBtn.style.background="";
+   skipBtn.style.borderColor="";
+   skipBtn.style.color="";
+   skipBtn.style.opacity="0.9";
+  }
+ }
 }
 
 // ─── TUTORIAL / TRAINING ──────────────────────────────────────
@@ -2660,29 +2696,4 @@ if ("serviceWorker" in navigator) {
 }
 
 
-
-const _tutNext=$("tutNextBtn");
-const _tutSkip=$("tutSkipBtn");
-if(_tutNext) _tutNext.textContent="TUTORIAL";
-if(_tutSkip) _tutSkip.textContent="START TEST";
-if(_tutNext && _tutSkip){
- _tutNext.style.flex="1";
- _tutSkip.style.flex="1";
- _tutNext.style.width="100%";
- _tutSkip.style.width="100%";
- const parent=_tutNext.parentElement;
- if(parent){
-  parent.style.display="grid";
-  parent.style.gridTemplateColumns="1fr 1fr";
-  parent.style.gap="10px";
-  parent.style.width="100%";
-  // left button = TUTORIAL, right button = START TEST
-  if(parent.firstElementChild !== _tutNext){
-   parent.insertBefore(_tutNext, parent.firstChild);
-  }
-  if(parent.lastElementChild !== _tutSkip){
-   parent.appendChild(_tutSkip);
-  }
- }
-}
 
