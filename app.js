@@ -46,7 +46,7 @@ const DEFAULTS={
  maxDurationMs:3000,
  initialUnusedCalibrationTrials:1,
  initialMeasuredCalibrationTrials:10,
- initialPacedPercent:0.70,
+ initialPacedPercent:1.3,
  calibrationStopErrors:4,
  calibrationStopSlowMs:5000,
  cpiBestMs:800,
@@ -70,7 +70,7 @@ const ADMIN_FIELDS=[
  ["calibrationStopErrors","Cal stop after N wrong (default 4)","number"],
  ["calibrationStopSlowMs","Cal avg RT limit (ms, default 3000)","number"],
  // ── Machine-paced ──
- ["initialPacedPercent","MP start: % of cal avg (default 0.70)","number"],
+ ["initialPacedPercent","MP start: % of cal avg (default 1.3)","number"],
  ["minDurationMs","MP FRAME RANGE — minimum frame duration (ms, default 800)","number"],
  ["maxDurationMs","MP FRAME RANGE — maximum frame duration (ms, default 3000)","number"],
  ["machinePacedNoResponseMs","MP no-response timeout (ms, default 15000)","number"],
