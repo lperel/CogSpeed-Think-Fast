@@ -1,7 +1,7 @@
 // ═══════════════════════════════════════════════════
-// CogSpeed V126
+// CogSpeed V127
 // ═══════════════════════════════════════════════════
-const APP_VERSION = "V126";
+const APP_VERSION = "V127";
 
 // ─── Version guard ───
 (function(){
@@ -1233,7 +1233,8 @@ function emailResults(){
  const last=state.history[state.history.length-1];
  if(!last){ setStatus("No results to email."); return; }
  const to=state.profile?.emailResults&&state.profile?.email?state.profile.email:"";
- const bodyText = `${APP_VERSION}\n\n${state.lastResultText||JSON.stringify(last,null,2)}`;
+ const rawText = state.lastResultText || JSON.stringify(last,null,2);
+ const bodyText = rawText.replace(/\n/g,"\r\n");
  window.location.href=`mailto:${to}?subject=CogSpeed ${APP_VERSION} Results&body=${encodeURIComponent(bodyText)}`;
 }
 
@@ -1528,7 +1529,7 @@ function buildSummary(result){
  }).join("\n");
 
  const mainPart=
-`CogSpeed V21 \u2014 Test Results
+`CogSpeed ${APP_VERSION} \u2014 Test Results
 ${hr}
 Subject ID:  ${result.subjectId}
 ${result.profile?`Gender:    ${result.profile.gender==="M"?"Male":result.profile.gender==="F"?"Female":"Other"}
