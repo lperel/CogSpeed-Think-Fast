@@ -173,7 +173,6 @@ const stimGrid=$("stimGrid"), probeCell=$("probeCell"), probeInner=$("probeInner
    recoveryOut=$("recoveryOut"), wrongOut=$("wrongOut"), fatigueOut=$("fatigueOut"),
    cpiOut=$("cpiOut"), statusLine=$("statusLine"), resultBox=$("resultBox"),
    phaseLabel=$("phaseLabel"), modeLabel=$("modeLabel");
-let deferredPrompt=null;
 
 // ─── Utilities ───
 function randInt(min,max){ return Math.floor(Math.random()*(max-min+1))+min; }
@@ -2672,20 +2671,6 @@ $("summaryAdminBtn").onclick=()=>{
   $("adminGate").classList.remove("hidden"); $("adminBody").classList.add("hidden"); $("adminPass").value="";
  }
 };
-window.addEventListener("beforeinstallprompt",e=>{
- e.preventDefault(); deferredPrompt=e;
- const hb=$("installBtnHome"); if(hb) hb.disabled=false;
-});
-async function _doInstall(){
- if(!deferredPrompt) return;
- deferredPrompt.prompt();
- const c=await deferredPrompt.userChoice;
- deferredPrompt=null;
- const msg=c.outcome==="accepted"?"App added to home screen.":"Cancelled.";
- setStatus(msg);
-}
-const _ihb=$("installBtnHome"); if(_ihb) _ihb.onclick=_doInstall;
-
 // ─── Init ───
 modeLabel.textContent="Subject mode";
 renderFatigueChecklist();
