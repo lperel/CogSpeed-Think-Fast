@@ -2595,5 +2595,3 @@ if ("serviceWorker" in navigator) {
   });
 }
 
-const _rrsel=$("rateRtSessionSelect"); if(_rrsel) _rrsel.onchange=()=>buildRateRtOverlay();
-const _rrcb=$("rateRtCloseBtn"); if(_rrcb) _rrcb.onclick=()=>{ $("rateRtOverlay").classList.add("hidden"); $("adminOverlay").classList.remove("hidden"); if(_adminUnlocked){ $("adminGate").classList.add("hidden"); $("adminBody").classList.remove("hidden"); renderAdmin(); } };
