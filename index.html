@@ -504,18 +504,21 @@
 
 <!-- ═══ BENCHMARK OVERLAY ═══ -->
 <div id="benchmarkOverlay" class="overlay hidden">
-  <div class="modal">
-    <div style="text-align:center;margin-bottom:18px;min-height:38dvh;display:flex;align-items:flex-end;justify-content:center"><span class="badge">Benchmark</span></div>
-    <div style="text-align:center;margin-bottom:18px;min-height:38dvh;display:flex;align-items:flex-end;justify-content:center">
+  <div class="modal" style="max-width:min(94vw,720px);padding:18px 18px 16px">
+    <div style="text-align:center;margin-bottom:8px">
+      <span class="badge">Benchmark</span>
+    </div>
+    <div style="text-align:center;margin-bottom:10px">
       <button class="ctrl-btn" id="benchMainBtn" style="font-size:12px;padding:6px 14px;min-height:32px">✕ Close</button>
     </div>
-    <p class="modal-hint" id="benchStatusLine">Running…</p>
-    <div id="benchGrade" class="bench-grade" style="display:none"></div>
-    <div id="benchStats"></div>
+    <p class="modal-hint" id="benchStatusLine" style="margin:0 0 10px;text-align:center">Running…</p>
+    <div id="benchGrade" class="bench-grade" style="display:none;margin:0 auto 10px;max-width:320px"></div>
+    <div id="benchStats" style="display:grid;gap:8px;margin:0 auto 10px;max-width:620px"></div>
     <div id="benchBtns" class="controls" style="margin-top:10px;display:none">
       <button class="ctrl-btn" id="closeAdminBtn2">Close</button>
     </div>
   </div>
+</div>
 </div>
 
 <!-- ═══ THINKING OVERLAY ═══ -->
@@ -660,7 +663,7 @@
   <div class="resp-grid" id="respGrid"></div>
 </div>
 
-<script src="app.js?v=114"></script>
+<script src="app.js?v=115"></script>
 
 <script>
 (function(){
