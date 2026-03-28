@@ -376,8 +376,8 @@ function ensureGearImageStyles(){
       overflow:visible;
     }
     .gear-img-wrap img{
-      width:108%;
-      height:108%;
+      width:120%;
+      height:120%;
       object-fit:contain;
       display:block;
       filter:contrast(1.14) saturate(0.95) brightness(1.02);
@@ -386,8 +386,8 @@ function ensureGearImageStyles(){
       position:absolute;
       left:50%;
       top:50%;
-      width:62%;
-      height:62%;
+      width:70%;
+      height:70%;
       transform:translate(-50%,-50%);
       border-radius:50%;
       background:rgba(110,110,110,0.24);
@@ -451,7 +451,7 @@ function buildGearSVG(si,pattern,size,spinClass){
   if(GEAR_IMAGE_SRCS[si]){
     const marks = [];
     if(pattern){
-      const scale = size==="probe" ? 0.70 : 0.66;
+      const scale = size==="probe" ? 0.66 : 0.62;
       const dotR = size==="probe" ? 13 : 11;
       const lw   = size==="probe" ? 15 : 13;
       const lh   = size==="probe" ? 38 : 30;
@@ -1391,10 +1391,10 @@ function resetProfile(){
 // _adminReturnTo: tracks which page opened admin so Close returns there.
 // ──────────────────────────────────────────────────────────────
 function hideAllOverlays(){
-  ["subjectOverlay","profileOverlay","refresherOverlay","fatigueOverlay","tutorialOverlay","adminOverlay","resultsOverlay","summaryOverlay","trialLogOverlay","historyOverlay","thinkingOverlay","outcomeOverlay"].forEach(id=>{ const el=$(id); if(el) el.classList.add("hidden"); });
+  ["subjectOverlay","profileOverlay","refresherOverlay","fatigueOverlay","tutorialOverlay","adminOverlay","resultsOverlay","summaryOverlay","trialLogOverlay","historyOverlay","rateRtOverlay","thinkingOverlay","outcomeOverlay"].forEach(id=>{ const el=$(id); if(el) el.classList.add("hidden"); });
 }
 function showOnly(id){
-  ["subjectOverlay","profileOverlay","refresherOverlay","fatigueOverlay","adminOverlay","resultsOverlay","summaryOverlay","trialLogOverlay","historyOverlay","tutorialOverlay"].forEach(oid=>{ const el=$(oid); if(el) el.classList[oid===id?"remove":"add"]("hidden"); });
+  ["subjectOverlay","profileOverlay","refresherOverlay","fatigueOverlay","adminOverlay","resultsOverlay","summaryOverlay","trialLogOverlay","historyOverlay","rateRtOverlay","tutorialOverlay"].forEach(oid=>{ const el=$(oid); if(el) el.classList[oid===id?"remove":"add"]("hidden"); });
 }
 function isTestSuccess(r){ return (r||"").toLowerCase().startsWith("convergent"); }
 
@@ -2495,6 +2495,7 @@ $("exportAdminBtn").onclick=()=>{ const blob=new Blob([JSON.stringify(settings,n
 const _ecb=$("exportCsvAdminBtn"); if(_ecb) _ecb.onclick=exportCSV;
 $("adminTrialLogBtn").onclick=()=>{ buildTrialLog(state.history.length-1); $("trialLogOverlay").classList.remove("hidden"); };
 $("adminHistoryBtn").onclick=()=>{ buildHistoryOverlay(); $("historyOverlay").classList.remove("hidden"); };
+const _arrb=$("adminRateRtBtn"); if(_arrb) _arrb.onclick=()=>{ $("adminOverlay").classList.add("hidden"); $("rateRtOverlay").classList.remove("hidden"); buildRateRtOverlay(); };
 $("adminLastResultBtn").onclick=()=>{
   const last=state.history[state.history.length-1];
   if(!last){ setStatus("No results yet."); return; }
@@ -2505,6 +2506,8 @@ $("adminLastResultBtn").onclick=()=>{
 $("trialLogCloseBtn").onclick=()=>$("trialLogOverlay").classList.add("hidden");
 $("trialLogCsvBtn").onclick=()=>downloadTrialLogCSV();
 $("historyCloseBtn").onclick=()=>$("historyOverlay").classList.add("hidden");
+const _rrsel=$("rateRtSessionSelect"); if(_rrsel) _rrsel.onchange=()=>buildRateRtOverlay();
+const _rrcb=$("rateRtCloseBtn"); if(_rrcb) _rrcb.onclick=()=>{ $("rateRtOverlay").classList.add("hidden"); $("adminOverlay").classList.remove("hidden"); if(_adminUnlocked){ $("adminGate").classList.add("hidden"); $("adminBody").classList.remove("hidden"); renderAdmin(); } };
 $("historyClearBtn").onclick=()=>{
   const btn=$("historyClearBtn");
   if(btn._confirmPending){
