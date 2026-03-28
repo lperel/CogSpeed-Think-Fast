@@ -376,8 +376,8 @@ function ensureGearImageStyles(){
       overflow:visible;
     }
     .gear-img-wrap img{
-      width:100%;
-      height:100%;
+      width:108%;
+      height:108%;
       object-fit:contain;
       display:block;
       filter:contrast(1.14) saturate(0.95) brightness(1.02);
@@ -386,8 +386,8 @@ function ensureGearImageStyles(){
       position:absolute;
       left:50%;
       top:50%;
-      width:54%;
-      height:54%;
+      width:62%;
+      height:62%;
       transform:translate(-50%,-50%);
       border-radius:50%;
       background:rgba(110,110,110,0.24);
@@ -451,7 +451,7 @@ function buildGearSVG(si,pattern,size,spinClass){
   if(GEAR_IMAGE_SRCS[si]){
     const marks = [];
     if(pattern){
-      const scale = size==="probe" ? 0.74 : 0.70;
+      const scale = size==="probe" ? 0.70 : 0.66;
       const dotR = size==="probe" ? 13 : 11;
       const lw   = size==="probe" ? 15 : 13;
       const lh   = size==="probe" ? 38 : 30;
@@ -1246,6 +1246,24 @@ function clearProfile(){
   localStorage.removeItem(PROFILE_KEY);
 }
 
+function restoreSubjectFromProfile(){
+  const p = loadProfile();
+  const inp = $("subjectIdInput");
+  const wl = $("subjectWelcome");
+  const we = $("welcomeEmail");
+  const hint = $("subjectHint");
+  if(p && p.email){
+    if(inp) inp.value = p.email;
+    if(wl) wl.style.display = "block";
+    if(we) we.textContent = p.email;
+    if(hint) hint.textContent = "";
+  } else {
+    if(wl) wl.style.display = "none";
+    if(we) we.textContent = "";
+  }
+}
+
+
 // Compute age from birth month (1-12) and year
 function computeAge(bMonth, bYear){
   const now = new Date();
@@ -1348,7 +1366,7 @@ function saveAndContinueProfile(){
   // Return to appropriate page
   showOnly(_profileReturnTo);
   _profileReturnTo = "refresherOverlay"; // reset for next time
-  setStatus("Profile saved");
+  setStatus("Profile saved"); restoreSubjectFromProfile();
 }
 
 function resetProfile(){
@@ -1764,13 +1782,13 @@ function goToStartPage(){
   ["thinkingOverlay","outcomeOverlay","testScreen"].forEach(id=>{ const el=$(id); if(el) el.classList.add("hidden"); });
   const curtain=$("curtain"); if(curtain) curtain.classList.remove("open");
   probeCell.classList.remove("gspin-f","gspin-r","gidle-f","gidle-r");
-  stopFX(); setStatus("Ready"); showOnly("subjectOverlay");
+  stopFX(); setStatus("Ready"); showOnly("subjectOverlay"); restoreSubjectFromProfile();
 }
 function startOverFlow(){
   clearCurrentSession(); state.subjectId=null; state.samnPerelli=null;
   fatigueOut.textContent="—"; $("subjectIdInput").value="";
   _adminUnlocked=false;
-  setStatus("Reset. Enter Subject ID."); showOnly("subjectOverlay");
+  setStatus("Reset. Enter Subject ID."); showOnly("subjectOverlay"); restoreSubjectFromProfile();
 }
 
 // ─── Gear spin intro then start ───
@@ -1898,6 +1916,100 @@ function downloadTrialLogCSV(){
   const blob=new Blob([hdr+rows],{type:"text/csv"});
   const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=`cogspeed_v21_trials_${subj}.csv`; a.click();
 }
+
+
+function drawRateRtChart(canvas, log){
+  if(!canvas) return;
+  const ctx = canvas.getContext("2d"), W=canvas.width, H=canvas.height;
+  ctx.clearRect(0,0,W,H);
+  ctx.fillStyle="#081321"; ctx.fillRect(0,0,W,H);
+  const PAD={top:24,right:56,bottom:34,left:52}, cW=W-PAD.left-PAD.right, cH=H-PAD.top-PAD.bottom;
+  const pts = (log||[]).map((e,i)=>({i:i, dur:e.durationMs, rt:e.rt})).filter(e=>e.dur!=null || e.rt!=null);
+  if(!pts.length){
+    ctx.fillStyle="#d7e7f8"; ctx.font="bold 13px sans-serif"; ctx.textAlign="center";
+    ctx.fillText("No trial data yet", W/2, H/2); return;
+  }
+  const maxY = Math.max(1000, ...pts.map(p=>Math.max(p.dur||0,p.rt||0)));
+  const yTop = Math.ceil(maxY/250)*250;
+  const xStep = pts.length>1 ? cW/(pts.length-1) : cW/2;
+  function xOf(i){ return PAD.left + (pts.length>1 ? i*xStep : cW/2); }
+  function yOf(v){ return PAD.top + cH - ((v||0)/yTop)*cH; }
+
+  ctx.strokeStyle="rgba(79,111,153,0.25)"; ctx.lineWidth=1;
+  for(let v=0; v<=yTop; v+=250){
+    const y=yOf(v);
+    ctx.beginPath(); ctx.moveTo(PAD.left,y); ctx.lineTo(PAD.left+cW,y); ctx.stroke();
+    ctx.fillStyle="#7fd7ff"; ctx.font="10px sans-serif"; ctx.textAlign="right";
+    ctx.fillText(String(v), PAD.left-4, y+4);
+  }
+
+  // Presentation rate line
+  ctx.strokeStyle="#ff9f40"; ctx.lineWidth=2.2; ctx.beginPath();
+  let started=false;
+  pts.forEach((p,i)=>{
+    if(p.dur==null){ started=false; return; }
+    const x=xOf(i), y=yOf(p.dur);
+    if(!started){ ctx.moveTo(x,y); started=true; } else ctx.lineTo(x,y);
+  });
+  ctx.stroke();
+  pts.forEach((p,i)=>{
+    if(p.dur==null) return;
+    const x=xOf(i), y=yOf(p.dur);
+    ctx.fillStyle="#ff9f40"; ctx.beginPath(); ctx.arc(x,y,2.8,0,Math.PI*2); ctx.fill();
+  });
+
+  // RT line
+  ctx.strokeStyle="#7fd7ff"; ctx.lineWidth=2.2; ctx.beginPath();
+  started=false;
+  pts.forEach((p,i)=>{
+    if(p.rt==null){ started=false; return; }
+    const x=xOf(i), y=yOf(p.rt);
+    if(!started){ ctx.moveTo(x,y); started=true; } else ctx.lineTo(x,y);
+  });
+  ctx.stroke();
+  pts.forEach((p,i)=>{
+    if(p.rt==null) return;
+    const x=xOf(i), y=yOf(p.rt);
+    ctx.fillStyle="#7fd7ff"; ctx.beginPath(); ctx.arc(x,y,2.8,0,Math.PI*2); ctx.fill();
+  });
+
+  // x labels every ~5 trials
+  ctx.fillStyle="#9fb7d6"; ctx.font="10px sans-serif"; ctx.textAlign="center";
+  const every = Math.max(1, Math.ceil(pts.length/10));
+  pts.forEach((p,i)=>{
+    if(i % every !== 0 && i !== pts.length-1) return;
+    ctx.fillText(String(i+1), xOf(i), PAD.top+cH+14);
+  });
+
+  ctx.fillStyle="#ff9f40"; ctx.textAlign="left"; ctx.font="bold 10px sans-serif";
+  ctx.fillText("■ Presentation rate", PAD.left, PAD.top-6);
+  ctx.fillStyle="#7fd7ff";
+  ctx.fillText("■ Response time", PAD.left+120, PAD.top-6);
+}
+
+function buildRateRtOverlay(sessionIndex){
+  const sel=$("rateRtSessionSelect");
+  if(sel){
+    sel.innerHTML="";
+    [...state.history].reverse().forEach((r,i)=>{
+      const idx=state.history.length-1-i;
+      const opt=document.createElement("option");
+      opt.value=String(idx);
+      opt.textContent=`Session ${idx+1} — ${r.subjectId} — ${new Date(r.time).toLocaleString()} — CPI: ${r.cognitivePerformanceIndex!=null?r.cognitivePerformanceIndex.toFixed(0):"—"}`;
+      sel.appendChild(opt);
+    });
+    if(sessionIndex!=null) sel.value=String(sessionIndex);
+  }
+  const idx=sel?Number(sel.value):state.history.length-1;
+  const result=state.history[idx];
+  const log=result?result.rtLog:[];
+  const meta=$("rateRtMeta");
+  if(meta){
+    meta.textContent = result ? `${result.subjectId} — ${new Date(result.time).toLocaleString()} — ${log.length} trials` : "No session selected";
+  }
+  drawRateRtChart($("rateRtChart"), log);
+}
+
 
 // ─── History & Graphs overlay ───
 // ─── HISTORY OVERLAY ──────────────────────────────────────────
@@ -2474,3 +2586,6 @@ if ("serviceWorker" in navigator) {
     });
   });
 }
+
+const _rrsel=$("rateRtSessionSelect"); if(_rrsel) _rrsel.onchange=()=>buildRateRtOverlay();
+const _rrcb=$("rateRtCloseBtn"); if(_rrcb) _rrcb.onclick=()=>{ $("rateRtOverlay").classList.add("hidden"); $("adminOverlay").classList.remove("hidden"); if(_adminUnlocked){ $("adminGate").classList.add("hidden"); $("adminBody").classList.remove("hidden"); renderAdmin(); } };

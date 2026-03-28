@@ -484,6 +484,7 @@
       <div class="controls" style="margin-bottom:8px;flex-wrap:wrap;gap:6px">
         <button class="ctrl-btn" id="adminTrialLogBtn" style="background:linear-gradient(180deg,#1a3355,#0d1b33);border-color:#4f8fcc">📋 Trial Detail</button>
         <button class="ctrl-btn" id="adminHistoryBtn" style="background:linear-gradient(180deg,#1a3355,#0d1b33);border-color:#4f8fcc">📈 History &amp; Graphs</button>
+        <button class="ctrl-btn" id="adminRateRtBtn" style="background:linear-gradient(180deg,#1a3355,#0d1b33);border-color:#4f8fcc">📉 Rates + RT</button>
         <button class="ctrl-btn" id="adminLastResultBtn" style="background:linear-gradient(180deg,#1a3355,#0d1b33);border-color:#4f8fcc">📄 Last Results</button>
       </div>
       <div class="controls" style="flex-wrap:wrap;gap:6px">
@@ -597,6 +598,23 @@
   </div>
 </div>
 
+
+<!-- ═══ RATE vs RT OVERLAY ═══ -->
+<div id="rateRtOverlay" class="overlay hidden">
+  <div class="modal" style="max-width:min(98vw,900px)">
+    <h2>Presentation Rate vs Response Time</h2>
+    <p class="modal-hint" id="rateRtMeta">Per-trial presentation rate and response time for one session.</p>
+    <div style="margin-bottom:8px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+      <select id="rateRtSessionSelect" style="flex:1;padding:8px;border:1px solid var(--edge);border-radius:10px;background:#0a1629;color:var(--text);font-size:13px"></select>
+    </div>
+    <canvas id="rateRtChart" width="760" height="320" style="margin-bottom:12px;width:100%;max-width:100%"></canvas>
+    <div class="controls">
+      <button class="ctrl-btn" id="rateRtCloseBtn">← Back to Admin</button>
+    </div>
+  </div>
+</div>
+
+
 <!-- ═══ MAIN APP — hidden container for JS-required IDs ═══ -->
 <div class="app" id="mainApp" style="display:none">
   <div class="panel result hidden" id="resultBox"></div>
@@ -638,7 +656,7 @@
   <div class="resp-grid" id="respGrid"></div>
 </div>
 
-<script src="app.js?v=96"></script>
+<script src="app.js?v=97"></script>
 
 <script>
 (function(){
