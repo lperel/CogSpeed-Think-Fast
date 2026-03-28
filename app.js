@@ -2386,8 +2386,6 @@ const TUT_STEPS = [
      </div>
      <div style="margin-top:2px">${buildTutRespGridAnimated()}</div>
      <div style="font-size:14px;color:rgba(20,20,20,0.72);margin-top:10px;line-height:1.45">
-      The center <span style="font-weight:700">probe</span> matches one gear above and the
-      response gear in the <span style="font-weight:700">same position below</span>.
       The center probe Dots or Lines match the Dots or Lines in one gear above. Tap response gear in the same position below.
      </div>
     </div>
