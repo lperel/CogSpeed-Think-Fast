@@ -381,8 +381,8 @@ function ensureGearImageStyles(){
       overflow:visible;
     }
     .gear-img-wrap img{
-      width:120%;
-      height:120%;
+      width:126%;
+      height:126%;
       object-fit:contain;
       display:block;
       filter:contrast(1.14) saturate(0.95) brightness(1.02);
@@ -391,8 +391,8 @@ function ensureGearImageStyles(){
       position:absolute;
       left:50%;
       top:50%;
-      width:70%;
-      height:70%;
+      width:74%;
+      height:74%;
       transform:translate(-50%,-50%);
       border-radius:50%;
       background:rgba(110,110,110,0.24);
@@ -456,7 +456,7 @@ function buildGearSVG(si,pattern,size,spinClass){
   if(GEAR_IMAGE_SRCS[si]){
     const marks = [];
     if(pattern){
-      const scale = size==="probe" ? 0.66 : 0.62;
+      const scale = size==="probe" ? 0.64 : 0.60;
       const dotR = size==="probe" ? 13 : 11;
       const lw   = size==="probe" ? 15 : 13;
       const lh   = size==="probe" ? 38 : 30;
@@ -2113,7 +2113,7 @@ function tutFillPatterns(){
 }
 
 function buildTutGearGrid(highlightPos, showPatterns){
-  let html = '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;width:100%;max-width:340px">';
+  let html = '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;width:100%;max-width:380px">';
   TUT_ITEMS.forEach((it,i)=>{
     const isHL = highlightPos===i;
     const border = isHL ? "2px solid #7fd7ff" : "2px solid transparent";
@@ -2130,18 +2130,18 @@ function buildTutGearGrid(highlightPos, showPatterns){
 function buildTutProbe(pulsing){
   const pat = LINE_PATTERNS[TUT_PROBE_CNT];
   const anim = pulsing ? "animation:probePulseG 1.2s ease-in-out infinite;filter:drop-shadow(0 0 20px rgba(127,215,255,1)) drop-shadow(0 0 36px rgba(127,215,255,0.75))" : "animation:none";
-  return `<div style="width:clamp(110px,32vw,170px);height:clamp(110px,32vw,170px);${anim}">
+  return `<div style="width:clamp(128px,36vw,196px);height:clamp(128px,36vw,196px);${anim}">
     ${buildGearSVG(0, pat, "probe", "")}
   </div>`;
 }
 
 function buildTutRespGrid(flashPos){
-  let html = '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;width:100%;max-width:340px">';
+  let html = '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;width:100%;max-width:380px">';
   for(let i=0;i<6;i++){
     const isFL = flashPos===i;
     const glow   = isFL ? "drop-shadow(0 0 8px rgba(0,255,136,0.9))" : "none";
     const border = isFL ? "2px solid #00ff88" : "2px solid transparent";
-    html += `<div style="aspect-ratio:1;border-radius:10px;border:${border};filter:${glow};position:relative">
+    html += `<div style="aspect-ratio:1;border-radius:10px;border:${border};filter:${glow};position:relative;min-height:104px">
       ${buildGearSVG(i+1, null, "large", "")}
     </div>`;
   }
@@ -2157,7 +2157,7 @@ function buildTutGearGridAnimated(showPatterns){
       20%, 100% { border-color:transparent; filter:none; box-shadow:none; opacity:.72; }
     }
   </style>`;
-  html += '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;width:100%;max-width:340px">';
+  html += '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;width:100%;max-width:380px">';
   TUT_ITEMS.forEach((it,i)=>{
     const pat = showPatterns ? it.pattern : null;
     html += `<div style="border:2px solid transparent;border-radius:10px;aspect-ratio:1;animation:tutPairFlash 12s linear infinite;animation-delay:${i*2}s">
@@ -2169,7 +2169,7 @@ function buildTutGearGridAnimated(showPatterns){
 }
 
 function buildTutRespGridAnimated(){
-  let html = '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;width:100%;max-width:340px">';
+  let html = '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;width:100%;max-width:380px">';
   for(let i=0;i<6;i++){
     html += `<div style="aspect-ratio:1;border-radius:10px;border:2px solid transparent;position:relative;animation:tutPairFlash 12s linear infinite;animation-delay:${i*2}s">
       ${buildGearSVG(i+1, null, "large", "")}
@@ -2314,7 +2314,7 @@ const TUT_STEPS = [
           <div style="font-size:14px;color:rgba(20,20,20,0.72);margin-top:10px;line-height:1.45">
             The center <span style="font-weight:700">probe</span> matches one gear above and the
             response gear in the <span style="font-weight:700">same position below</span>.
-            Each matching top/bottom pair flashes for 2 seconds in sequence.
+            The center probe Dots or Lines match the Dots or Lines in one gear above. Tap response gear in the same position below.
           </div>
         </div>
       </div>`;
