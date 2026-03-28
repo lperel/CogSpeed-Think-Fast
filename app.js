@@ -80,7 +80,7 @@ const ADMIN_FIELDS=[
  // ── Block detection ──
  ["consecutiveMissesForBlock","Misses to trigger block (default 2)","number"],
  // ── Block recovery (SP self-paced after block) ──
- ["resumeSlowerByMs","Block recovery restart: add ms after block (fixed +400ms)","number"],
+ ["resumeSlowerByMs","Block recovery restart: % of Block baseline (default 1.3)","number"],
  ["maxBlockCount","Max total blocks before fail (default 6)","number"],
  ["spRestartWrongLimit","Block recovery: max wrong before fail (default 3)","number"],
  ["spRestartCorrectStreak","Block recovery: correct streak to resume (default 2)","number"],
@@ -858,7 +858,7 @@ function onPacedFrameEnd(){
  state.unresolvedStreak=truelyMissed?state.unresolvedStreak+1:0;
  if(state.unresolvedStreak>=settings.consecutiveMissesForBlock){
   state.blockDuration=state.duration; 
-  state.blockRestartBaseline=state.duration; // restart must be baseline + 400 ms, exactly
+  state.blockRestartBaseline=state.duration; // restart uses block baseline × initialPacedPercent
   state.overloads.push(state.blockDuration);
   state.unresolvedStreak=0; state.previousMissed=false; state.lastFrameDuration=null;
   updateCPIDisplay(avgLast2Blocks());
@@ -925,14 +925,15 @@ function handleTap(index){
    const need=Math.max(1,Number(settings.spRestartCorrectStreak)||2);
    if(state.spCorrectStreak>=need){
     // REQUIRED RESTART RULE:
-    //   restartMs = blockRateMs + resumeSlowerByMs
-    // DO NOT USE blockDuration × spRestartMultiplier
-    const restartAddMs=400; // exact restart offset after block
+    //   restartMs = blockBaselineMs × initialPacedPercent
+    // Same formula family as "MP start: % of cal avg",
+    // except use block baseline instead of calibration average.
     const restartBaseMs=Number(state.blockRestartBaseline)||Number(state.blockDuration)||0;
-    const slower=clamp(Math.round(restartBaseMs+restartAddMs),settings.minDurationMs,settings.maxDurationMs);
+    const restartFactor=Number(settings.initialPacedPercent)||1.3;
+    const slower=clamp(Math.round(restartBaseMs*restartFactor),settings.minDurationMs,settings.maxDurationMs);
     state.recoveries.push(slower); state.phase="paced"; state.duration=slower;
     state.spCorrectStreak=0; state.spWrongCount=0;
-    setStatus(`Block recovery passed — resuming at ${slower.toFixed(0)}ms (baseline + 400ms)`);
+    setStatus(`Block recovery passed — resuming at ${slower.toFixed(0)}ms (${restartFactor}× block baseline)`);
     setTimeout(()=>openTrial("paced"),180);
    }else{
     setStatus(`SP Restart: ${state.spCorrectStreak}/${need} correct`);
