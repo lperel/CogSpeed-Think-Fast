@@ -80,7 +80,7 @@ const ADMIN_FIELDS=[
  // ── Block detection ──
  ["consecutiveMissesForBlock","Misses to trigger block (default 2)","number"],
  // ── Block recovery (SP self-paced after block) ──
- ["resumeSlowerByMs","Block recovery restart: add ms after block (default 400)","number"],
+ ["resumeSlowerByMs","Block recovery restart: add ms after block (fixed +400ms)","number"],
  ["maxBlockCount","Max total blocks before fail (default 6)","number"],
  ["spRestartWrongLimit","Block recovery: max wrong before fail (default 3)","number"],
  ["spRestartCorrectStreak","Block recovery: correct streak to resume (default 2)","number"],
@@ -885,8 +885,13 @@ function handleTap(index){
   if(ok) state.totalCorrect+=1; else state.totalIncorrect+=1;
   logTrial({phase:"calibration",rt,outcome:ok?"correct":"wrong",responseIndex:index});
   if(!ok){
+   // ONLY calibration wrong taps count toward "Cal stop after N wrong".
    state.calibrationErrors+=1; updateMetrics();
-   if(state.calibrationErrors>settings.calibrationStopErrors){ failCalibration("TOO MANY WRONG RESPONSES — Practice!"); return; }
+   const calWrongLimit=Math.max(1,Number(settings.calibrationStopErrors)||4);
+   if(state.calibrationErrors>=calWrongLimit){
+    failCalibration(`TOO MANY WRONG RESPONSES — Practice! (${state.calibrationErrors}/${calWrongLimit})`);
+    return;
+   }
   }else{
    if(rt>settings.calibrationStopSlowMs){ failCalibration("NOT RESPONDING IN TIME — Practice!"); return; }
    if(state.calibrationTrialIndex>=settings.initialUnusedCalibrationTrials) state.calibrationRTs.push(rt);
@@ -911,11 +916,11 @@ function handleTap(index){
     // REQUIRED RESTART RULE:
     //   restartMs = blockRateMs + resumeSlowerByMs
     // DO NOT USE blockDuration × spRestartMultiplier
-    const restartAddMs=Math.max(0,Number(settings.resumeSlowerByMs)||400);
+    const restartAddMs=400; // exact restart offset after block
     const slower=clamp(Math.round(state.blockDuration+restartAddMs),settings.minDurationMs,settings.maxDurationMs);
     state.recoveries.push(slower); state.phase="paced"; state.duration=slower;
     state.spCorrectStreak=0; state.spWrongCount=0;
-    setStatus(`Block recovery passed — resuming at ${slower.toFixed(0)}ms (+${restartAddMs}ms)`);
+    setStatus(`Block recovery passed — resuming at ${slower.toFixed(0)}ms (+400ms)`);
     setTimeout(()=>openTrial("paced"),180);
    }else{
     setStatus(`SP Restart: ${state.spCorrectStreak}/${need} correct`);
@@ -970,6 +975,8 @@ function handleTap(index){
    flashBtn(index,true);
    if(recordAnswer(true)) return;
   }else{
+   // PACED wrongs do NOT count toward "Cal stop after N wrong".
+   // They count only toward pacedErrors / paced failure logic.
    applyPacing(null,false); state.totalIncorrect+=1; state.pacedErrors+=1;
    if(checkMaxPacedWrong()) return;
    const savedCurrent=state.current;
@@ -989,6 +996,8 @@ function handleTap(index){
   recordAnswer(true); return;
  }
  state.hadResponse=true;
+ // PACED wrongs do NOT count toward "Cal stop after N wrong".
+ // They count only toward pacedErrors / paced failure logic.
  state.totalResponses+=1; state.totalIncorrect+=1; state.pacedErrors+=1;
  if(checkMaxPacedWrong()) return;
  applyPacing(null,false);
