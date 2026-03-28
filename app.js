@@ -848,7 +848,9 @@ function onPacedFrameEnd(){
  // Wrong responses reset the miss streak (subject DID respond, just incorrectly)
  state.unresolvedStreak=truelyMissed?state.unresolvedStreak+1:0;
  if(state.unresolvedStreak>=settings.consecutiveMissesForBlock){
-  state.blockDuration=state.duration; state.overloads.push(state.blockDuration);
+  state.blockDuration=state.duration; 
+  state.blockRestartBaseline=state.duration; // restart must be baseline + 400 ms, exactly
+  state.overloads.push(state.blockDuration);
   state.unresolvedStreak=0; state.previousMissed=false; state.lastFrameDuration=null;
   updateCPIDisplay(avgLast2Blocks());
   // Check max block count
@@ -917,10 +919,11 @@ function handleTap(index){
     //   restartMs = blockRateMs + resumeSlowerByMs
     // DO NOT USE blockDuration × spRestartMultiplier
     const restartAddMs=400; // exact restart offset after block
-    const slower=clamp(Math.round(state.blockDuration+restartAddMs),settings.minDurationMs,settings.maxDurationMs);
+    const restartBaseMs=Number(state.blockRestartBaseline)||Number(state.blockDuration)||0;
+    const slower=clamp(Math.round(restartBaseMs+restartAddMs),settings.minDurationMs,settings.maxDurationMs);
     state.recoveries.push(slower); state.phase="paced"; state.duration=slower;
     state.spCorrectStreak=0; state.spWrongCount=0;
-    setStatus(`Block recovery passed — resuming at ${slower.toFixed(0)}ms (+400ms)`);
+    setStatus(`Block recovery passed — resuming at ${slower.toFixed(0)}ms (baseline + 400ms)`);
     setTimeout(()=>openTrial("paced"),180);
    }else{
     setStatus(`SP Restart: ${state.spCorrectStreak}/${need} correct`);
@@ -1815,7 +1818,7 @@ function showResultsPage(){
     }
     // Speedometer stays visible until user taps "View Results"
    }
-  },6000);
+  },2000);
  },500);
 }
 

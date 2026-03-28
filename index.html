@@ -481,11 +481,13 @@
         <button class="ctrl-btn" id="exportCsvAdminBtn">Export CSV</button>
         <button class="ctrl-btn" id="benchRunBtn">Benchmark</button>
       </div>
-      <div class="controls" style="margin-bottom:8px;flex-wrap:wrap;gap:6px">
-        <button class="ctrl-btn" id="adminTrialLogBtn" style="background:linear-gradient(180deg,#1a3355,#0d1b33);border-color:#4f8fcc">📋 Trial Detail</button>
-        <button class="ctrl-btn" id="adminHistoryBtn" style="background:linear-gradient(180deg,#1a3355,#0d1b33);border-color:#4f8fcc">📈 History &amp; Graphs</button>
-        <button class="ctrl-btn" id="adminRateRtBtn" style="background:linear-gradient(180deg,#1a3355,#0d1b33);border-color:#4f8fcc">📉 Rates + RT</button>
-        <button class="ctrl-btn" id="adminLastResultBtn" style="background:linear-gradient(180deg,#1a3355,#0d1b33);border-color:#4f8fcc">📄 Last Results</button>
+      <div class="controls" style="margin-bottom:6px;flex-wrap:nowrap;gap:6px">
+        <button class="ctrl-btn" id="adminTrialLogBtn" style="flex:1;background:linear-gradient(180deg,#1a3355,#0d1b33);border-color:#4f8fcc">📋 Trial Detail</button>
+        <button class="ctrl-btn" id="adminHistoryBtn" style="flex:1;background:linear-gradient(180deg,#1a3355,#0d1b33);border-color:#4f8fcc">📈 History &amp; Graphs</button>
+        <button class="ctrl-btn" id="adminRateRtBtn" style="flex:1;background:linear-gradient(180deg,#1a3355,#0d1b33);border-color:#4f8fcc">📉 Rates + RT</button>
+      </div>
+      <div class="controls" style="margin-bottom:8px;gap:6px">
+        <button class="ctrl-btn" id="adminLastResultBtn" style="flex:1;background:linear-gradient(180deg,#1a3355,#0d1b33);border-color:#4f8fcc">📄 Last Results</button>
       </div>
       <div class="controls" style="flex-wrap:wrap;gap:6px">
         <button class="ctrl-btn" id="adminBackBtn">Back to Start</button>
@@ -656,7 +658,7 @@
   <div class="resp-grid" id="respGrid"></div>
 </div>
 
-<script src="app.js?v=107"></script>
+<script src="app.js?v=108"></script>
 
 <script>
 (function(){
