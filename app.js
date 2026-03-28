@@ -2230,11 +2230,16 @@ function buildTutGearGridAnimated(showPatterns){
    0%, 16.666% { border-color:#7fd7ff; filter:drop-shadow(0 0 10px rgba(127,215,255,0.95)); box-shadow:0 0 16px rgba(127,215,255,0.30) inset; opacity:1; }
    20%, 100% { border-color:transparent; filter:none; box-shadow:none; opacity:.72; }
   }
+  @keyframes tutPairFlashCorrect {
+   0%, 16.666% { border-color:#00ff88; filter:drop-shadow(0 0 10px rgba(0,255,136,0.95)); box-shadow:0 0 16px rgba(0,255,136,0.30) inset; opacity:1; }
+   20%, 100% { border-color:transparent; filter:none; box-shadow:none; opacity:.72; }
+  }
  </style>`;
  html += '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;width:100%;max-width:380px">';
  TUT_ITEMS.forEach((it,i)=>{
   const pat = showPatterns ? it.pattern : null;
-  html += `<div style="border:2px solid transparent;border-radius:10px;aspect-ratio:1;animation:tutPairFlash 12s linear infinite;animation-delay:${i*2}s">
+  const anim = i===TUT_CORRECT_POS ? "tutPairFlashCorrect 12s linear infinite" : "tutPairFlash 12s linear infinite";
+  html += `<div style="border:2px solid transparent;border-radius:10px;aspect-ratio:1;animation:${anim};animation-delay:${i*2}s">
    ${buildGearSVG(i+1, pat, "large", "")}
   </div>`;
  });
@@ -2245,7 +2250,8 @@ function buildTutGearGridAnimated(showPatterns){
 function buildTutRespGridAnimated(){
  let html = '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;width:100%;max-width:380px">';
  for(let i=0;i<6;i++){
-  html += `<div style="aspect-ratio:1;border-radius:10px;border:2px solid transparent;position:relative;animation:tutPairFlash 12s linear infinite;animation-delay:${i*2}s">
+  const anim = i===TUT_CORRECT_POS ? "tutPairFlashCorrect 12s linear infinite" : "tutPairFlash 12s linear infinite";
+  html += `<div style="aspect-ratio:1;border-radius:10px;border:2px solid transparent;position:relative;animation:${anim};animation-delay:${i*2}s">
    ${buildGearSVG(i+1, null, "large", "")}
   </div>`;
  }
