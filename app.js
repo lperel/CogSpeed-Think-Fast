@@ -162,6 +162,7 @@ const state={
  lastFiveAnswers:[], samnPerelli:null, subjectId:null,
  calibrationTrialIndex:0, calibrationRTs:[], calibrationErrors:0,
  pacedRTs:[], rtLog:[], previousMissed:false, lastFrameDuration:null,
+ presentedRoundDuration:null,
  trialOpenedAt:null, geo:null, benchmark:null, lastResultText:null
 };
 
@@ -582,9 +583,13 @@ function logTrial({phase,rt,outcome,responseIndex}){
  const trial=state.current; if(!trial) return;
  const ci=trial.topItems[trial.correctPos];
  const ri=responseIndex!=null?trial.topItems[responseIndex]:null;
+ const loggedDurationMs = (
+  phase==="paced" || phase==="paced_wrong" || phase==="paced_late_correct" || phase==="paced_late_wrong" || phase==="missed"
+ ) ? (state.presentedRoundDuration!=null ? state.presentedRoundDuration : (state.duration?Math.round(state.duration):null))
+   : (state.duration?Math.round(state.duration):null);
  state.rtLog.push({
   seq:state.rtLog.length+1, phase, clockTime:new Date().toISOString(),
-  durationMs:state.duration?Math.round(state.duration):null,
+  durationMs:loggedDurationMs,
   rt:rt!=null?Math.round(rt):null, outcome,
   probe:`${trial.probeFamily}:${trial.probeCount}`,
   correctCell:ci?`${ci.family}:${ci.count} @${trial.correctPos+1}`:"—",
@@ -593,6 +598,8 @@ function logTrial({phase,rt,outcome,responseIndex}){
 }
 
 // ─── Answer recording ───
+// Trial log duration for paced-family rows uses the PRESENTED round duration,
+// not the already-updated baseline after correct/wrong pacing adjustments.
 // ─── ANSWER RECORDING + ANTI-SPOOF ───────────────────────────
 // recordAnswer(): updates rolling mean + wrong-window checks.
 // ANTI-SPOOF — ROLLING MEAN: if correct% < 50% in last 8 taps
@@ -812,20 +819,23 @@ function openTrial(kind){
   setStatus(idx<=settings.initialUnusedCalibrationTrials?"Self-paced (unused)":"Self-paced (measured)");
   armNoResponseTimer();
  }else if(kind==="paced"){
+  // Store the ACTUAL frame duration shown for this paced round.
+  // Trial logging must use this presented value, not the updated baseline after response processing.
+  state.presentedRoundDuration = Math.round(state.duration);
   phaseLabel.textContent=`Paced · ${Math.round(state.duration)}ms`;
   setStatus("Machine-paced");
   state.trialTimer=setTimeout(onPacedFrameEnd,state.duration);
  }else if(kind==="recovery"){
   // Recovery after block is SELF-PACED. No machine-paced frame timer here.
   clearTimer();
-  state.duration=null; state.lastFrameDuration=null;
+  state.duration=null; state.lastFrameDuration=null; state.presentedRoundDuration=null;
   phaseLabel.textContent=`SP Restart ${state.spCorrectStreak}✓ ${state.spWrongCount}✗`;
   setStatus(`SP Restart — need ${settings.spRestartCorrectStreak} correct in a row`);
   armNoResponseTimer();
  }else if(kind==="terminal_recovery"){
   // Final recovery is also SELF-PACED.
   clearTimer();
-  state.duration=null; state.lastFrameDuration=null;
+  state.duration=null; state.lastFrameDuration=null; state.presentedRoundDuration=null;
   phaseLabel.textContent=`Final SP ${state.recoveryCorrectCompleted+1}/${settings.spRestartCorrectStreak}`;
   setStatus("Final self-paced recovery");
   armNoResponseTimer();
@@ -1838,7 +1848,7 @@ function clearCurrentSession(){
  state.testStartTime=null; state.totalCorrect=0; state.totalIncorrect=0;
  state.missedTrials=0; state.rollMeanLog=[]; state.lastFiveAnswers=[];
  state.calibrationTrialIndex=0; state.calibrationRTs=[]; state.calibrationErrors=0;
- state.pacedRTs=[]; state.rtLog=[]; state.previousMissed=false; state.lastFrameDuration=null;
+ state.pacedRTs=[]; state.rtLog=[]; state.previousMissed=false; state.lastFrameDuration=null; state.presentedRoundDuration=null;
  state.geo=null; state.benchmark=null; state.lastResultText=null;
  updateCPIDisplay(null); updateMetrics(); setProbeIdle(); setTestingQuiet(false);
 }
