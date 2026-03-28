@@ -26,7 +26,7 @@
 const DEFAULTS={
  adminPasscode:"4822",
  consecutiveMissesForBlock:2,
- spRestartMultiplier:1.3,
+ resumeSlowerByMs:400,
  spRestartWrongLimit:3,
  spRestartCorrectStreak:2,
  maxBlockCount:6,
@@ -80,7 +80,7 @@ const ADMIN_FIELDS=[
  // ── Block detection ──
  ["consecutiveMissesForBlock","Misses to trigger block (default 2)","number"],
  // ── Block recovery (SP self-paced after block) ──
- ["spRestartMultiplier","Block recovery speed: last block × (default 1.3)","number"],
+ ["resumeSlowerByMs","Block recovery restart: add ms after block (default 400)","number"],
  ["maxBlockCount","Max total blocks before fail (default 6)","number"],
  ["spRestartWrongLimit","Block recovery: max wrong before fail (default 3)","number"],
  ["spRestartCorrectStreak","Block recovery: correct streak to resume (default 2)","number"],
@@ -699,9 +699,49 @@ function finishCalibration(){
 //
 // Duration always clamped to [minDurationMs=600, maxDurationMs=3500].
 // ──────────────────────────────────────────────────────────────
+// ─── PACED BASELINE UPDATE ALGORITHM ─────────────────────────
+// PACED MODE ONLY. Self-paced calibration is NOT changed.
+//
+// CORRECT RESPONSE:
+//   r = responseTime / roundDuration
+//   deltaMs = (0.1*r - 0.1) * roundDuration
+//           = 0.1 * (responseTime - roundDuration)
+//
+// IMPORTANT:
+//   Cap any single speedup/slowdown to ±100 ms.
+//
+// WRONG RESPONSE:
+//   baseline += 100 ms (flat slowdown penalty)
+//
+// NO RESPONSE:
+//   baseline unchanged
+//
+// LATE RESPONSE AFTER PREVIOUS MISS:
+//   If next response occurs in < 600 ms:
+//     - treat it as belonging to PREVIOUS round
+//     - if correct for previous round:
+//         effectiveRT = currentRT + lastRoundDuration
+//         apply correct-response formula to effectiveRT
+//     - if wrong for previous round:
+//         baseline += 100 ms
+//   If next response occurs in >= 600 ms:
+//     - treat it as belonging to CURRENT round
+//
+// After any update, clamp baseline to:
+//   [settings.minDurationMs, settings.maxDurationMs]
+// ──────────────────────────────────────────────────────────────
 function applyPacing(rt,correct){
- if(correct){ const r=rt/state.duration; state.duration=clamp(state.duration+(0.1*r-0.1)*state.duration,settings.minDurationMs,settings.maxDurationMs); }
- else{ state.duration=clamp(state.duration+100,settings.minDurationMs,settings.maxDurationMs); }
+ if(correct){
+  if(rt==null||!isFinite(rt)||!isFinite(state.duration)) return;
+  const roundDuration=state.duration;
+  const r=rt/roundDuration;
+  let deltaMs=(0.1*r-0.1)*roundDuration;
+  deltaMs=clamp(deltaMs,-100,100); // Cap MAX speed up or slow down to 100ms
+  state.duration=clamp(state.duration+deltaMs,settings.minDurationMs,settings.maxDurationMs);
+ }else{
+  // Wrong response = +100 ms slowdown
+  state.duration=clamp(state.duration+100,settings.minDurationMs,settings.maxDurationMs);
+ }
 }
 
 // ─── Finish ───
@@ -776,12 +816,14 @@ function openTrial(kind){
   setStatus("Machine-paced");
   state.trialTimer=setTimeout(onPacedFrameEnd,state.duration);
  }else if(kind==="recovery"){
+  // Recovery after block is SELF-PACED. No machine-paced frame timer here.
   clearTimer();
   state.duration=null; state.lastFrameDuration=null;
   phaseLabel.textContent=`SP Restart ${state.spCorrectStreak}✓ ${state.spWrongCount}✗`;
   setStatus(`SP Restart — need ${settings.spRestartCorrectStreak} correct in a row`);
   armNoResponseTimer();
  }else if(kind==="terminal_recovery"){
+  // Final recovery is also SELF-PACED.
   clearTimer();
   state.duration=null; state.lastFrameDuration=null;
   phaseLabel.textContent=`Final SP ${state.recoveryCorrectCompleted+1}/${settings.spRestartCorrectStreak}`;
@@ -798,6 +840,7 @@ function onPacedFrameEnd(){
  // Only true misses count toward block threshold.
  const truelyMissed=state.current&&!state.current.resolved&&!state.hadResponse;
  if(truelyMissed){
+  // No response: baseline unchanged. Miss counts toward block detection.
   logTrial({phase:"missed",rt:null,outcome:"missed",responseIndex:null});
   state.missedTrials+=1; state.previousMissed=true; state.lastFrameDuration=state.duration;
   if(recordAnswer(false,true)) return;
@@ -823,11 +866,13 @@ function onPacedFrameEnd(){
 // ─── TAP HANDLER ──────────────────────────────────────────────
 // Entry point for all subject responses (pointerdown on resp-btn).
 // Routes to: calibration | paced | recovery | terminal_recovery.
-// LATE CATCH: if tap within 600ms of frame start after a miss,
-//  resolves PREVIOUS trial (savedLastDur for correct effectiveRT).
-// BLOCKING ALGORITHM: onPacedFrameEnd counts consecutive true misses
-//  (hadResponse=false). 2 consecutive → block recorded in overloads[].
-//  Wrong taps (hadResponse=true) reset miss streak to 0.
+// LATE RESPONSE RULE: if tap within 600ms of frame start after a previous miss,
+//  assign that tap to the PREVIOUS trial. If correct, use
+//  effectiveRT = currentRT + lastRoundDuration in the paced update.
+//  If wrong, baseline slows by +100 ms.
+// BLOCKING ALGORITHM: onPacedFrameEnd counts consecutive TRUE misses
+//  (hadResponse=false). 2 consecutive misses → block recorded.
+//  Recovery after block is SELF-PACED.
 // ──────────────────────────────────────────────────────────────
 function handleTap(index){
  if(!["calibration","paced","recovery","terminal_recovery"].includes(state.phase)) return;
@@ -863,11 +908,14 @@ function handleTap(index){
    state.spCorrectStreak+=1; state.current.resolved=true;
    const need=Math.max(1,Number(settings.spRestartCorrectStreak)||2);
    if(state.spCorrectStreak>=need){
-    const mult=Math.max(1.0,Number(settings.spRestartMultiplier)||1.3);
-    const slower=clamp(Math.round(state.blockDuration*mult),settings.minDurationMs,settings.maxDurationMs);
+    // REQUIRED RESTART RULE:
+    //   restartMs = blockRateMs + resumeSlowerByMs
+    // DO NOT USE blockDuration × spRestartMultiplier
+    const restartAddMs=Math.max(0,Number(settings.resumeSlowerByMs)||400);
+    const slower=clamp(Math.round(state.blockDuration+restartAddMs),settings.minDurationMs,settings.maxDurationMs);
     state.recoveries.push(slower); state.phase="paced"; state.duration=slower;
     state.spCorrectStreak=0; state.spWrongCount=0;
-    setStatus(`Block recovery passed — resuming at ${slower.toFixed(0)}ms (${mult.toFixed(1)}× block)`);
+    setStatus(`Block recovery passed — resuming at ${slower.toFixed(0)}ms (+${restartAddMs}ms)`);
     setTimeout(()=>openTrial("paced"),180);
    }else{
     setStatus(`SP Restart: ${state.spCorrectStreak}/${need} correct`);
