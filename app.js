@@ -4,9 +4,14 @@
 
 // ─── Version guard ───
 (function(){
-  const VER="cogspeed_v21", key="cogspeed_version";
+  const VER="cogspeed_v21_emailfix", key="cogspeed_version";
+  const preserve = new Set(["cogspeed_v21_profile","cogspeed_profile_persist"]);
   if(localStorage.getItem(key)!==VER){
-    Object.keys(localStorage).forEach(k=>{ if(k.startsWith("cogspeed_")||k.startsWith("cogblock_")) localStorage.removeItem(k); });
+    Object.keys(localStorage).forEach(k=>{
+      if((k.startsWith("cogspeed_")||k.startsWith("cogblock_")) && !preserve.has(k) && k!==key){
+        localStorage.removeItem(k);
+      }
+    });
     localStorage.setItem(key,VER);
   }
 })();
@@ -1234,16 +1239,25 @@ function stopFX(){ if(_fxRaf){ cancelAnimationFrame(_fxRaf); _fxRaf=null; } }
 // [PLANNED] Server-side account for population norms.
 // ═══════════════════════════════════════════════════════════════
 
-const PROFILE_KEY = "cogspeed_v21_profile";
+const PROFILE_KEY = "cogspeed_profile_persist";
 
 function loadProfile(){
-  try { return JSON.parse(localStorage.getItem(PROFILE_KEY)||"null"); } catch(e){ return null; }
+  try {
+    const raw = localStorage.getItem(PROFILE_KEY) || localStorage.getItem("cogspeed_v21_profile") || "null";
+    const p = JSON.parse(raw);
+    if(p && !localStorage.getItem(PROFILE_KEY)){
+      localStorage.setItem(PROFILE_KEY, JSON.stringify(p));
+    }
+    return p;
+  } catch(e){ return null; }
 }
 function saveProfile(p){
   localStorage.setItem(PROFILE_KEY, JSON.stringify(p));
+  localStorage.setItem("cogspeed_v21_profile", JSON.stringify(p));
 }
 function clearProfile(){
   localStorage.removeItem(PROFILE_KEY);
+  localStorage.removeItem("cogspeed_v21_profile");
 }
 
 function restoreSubjectFromProfile(){
