@@ -711,8 +711,8 @@ function finishCalibration(){
 //
 // CORRECT RESPONSE:
 //   r = responseTime / roundDuration
-//   deltaMs = (0.1*r - 0.1) * roundDuration
-//           = 0.1 * (responseTime - roundDuration)
+//   deltaMs = (0.15*r - 0.15) * roundDuration
+//           = 0.15 * (responseTime - roundDuration)
 //
 // IMPORTANT:
 //   Cap any single speedup/slowdown to ±100 ms.
@@ -742,7 +742,7 @@ function applyPacing(rt,correct){
   if(rt==null||!isFinite(rt)||!isFinite(state.duration)) return;
   const roundDuration=state.duration;
   const r=rt/roundDuration;
-  let deltaMs=(0.1*r-0.1)*roundDuration;
+  let deltaMs=(0.15*r-0.15)*roundDuration;
   deltaMs=clamp(deltaMs,-100,100); // Cap MAX speed up or slow down to 100ms
   state.duration=clamp(state.duration+deltaMs,settings.minDurationMs,settings.maxDurationMs);
  }else{
