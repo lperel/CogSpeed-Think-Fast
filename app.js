@@ -1479,15 +1479,51 @@ function formatModeTag(mode){
  return (mode||"mode1").replace("mode","Test Mode ");
 }
 function computeRankAverages(rtLog){
- const valid=(rtLog||[]).filter(r=>r && r.rt!=null && r.probeFamily && r.probeCount!=null && r.correctPos!=null && r.counted!==false);
+ function normalizeRow(r){
+  if(!r || r.rt==null || r.counted===false) return null;
+
+  let family = r.probeFamily || null;
+  let count = r.probeCount;
+  let pos = r.correctPos;
+
+  // Backward-compatible fallback for older saved sessions:
+  // probe often looks like "dots:3" or "lines:5"
+  if((family==null || count==null) && typeof r.probe==="string"){
+   const m = r.probe.match(/^(dots|lines):(\d+)/);
+   if(m){
+    family = family || m[1];
+    if(count==null) count = Number(m[2]);
+   }
+  }
+
+  // Backward-compatible fallback for older saved sessions:
+  // correctCell often looks like "dots:4 @2" or "lines:6 @1"
+  if(pos==null && typeof r.correctCell==="string"){
+   const m = r.correctCell.match(/@(\d+)/);
+   if(m) pos = Number(m[1]);
+  }
+
+  if(family==null || count==null || pos==null) return null;
+
+  return {
+   outcome:r.outcome,
+   rt:Number(r.rt),
+   probeFamily:String(family),
+   probeCount:Number(count),
+   correctPos:Number(pos)
+  };
+ }
+
+ const valid=(rtLog||[]).map(normalizeRow).filter(Boolean);
  const avg=a=>a.length?a.reduce((x,y)=>x+y,0)/a.length:null;
+
  function buildRows(outcome){
   const rows={dotRows:[], lineRows:[], posRows:[]};
   const sub=valid.filter(r=>r.outcome===outcome);
   for(let n=1;n<=6;n++){
-   const dots=sub.filter(r=>r.probeFamily==="dots" && Number(r.probeCount)===n).map(r=>r.rt);
-   const lines=sub.filter(r=>r.probeFamily==="lines" && Number(r.probeCount)===n).map(r=>r.rt);
-   const pos=sub.filter(r=>Number(r.correctPos)===n-1).map(r=>r.rt);
+   const dots=sub.filter(r=>r.probeFamily==="dots" && r.probeCount===n).map(r=>r.rt);
+   const lines=sub.filter(r=>r.probeFamily==="lines" && r.probeCount===n).map(r=>r.rt);
+   const pos=sub.filter(r=>r.correctPos===n-1).map(r=>r.rt);
    if(dots.length) rows.dotRows.push({label:`${n} dots`,avg:avg(dots),count:dots.length});
    if(lines.length) rows.lineRows.push({label:`${n} lines`,avg:avg(lines),count:lines.length});
    if(pos.length) rows.posRows.push({label:`Position ${n}`,avg:avg(pos),count:pos.length});
@@ -1497,6 +1533,7 @@ function computeRankAverages(rtLog){
   rows.posRows.sort((a,b)=>a.avg-b.avg);
   return rows;
  }
+
  return {correct:buildRows("correct"), wrong:buildRows("wrong")};
 }
 function formatRankRows(rows){
