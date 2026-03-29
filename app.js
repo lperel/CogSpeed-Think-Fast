@@ -35,10 +35,10 @@ const DEFAULTS={
  adminPasscode:"4822",
  testMode:"mode1",
  mode2TrialLimit:150,
- mode2MaxDurationMs:150000,
+ mode2MaxDurationMs:120000,
  mode3CalibrationTrials:10,
  mode3PacedTrialLimit:140,
- mode3MaxDurationMs:150000,
+ mode3MaxDurationMs:120000,
  mode3BaselineFactor:1.3,
  consecutiveMissesForBlock:2,
  resumeSlowerByMs:400,
@@ -83,10 +83,10 @@ const ADMIN_FIELDS=[
 // mode3 runs self-paced calibration, then fixed machine-paced.
 ["testMode","Test mode","select:mode1|mode2|mode3"],
  ["mode2TrialLimit","Mode 2 — SPC trial limit (default 150)","number"],
- ["mode2MaxDurationMs","Mode 2 — total duration ms (default 150000)","number"],
+ ["mode2MaxDurationMs","Mode 2 — total duration ms (default 120000)","number"],
  ["mode3CalibrationTrials","Mode 3 — self-paced calibration trials (default 10)","number"],
  ["mode3PacedTrialLimit","Mode 3 — fixed machine-paced trials (default 140)","number"],
- ["mode3MaxDurationMs","Mode 3 — total duration ms (default 150000)","number"],
+ ["mode3MaxDurationMs","Mode 3 — total duration ms (default 120000)","number"],
  ["mode3BaselineFactor","Mode 3 — MP baseline factor from cal avg (default 1.3)","number"],
  // ── Calibration (self-paced) ──
  ["initialUnusedCalibrationTrials","Initial (warm-up) cal trials","number"],
@@ -231,7 +231,15 @@ function computeCPI(avgMs){
  if(!isFinite(best)||!isFinite(worst)||span<=0) return 0;
  return Math.max(0,Math.min(100,((worst-avgMs)/span)*100));
 }
-function updateCPIDisplay(avg){ cpiOut.textContent=avg!=null?computeCPI(avg).toFixed(0):"—"; }
+function updateCPIDisplay(avg){
+ if(isMode2()||isMode3()){
+  cpiOut.textContent=avg!=null?`${Math.round(avg)}ms`:"—";
+  const lab=$("cpiLabel"); if(lab) lab.textContent="Avg RT";
+  return;
+ }
+ cpiOut.textContent=avg!=null?computeCPI(avg).toFixed(0):"—";
+ const lab=$("cpiLabel"); if(lab) lab.textContent="CPI";
+ }
 
 // ─── Timers ───
 function clearTimer(){ if(state.trialTimer) clearTimeout(state.trialTimer); state.trialTimer=null; }
@@ -277,7 +285,7 @@ function armNoResponseTimer(){
 function armMaxTestTimer(){
  clearMaxTestTimer();
  const ms=getSessionMaxDurationMs();
- state.maxTestTimer=setTimeout(()=>{ state.endReason="ERRATIC RESPONSES — Retest"; finish(); },ms);
+ state.maxTestTimer=setTimeout(()=>{ state.endReason=(isMode2()||isMode3())?"Required test time reached":"Time limit reached"; finish(); },ms);
 }
 function noteAnyResponse(){ armNoResponseTimer(); }
 
@@ -710,7 +718,7 @@ function failCalibration(reason){ state.endReason=reason; finish(); }
 function finishCalibration(){
  const avg=mean(state.calibrationRTs.length?state.calibrationRTs:state.selfPacedRTs);
  if(isMode2()){
-  state.endReason = state.endReason || "Completed SPC mode";
+  state.endReason = state.endReason || "Required responses reached";
   finish(); return;
  }
  if(isMode3()){
@@ -814,7 +822,11 @@ function finish(){
  clearTimer(); clearNoResponseTimer(); clearMaxTestTimer();
  state.phase="finished";
  const avg2=avgLast2Blocks(), cps=avg2!=null?computeCPI(avg2):null;
- const sd=stdDev(state.pacedRTs);
+ const pacedSd=stdDev(state.pacedRTs);
+ const selfPacedSd=stdDev(state.selfPacedRTs);
+ const allResponseRTs=[...state.selfPacedRTs, ...state.pacedRTs];
+ const allResponseMean=allResponseRTs.length?mean(allResponseRTs):null;
+ const allResponseSd=stdDev(allResponseRTs);
  const blockDiff=state.overloads.length>=2?state.overloads[state.overloads.length-1]-state.overloads[state.overloads.length-2]:null;
  const testDurMs=state.testStartTime!=null?performance.now()-state.testStartTime:null;
  // Mode-specific result payload fields:
@@ -823,7 +835,7 @@ function finish(){
 // mode3 -> self-paced counts, calibration average, fixed MP baseline,
 //          fixed machine-paced counts, and machine-paced mean RT
 const modeMetricMs = isMode2() ? (state.selfPacedRTs.length?mean(state.selfPacedRTs):null) : isMode3() ? (state.pacedRTs.length?mean(state.pacedRTs):(state.fixedPacedBaseline||null)) : avg2;
- const modeCPI = modeMetricMs!=null ? computeCPI(modeMetricMs) : cps;
+ const modeCPI = (isMode2()||isMode3()) ? null : (modeMetricMs!=null ? computeCPI(modeMetricMs) : cps);
  const result={
   testMode: state.activeMode||settings.testMode||"mode1",
   subjectId:subjectKey(state.subjectId||"0"),
@@ -837,8 +849,10 @@ const modeMetricMs = isMode2() ? (state.selfPacedRTs.length?mean(state.selfPaced
   totalIncorrect:state.totalIncorrect, missedTrials:state.missedTrials,
   pacedErrors:state.pacedErrors, recoveryErrors:state.recoveryErrors, pacedResponseCount:state.pacedRTs.length,
   pacedResponseMeanMs:state.pacedRTs.length?mean(state.pacedRTs):null,
-  pacedResponseSdMs:sd, testDurationMs:testDurMs,
+  pacedResponseSdMs:pacedSd, testDurationMs:testDurMs,
   selfPacedResponseCount: state.selfPacedRTs.length, selfPacedResponseMeanMs: state.selfPacedRTs.length?mean(state.selfPacedRTs):null,
+  selfPacedResponseSdMs: selfPacedSd,
+  allResponseMeanMs: allResponseMean, allResponseSdMs: allResponseSd,
   selfPacedCorrect: state.selfPacedCorrect, selfPacedWrong: state.selfPacedWrong,
   fixedPacedBaselineMs: state.fixedPacedBaseline, fixedPacedPresented: state.fixedPacedPresented,
   fixedPacedCorrect: state.fixedPacedCorrect, fixedPacedWrong: state.fixedPacedWrong,
@@ -851,6 +865,14 @@ const modeMetricMs = isMode2() ? (state.selfPacedRTs.length?mean(state.selfPaced
  // Build the display text (also used for email)
  buildSummary(result);
  drawModeResultChart($("summaryModeChart"), result);
+ const fgBtn=$("summaryFullGraphBtn");
+ if(fgBtn){
+  fgBtn.style.display = (result.testMode==="mode2" || result.testMode==="mode3") ? "" : "none";
+ }
+ const fullCanvas=$("fullModeGraph");
+ if(fullCanvas && (result.testMode==="mode2" || result.testMode==="mode3")){
+  drawModeResultChart(fullCanvas, result);
+ }
  state.lastResultText = $("summaryText") ? $("summaryText").textContent : "";
  showResultsPage();
 }
@@ -925,7 +947,7 @@ if(state.phase==="paced_fixed"){
    state.missedTrials+=1;
   }
   if(state.fixedPacedPresented >= (Number(settings.mode3PacedTrialLimit)||140)){
-   state.endReason="Completed Mode 3 fixed machine-paced phase";
+   state.endReason="Required responses reached";
    finish(); return;
   }
   openTrial("paced_fixed");
@@ -1004,12 +1026,12 @@ function handleTap(index){
   state.calibrationRTs.push(rt);
   state.calibrationTrialIndex+=1;
   if(isMode2()){
-   if(state.calibrationTrialIndex >= (Number(settings.mode2TrialLimit)||150)){ state.endReason="Completed SPC self-paced limit"; finishCalibration(); }
+   if(state.calibrationTrialIndex >= (Number(settings.mode2TrialLimit)||150)){ state.endReason="Required responses reached"; finishCalibration(); }
    else openTrial("calibration");
    return;
   }
   if(isMode3()){
-   if(state.calibrationTrialIndex >= (Number(settings.mode3CalibrationTrials)||10)){ state.endReason="Completed Mode 3 self-paced calibration"; finishCalibration(); }
+   if(state.calibrationTrialIndex >= (Number(settings.mode3CalibrationTrials)||10)){ state.endReason="Required responses reached"; finishCalibration(); }
    else openTrial("calibration");
    return;
   }
@@ -1074,14 +1096,14 @@ function handleTap(index){
   if(state.current&&!state.current.resolved&&trialMatches(state.current,index)){
    state.current.resolved=true; state.totalResponses+=1; state.totalCorrect+=1; state.fixedPacedCorrect+=1; state.pacedRTs.push(rt);
    logTrial({phase:"paced_fixed",rt,outcome:"correct",responseIndex:index}); flashBtn(index,true);
-   if(state.fixedPacedPresented >= (Number(settings.mode3PacedTrialLimit)||140)){ state.endReason="Completed Mode 3 fixed machine-paced phase"; finish(); return; }
+   if(state.fixedPacedPresented >= (Number(settings.mode3PacedTrialLimit)||140)){ state.endReason="Required responses reached"; finish(); return; }
    openTrial("paced_fixed"); return;
   }
   state.hadResponse=true;
   state.totalResponses+=1; state.totalIncorrect+=1; state.pacedErrors+=1; state.fixedPacedWrong+=1;
   logTrial({phase:"paced_fixed_wrong",rt:performance.now()-state.trialOpenedAt,outcome:"wrong",responseIndex:index});
   flashBtn(index,false);
-  if(state.fixedPacedPresented >= (Number(settings.mode3PacedTrialLimit)||140)){ state.endReason="Completed Mode 3 fixed machine-paced phase"; finish(); return; }
+  if(state.fixedPacedPresented >= (Number(settings.mode3PacedTrialLimit)||140)){ state.endReason="Required responses reached"; finish(); return; }
   openTrial("paced_fixed"); return;
  }
 
@@ -1325,31 +1347,114 @@ function drawModeResultChart(canvas,result){
  const log=(result&&result.rtLog)||[];
  const ctx=canvas.getContext("2d"),W=canvas.width,H=canvas.height;
  ctx.clearRect(0,0,W,H); ctx.fillStyle="#081321"; ctx.fillRect(0,0,W,H);
- const PAD={top:18,right:20,bottom:28,left:48},cW=W-PAD.left-PAD.right,cH=H-PAD.top-PAD.bottom;
- const pts = log.filter(e=>e.rt!=null && (result.testMode==="mode2" ? e.phase==="calibration" : result.testMode==="mode3" ? (e.phase==="calibration" || e.phase==="paced_fixed" || e.phase==="paced_fixed_wrong") : false));
+
+ const isFull = canvas.id==="fullModeGraph";
+ const PAD=isFull ? {top:36,right:28,bottom:48,left:64} : {top:18,right:20,bottom:28,left:48};
+ const cW=W-PAD.left-PAD.right,cH=H-PAD.top-PAD.bottom;
+
+ const pts = log.filter(e=>e.rt!=null && (
+   result.testMode==="mode2" ? e.phase==="calibration"
+   : result.testMode==="mode3" ? (e.phase==="calibration" || e.phase==="paced_fixed" || e.phase==="paced_fixed_wrong")
+   : false
+ ));
+
+ const mode3Presented = result.testMode==="mode3"
+  ? log.filter(e=>e.durationMs!=null && (e.phase==="paced_fixed" || e.phase==="paced_fixed_wrong" || e.phase==="paced_fixed_missed"))
+  : [];
+
  if(!pts.length){
-  ctx.fillStyle="#d7e7f8"; ctx.font="bold 13px sans-serif"; ctx.textAlign="center";
+  ctx.fillStyle="#d7e7f8"; ctx.font=(isFull?"bold 20px":"bold 13px")+" sans-serif"; ctx.textAlign="center";
   ctx.fillText("No response-time graph for this session/mode",W/2,H/2); return;
  }
- const maxRT=Math.ceil(Math.max(...pts.map(p=>p.rt),1000)/250)*250;
- const minRT=Math.max(0,Math.floor(Math.min(...pts.map(p=>p.rt))/250)*250);
- function xO(i){ return PAD.left + (i/Math.max(1,pts.length-1))*cW; }
+
+ const combinedVals = [
+  ...pts.map(p=>p.rt),
+  ...(result.testMode==="mode3" ? mode3Presented.map(p=>p.durationMs) : [])
+ ];
+ const maxRT=Math.ceil(Math.max(...combinedVals,1000)/250)*250;
+ const minRT=Math.max(0,Math.floor(Math.min(...combinedVals)/250)*250);
+
+ function xO(i, n){ return PAD.left + (i/Math.max(1,n-1))*cW; }
  function yO(v){ return PAD.top + ((v-minRT)/Math.max(1,(maxRT-minRT)))*cH; }
+
+ if(isFull){
+  ctx.fillStyle="#d7e7f8";
+  ctx.font="bold 22px sans-serif";
+  ctx.textAlign="center";
+  const title = result.testMode==="mode2" ? "Mode 2 — Self-Paced Calibration Response Times" : "Mode 3 — Self-Paced + Machine-Paced Response Times";
+  ctx.fillText(title, W/2, 24);
+ }
+
  ctx.strokeStyle="rgba(79,111,153,0.2)"; ctx.lineWidth=1;
  for(let v=minRT; v<=maxRT; v+=250){
   const y=yO(v);
   ctx.beginPath(); ctx.moveTo(PAD.left,y); ctx.lineTo(PAD.left+cW,y); ctx.stroke();
-  ctx.fillStyle="#7fa0c0"; ctx.font="9px sans-serif"; ctx.textAlign="right";
-  ctx.fillText(`${v}ms`,PAD.left-4,y+3);
+  ctx.fillStyle="#7fa0c0"; ctx.font=(isFull?"12px":"9px")+" sans-serif"; ctx.textAlign="right";
+  ctx.fillText(`${v}ms`,PAD.left-6,y+4);
  }
+
+ // axes
+ ctx.strokeStyle="rgba(127,215,255,0.35)";
+ ctx.beginPath();
+ ctx.moveTo(PAD.left, PAD.top);
+ ctx.lineTo(PAD.left, PAD.top+cH);
+ ctx.lineTo(PAD.left+cW, PAD.top+cH);
+ ctx.stroke();
+
+ // Mode 3 presentation-rate line
+ if(result.testMode==="mode3" && mode3Presented.length){
+  ctx.strokeStyle="rgba(255,170,68,0.95)";
+  ctx.lineWidth=isFull?3:2;
+  ctx.beginPath();
+  mode3Presented.forEach((e,i)=>{
+   const x=xO(i, mode3Presented.length), y=yO(e.durationMs);
+   if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+  });
+  ctx.stroke();
+ }
+
+ // Response-time line
+ ctx.strokeStyle="rgba(127,215,255,0.85)";
+ ctx.lineWidth=isFull?2.5:1.5;
+ ctx.beginPath();
+ pts.forEach((e,i)=>{
+  const x=xO(i, pts.length), y=yO(e.rt);
+  if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+ });
+ ctx.stroke();
+
+ // Response dots
  pts.forEach((e,i)=>{
   const ok=e.outcome==="correct";
   ctx.fillStyle=ok ? "#00ff88" : "#ff4466";
-  ctx.beginPath(); ctx.arc(xO(i),yO(e.rt),3.5,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(xO(i, pts.length),yO(e.rt), isFull?5:3.5,0,Math.PI*2); ctx.fill();
  });
- ctx.fillStyle="#7fa0c0"; ctx.font="10px sans-serif"; ctx.textAlign="center";
- ctx.fillText(result.testMode==="mode2"?"Self-Paced trial →":"Self-Paced + Machine-Paced trial →", PAD.left+cW/2, H-4);
+
+ // Legend for Mode 3
+ if(result.testMode==="mode3"){
+  const ly = isFull ? PAD.top + 10 : PAD.top + 6;
+  const lx = PAD.left + 10;
+  ctx.font=(isFull?"12px":"10px")+" sans-serif";
+  ctx.textAlign="left";
+
+  ctx.strokeStyle="rgba(255,170,68,0.95)";
+  ctx.lineWidth=isFull?3:2;
+  ctx.beginPath(); ctx.moveTo(lx,ly); ctx.lineTo(lx+22,ly); ctx.stroke();
+  ctx.fillStyle="#ffd7a0";
+  ctx.fillText("Presentation rate", lx+28, ly+4);
+
+  const ly2 = ly + (isFull?20:16);
+  ctx.strokeStyle="rgba(127,215,255,0.85)";
+  ctx.lineWidth=isFull?2.5:1.5;
+  ctx.beginPath(); ctx.moveTo(lx,ly2); ctx.lineTo(lx+22,ly2); ctx.stroke();
+  ctx.fillStyle="#d7f3ff";
+  ctx.fillText("Response time", lx+28, ly2+4);
+ }
+
+ ctx.fillStyle="#7fa0c0"; ctx.font=(isFull?"13px":"10px")+" sans-serif"; ctx.textAlign="center";
+ ctx.fillText(result.testMode==="mode2"?"Self-Paced trial →":"Self-Paced + Machine-Paced trial →", PAD.left+cW/2, H-10);
 }
+
 // ─── Export / Email ───
 // ─── EXPORT / EMAIL ───────────────────────────────────────────
 // exportResults(): downloads full history as cogspeed_v21_results.json
@@ -1675,6 +1780,9 @@ ${hr}
 SELF-PACED CALIBRATION (SPC)
  Total self-paced responses: ${result.selfPacedResponseCount}
  Average self-paced RT: ${result.selfPacedResponseMeanMs!=null?result.selfPacedResponseMeanMs.toFixed(1)+" ms":"—"}
+ Self-paced RT SD:   ${result.selfPacedResponseSdMs!=null?result.selfPacedResponseSdMs.toFixed(1)+" ms":"—"}
+ Total response avg: ${result.allResponseMeanMs!=null?result.allResponseMeanMs.toFixed(1)+" ms":"—"}
+ Total response SD:  ${result.allResponseSdMs!=null?result.allResponseSdMs.toFixed(1)+" ms":"—"}
  Correct self-paced: ${result.selfPacedCorrect}
  Wrong self-paced:   ${result.selfPacedWrong}
 ${hr}
@@ -1703,6 +1811,9 @@ ${hr}
 FIXED MACHINE-PACED PHASE (SPCMP)
  Machine-paced baseline: ${result.fixedPacedBaselineMs!=null?result.fixedPacedBaselineMs.toFixed(1)+" ms":"—"}
  Average machine-paced RT: ${result.pacedResponseMeanMs!=null?result.pacedResponseMeanMs.toFixed(1)+" ms":"—"}
+ Machine-paced RT SD: ${result.pacedResponseSdMs!=null?result.pacedResponseSdMs.toFixed(1)+" ms":"—"}
+ Total response avg: ${result.allResponseMeanMs!=null?result.allResponseMeanMs.toFixed(1)+" ms":"—"}
+ Total response SD:  ${result.allResponseSdMs!=null?result.allResponseSdMs.toFixed(1)+" ms":"—"}
  Total machine-paced presented: ${result.fixedPacedPresented||0}
  Machine-paced correct: ${result.fixedPacedCorrect||0}
  Machine-paced wrong:   ${result.fixedPacedWrong||0}
@@ -2835,8 +2946,10 @@ $("benchMainBtn").onclick=()=>{ $("benchmarkOverlay").classList.add("hidden"); }
 $("startBtn").onclick=startTest;
 $("backToStartBtn").onclick=goToStartPage;
 $("startOverBtn").onclick=startOverFlow;
-$("summaryRestartBtn").onclick=()=>{ $("summaryOverlay").classList.add("hidden"); goToStartPage(); };
+$("summaryRestartBtn").onclick=()=>{ $("summaryOverlay").classList.add("hidden"); const fg=$("fullGraphOverlay"); if(fg) fg.classList.add("hidden"); goToStartPage(); };
 $("summaryEmailBtn").onclick=emailResults;
+const _fgb=$("summaryFullGraphBtn"); if(_fgb) _fgb.onclick=()=>{ $("summaryOverlay").classList.add("hidden"); $("fullGraphOverlay").classList.remove("hidden"); };
+const _fgbb=$("fullGraphBackBtn"); if(_fgbb) _fgbb.onclick=()=>{ $("fullGraphOverlay").classList.add("hidden"); $("summaryOverlay").classList.remove("hidden"); };
 const _orb=$("outcomeResultsBtn"); if(_orb) _orb.onclick=()=>{ $("outcomeOverlay").classList.add("hidden"); stopSpeedometer(); $("summaryOverlay").classList.remove("hidden"); setTestingQuiet(false); };
 $("summaryAdminBtn").onclick=()=>{
  _adminReturnTo = "summaryOverlay"; // return here on close

@@ -548,11 +548,23 @@
     <div style="text-align:center;margin-bottom:10px"><span class="badge">Results</span></div>
     <div id="summaryText" style="font-family:monospace;font-size:15px;color:var(--muted);white-space:pre;overflow-x:auto;max-height:46vh;overflow-y:auto;background:#060e1a;border:1px solid var(--edge);border-radius:10px;padding:14px;line-height:1.75"></div>
     <canvas id="summaryModeChart" width="760" height="260" style="display:block;width:100%;margin-top:10px;border-radius:10px;border:1px solid var(--edge);background:#081321"></canvas>
-    <div style="display:flex;align-items:center;gap:8px;margin-top:10px">
+    <div style="display:flex;align-items:center;gap:8px;margin-top:10px;flex-wrap:wrap">
       <button class="ctrl-btn" id="summaryRestartBtn" style="flex:1">New Test</button>
       <button class="ctrl-btn" id="summaryEmailBtn" style="flex:1">Email Results</button>
+      <button class="ctrl-btn" id="summaryFullGraphBtn" style="flex:1;display:none">Full Graph</button>
       <button id="summaryProfileBtn" style="background:none;border:none;color:rgba(127,215,255,0.5);font-size:18px;padding:4px 10px;cursor:pointer">⚙</button>
       <button id="summaryAdminBtn" style="background:none;border:none;color:rgba(127,215,255,0.3);font-size:11px;padding:4px 10px;cursor:pointer;font-family:inherit;letter-spacing:.05em">Admin →</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ FULL GRAPH OVERLAY ═══ -->
+<div id="fullGraphOverlay" class="overlay hidden">
+  <div class="modal" style="max-width:min(98vw,1100px);padding:16px">
+    <div style="text-align:center;margin-bottom:10px"><span class="badge">Full Response-Time Graph</span></div>
+    <canvas id="fullModeGraph" width="1100" height="620" style="display:block;width:100%;border-radius:12px;border:1px solid var(--edge);background:#081321"></canvas>
+    <div class="controls" style="margin-top:12px">
+      <button class="ctrl-btn" id="fullGraphBackBtn" style="flex:1">Back to Results</button>
     </div>
   </div>
 </div>
@@ -661,7 +673,7 @@
   <div class="resp-grid" id="respGrid"></div>
 </div>
 
-<script src="app.js?v=130"></script>
+<script src="app.js?v=133"></script>
 
 <script>
 (function(){
