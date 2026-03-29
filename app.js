@@ -24,8 +24,22 @@ const APP_VERSION = "V127";
 // Admin panel allows per-device override (localStorage only).
 // To permanently change a default, edit here and push to GitHub.
 // ═══════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════
+// THREE TEST MODES
+// mode1 = original adaptive CogSpeed test
+// mode2 = Self-Paced Calibration (SPC) only
+// mode3 = Self-Paced Calibration + fixed Machine-Paced (SPCMP)
+// Mode 2 and Mode 3 use their own defaults below.
+// ═══════════════════════════════════════════════════════════════
 const DEFAULTS={
  adminPasscode:"4822",
+ testMode:"mode1",
+ mode2TrialLimit:150,
+ mode2MaxDurationMs:150000,
+ mode3CalibrationTrials:10,
+ mode3PacedTrialLimit:140,
+ mode3MaxDurationMs:150000,
+ mode3BaselineFactor:1.3,
  consecutiveMissesForBlock:2,
  resumeSlowerByMs:400,
  spRestartWrongLimit:3,
@@ -63,6 +77,17 @@ const DEFAULTS={
 const ADMIN_FIELDS=[
  // ── Admin ──
  ["adminPasscode","Admin passcode","text"],
+ // Test mode selector shown on Admin page.
+// mode1 keeps the current adaptive CogSpeed behavior.
+// mode2 runs self-paced only.
+// mode3 runs self-paced calibration, then fixed machine-paced.
+["testMode","Test mode","select:mode1|mode2|mode3"],
+ ["mode2TrialLimit","Mode 2 — SPC trial limit (default 150)","number"],
+ ["mode2MaxDurationMs","Mode 2 — total duration ms (default 150000)","number"],
+ ["mode3CalibrationTrials","Mode 3 — self-paced calibration trials (default 10)","number"],
+ ["mode3PacedTrialLimit","Mode 3 — fixed machine-paced trials (default 140)","number"],
+ ["mode3MaxDurationMs","Mode 3 — total duration ms (default 150000)","number"],
+ ["mode3BaselineFactor","Mode 3 — MP baseline factor from cal avg (default 1.3)","number"],
  // ── Calibration (self-paced) ──
  ["initialUnusedCalibrationTrials","Initial (warm-up) cal trials","number"],
  ["initialMeasuredCalibrationTrials","Measured cal trials (default 10)","number"],
@@ -164,6 +189,8 @@ const state={
  calibrationTrialIndex:0, calibrationRTs:[], calibrationErrors:0,
  pacedRTs:[], rtLog:[], previousMissed:false, lastFrameDuration:null,
  presentedRoundDuration:null,
+ activeMode:"mode1", selfPacedRTs:[], selfPacedCorrect:0, selfPacedWrong:0,
+ fixedPacedBaseline:null, fixedPacedPresented:0, fixedPacedCorrect:0, fixedPacedWrong:0,
  trialOpenedAt:null, geo:null, benchmark:null, lastResultText:null
 };
 
@@ -185,6 +212,13 @@ function shuffle(arr){ const a=[...arr]; for(let i=a.length-1;i>0;i--){ const j=
 function subjectKey(id){ return id==="0"?"Guest":id; }
 function setStatus(m){ statusLine.textContent=m; }
 function formatDuration(ms){ if(ms==null) return "—"; const s=Math.round(ms/1000),m=Math.floor(s/60); return m>0?`${m}m ${s%60}s`:`${s}s`; }
+// Mode helpers centralize mode checks so start / finish / summary logic
+// can switch cleanly between CogSpeed, SPC, and SPCMP behavior.
+function isMode1(){ return (settings.testMode||"mode1")==="mode1"; }
+function isMode2(){ return (settings.testMode||"mode1")==="mode2"; }
+function isMode3(){ return (settings.testMode||"mode1")==="mode3"; }
+function currentModeLabel(){ return isMode1() ? "CogSpeed Mode" : isMode2() ? "SPC Mode" : "SPCMP Mode"; }
+function getSessionMaxDurationMs(){ return isMode2() ? (Number(settings.mode2MaxDurationMs)||150000) : isMode3() ? (Number(settings.mode3MaxDurationMs)||150000) : (Number(settings.maxTestDurationMs)||150000); }
 
 // ─── CPI ───
 // ─── CPI SCORE CALCULATION ────────────────────────────────────
@@ -242,7 +276,7 @@ function armNoResponseTimer(){
 }
 function armMaxTestTimer(){
  clearMaxTestTimer();
- const ms=Number(settings.maxTestDurationMs)||150000;
+ const ms=getSessionMaxDurationMs();
  state.maxTestTimer=setTimeout(()=>{ state.endReason="ERRATIC RESPONSES — Retest"; finish(); },ms);
 }
 function noteAnyResponse(){ armNoResponseTimer(); }
@@ -571,6 +605,7 @@ function updateMetrics(){
  recoveryOut.textContent=String(state.recoveries.length);
  wrongOut.textContent=String(state.totalIncorrect);
  fatigueOut.textContent=state.samnPerelli?String(state.samnPerelli.score):"—";
+ if(modeLabel) modeLabel.textContent=currentModeLabel();
 }
 
 // ─── Trial log ───
@@ -584,7 +619,7 @@ function logTrial({phase,rt,outcome,responseIndex}){
  const ci=trial.topItems[trial.correctPos];
  const ri=responseIndex!=null?trial.topItems[responseIndex]:null;
  const loggedDurationMs = (
-  phase==="paced" || phase==="paced_wrong" || phase==="paced_late_correct" || phase==="paced_late_wrong" || phase==="missed"
+  phase==="paced" || phase==="paced_wrong" || phase==="paced_late_correct" || phase==="paced_late_wrong" || phase==="missed" || phase==="paced_fixed" || phase==="paced_fixed_wrong" || phase==="paced_fixed_missed"
  ) ? (state.presentedRoundDuration!=null ? state.presentedRoundDuration : (state.duration?Math.round(state.duration):null))
    : (state.duration?Math.round(state.duration):null);
  state.rtLog.push({
@@ -667,8 +702,26 @@ function failCalibration(reason){ state.endReason=reason; finish(); }
 // CONDITION 4: avg RT >3000ms → "NEED MORE PRACTICE!"
 // NO-RESPONSE TIMEOUTS: first trial=20s, subsequent=10s
 // ──────────────────────────────────────────────────────────────
+// finishCalibration() now branches by selected mode:
+// mode1 -> original adaptive machine-paced CogSpeed phase
+// mode2 -> finish after self-paced-only session
+// mode3 -> begin fixed-baseline machine-paced phase using
+//          calibration average × mode3BaselineFactor
 function finishCalibration(){
- const avg=mean(state.calibrationRTs);
+ const avg=mean(state.calibrationRTs.length?state.calibrationRTs:state.selfPacedRTs);
+ if(isMode2()){
+  state.endReason = state.endReason || "Completed SPC mode";
+  finish(); return;
+ }
+ if(isMode3()){
+  const factor=Number(settings.mode3BaselineFactor)||1.3;
+  state.fixedPacedBaseline=clamp(avg*factor,settings.minDurationMs,settings.maxDurationMs);
+  state.duration=state.fixedPacedBaseline;
+  state.phase="paced_fixed";
+  setStatus(`Mode 3 fixed baseline: ${state.duration.toFixed(0)}ms`);
+  openTrial("paced_fixed");
+  return;
+ }
  // Condition 4: avg RT too slow — needs more practice
  if(avg>settings.calibrationStopSlowMs){
   state.endReason="NEED MORE PRACTICE!";
@@ -676,7 +729,6 @@ function finishCalibration(){
  }
  state.duration=clamp(avg*settings.initialPacedPercent,settings.minDurationMs,settings.maxDurationMs);
  state.phase="paced";
- // armMaxTestTimer already started at first trial — don't restart it here
  setStatus(`Machine-paced start: ${state.duration.toFixed(0)}ms`);
  openTrial("paced");
 }
@@ -765,19 +817,31 @@ function finish(){
  const sd=stdDev(state.pacedRTs);
  const blockDiff=state.overloads.length>=2?state.overloads[state.overloads.length-1]-state.overloads[state.overloads.length-2]:null;
  const testDurMs=state.testStartTime!=null?performance.now()-state.testStartTime:null;
+ // Mode-specific result payload fields:
+// mode1 -> adaptive CogSpeed metrics (blocks / CPI from adaptive phase)
+// mode2 -> self-paced counts and self-paced mean RT
+// mode3 -> self-paced counts, calibration average, fixed MP baseline,
+//          fixed machine-paced counts, and machine-paced mean RT
+const modeMetricMs = isMode2() ? (state.selfPacedRTs.length?mean(state.selfPacedRTs):null) : isMode3() ? (state.pacedRTs.length?mean(state.pacedRTs):(state.fixedPacedBaseline||null)) : avg2;
+ const modeCPI = modeMetricMs!=null ? computeCPI(modeMetricMs) : cps;
  const result={
+  testMode: state.activeMode||settings.testMode||"mode1",
   subjectId:subjectKey(state.subjectId||"0"),
   profile:state.profile?{gender:state.profile.gender,age:computeAge(state.profile.birthMonth,state.profile.birthYear),emailResults:state.profile.emailResults}:null,
   samnPerelli:state.samnPerelli,
   calibrationAverageMs:state.calibrationRTs.length?mean(state.calibrationRTs):null,
   blocks:[...state.overloads], blockCount:state.overloads.length,
-  averageLast2BlockingScoresMs:avg2, blockScoreDifferenceMs:blockDiff,
-  cognitivePerformanceIndex:cps, totalResponses:state.totalResponses,
+  averageLast2BlockingScoresMs:modeMetricMs, blockScoreDifferenceMs:blockDiff,
+  cognitivePerformanceIndex:modeCPI, totalResponses:state.totalResponses,
   totalTrials:state.totalTrials, totalCorrect:state.totalCorrect,
   totalIncorrect:state.totalIncorrect, missedTrials:state.missedTrials,
   pacedErrors:state.pacedErrors, recoveryErrors:state.recoveryErrors, pacedResponseCount:state.pacedRTs.length,
   pacedResponseMeanMs:state.pacedRTs.length?mean(state.pacedRTs):null,
   pacedResponseSdMs:sd, testDurationMs:testDurMs,
+  selfPacedResponseCount: state.selfPacedRTs.length, selfPacedResponseMeanMs: state.selfPacedRTs.length?mean(state.selfPacedRTs):null,
+  selfPacedCorrect: state.selfPacedCorrect, selfPacedWrong: state.selfPacedWrong,
+  fixedPacedBaselineMs: state.fixedPacedBaseline, fixedPacedPresented: state.fixedPacedPresented,
+  fixedPacedCorrect: state.fixedPacedCorrect, fixedPacedWrong: state.fixedPacedWrong,
   rtLog:[...state.rtLog], endReason:state.endReason||"Run complete",
   time:new Date().toISOString(), geo:state.geo
  };
@@ -786,6 +850,7 @@ function finish(){
  updateCPIDisplay(avg2); setProbeIdle();
  // Build the display text (also used for email)
  buildSummary(result);
+ drawModeResultChart($("summaryModeChart"), result);
  state.lastResultText = $("summaryText") ? $("summaryText").textContent : "";
  showResultsPage();
 }
@@ -814,9 +879,9 @@ function openTrial(kind){
  renderTrial(state.current);
  updateMetrics();
  if(kind==="calibration"){
-  const idx=state.calibrationTrialIndex+1,total=settings.initialUnusedCalibrationTrials+settings.initialMeasuredCalibrationTrials;
+  const total=isMode2()?(Number(settings.mode2TrialLimit)||150):isMode3()?(Number(settings.mode3CalibrationTrials)||10):(settings.initialUnusedCalibrationTrials+settings.initialMeasuredCalibrationTrials), idx=state.calibrationTrialIndex+1;
   phaseLabel.textContent=`Cal ${idx}/${total}`;
-  setStatus(idx<=settings.initialUnusedCalibrationTrials?"Self-paced (unused)":"Self-paced (measured)");
+  setStatus(isMode1()?(idx<=settings.initialUnusedCalibrationTrials?"Self-paced (unused)":"Self-paced (measured)"):"Self-paced");
   armNoResponseTimer();
  }else if(kind==="paced"){
   // Store the ACTUAL frame duration shown for this paced round.
@@ -824,6 +889,12 @@ function openTrial(kind){
   state.presentedRoundDuration = Math.round(state.duration);
   phaseLabel.textContent=`Paced · ${Math.round(state.duration)}ms`;
   setStatus("Machine-paced");
+  state.trialTimer=setTimeout(onPacedFrameEnd,state.duration);
+ }else if(kind==="paced_fixed"){
+  state.presentedRoundDuration = Math.round(state.duration);
+  state.fixedPacedPresented += 1;
+  phaseLabel.textContent=`Fixed MP · ${Math.round(state.duration)}ms`;
+  setStatus("Mode 3 fixed machine-paced");
   state.trialTimer=setTimeout(onPacedFrameEnd,state.duration);
  }else if(kind==="recovery"){
   // Recovery after block is SELF-PACED. No machine-paced frame timer here.
@@ -844,6 +915,22 @@ function openTrial(kind){
 
 // ─── Paced frame end ───
 function onPacedFrameEnd(){
+ // Mode 3 fixed machine-paced handler:
+// every trial uses one fixed baseline duration,
+// no adaptive speedup/slowdown within the fixed MP phase.
+if(state.phase==="paced_fixed"){
+  const truelyMissed=state.current&&!state.current.resolved&&!state.hadResponse;
+  if(truelyMissed){
+   logTrial({phase:"paced_fixed_missed",rt:null,outcome:"missed",responseIndex:null});
+   state.missedTrials+=1;
+  }
+  if(state.fixedPacedPresented >= (Number(settings.mode3PacedTrialLimit)||140)){
+   state.endReason="Completed Mode 3 fixed machine-paced phase";
+   finish(); return;
+  }
+  openTrial("paced_fixed");
+  return;
+ }
  if(state.phase!=="paced") return;
  state.totalTrials+=1;
  // True miss = no tap at all. Wrong tap = had response but unresolved.
@@ -887,31 +974,45 @@ function onPacedFrameEnd(){
 //  Recovery after block is SELF-PACED.
 // ──────────────────────────────────────────────────────────────
 function handleTap(index){
- if(!["calibration","paced","recovery","terminal_recovery"].includes(state.phase)) return;
+ if(!["calibration","paced","paced_fixed","recovery","terminal_recovery"].includes(state.phase)) return;
  noteAnyResponse();
 
  // Calibration
  if(state.phase==="calibration"){
   const rt=performance.now()-state.trialOpenedAt, ok=trialMatches(state.current,index);
   flashBtn(index,ok); state.totalResponses+=1;
-  if(ok) state.totalCorrect+=1; else state.totalIncorrect+=1;
+  state.selfPacedRTs.push(rt);
+  if(ok){ state.totalCorrect+=1; state.selfPacedCorrect+=1; } else { state.totalIncorrect+=1; state.selfPacedWrong+=1; }
   logTrial({phase:"calibration",rt,outcome:ok?"correct":"wrong",responseIndex:index});
-  if(!ok){
-   // ONLY calibration wrong taps count toward "Cal stop after N wrong".
-   state.calibrationErrors+=1; updateMetrics();
-   const calWrongLimit=Math.max(1,Number(settings.calibrationStopErrors)||4);
-   if(state.calibrationErrors>=calWrongLimit){
-    failCalibration(`TOO MANY WRONG RESPONSES — Practice! (${state.calibrationErrors}/${calWrongLimit})`);
-    return;
+  if(isMode1()){
+   if(!ok){
+    state.calibrationErrors+=1; updateMetrics();
+    const calWrongLimit=Math.max(1,Number(settings.calibrationStopErrors)||4);
+    if(state.calibrationErrors>=calWrongLimit){ failCalibration(`TOO MANY WRONG RESPONSES — Practice! (${state.calibrationErrors}/${calWrongLimit})`); return; }
+   }else{
+    if(rt>settings.calibrationStopSlowMs){ failCalibration("NOT RESPONDING IN TIME — Practice!"); return; }
+    if(state.calibrationTrialIndex>=settings.initialUnusedCalibrationTrials) state.calibrationRTs.push(rt);
    }
-  }else{
-   if(rt>settings.calibrationStopSlowMs){ failCalibration("NOT RESPONDING IN TIME — Practice!"); return; }
-   if(state.calibrationTrialIndex>=settings.initialUnusedCalibrationTrials) state.calibrationRTs.push(rt);
+   state.calibrationTrialIndex+=1;
+   if(state.calibrationTrialIndex>=settings.initialUnusedCalibrationTrials+settings.initialMeasuredCalibrationTrials) finishCalibration();
+   else openTrial("calibration");
+   return;
   }
+  // Mode 2 + Mode 3: all self-paced trials are scored.
+  // There is no calibration fail-stop here; the phase ends only by
+  // the selected trial-count limit or the session time limit.
+  state.calibrationRTs.push(rt);
   state.calibrationTrialIndex+=1;
-  if(state.calibrationTrialIndex>=settings.initialUnusedCalibrationTrials+settings.initialMeasuredCalibrationTrials) finishCalibration();
-  else openTrial("calibration");
-  return;
+  if(isMode2()){
+   if(state.calibrationTrialIndex >= (Number(settings.mode2TrialLimit)||150)){ state.endReason="Completed SPC self-paced limit"; finishCalibration(); }
+   else openTrial("calibration");
+   return;
+  }
+  if(isMode3()){
+   if(state.calibrationTrialIndex >= (Number(settings.mode3CalibrationTrials)||10)){ state.endReason="Completed Mode 3 self-paced calibration"; finishCalibration(); }
+   else openTrial("calibration");
+   return;
+  }
  }
 
  // Recovery (SP Restart)
@@ -965,6 +1066,23 @@ function handleTap(index){
    setTimeout(()=>openTrial("terminal_recovery"),160);
   }else setTimeout(()=>openTrial("terminal_recovery"),160);
   return;
+ }
+
+ // Mode 3 fixed machine-paced
+ if(state.phase==="paced_fixed"){
+  const rt=performance.now()-state.trialOpenedAt;
+  if(state.current&&!state.current.resolved&&trialMatches(state.current,index)){
+   state.current.resolved=true; state.totalResponses+=1; state.totalCorrect+=1; state.fixedPacedCorrect+=1; state.pacedRTs.push(rt);
+   logTrial({phase:"paced_fixed",rt,outcome:"correct",responseIndex:index}); flashBtn(index,true);
+   if(state.fixedPacedPresented >= (Number(settings.mode3PacedTrialLimit)||140)){ state.endReason="Completed Mode 3 fixed machine-paced phase"; finish(); return; }
+   openTrial("paced_fixed"); return;
+  }
+  state.hadResponse=true;
+  state.totalResponses+=1; state.totalIncorrect+=1; state.pacedErrors+=1; state.fixedPacedWrong+=1;
+  logTrial({phase:"paced_fixed_wrong",rt:performance.now()-state.trialOpenedAt,outcome:"wrong",responseIndex:index});
+  flashBtn(index,false);
+  if(state.fixedPacedPresented >= (Number(settings.mode3PacedTrialLimit)||140)){ state.endReason="Completed Mode 3 fixed machine-paced phase"; finish(); return; }
+  openTrial("paced_fixed"); return;
  }
 
  // Paced
@@ -1072,7 +1190,14 @@ function renderAdmin(){
  for(const [k,l,t] of ADMIN_FIELDS){
   const r=document.createElement("div");
   r.style.cssText="display:grid;grid-template-columns:1fr 140px;gap:8px;align-items:center;margin-bottom:8px";
-  r.innerHTML=`<label style="font-size:14px;color:var(--text)">${l}<div style="font-size:11px;color:var(--muted)">${k}</div></label><input id="adm_${k}" type="${t}" value="${settings[k]}" style="padding:9px;border:1px solid var(--edge);border-radius:10px;background:#0a1629;color:var(--text);font-size:14px;width:100%">`;
+  let controlHTML="";
+  if(String(t).startsWith("select:")){
+   const opts=String(t).slice(7).split("|").map(v=>`<option value="${v}" ${String(settings[k])===v?"selected":""}>${v}</option>`).join("");
+   controlHTML=`<select id="adm_${k}" style="padding:9px;border:1px solid var(--edge);border-radius:10px;background:#0a1629;color:var(--text);font-size:14px;width:100%">${opts}</select>`;
+  }else{
+   controlHTML=`<input id="adm_${k}" type="${t}" value="${settings[k]}" style="padding:9px;border:1px solid var(--edge);border-radius:10px;background:#0a1629;color:var(--text);font-size:14px;width:100%">`;
+  }
+  r.innerHTML=`<label style="font-size:14px;color:var(--text)">${l}<div style="font-size:11px;color:var(--muted)">${k}</div></label>${controlHTML}`;
   w.appendChild(r);
  }
 }
@@ -1189,6 +1314,42 @@ function drawRTScatterChart(canvas,rtLog,blocks,meanRT,sdRT){
  ctx.fillStyle="#7fa0c0"; ctx.font="9px sans-serif"; ctx.textAlign="center"; ctx.fillText("Trial →",PAD.left+cW/2,H-2);
 }
 
+
+// Mode 2 / Mode 3 result chart:
+// green dots = correct responses
+// red dots   = wrong responses
+// Mode 2 graphs self-paced responses only.
+// Mode 3 graphs self-paced + fixed machine-paced responses.
+function drawModeResultChart(canvas,result){
+ if(!canvas){ return; }
+ const log=(result&&result.rtLog)||[];
+ const ctx=canvas.getContext("2d"),W=canvas.width,H=canvas.height;
+ ctx.clearRect(0,0,W,H); ctx.fillStyle="#081321"; ctx.fillRect(0,0,W,H);
+ const PAD={top:18,right:20,bottom:28,left:48},cW=W-PAD.left-PAD.right,cH=H-PAD.top-PAD.bottom;
+ const pts = log.filter(e=>e.rt!=null && (result.testMode==="mode2" ? e.phase==="calibration" : result.testMode==="mode3" ? (e.phase==="calibration" || e.phase==="paced_fixed" || e.phase==="paced_fixed_wrong") : false));
+ if(!pts.length){
+  ctx.fillStyle="#d7e7f8"; ctx.font="bold 13px sans-serif"; ctx.textAlign="center";
+  ctx.fillText("No response-time graph for this session/mode",W/2,H/2); return;
+ }
+ const maxRT=Math.ceil(Math.max(...pts.map(p=>p.rt),1000)/250)*250;
+ const minRT=Math.max(0,Math.floor(Math.min(...pts.map(p=>p.rt))/250)*250);
+ function xO(i){ return PAD.left + (i/Math.max(1,pts.length-1))*cW; }
+ function yO(v){ return PAD.top + ((v-minRT)/Math.max(1,(maxRT-minRT)))*cH; }
+ ctx.strokeStyle="rgba(79,111,153,0.2)"; ctx.lineWidth=1;
+ for(let v=minRT; v<=maxRT; v+=250){
+  const y=yO(v);
+  ctx.beginPath(); ctx.moveTo(PAD.left,y); ctx.lineTo(PAD.left+cW,y); ctx.stroke();
+  ctx.fillStyle="#7fa0c0"; ctx.font="9px sans-serif"; ctx.textAlign="right";
+  ctx.fillText(`${v}ms`,PAD.left-4,y+3);
+ }
+ pts.forEach((e,i)=>{
+  const ok=e.outcome==="correct";
+  ctx.fillStyle=ok ? "#00ff88" : "#ff4466";
+  ctx.beginPath(); ctx.arc(xO(i),yO(e.rt),3.5,0,Math.PI*2); ctx.fill();
+ });
+ ctx.fillStyle="#7fa0c0"; ctx.font="10px sans-serif"; ctx.textAlign="center";
+ ctx.fillText(result.testMode==="mode2"?"Self-Paced trial →":"Self-Paced + Machine-Paced trial →", PAD.left+cW/2, H-4);
+}
 // ─── Export / Email ───
 // ─── EXPORT / EMAIL ───────────────────────────────────────────
 // exportResults(): downloads full history as cogspeed_v21_results.json
@@ -1498,86 +1659,96 @@ function buildSummary(result){
    ?(result.geo.address||`${result.geo.latitude.toFixed(5)}, ${result.geo.longitude.toFixed(5)}`)+` (±${Math.round(result.geo.accuracy_m)}m)`
    :result.geo.status;
  }
- const blockList=result.blocks&&result.blocks.length
-  ?result.blocks.map((b,i)=>` Block ${i+1}: ${b.toFixed(0)} ms`).join("\n"):" none";
+ const modeName = result.testMode==="mode2" ? "SPC Mode" : result.testMode==="mode3" ? "SPCMP Mode" : "CogSpeed Mode";
+ if(result.testMode==="mode2"){
+  el.textContent=
+`CogSpeed ${APP_VERSION} — ${modeName}
+${hr}
+Subject ID:  ${result.subjectId}
+Date / Time:  ${new Date(result.time).toLocaleString()}
+Test duration: ${formatDuration(result.testDurationMs)}
+Location:   ${geoStr}
+${hr}
+FATIGUE (S-PF)
+ Pre-test rating: ${spf}
+${hr}
+SELF-PACED CALIBRATION (SPC)
+ Total self-paced responses: ${result.selfPacedResponseCount}
+ Average self-paced RT: ${result.selfPacedResponseMeanMs!=null?result.selfPacedResponseMeanMs.toFixed(1)+" ms":"—"}
+ Correct self-paced: ${result.selfPacedCorrect}
+ Wrong self-paced:   ${result.selfPacedWrong}
+${hr}
+END REASON
+ ${result.endReason||"Run complete"}`;
+  return;
+ }
+ if(result.testMode==="mode3"){
+  el.textContent=
+`CogSpeed ${APP_VERSION} — ${modeName}
+${hr}
+Subject ID:  ${result.subjectId}
+Date / Time:  ${new Date(result.time).toLocaleString()}
+Test duration: ${formatDuration(result.testDurationMs)}
+Location:   ${geoStr}
+${hr}
+FATIGUE (S-PF)
+ Pre-test rating: ${spf}
+${hr}
+SELF-PACED CALIBRATION
+ Total self-paced responses: ${result.selfPacedResponseCount}
+ Self-paced correct: ${result.selfPacedCorrect}
+ Self-paced wrong:   ${result.selfPacedWrong}
+ Average calibration RT: ${result.calibrationAverageMs!=null?result.calibrationAverageMs.toFixed(1)+" ms":"—"}
+${hr}
+FIXED MACHINE-PACED PHASE (SPCMP)
+ Machine-paced baseline: ${result.fixedPacedBaselineMs!=null?result.fixedPacedBaselineMs.toFixed(1)+" ms":"—"}
+ Average machine-paced RT: ${result.pacedResponseMeanMs!=null?result.pacedResponseMeanMs.toFixed(1)+" ms":"—"}
+ Total machine-paced presented: ${result.fixedPacedPresented||0}
+ Machine-paced correct: ${result.fixedPacedCorrect||0}
+ Machine-paced wrong:   ${result.fixedPacedWrong||0}
+${hr}
+END REASON
+ ${result.endReason||"Run complete"}`;
+  return;
+ }
+ const blockList=result.blocks&&result.blocks.length?result.blocks.map((b,i)=>` Block ${i+1}: ${b.toFixed(0)} ms`).join("\n"):" none";
  const avg2=result.averageLast2BlockingScoresMs;
  const diff=result.blockScoreDifferenceMs;
  const diffStr=diff!=null?`${diff>0?"+":""}${diff.toFixed(0)} ms (${diff>0?"slower":diff<0?"faster":"no change"})`:"—";
  const cps=result.cognitivePerformanceIndex;
  const sd=result.pacedResponseSdMs;
- // Row color by SPF level: top dark green → light green → yellow → orange → bottom 2 red
- const SPF_COLOR={7:'#1a8a1a',6:'#1a8a1a',5:'#4aaa00',4:'#c8a800',3:'#cc5500',2:'#cc1100',1:'#cc1100'};
- const esc=s=>s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
- const tableData=[
-  [7,100, 800, "FUNCTIONING EXCEPTIONALLY WELL"],
-  [6, 80, 1240, "FUNCTIONING VERY WELL"],
-  [5, 75, 1350, "FUNCTIONING NORMALLY"],
-  [4, 50, 1900, "FUNCTIONING SLIGHTLY LESS THAN NORMAL"],
-  [3, 25, 2450, "FUNCTIONING — STARTING TO SLOW"],
-  [2, 11, 2758, "DIFFICULT TO FUNCTION — BECOMING UNSAFE"],
-  [1, 0, 3000, "UNABLE TO FUNCTION — DEFINITELY UNSAFE"],
- ];
- const tableRows=tableData.map(([spf,cpi,brd,cap],i)=>{
-  const mbsStr = String(brd);
-  // Each row owns scores > next row's cpi and <= this row's cpi.
-  // Last row owns everything <= 0.
-  const loBound = i+1 < tableData.length ? tableData[i+1][1] : -Infinity;
-  const inBand = cps!=null && cps > loBound && cps <= cpi;
-  const arrow  = inBand ? " ← YOUR SCORE" : "";
-  const line=`  ${String(spf).padStart(2)} | ${String(cpi).padStart(3)} | ${mbsStr.padStart(6)} | ${cap}${arrow}`;
-  return `<span style="color:${SPF_COLOR[spf]};font-weight:700">${line}</span>`;
- }).join("\n");
-
- const mainPart=
-`CogSpeed ${APP_VERSION} \u2014 Test Results
+ el.textContent=
+`CogSpeed ${APP_VERSION} — ${modeName}
 ${hr}
 Subject ID:  ${result.subjectId}
-${result.profile?`Gender:    ${result.profile.gender==="M"?"Male":result.profile.gender==="F"?"Female":"Other"}
-Age:      ${result.profile.age} years`:""}
 Date / Time:  ${new Date(result.time).toLocaleString()}
-Test duration:     ${formatDuration(result.testDurationMs)}
+Test duration: ${formatDuration(result.testDurationMs)}
 Location:   ${geoStr}
 ${hr}
 FATIGUE (S-PF)
  Pre-test rating: ${spf}
 ${hr}
 CALIBRATION
- Average RT: ${result.calibrationAverageMs!=null?result.calibrationAverageMs.toFixed(1)+" ms":"\u2014"}
+ Average RT: ${result.calibrationAverageMs!=null?result.calibrationAverageMs.toFixed(1)+" ms":"—"}
 ${hr}
 MACHINE-PACED PERFORMANCE
  Block scores:
 ${blockList}
- Avg last 2 blocks:  ${avg2!=null?avg2.toFixed(1)+" ms":"\u2014"}
- Block score diff:  ${diffStr}
- CPI:         ${cps!=null?cps.toFixed(1)+" / 100":"\u2014"}
+ Avg last 2 blocks: ${avg2!=null?avg2.toFixed(1)+" ms":"—"}
+ Block score diff: ${diffStr}
+ CPI: ${cps!=null?cps.toFixed(1)+" / 100":"—"}
 ${hr}
 RESPONSE STATISTICS
- Total taps:      ${result.totalResponses}
-  Correct:       ${result.totalCorrect}
-  Wrong:        ${result.totalIncorrect}
- Missed (no response): ${result.missedTrials}
- Paced correct taps:  ${result.pacedResponseCount||0}
- Paced wrong taps:   ${result.pacedErrors||0}
- SP Restart wrong taps: ${result.recoveryErrors||0}
- Mean paced RT:     ${result.pacedResponseMeanMs!=null?result.pacedResponseMeanMs.toFixed(1)+" ms":"\u2014"}
- Paced RT SD:      ${sd!=null?sd.toFixed(1)+" ms":"\u2014"}
+ Total taps: ${result.totalResponses}
+ Correct: ${result.totalCorrect}
+ Wrong: ${result.totalIncorrect}
+ Missed: ${result.missedTrials}
+ Mean paced RT: ${result.pacedResponseMeanMs!=null?result.pacedResponseMeanMs.toFixed(1)+" ms":"—"}
+ Paced RT SD: ${sd!=null?sd.toFixed(1)+" ms":"—"}
 ${hr}
 END REASON
- ${result.endReason}
-${hr}
-COGNITIVE PERFORMANCE REFERENCE TABLE
- S-PF | CPI | MBS ms | Performance Capability
- \u2500\u2500\u2500\u2500\u2500\u253c\u2500\u2500\u2500\u2500\u2500\u2500\u253c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u253c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500`;
-
- const footerPart=
-`
- \u2500\u2500\u2500\u2500\u2500\u2534\u2500\u2500\u2500\u2500\u2500\u2500\u2534\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2534\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
- MBS table mapped from current MP min/max defaults (800–3000) | CPI = 0-100 scale
- Source: Perelli (2026), Gray Matter Metrics, LLC`;
-
- el.innerHTML = esc(mainPart)+"\n"+tableRows+esc(footerPart);
+ ${result.endReason||"Run complete"}`;
 }
-
 
 // ─── SPEEDOMETER V2 — Vintage Auto Meter style ────────────────
 // Full 240° round dial. Cream face, chrome bezel.
@@ -1852,6 +2023,8 @@ function clearCurrentSession(){
  state.missedTrials=0; state.rollMeanLog=[]; state.lastFiveAnswers=[];
  state.calibrationTrialIndex=0; state.calibrationRTs=[]; state.calibrationErrors=0;
  state.pacedRTs=[]; state.rtLog=[]; state.previousMissed=false; state.lastFrameDuration=null; state.presentedRoundDuration=null;
+ state.activeMode=settings.testMode||"mode1"; state.selfPacedRTs=[]; state.selfPacedCorrect=0; state.selfPacedWrong=0;
+ state.fixedPacedBaseline=null; state.fixedPacedPresented=0; state.fixedPacedCorrect=0; state.fixedPacedWrong=0;
  state.geo=null; state.benchmark=null; state.lastResultText=null;
  updateCPIDisplay(null); updateMetrics(); setProbeIdle(); setTestingQuiet(false);
 }
@@ -1919,9 +2092,9 @@ function runGearSpinThenStart(callback) {
 function startTest(){
  if(!state.subjectId){ showOnly("subjectOverlay"); setStatus("Enter Subject ID first"); return; }
  if(!state.samnPerelli){ showOnly("fatigueOverlay"); setStatus("Select fatigue rating first"); return; }
- const sid=state.subjectId, spf=state.samnPerelli;
+ const sid=state.subjectId, spf=state.samnPerelli, mode=settings.testMode||"mode1";
  clearCurrentSession();
- state.subjectId=sid; state.samnPerelli=spf;
+ state.subjectId=sid; state.samnPerelli=spf; state.activeMode=mode;
  const fo=$("fatigueOut"); if(fo) fo.textContent=String(spf.score);
  hideAllOverlays();
  setTestingQuiet(true);

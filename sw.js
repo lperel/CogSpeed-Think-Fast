@@ -1,8 +1,8 @@
-const CACHE_NAME = "cogspeed-v21-shell-v57";
+const CACHE_NAME = "cogspeed-v21-shell-v59";
 const APP_SHELL = [
   "./",
   "./index.html",
-  "./app.js?v=128",
+  "./app.js?v=130",
   "./manifest.json",
   "./privacy.html",
   "./terms.html",
