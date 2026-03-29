@@ -2110,7 +2110,7 @@ function showResultsPage(){
    stopFX(); if(thinking) thinking.classList.add("hidden");
    const outcome=$("outcomeOverlay"),outcomeText=$("outcomeText");
    if(outcome&&outcomeText){
-    outcomeText.textContent=success?"SUCCESS!":"Test Failed";
+    outcomeText.textContent=(last.endReason || "Run complete");
     outcomeText.className="outcome-text "+(success?"success":"failed");
     outcome.classList.remove("hidden");
     // Draw speedometer
