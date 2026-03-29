@@ -581,13 +581,15 @@
       <table class="trial-log-table">
         <thead><tr>
           <th>#</th><th>Clock Time</th><th>Phase</th><th>Pres. Rate</th>
-          <th>RT (ms)</th><th>Outcome</th><th>Probe</th>
+          <th>RT (ms)</th><th>Outcome</th><th>Counted</th><th>Probe</th>
           <th>Correct Cell</th><th>Response</th>
         </tr></thead>
         <tbody id="trialLogBody"></tbody>
       </table>
     </div>
     <div class="controls">
+      <button class="ctrl-btn" id="trialLogPrevBtn">← Prev Session</button>
+      <button class="ctrl-btn" id="trialLogNextBtn">Next Session →</button>
       <button class="ctrl-btn" id="trialLogCsvBtn">⬇ Download CSV</button>
       <button class="ctrl-btn" id="trialLogCloseBtn">← Back to Admin</button>
     </div>
@@ -609,6 +611,8 @@
       </table>
     </div>
     <div class="controls">
+      <button class="ctrl-btn" id="historyPrevBtn">← Prev Session</button>
+      <button class="ctrl-btn" id="historyNextBtn">Next Session →</button>
       <button class="ctrl-btn" id="historyCloseBtn">← Back to Admin</button>
       <button id="historyClearBtn" style="background:none;border:1px solid rgba(255,100,136,0.3);color:rgba(255,100,136,0.5);border-radius:10px;font-size:11px;padding:6px 10px;cursor:pointer;font-family:inherit;letter-spacing:.03em">🗑 Clear History</button>
     </div>
@@ -626,6 +630,8 @@
     </div>
     <canvas id="rateRtChart" width="760" height="320" style="margin-bottom:12px;width:100%;max-width:100%"></canvas>
     <div class="controls">
+      <button class="ctrl-btn" id="rateRtPrevBtn">← Prev Session</button>
+      <button class="ctrl-btn" id="rateRtNextBtn">Next Session →</button>
       <button class="ctrl-btn" id="rateRtCloseBtn">← Back to Admin</button>
     </div>
   </div>
@@ -673,7 +679,7 @@
   <div class="resp-grid" id="respGrid"></div>
 </div>
 
-<script src="app.js?v=135"></script>
+<script src="app.js?v=137"></script>
 
 <script>
 (function(){

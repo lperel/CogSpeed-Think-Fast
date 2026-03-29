@@ -622,7 +622,7 @@ function updateMetrics(){
 // Captures: phase, RT, outcome, probe, correct cell, response cell.
 // Late-catch logs against previous trial (not current).
 // ──────────────────────────────────────────────────────────────
-function logTrial({phase,rt,outcome,responseIndex}){
+function logTrial({phase,rt,outcome,responseIndex,counted}){
  const trial=state.current; if(!trial) return;
  const ci=trial.topItems[trial.correctPos];
  const ri=responseIndex!=null?trial.topItems[responseIndex]:null;
@@ -1003,9 +1003,12 @@ function handleTap(index){
  if(state.phase==="calibration"){
   const rt=performance.now()-state.trialOpenedAt, ok=trialMatches(state.current,index);
   flashBtn(index,ok); state.totalResponses+=1;
-  state.selfPacedRTs.push(rt);
-  if(ok){ state.totalCorrect+=1; state.selfPacedCorrect+=1; } else { state.totalIncorrect+=1; state.selfPacedWrong+=1; }
-  logTrial({phase:"calibration",rt,outcome:ok?"correct":"wrong",responseIndex:index});
+  // Warm-up exclusion applies across all modes:
+  // initialUnusedCalibrationTrials never contribute to averages/calculations.
+  const includeInAverages = state.calibrationTrialIndex>=settings.initialUnusedCalibrationTrials;
+  if(includeInAverages) state.selfPacedRTs.push(rt);
+  if(ok){ state.totalCorrect+=1; if(includeInAverages) state.selfPacedCorrect+=1; } else { state.totalIncorrect+=1; if(includeInAverages) state.selfPacedWrong+=1; }
+  logTrial({phase:"calibration",rt,outcome:ok?"correct":"wrong",responseIndex:index,counted:includeInAverages});
   if(isMode1()){
    if(!ok){
     state.calibrationErrors+=1; updateMetrics();
@@ -1020,10 +1023,11 @@ function handleTap(index){
    else openTrial("calibration");
    return;
   }
-  // Mode 2 + Mode 3: all self-paced trials are scored.
+  // Mode 2 + Mode 3: all self-paced trials are scored for outcome,
+  // but initialUnusedCalibrationTrials are excluded from averages/calculations.
   // There is no calibration fail-stop here; the phase ends only by
   // the selected trial-count limit or the session time limit.
-  state.calibrationRTs.push(rt);
+  if(includeInAverages) state.calibrationRTs.push(rt);
   state.calibrationTrialIndex+=1;
   if(isMode2()){
    if(state.calibrationTrialIndex >= (Number(settings.mode2TrialLimit)||150)){ state.endReason="Required responses reached"; finishCalibration(); }
@@ -1458,6 +1462,10 @@ function drawModeResultChart(canvas,result){
 
  ctx.fillStyle="#7fa0c0"; ctx.font=(isFull?"13px":"10px")+" sans-serif"; ctx.textAlign="center";
  ctx.fillText(result.testMode==="mode2"?"Self-Paced trial →":"Self-Paced + Machine-Paced trial →", PAD.left+cW/2, H-10);
+ const modeTxt=formatModeTag(result.testMode);
+ const spfsTxt=result.samnPerelli?`SP-FS ${result.samnPerelli.score}`:"SP-FS —";
+ ctx.textAlign="left"; ctx.font=(isFull?"12px":"10px")+" sans-serif"; ctx.fillStyle="#b7d9ef";
+ ctx.fillText(`${modeTxt} · ${spfsTxt}`, PAD.left, isFull?42:PAD.top+12);
  if(!isFull){
   ctx.textAlign="left"; ctx.font="10px sans-serif"; ctx.fillStyle="#b7d9ef";
   const spfs = result.samnPerelli ? `SP-FS ${result.samnPerelli.score}` : "SP-FS —";
@@ -1466,6 +1474,37 @@ function drawModeResultChart(canvas,result){
  }
 }
 
+
+function formatModeTag(mode){
+ return (mode||"mode1").replace("mode","Test Mode ");
+}
+function computeRankAverages(rtLog){
+ const valid=(rtLog||[]).filter(r=>r && r.rt!=null && r.probeFamily && r.probeCount!=null && r.correctPos!=null && r.counted!==false);
+ const avg=a=>a.length?a.reduce((x,y)=>x+y,0)/a.length:null;
+ function buildRows(outcome){
+  const rows={dotRows:[], lineRows:[], posRows:[]};
+  const sub=valid.filter(r=>r.outcome===outcome);
+  for(let n=1;n<=6;n++){
+   const dots=sub.filter(r=>r.probeFamily==="dots" && Number(r.probeCount)===n).map(r=>r.rt);
+   const lines=sub.filter(r=>r.probeFamily==="lines" && Number(r.probeCount)===n).map(r=>r.rt);
+   const pos=sub.filter(r=>Number(r.correctPos)===n-1).map(r=>r.rt);
+   if(dots.length) rows.dotRows.push({label:`${n} dots`,avg:avg(dots),count:dots.length});
+   if(lines.length) rows.lineRows.push({label:`${n} lines`,avg:avg(lines),count:lines.length});
+   if(pos.length) rows.posRows.push({label:`Position ${n}`,avg:avg(pos),count:pos.length});
+  }
+  rows.dotRows.sort((a,b)=>a.avg-b.avg);
+  rows.lineRows.sort((a,b)=>a.avg-b.avg);
+  rows.posRows.sort((a,b)=>a.avg-b.avg);
+  return rows;
+ }
+ return {correct:buildRows("correct"), wrong:buildRows("wrong")};
+}
+function formatRankRows(rows){
+ return rows.length ? rows.map(r=>` ${r.label}: ${r.avg.toFixed(1)} ms (n=${r.count})`).join("\n") : " none";
+}
+function formatRankSection(rankSet){
+ return `Correct responses:\nDots:\n${formatRankRows(rankSet.correct.dotRows)}\nLines:\n${formatRankRows(rankSet.correct.lineRows)}\nPositions:\n${formatRankRows(rankSet.correct.posRows)}\n\nWrong responses:\nDots:\n${formatRankRows(rankSet.wrong.dotRows)}\nLines:\n${formatRankRows(rankSet.wrong.lineRows)}\nPositions:\n${formatRankRows(rankSet.wrong.posRows)}`;
+}
 // ─── Export / Email ───
 // ─── EXPORT / EMAIL ───────────────────────────────────────────
 // exportResults(): downloads full history as cogspeed_v21_results.json
@@ -1780,7 +1819,7 @@ function buildSummary(result){
   el.textContent=
 `CogSpeed ${APP_VERSION} — ${modeName}
 ${hr}
-Test Mode:  ${modeName}\nSubject ID:  ${result.subjectId}
+Test Mode:  ${formatModeTag(result.testMode)}\nSubject ID:  ${result.subjectId}
 Date / Time:  ${new Date(result.time).toLocaleString()}
 Test duration: ${formatDuration(result.testDurationMs)}
 Location:   ${geoStr}
@@ -1796,8 +1835,7 @@ SELF-PACED CALIBRATION (SPC)
  Total response SD:  ${result.allResponseSdMs!=null?result.allResponseSdMs.toFixed(1)+" ms":"—"}
  Correct self-paced: ${result.selfPacedCorrect}
  Wrong self-paced:   ${result.selfPacedWrong}
-${hr}
-END REASON
+\n${hr}\nRANKED TARGET / POSITION AVERAGES\n${(()=>{ const rs=computeRankAverages(result.rtLog); return formatRankSection(rs); })()}\n${hr}\nEND REASON
  ${result.endReason||"Run complete"}`;
   return;
  }
@@ -1805,7 +1843,7 @@ END REASON
   el.textContent=
 `CogSpeed ${APP_VERSION} — ${modeName}
 ${hr}
-Test Mode:  ${modeName}\nSubject ID:  ${result.subjectId}
+Test Mode:  ${formatModeTag(result.testMode)}\nSubject ID:  ${result.subjectId}
 Date / Time:  ${new Date(result.time).toLocaleString()}
 Test duration: ${formatDuration(result.testDurationMs)}
 Location:   ${geoStr}
@@ -1828,8 +1866,7 @@ FIXED MACHINE-PACED PHASE (SPCMP)
  Total machine-paced presented: ${result.fixedPacedPresented||0}
  Machine-paced correct: ${result.fixedPacedCorrect||0}
  Machine-paced wrong:   ${result.fixedPacedWrong||0}
-${hr}
-END REASON
+\n${hr}\nRANKED TARGET / POSITION AVERAGES\n${(()=>{ const rs=computeRankAverages(result.rtLog); return formatRankSection(rs); })()}\n${hr}\nEND REASON
  ${result.endReason||"Run complete"}`;
   return;
  }
@@ -1842,7 +1879,7 @@ END REASON
  el.textContent=
 `CogSpeed ${APP_VERSION} — ${modeName}
 ${hr}
-Test Mode:  ${modeName}\nSubject ID:  ${result.subjectId}
+Test Mode:  ${formatModeTag(result.testMode)}\nSubject ID:  ${result.subjectId}
 Date / Time:  ${new Date(result.time).toLocaleString()}
 Test duration: ${formatDuration(result.testDurationMs)}
 Location:   ${geoStr}
@@ -1867,8 +1904,7 @@ RESPONSE STATISTICS
  Missed: ${result.missedTrials}
  Mean paced RT: ${result.pacedResponseMeanMs!=null?result.pacedResponseMeanMs.toFixed(1)+" ms":"—"}
  Paced RT SD: ${sd!=null?sd.toFixed(1)+" ms":"—"}
-${hr}
-END REASON
+\n${hr}\nRANKED TARGET / POSITION AVERAGES\n${(()=>{ const rs=computeRankAverages(result.rtLog); return formatRankSection(rs); })()}\n${hr}\nEND REASON
  ${result.endReason||"Run complete"}`;
 }
 
@@ -2244,7 +2280,7 @@ function buildTrialLog(sessionIndex){
    const idx=state.history.length-1-i;
    const opt=document.createElement("option");
    opt.value=String(idx);
-   opt.textContent=`Session ${idx+1} — ${r.subjectId} — ${new Date(r.time).toLocaleString()} — CPI: ${r.cognitivePerformanceIndex!=null?r.cognitivePerformanceIndex.toFixed(0):"—"}`;
+   opt.textContent=`Session ${idx+1} · ${formatModeTag(r.testMode)} · ${r.subjectId} · ${new Date(r.time).toLocaleString()}`;
    sel.appendChild(opt);
   });
   if(sessionIndex!=null) sel.value=String(sessionIndex);
@@ -2252,9 +2288,10 @@ function buildTrialLog(sessionIndex){
  const idx=sel?Number(sel.value):state.history.length-1;
  const result=state.history[idx];
  const log=result?result.rtLog:state.rtLog;
+ const meta=$("trialLogMeta"); if(meta && result) meta.textContent=`${formatModeTag(result.testMode)} · SP-FS ${result.samnPerelli?result.samnPerelli.score:"—"} · ${new Date(result.time).toLocaleString()}`;
  tbody.innerHTML="";
  if(!log||!log.length){
-  tbody.innerHTML='<tr><td colspan="9" style="text-align:center;color:var(--muted);padding:12px">No trial data for this session</td></tr>';
+  tbody.innerHTML='<tr><td colspan="10" style="text-align:center;color:var(--muted);padding:12px">No trial data for this session</td></tr>';
   const meta=$("trialLogMeta"); if(meta) meta.textContent="No data";
   return;
  }
@@ -2266,10 +2303,10 @@ function buildTrialLog(sessionIndex){
   const rtStr=e.rt!=null?e.rt.toLocaleString():"—";
   const durStr=e.durationMs!=null?e.durationMs.toLocaleString()+"ms":"—";
   const oc=outcomeColor[e.outcome]||"var(--muted)";
-  tr.innerHTML=`<td style="font-weight:700">${e.seq}</td><td style="font-size:10px">${timeStr}</td><td style="font-size:10px;color:var(--muted)">${e.phase}</td><td>${durStr}</td><td style="font-weight:700">${rtStr}</td><td style="color:${oc};font-weight:700">${e.outcome}</td><td>${e.probe}</td><td style="color:var(--accent)">${e.correctCell}</td><td style="color:${oc==="var(--muted)"?"var(--muted)":oc}">${e.response}</td>`;
+  tr.innerHTML=`<td style="font-weight:700">${e.seq}</td><td style="font-size:10px">${timeStr}</td><td style="font-size:10px;color:var(--muted)">${e.phase}</td><td>${durStr}</td><td style="font-weight:700">${rtStr}</td><td style="color:${oc};font-weight:700">${e.outcome}</td><td>${e.counted===false?"No":"Yes"}</td><td>${e.probe}</td><td style="color:var(--accent)">${e.correctCell}</td><td style="color:${oc==="var(--muted)"?"var(--muted)":oc}">${e.response}</td>`;
   tbody.appendChild(tr);
  });
- const meta=$("trialLogMeta"); if(meta) meta.textContent=`${log.length} trials — Session ${idx+1}: ${result?result.subjectId:"current"}`;
+ const meta2=$("trialLogMeta"); if(meta2 && !meta2.textContent) meta2.textContent=`${log.length} trials — Session ${idx+1}: ${result?result.subjectId:"current"}`;
 }
 function downloadTrialLogCSV(){
  const sel=$("trialLogSessionSelect");
@@ -2372,7 +2409,7 @@ function buildRateRtOverlay(sessionIndex){
    const idx=state.history.length-1-i;
    const opt=document.createElement("option");
    opt.value=String(idx);
-   opt.textContent=`Session ${idx+1} — ${r.subjectId} — ${new Date(r.time).toLocaleString()} — CPI: ${r.cognitivePerformanceIndex!=null?r.cognitivePerformanceIndex.toFixed(0):"—"}`;
+   opt.textContent=`Session ${idx+1} · ${formatModeTag(r.testMode)} · ${r.subjectId} · ${new Date(r.time).toLocaleString()}`;
    sel.appendChild(opt);
   });
   if(sessionIndex!=null) sel.value=String(sessionIndex);
@@ -2382,7 +2419,7 @@ function buildRateRtOverlay(sessionIndex){
  const log=result?result.rtLog:[];
  const meta=$("rateRtMeta");
  if(meta){
-  meta.textContent = result ? `${result.subjectId} — ${new Date(result.time).toLocaleString()} — ${log.length} trials` : "No session selected";
+  meta.textContent = result ? `${formatModeTag(result.testMode)} · SP-FS ${result.samnPerelli?result.samnPerelli.score:"—"} · ${result.subjectId} · ${new Date(result.time).toLocaleString()} · ${log.length} trials` : "No session selected";
  }
  drawRateRtChart($("rateRtChart"), log);
 }
@@ -2417,7 +2454,7 @@ function buildHistoryOverlay(){
   tr.style.cursor="pointer";
   tr.title="Click to view trial detail";
   tr.onclick=()=>{ buildHistoryOverlay._closeAndOpenTrial(idx); };
-  tr.innerHTML=`<td style="font-weight:700;color:var(--accent)">${idx+1}</td><td style="font-size:11px">${date}</td><td>${r.subjectId}</td><td style="color:#88ff88">${spf}</td><td>${calRT}</td><td>${r.blockCount||0}</td><td style="color:#ff9f40">${avgBlk}</td><td style="color:var(--accent);font-weight:800">${cps}</td><td>${dur}</td><td style="font-size:10px;color:var(--muted)">${endShort}</td>`;
+  tr.innerHTML=`<td style="font-weight:700;color:var(--accent)">${idx+1}</td><td style="font-size:11px">${date}</td><td>${formatModeTag(r.testMode)} · ${r.subjectId}</td><td style="color:#88ff88">${spf}</td><td>${calRT}</td><td>${r.blockCount||0}</td><td style="color:#ff9f40">${avgBlk}</td><td style="color:var(--accent);font-weight:800">${cps}</td><td>${dur}</td><td style="font-size:10px;color:var(--muted)">${endShort}</td>`;
   tbody.appendChild(tr);
  });
 }
@@ -2950,6 +2987,13 @@ $("historyClearBtn").onclick=()=>{
 };
 const _tsel=$("trialLogSessionSelect");
 if(_tsel) _tsel.onchange=()=>buildTrialLog();
+const _tlp=$("trialLogPrevBtn"); if(_tlp) _tlp.onclick=()=>{ const s=$("trialLogSessionSelect"); if(!s) return; s.selectedIndex=Math.max(0,s.selectedIndex-1); if(s.onchange) s.onchange(); };
+const _tln=$("trialLogNextBtn"); if(_tln) _tln.onclick=()=>{ const s=$("trialLogSessionSelect"); if(!s) return; s.selectedIndex=Math.min(s.options.length-1,s.selectedIndex+1); if(s.onchange) s.onchange(); };
+const _hp=$("historyPrevBtn"); if(_hp) _hp.onclick=()=>{ const rows=[...state.history].reverse(); if(!rows.length) return; buildTrialLog(Math.max(0,state.history.length-2)); $("historyOverlay").classList.add("hidden"); $("trialLogOverlay").classList.remove("hidden"); };
+const _hn=$("historyNextBtn"); if(_hn) _hn.onclick=()=>{ const sidx=state.history.length-1; if(sidx<0) return; buildTrialLog(sidx); $("historyOverlay").classList.add("hidden"); $("trialLogOverlay").classList.remove("hidden"); };
+const _rrp=$("rateRtPrevBtn"); if(_rrp) _rrp.onclick=()=>{ const s=$("rateRtSessionSelect"); if(!s) return; s.selectedIndex=Math.max(0,s.selectedIndex-1); if(s.onchange) s.onchange(); };
+const _rrn=$("rateRtNextBtn"); if(_rrn) _rrn.onclick=()=>{ const s=$("rateRtSessionSelect"); if(!s) return; s.selectedIndex=Math.min(s.options.length-1,s.selectedIndex+1); if(s.onchange) s.onchange(); };
+
 $("adminBackBtn").onclick=()=>goToStartPage();
 $("adminStartOverBtn").onclick=()=>startOverFlow();
 $("benchRunBtn").onclick=()=>runDeviceBenchmark(true);
