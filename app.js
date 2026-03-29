@@ -1383,6 +1383,11 @@ function drawModeResultChart(canvas,result){
   ctx.textAlign="center";
   const title = result.testMode==="mode2" ? "Mode 2 — Self-Paced Calibration Response Times" : "Mode 3 — Self-Paced + Machine-Paced Response Times";
   ctx.fillText(title, W/2, 24);
+  ctx.font="12px sans-serif";
+  ctx.fillStyle="#b7d9ef";
+  const spfs = result.samnPerelli ? `SP-FS: ${result.samnPerelli.score}` : "SP-FS: —";
+  const modeTxt = result.testMode ? `Test ${String(result.testMode).replace("mode","Mode ")}` : "";
+  ctx.fillText(`${modeTxt}    ${spfs}`, W/2, 42);
  }
 
  ctx.strokeStyle="rgba(79,111,153,0.2)"; ctx.lineWidth=1;
@@ -1453,6 +1458,12 @@ function drawModeResultChart(canvas,result){
 
  ctx.fillStyle="#7fa0c0"; ctx.font=(isFull?"13px":"10px")+" sans-serif"; ctx.textAlign="center";
  ctx.fillText(result.testMode==="mode2"?"Self-Paced trial →":"Self-Paced + Machine-Paced trial →", PAD.left+cW/2, H-10);
+ if(!isFull){
+  ctx.textAlign="left"; ctx.font="10px sans-serif"; ctx.fillStyle="#b7d9ef";
+  const spfs = result.samnPerelli ? `SP-FS ${result.samnPerelli.score}` : "SP-FS —";
+  const modeTxt = result.testMode ? String(result.testMode).replace("mode","Mode ") : "";
+  ctx.fillText(`${modeTxt} · ${spfs}`, PAD.left, PAD.top+12);
+ }
 }
 
 // ─── Export / Email ───
@@ -1769,7 +1780,7 @@ function buildSummary(result){
   el.textContent=
 `CogSpeed ${APP_VERSION} — ${modeName}
 ${hr}
-Subject ID:  ${result.subjectId}
+Test Mode:  ${modeName}\nSubject ID:  ${result.subjectId}
 Date / Time:  ${new Date(result.time).toLocaleString()}
 Test duration: ${formatDuration(result.testDurationMs)}
 Location:   ${geoStr}
@@ -1794,7 +1805,7 @@ END REASON
   el.textContent=
 `CogSpeed ${APP_VERSION} — ${modeName}
 ${hr}
-Subject ID:  ${result.subjectId}
+Test Mode:  ${modeName}\nSubject ID:  ${result.subjectId}
 Date / Time:  ${new Date(result.time).toLocaleString()}
 Test duration: ${formatDuration(result.testDurationMs)}
 Location:   ${geoStr}
@@ -1806,7 +1817,7 @@ SELF-PACED CALIBRATION
  Total self-paced responses: ${result.selfPacedResponseCount}
  Self-paced correct: ${result.selfPacedCorrect}
  Self-paced wrong:   ${result.selfPacedWrong}
- Average calibration RT: ${result.calibrationAverageMs!=null?result.calibrationAverageMs.toFixed(1)+" ms":"—"}
+ Average calibration RT: ${result.calibrationAverageMs!=null?result.calibrationAverageMs.toFixed(1)+" ms":"—"}\nSelf-paced RT SD: ${result.selfPacedResponseSdMs!=null?result.selfPacedResponseSdMs.toFixed(1)+" ms":"—"}
 ${hr}
 FIXED MACHINE-PACED PHASE (SPCMP)
  Machine-paced baseline: ${result.fixedPacedBaselineMs!=null?result.fixedPacedBaselineMs.toFixed(1)+" ms":"—"}
@@ -1831,7 +1842,7 @@ END REASON
  el.textContent=
 `CogSpeed ${APP_VERSION} — ${modeName}
 ${hr}
-Subject ID:  ${result.subjectId}
+Test Mode:  ${modeName}\nSubject ID:  ${result.subjectId}
 Date / Time:  ${new Date(result.time).toLocaleString()}
 Test duration: ${formatDuration(result.testDurationMs)}
 Location:   ${geoStr}
