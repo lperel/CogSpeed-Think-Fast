@@ -600,6 +600,7 @@
 <div id="historyOverlay" class="overlay hidden">
   <div class="modal">
     <h2>History &amp; Graphs</h2>
+    <p class="modal-hint" id="historyMeta"></p>
     <canvas id="histGraphChart" width="380" height="280" style="margin-bottom:12px"></canvas>
     <div id="historyTable" style="max-height:50vh;overflow:auto;border-radius:10px;border:1px solid var(--edge);margin-bottom:10px">
       <table class="trial-log-table">
@@ -623,8 +624,8 @@
 <!-- ═══ RATE vs RT OVERLAY ═══ -->
 <div id="rateRtOverlay" class="overlay hidden">
   <div class="modal" style="max-width:min(98vw,900px)">
-    <h2>Presentation Rate vs Response Time</h2>
-    <p class="modal-hint" id="rateRtMeta">Per-trial presentation rate and response time for one session.</p>
+    <h2>Presentation Rate vs Response Time — All Sessions</h2>
+    <p class="modal-hint" id="rateRtMeta">All saved sessions on one graph. Use Prev/Next to highlight one session.</p>
     <div style="margin-bottom:8px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
       <select id="rateRtSessionSelect" style="flex:1;padding:8px;border:1px solid var(--edge);border-radius:10px;background:#0a1629;color:var(--text);font-size:13px"></select>
     </div>
@@ -679,7 +680,7 @@
   <div class="resp-grid" id="respGrid"></div>
 </div>
 
-<script src="app.js?v=143"></script>
+<script src="app.js?v=145"></script>
 
 <script>
 (function(){

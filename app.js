@@ -1238,7 +1238,7 @@ function resetAdmin(){ settings={...DEFAULTS}; saveSettings(); renderAdmin(); }
 //  "↑ better" label on right axis. Each series rises with improvement.
 // drawRTScatterChart(): per-trial RT scatter (reversed Y: fast=top).
 // ──────────────────────────────────────────────────────────────
-function drawCombinedChart(canvas,hist){
+function drawCombinedChart(canvas,hist,selectedIdx){
  if(!canvas) return;
  const ctx=canvas.getContext("2d"),W=canvas.width,H=canvas.height;
  ctx.clearRect(0,0,W,H); ctx.fillStyle="#081321"; ctx.fillRect(0,0,W,H);
@@ -1275,6 +1275,7 @@ function drawCombinedChart(canvas,hist){
  // x-axis session labels
  ctx.fillStyle="#7fa0c0"; ctx.font="10px sans-serif"; ctx.textAlign="center";
  for(let i=0;i<n;i++) ctx.fillText(String(i+1),xO(i),PAD.top+cH+14);
+ ctx.fillStyle="#b7d9ef"; ctx.textAlign="left"; ctx.fillText("Better performance ↑", PAD.left, PAD.top-16);
  // drawSeries: draw line + dots + value labels
  function drawOffsetSeries(vals,toY,color,dx,dy,labelDy){
   ctx.strokeStyle=color; ctx.lineWidth=2.2; ctx.beginPath(); let started=false;
@@ -2408,6 +2409,7 @@ function buildTrialLog(sessionIndex){
  const tbody=$("trialLogBody"); if(!tbody) return;
  // Populate session selector
  const sel=$("trialLogSessionSelect");
+ const preservedValue = (sessionIndex!=null) ? String(sessionIndex) : (sel ? sel.value : null);
  if(sel){
   sel.innerHTML="";
   // Most recent first
@@ -2418,12 +2420,12 @@ function buildTrialLog(sessionIndex){
    opt.textContent=`Session ${idx+1} · ${formatModeTag(r.testMode)} · ${r.subjectId} · ${new Date(r.time).toLocaleString()}`;
    sel.appendChild(opt);
   });
-  if(sessionIndex!=null) sel.value=String(sessionIndex);
+  if(preservedValue!=null) sel.value=String(preservedValue);
  }
  const idx=sel?Number(sel.value):state.history.length-1;
  const result=state.history[idx];
  const log=result?result.rtLog:state.rtLog;
- const meta=$("trialLogMeta"); if(meta && result) meta.textContent=`${formatModeTag(result.testMode)} · SP-FS ${result.samnPerelli?result.samnPerelli.score:"—"} · ${new Date(result.time).toLocaleString()}`;
+ const meta=$("trialLogMeta"); if(meta && result) meta.textContent=`Session ${idx+1} · ${formatModeTag(result.testMode)} · SP-FS ${result.samnPerelli?result.samnPerelli.score:"—"} · ${new Date(result.time).toLocaleString()}`;
  tbody.innerHTML="";
  if(!log||!log.length){
   tbody.innerHTML='<tr><td colspan="10" style="text-align:center;color:var(--muted);padding:12px">No trial data for this session</td></tr>';
@@ -2467,22 +2469,36 @@ function downloadTrialLogCSV(){
 }
 
 
-function drawRateRtChart(canvas, log){
+function drawRateRtChart(canvas, sessions, selectedSessionIndex){
  if(!canvas) return;
  const ctx = canvas.getContext("2d"), W=canvas.width, H=canvas.height;
  ctx.clearRect(0,0,W,H);
  ctx.fillStyle="#081321"; ctx.fillRect(0,0,W,H);
- const PAD={top:24,right:56,bottom:34,left:52}, cW=W-PAD.left-PAD.right, cH=H-PAD.top-PAD.bottom;
- const pts = (log||[]).map((e,i)=>({i:i, dur:e.durationMs, rt:e.rt})).filter(e=>e.dur!=null || e.rt!=null);
- if(!pts.length){
+
+ const PAD={top:30,right:56,bottom:42,left:52}, cW=W-PAD.left-PAD.right, cH=H-PAD.top-PAD.bottom;
+ const hist = Array.isArray(sessions) ? sessions : [];
+ const packed = hist.flatMap((session, orderIdx)=>{
+  const log = Array.isArray(session.rtLog) ? session.rtLog : [];
+  return log.map((e,i)=>({
+   sessionIndex: orderIdx,
+   rt: e.rt,
+   dur: e.durationMs,
+   localIndex: i,
+   label: `S${orderIdx+1}`
+  }));
+ }).filter(e=>e.dur!=null || e.rt!=null);
+
+ if(!packed.length){
   ctx.fillStyle="#d7e7f8"; ctx.font="bold 13px sans-serif"; ctx.textAlign="center";
   ctx.fillText("No trial data yet", W/2, H/2); return;
  }
- const maxY = Math.max(1000, ...pts.map(p=>Math.max(p.dur||0,p.rt||0)));
+
+ const maxY = Math.max(1000, ...packed.map(p=>Math.max(p.dur||0,p.rt||0)));
  const yTop = Math.ceil(maxY/250)*250;
- const xStep = pts.length>1 ? cW/(pts.length-1) : cW/2;
- function xOf(i){ return PAD.left + (pts.length>1 ? i*xStep : cW/2); }
- function yOf(v){ return PAD.top + cH - ((v||0)/yTop)*cH; }
+ const xStep = packed.length>1 ? cW/(packed.length-1) : cW/2;
+ function xOf(i){ return PAD.left + (packed.length>1 ? i*xStep : cW/2); }
+ // Smaller ms = better performance = higher on graph
+ function yOf(v){ return PAD.top + (((v||0)/yTop)*cH); }
 
  ctx.strokeStyle="rgba(79,111,153,0.25)"; ctx.lineWidth=1;
  for(let v=0; v<=yTop; v+=250){
@@ -2491,72 +2507,109 @@ function drawRateRtChart(canvas, log){
   ctx.fillStyle="#7fd7ff"; ctx.font="10px sans-serif"; ctx.textAlign="right";
   ctx.fillText(String(v), PAD.left-4, y+4);
  }
+ ctx.fillStyle="#b7d9ef"; ctx.textAlign="left"; ctx.font="10px sans-serif";
+ ctx.fillText("Better performance ↑ (smaller ms)", PAD.left, PAD.top-10);
 
- // Presentation rate line
- ctx.strokeStyle="#ff9f40"; ctx.lineWidth=2.2; ctx.beginPath();
+ // draw all-session presentation-rate line in orange
+ ctx.strokeStyle="#ff9f40"; ctx.lineWidth=1.8; ctx.beginPath();
  let started=false;
- pts.forEach((p,i)=>{
+ packed.forEach((p,i)=>{
   if(p.dur==null){ started=false; return; }
   const x=xOf(i), y=yOf(p.dur);
   if(!started){ ctx.moveTo(x,y); started=true; } else ctx.lineTo(x,y);
  });
  ctx.stroke();
- pts.forEach((p,i)=>{
-  if(p.dur==null) return;
-  const x=xOf(i), y=yOf(p.dur);
-  ctx.fillStyle="#ff9f40"; ctx.beginPath(); ctx.arc(x,y,2.8,0,Math.PI*2); ctx.fill();
- });
 
- // RT line
- ctx.strokeStyle="#7fd7ff"; ctx.lineWidth=2.2; ctx.beginPath();
+ // draw all-session RT line in blue
+ ctx.strokeStyle="#7fd7ff"; ctx.lineWidth=1.8; ctx.beginPath();
  started=false;
- pts.forEach((p,i)=>{
+ packed.forEach((p,i)=>{
   if(p.rt==null){ started=false; return; }
   const x=xOf(i), y=yOf(p.rt);
   if(!started){ ctx.moveTo(x,y); started=true; } else ctx.lineTo(x,y);
  });
  ctx.stroke();
- pts.forEach((p,i)=>{
-  if(p.rt==null) return;
-  const x=xOf(i), y=yOf(p.rt);
-  ctx.fillStyle="#7fd7ff"; ctx.beginPath(); ctx.arc(x,y,2.8,0,Math.PI*2); ctx.fill();
+
+ // draw points
+ packed.forEach((p,i)=>{
+  const x=xOf(i);
+  if(p.dur!=null){
+   ctx.fillStyle="#ff9f40"; ctx.beginPath(); ctx.arc(x,yOf(p.dur),2.2,0,Math.PI*2); ctx.fill();
+  }
+  if(p.rt!=null){
+   ctx.fillStyle="#7fd7ff"; ctx.beginPath(); ctx.arc(x,yOf(p.rt),2.2,0,Math.PI*2); ctx.fill();
+  }
  });
 
- // x labels every ~5 trials
- ctx.fillStyle="#9fb7d6"; ctx.font="10px sans-serif"; ctx.textAlign="center";
- const every = Math.max(1, Math.ceil(pts.length/10));
- pts.forEach((p,i)=>{
-  if(i % every !== 0 && i !== pts.length-1) return;
-  ctx.fillText(String(i+1), xOf(i), PAD.top+cH+14);
+ // label session boundaries and session number tags
+ let cursor = 0;
+ hist.forEach((session, orderIdx)=>{
+  const log = Array.isArray(session.rtLog) ? session.rtLog.filter(e=>e.durationMs!=null || e.rt!=null) : [];
+  if(!log.length) return;
+  const firstX = xOf(cursor);
+  const lastX = xOf(cursor + log.length - 1);
+  const midX = (firstX + lastX) / 2;
+
+  // boundary box for selected session
+  const actualSessionIndex = session._actualIndex;
+  const isSelected = actualSessionIndex===selectedSessionIndex;
+  if(isSelected){
+   ctx.strokeStyle="#ffffff";
+   ctx.lineWidth=2;
+   ctx.strokeRect(firstX-4, PAD.top, Math.max(8, lastX-firstX+8), cH);
+  }
+
+  // vertical separator after each session except last
+  if(orderIdx < hist.length-1){
+   ctx.strokeStyle="rgba(255,255,255,0.18)";
+   ctx.lineWidth=1;
+   ctx.beginPath();
+   ctx.moveTo(lastX+3, PAD.top);
+   ctx.lineTo(lastX+3, PAD.top+cH);
+   ctx.stroke();
+  }
+
+  // session label
+  ctx.fillStyle=isSelected ? "#ffffff" : "#b7d9ef";
+  ctx.font="bold 10px sans-serif";
+  ctx.textAlign="center";
+  ctx.fillText(`Session ${actualSessionIndex+1}`, midX, H-8);
+
+  cursor += log.length;
  });
 
- ctx.fillStyle="#ff9f40"; ctx.textAlign="left"; ctx.font="bold 10px sans-serif";
- ctx.fillText("■ Presentation rate", PAD.left, PAD.top-6);
- ctx.fillStyle="#7fd7ff";
- ctx.fillText("■ Response time", PAD.left+120, PAD.top-6);
+ // legend
+ ctx.textAlign="left";
+ ctx.font="bold 10px sans-serif";
+ ctx.fillStyle="#ff9f40"; ctx.fillText("■ Presentation rate", PAD.left, PAD.top+12);
+ ctx.fillStyle="#7fd7ff"; ctx.fillText("■ Response time", PAD.left+120, PAD.top+12);
 }
 
 function buildRateRtOverlay(sessionIndex){
  const sel=$("rateRtSessionSelect");
+ const preservedValue = (sessionIndex!=null) ? String(sessionIndex) : (sel ? sel.value : null);
+ const reversedSessions = [...state.history].reverse().map((r,i)=>({
+  ...r,
+  _actualIndex: state.history.length-1-i
+ }));
  if(sel){
   sel.innerHTML="";
-  [...state.history].reverse().forEach((r,i)=>{
-   const idx=state.history.length-1-i;
+  reversedSessions.forEach((r)=>{
+   const idx=r._actualIndex;
    const opt=document.createElement("option");
    opt.value=String(idx);
    opt.textContent=`Session ${idx+1} · ${formatModeTag(r.testMode)} · ${r.subjectId} · ${new Date(r.time).toLocaleString()}`;
    sel.appendChild(opt);
   });
-  if(sessionIndex!=null) sel.value=String(sessionIndex);
+  if(preservedValue!=null) sel.value=String(preservedValue);
  }
  const idx=sel?Number(sel.value):state.history.length-1;
  const result=state.history[idx];
- const log=result?result.rtLog:[];
  const meta=$("rateRtMeta");
  if(meta){
-  meta.textContent = result ? `${formatModeTag(result.testMode)} · SP-FS ${result.samnPerelli?result.samnPerelli.score:"—"} · ${result.subjectId} · ${new Date(result.time).toLocaleString()} · ${log.length} trials` : "No session selected";
+  meta.textContent = result ? `Selected: Session ${idx+1} · ${formatModeTag(result.testMode)} · SP-FS ${result.samnPerelli?result.samnPerelli.score:"—"} · ${result.subjectId} · ${new Date(result.time).toLocaleString()} · All sessions graphed together` : "No session selected";
  }
- drawRateRtChart($("rateRtChart"), log);
+ drawRateRtChart($("rateRtChart"), reversedSessions, idx);
 }
 
 
@@ -2566,9 +2619,17 @@ function buildRateRtOverlay(sessionIndex){
 // Clickable rows show that session's full summary.
 // Rendered inside admin → 📈 History & Graphs button.
 // ──────────────────────────────────────────────────────────────
-function buildHistoryOverlay(){
+function buildHistoryOverlay(sessionIndex){
+ const hist = state.history||[];
+ const selectedIdx = sessionIndex!=null ? sessionIndex : (buildHistoryOverlay._selectedIndex!=null ? buildHistoryOverlay._selectedIndex : (hist.length?hist.length-1:null));
+ buildHistoryOverlay._selectedIndex = selectedIdx;
  // Draw chart
- drawCombinedChart($("histGraphChart"),state.history);
+ drawCombinedChart($("histGraphChart"),state.history, selectedIdx);
+ const meta=$("historyMeta");
+ const selected = (selectedIdx!=null && hist[selectedIdx]) ? hist[selectedIdx] : null;
+ if(meta){
+  meta.textContent = selected ? `Session ${selectedIdx+1} · ${formatModeTag(selected.testMode)} · SP-FS ${selected.samnPerelli?selected.samnPerelli.score:"—"} · ${new Date(selected.time).toLocaleString()}` : "No session selected";
+ }
  // Build session table
  const tbody=$("historyTableBody"); if(!tbody) return;
  tbody.innerHTML="";
@@ -2588,12 +2649,15 @@ function buildHistoryOverlay(){
   const endShort=(r.endReason||"").substring(0,30)+((r.endReason||"").length>30?"…":"");
   tr.style.cursor="pointer";
   tr.title="Click to view trial detail";
-  tr.onclick=()=>{ buildHistoryOverlay._closeAndOpenTrial(idx); };
+  if(idx===selectedIdx) tr.style.background="rgba(127,215,255,0.10)";
+  tr.onclick=()=>{ buildHistoryOverlay(idx); };
   tr.innerHTML=`<td style="font-weight:700;color:var(--accent)">${idx+1}</td><td style="font-size:11px">${date}</td><td>${formatModeTag(r.testMode)} · ${r.subjectId}</td><td style="color:#88ff88">${spf}</td><td>${calRT}</td><td>${r.blockCount||0}</td><td style="color:#ff9f40">${avgBlk}</td><td style="color:var(--accent);font-weight:800">${cps}</td><td>${dur}</td><td style="font-size:10px;color:var(--muted)">${endShort}</td>`;
   tbody.appendChild(tr);
  });
 }
-buildHistoryOverlay._closeAndOpenTrial=function(idx){
+buildHistoryOverlay._openSelectedTrial=function(){
+ const idx = buildHistoryOverlay._selectedIndex;
+ if(idx==null) return;
  $("historyOverlay").classList.add("hidden");
  buildTrialLog(idx);
  $("trialLogOverlay").classList.remove("hidden");
@@ -3124,8 +3188,8 @@ const _tsel=$("trialLogSessionSelect");
 if(_tsel) _tsel.onchange=()=>buildTrialLog();
 const _tlp=$("trialLogPrevBtn"); if(_tlp) _tlp.onclick=()=>{ const s=$("trialLogSessionSelect"); if(!s) return; s.selectedIndex=Math.max(0,s.selectedIndex-1); if(s.onchange) s.onchange(); };
 const _tln=$("trialLogNextBtn"); if(_tln) _tln.onclick=()=>{ const s=$("trialLogSessionSelect"); if(!s) return; s.selectedIndex=Math.min(s.options.length-1,s.selectedIndex+1); if(s.onchange) s.onchange(); };
-const _hp=$("historyPrevBtn"); if(_hp) _hp.onclick=()=>{ const rows=[...state.history].reverse(); if(!rows.length) return; buildTrialLog(Math.max(0,state.history.length-2)); $("historyOverlay").classList.add("hidden"); $("trialLogOverlay").classList.remove("hidden"); };
-const _hn=$("historyNextBtn"); if(_hn) _hn.onclick=()=>{ const sidx=state.history.length-1; if(sidx<0) return; buildTrialLog(sidx); $("historyOverlay").classList.add("hidden"); $("trialLogOverlay").classList.remove("hidden"); };
+const _hp=$("historyPrevBtn"); if(_hp) _hp.onclick=()=>{ const cur=(buildHistoryOverlay._selectedIndex!=null?buildHistoryOverlay._selectedIndex:(state.history.length-1)); buildHistoryOverlay(Math.max(0,cur-1)); };
+const _hn=$("historyNextBtn"); if(_hn) _hn.onclick=()=>{ const cur=(buildHistoryOverlay._selectedIndex!=null?buildHistoryOverlay._selectedIndex:(state.history.length-1)); buildHistoryOverlay(Math.min(state.history.length-1,cur+1)); };
 const _rrp=$("rateRtPrevBtn"); if(_rrp) _rrp.onclick=()=>{ const s=$("rateRtSessionSelect"); if(!s) return; s.selectedIndex=Math.max(0,s.selectedIndex-1); if(s.onchange) s.onchange(); };
 const _rrn=$("rateRtNextBtn"); if(_rrn) _rrn.onclick=()=>{ const s=$("rateRtSessionSelect"); if(!s) return; s.selectedIndex=Math.min(s.options.length-1,s.selectedIndex+1); if(s.onchange) s.onchange(); };
 
