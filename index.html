@@ -288,7 +288,27 @@
     }
     #testScreen .probe-label{display:none}
   }
-  </style>
+  
+@media (max-width: 700px){
+  .overlay{padding:10px!important;align-items:flex-start!important;overflow:auto!important;}
+  .modal{
+    width:min(100vw - 20px, 100%)!important;
+    max-width:min(100vw - 20px, 100%)!important;
+    margin:8px auto 16px auto!important;
+    padding:12px!important;
+    box-sizing:border-box!important;
+    max-height:none!important;
+  }
+  .controls{flex-wrap:wrap!important}
+  .ctrl-btn{min-width:0!important;flex:1 1 128px!important;padding:12px 14px!important;font-size:15px!important}
+  table{font-size:12px!important}
+  #summaryText{max-height:36vh!important;font-size:13px!important}
+  #rateRtChart{height:52vh!important}
+  #histGraphChart{height:42vh!important;width:100%!important}
+  #fullModeGraph{height:60vh!important}
+}
+
+</style>
 
   
 </head>
@@ -340,7 +360,7 @@
     <!-- Email (read-only confirmation) -->
     <div class="field-row" style="margin-bottom:14px">
       <label style="font-size:16px">Email<div class="field-hint">Your subject ID</div></label>
-      <div id="profileEmailDisplay" style="font-size:17px;font-weight:700;color:#7fd7ff;padding:10px 0"></div>
+      <div id="profileEmailDisplay" style="font-size:16px;font-weight:700;color:#7fd7ff;padding:10px 0"></div>
     </div>
 
     <!-- Birth Month + Year -->
@@ -378,7 +398,7 @@
     <!-- Email results -->
     <div style="display:flex;align-items:center;justify-content:space-between;padding:14px;background:rgba(127,215,255,0.06);border:1px solid rgba(127,215,255,0.15);border-radius:12px;margin-bottom:16px">
       <div>
-        <div style="font-size:17px;font-weight:700;color:var(--text)">Email my results</div>
+        <div style="font-size:16px;font-weight:700;color:var(--text)">Email my results</div>
         <div style="font-size:13px;color:var(--muted)">Send summary to your email after each test</div>
       </div>
       <label style="position:relative;width:52px;height:28px;flex-shrink:0">
@@ -436,8 +456,8 @@
 
     <!-- Buttons -->
     <div id="tutorialButtonsRow" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:12px 16px max(16px,env(safe-area-inset-bottom,16px));flex-shrink:0;width:100%">
-      <button id="tutNextBtn" class="ctrl-btn" style="width:100%;font-size:17px;font-weight:800;min-height:52px">TUTORIAL</button>
-      <button id="tutSkipBtn" class="ctrl-btn" style="width:100%;font-size:17px;font-weight:800;min-height:52px;opacity:0.9">START TEST</button>
+      <button id="tutNextBtn" class="ctrl-btn" style="width:100%;font-size:16px;font-weight:800;min-height:52px">TUTORIAL</button>
+      <button id="tutSkipBtn" class="ctrl-btn" style="width:100%;font-size:16px;font-weight:800;min-height:52px;opacity:0.9">START TEST</button>
     </div>
   </div>
 </div>
@@ -462,7 +482,7 @@
 
 <!-- ═══ ADMIN OVERLAY ═══ -->
 <div id="adminOverlay" class="overlay hidden">
-  <div class="modal">
+  <div class="modal" style="max-width:min(99vw,1200px);width:min(99vw,1200px)">
     <h2>Admin</h2>
     <div id="adminGate" class="admin-gate">
       <p class="modal-hint">Enter passcode</p>
@@ -539,7 +559,7 @@
   <!-- SUCCESS! / Test Failed label -->
   <div id="outcomeText" class="outcome-text" style="margin:8px 0 14px;font-size:clamp(24px,6vw,48px)"></div>
   <!-- Results button — stays until tapped -->
-  <button class="ctrl-btn" id="outcomeResultsBtn" style="width:min(90vw,320px);font-size:17px;padding:15px 24px;background:linear-gradient(180deg,#1a3a5a,#0d1e30);border-color:#4f6f99;color:#d9fbff;letter-spacing:.06em">View Results →</button>
+  <button class="ctrl-btn" id="outcomeResultsBtn" style="width:min(90vw,320px);font-size:16px;padding:15px 24px;background:linear-gradient(180deg,#1a3a5a,#0d1e30);border-color:#4f6f99;color:#d9fbff;letter-spacing:.06em">View Results →</button>
 </div>
 
 <!-- ═══ SUMMARY OVERLAY ═══ -->
@@ -571,7 +591,7 @@
 
 <!-- ═══ TRIAL DETAIL OVERLAY ═══ -->
 <div id="trialLogOverlay" class="overlay hidden">
-  <div class="modal" style="max-width:min(98vw,900px)">
+  <div class="modal" style="max-width:min(99vw,1200px);width:min(99vw,1200px)">
     <h2>Trial Detail Log</h2>
     <p class="modal-hint" id="trialLogMeta"></p>
     <div style="margin-bottom:8px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
@@ -629,7 +649,7 @@
     <div style="margin-bottom:8px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
       <select id="rateRtSessionSelect" style="flex:1;padding:8px;border:1px solid var(--edge);border-radius:10px;background:#0a1629;color:var(--text);font-size:13px"></select>
     </div>
-    <canvas id="rateRtChart" width="760" height="320" style="margin-bottom:12px;width:100%;max-width:100%"></canvas>
+    <canvas id="rateRtChart" width="980" height="520" style="margin-bottom:12px;width:100%;max-width:100%;height:58vh;min-height:380px"></canvas>
     <div class="controls">
       <button class="ctrl-btn" id="rateRtPrevBtn">← Prev Session</button>
       <button class="ctrl-btn" id="rateRtNextBtn">Next Session →</button>
@@ -680,7 +700,7 @@
   <div class="resp-grid" id="respGrid"></div>
 </div>
 
-<script src="app.js?v=149"></script>
+<script src="app.js?v=152"></script>
 
 <script>
 (function(){

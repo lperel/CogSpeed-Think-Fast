@@ -2054,6 +2054,7 @@ MACHINE-PACED PERFORMANCE
 ${blockList}
  Avg last 2 blocks: ${avg2!=null?avg2.toFixed(1)+" ms":"—"}
  Block score diff: ${diffStr}
+ CPI: ${cps!=null?cps.toFixed(1)+" / 100":"—"}
 ${hr}
 RESPONSE STATISTICS
  Total taps: ${result.totalResponses}
@@ -2435,8 +2436,8 @@ function buildTrialLog(sessionIndex){
  if(sel){
   sel.innerHTML="";
   // Most recent first
-  const selectedMode = (sessionIndex!=null && state.history[sessionIndex]) ? (state.history[sessionIndex].testMode||"mode1") : ((state.history[state.history.length-1]||{}).testMode||"mode1");
-  [...state.history].map((r,i)=>({r,i})).filter(x=>(x.r.testMode||"mode1")===selectedMode).reverse().forEach(({r,i:idx})=>{
+  [...state.history].reverse().forEach((r,i)=>{
+   const idx=state.history.length-1-i;
    const opt=document.createElement("option");
    opt.value=String(idx);
    opt.textContent=`Session ${idx+1} · ${formatModeTag(r.testMode)} · ${r.subjectId} · ${new Date(r.time).toLocaleString()}`;
@@ -2528,7 +2529,7 @@ function drawRateRtChart(canvas, sessions, selectedSessionIndex){
  const allPts = prepared.flatMap(s=>s._preparedLog);
  if(!allPts.length){
   ctx.fillStyle="#d7e7f8"; ctx.font="bold 13px sans-serif"; ctx.textAlign="center";
-  const modeTxt = selectedMode ? formatModeTag(selectedMode) : "this session mode";
+  const modeTxt = selectedMode ? formatModeTag(selectedMode) : "selected session";
   ctx.fillText(`No response-time graph for ${modeTxt}`, W/2, H/2); return;
  }
 
@@ -2626,6 +2627,7 @@ function drawRateRtChart(canvas, sessions, selectedSessionIndex){
 }
 
 // Build overlaid all-session Rate vs RT graph and highlight one selected session.
+// Build same-mode overlaid Rate vs RT graph and highlight one selected session.
 function buildRateRtOverlay(sessionIndex){
  const sel=$("rateRtSessionSelect");
  const preservedValue = (sessionIndex!=null) ? String(sessionIndex) : (sel ? sel.value : null);
@@ -2635,7 +2637,8 @@ function buildRateRtOverlay(sessionIndex){
  }));
  if(sel){
   sel.innerHTML="";
-  reversedSessions.forEach((r)=>{
+  const groupedSessions = ["mode1","mode2","mode3"].flatMap(m => reversedSessions.filter(r => (r.testMode||"mode1")===m));
+  groupedSessions.forEach((r)=>{
    const idx=r._actualIndex;
    const opt=document.createElement("option");
    opt.value=String(idx);
@@ -2643,14 +2646,20 @@ function buildRateRtOverlay(sessionIndex){
    sel.appendChild(opt);
   });
   if(preservedValue!=null) sel.value=String(preservedValue);
+  if(sel.value==="" && sel.options.length) sel.selectedIndex = 0;
  }
  const idx=sel?Number(sel.value):state.history.length-1;
- const result=state.history[idx];
+ const result=(idx!=null && idx>=0)?state.history[idx]:null;
+ const selectedMode = result ? (result.testMode||"mode1") : null;
+ const sameModeSessions = selectedMode
+   ? reversedSessions.filter(s => (s.testMode||"mode1")===selectedMode)
+   : reversedSessions;
+ const sessionsForChart = sameModeSessions.length ? sameModeSessions : (result ? [{...result, _actualIndex: idx}] : []);
  const meta=$("rateRtMeta");
  if(meta){
-  meta.textContent = result ? `Selected: Session ${idx+1} · ${formatModeTag(result.testMode)} · SP-FS ${result.samnPerelli?result.samnPerelli.score:"—"} · ${result.subjectId} · ${new Date(result.time).toLocaleString()} · same-mode sessions overlaid from trial 1` : "No session selected";
+  meta.textContent = result ? `Selected: Session ${idx+1} · ${formatModeTag(result.testMode)} · SP-FS ${result.samnPerelli?result.samnPerelli.score:"—"} · ${result.subjectId} · ${new Date(result.time).toLocaleString()} · ${sessionsForChart.length} same-mode session(s) overlaid from trial 1` : "No session selected";
  }
- drawRateRtChart($("rateRtChart"), reversedSessions, idx);
+ drawRateRtChart($("rateRtChart"), sessionsForChart, idx);
 }
 
 
@@ -2664,23 +2673,22 @@ function buildHistoryOverlay(sessionIndex){
  const hist = state.history||[];
  const selectedIdx = sessionIndex!=null ? sessionIndex : (buildHistoryOverlay._selectedIndex!=null ? buildHistoryOverlay._selectedIndex : (hist.length?hist.length-1:null));
  buildHistoryOverlay._selectedIndex = selectedIdx;
- const selected = (selectedIdx!=null && hist[selectedIdx]) ? hist[selectedIdx] : null;
- const selectedMode = selected ? (selected.testMode||"mode1") : "mode1";
- const modeHist = hist.map((r,i)=>({r,i})).filter(x=>(x.r.testMode||"mode1")===selectedMode);
  // Draw chart
- drawCombinedChart($("histGraphChart"),modeHist.map(x=>x.r), selectedIdx!=null ? modeHist.findIndex(x=>x.i===selectedIdx) : null);
+ drawCombinedChart($("histGraphChart"),state.history, selectedIdx);
  const meta=$("historyMeta");
+ const selected = (selectedIdx!=null && hist[selectedIdx]) ? hist[selectedIdx] : null;
  if(meta){
-  meta.textContent = selected ? `Session ${selectedIdx+1} · ${formatModeTag(selected.testMode)} · SP-FS ${selected.samnPerelli?selected.samnPerelli.score:"—"} · ${new Date(selected.time).toLocaleString()} · same-mode sessions only` : "No session selected";
+  meta.textContent = selected ? `Session ${selectedIdx+1} · ${formatModeTag(selected.testMode)} · SP-FS ${selected.samnPerelli?selected.samnPerelli.score:"—"} · ${new Date(selected.time).toLocaleString()}` : "No session selected";
  }
  // Build session table
  const tbody=$("historyTableBody"); if(!tbody) return;
  tbody.innerHTML="";
- if(!modeHist.length){
+ if(!state.history.length){
   tbody.innerHTML='<tr><td colspan="10" style="text-align:center;color:var(--muted);padding:12px">No history yet</td></tr>';
   return;
  }
- [...modeHist].reverse().forEach(({r,i:idx},ri)=>{
+ [...state.history].reverse().forEach((r,ri)=>{
+  const idx=state.history.length-1-ri;
   const tr=document.createElement("tr");
   const date=new Date(r.time).toLocaleString("en-US",{month:"short",day:"numeric",hour:"2-digit",minute:"2-digit"});
   const spf=r.samnPerelli?r.samnPerelli.score:"—";
@@ -3230,20 +3238,8 @@ const _tsel=$("trialLogSessionSelect");
 if(_tsel) _tsel.onchange=()=>buildTrialLog();
 const _tlp=$("trialLogPrevBtn"); if(_tlp) _tlp.onclick=()=>{ const s=$("trialLogSessionSelect"); if(!s) return; s.selectedIndex=Math.max(0,s.selectedIndex-1); if(s.onchange) s.onchange(); };
 const _tln=$("trialLogNextBtn"); if(_tln) _tln.onclick=()=>{ const s=$("trialLogSessionSelect"); if(!s) return; s.selectedIndex=Math.min(s.options.length-1,s.selectedIndex+1); if(s.onchange) s.onchange(); };
-const _hp=$("historyPrevBtn"); if(_hp) _hp.onclick=()=>{
- const cur=(buildHistoryOverlay._selectedIndex!=null?buildHistoryOverlay._selectedIndex:(state.history.length-1));
- const mode=((state.history[cur]||{}).testMode||"mode1");
- const same=state.history.map((r,i)=>({r,i})).filter(x=>(x.r.testMode||"mode1")===mode).map(x=>x.i);
- const p=same.indexOf(cur);
- if(p>0) buildHistoryOverlay(same[p-1]);
-};
-const _hn=$("historyNextBtn"); if(_hn) _hn.onclick=()=>{
- const cur=(buildHistoryOverlay._selectedIndex!=null?buildHistoryOverlay._selectedIndex:(state.history.length-1));
- const mode=((state.history[cur]||{}).testMode||"mode1");
- const same=state.history.map((r,i)=>({r,i})).filter(x=>(x.r.testMode||"mode1")===mode).map(x=>x.i);
- const p=same.indexOf(cur);
- if(p>=0 && p<same.length-1) buildHistoryOverlay(same[p+1]);
-};
+const _hp=$("historyPrevBtn"); if(_hp) _hp.onclick=()=>{ const cur=(buildHistoryOverlay._selectedIndex!=null?buildHistoryOverlay._selectedIndex:(state.history.length-1)); buildHistoryOverlay(Math.max(0,cur-1)); };
+const _hn=$("historyNextBtn"); if(_hn) _hn.onclick=()=>{ const cur=(buildHistoryOverlay._selectedIndex!=null?buildHistoryOverlay._selectedIndex:(state.history.length-1)); buildHistoryOverlay(Math.min(state.history.length-1,cur+1)); };
 const _rrp=$("rateRtPrevBtn"); if(_rrp) _rrp.onclick=()=>{ const s=$("rateRtSessionSelect"); if(!s) return; s.selectedIndex=Math.max(0,s.selectedIndex-1); if(s.onchange) s.onchange(); };
 const _rrn=$("rateRtNextBtn"); if(_rrn) _rrn.onclick=()=>{ const s=$("rateRtSessionSelect"); if(!s) return; s.selectedIndex=Math.min(s.options.length-1,s.selectedIndex+1); if(s.onchange) s.onchange(); };
 
