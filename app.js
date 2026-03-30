@@ -2,7 +2,7 @@
 // CogSpeed V173
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V178";
+const APP_VERSION = "V179";
 const RELEASE = APP_VERSION.replace(/^V/i, "");
 const STORAGE_PREFIX = `cogspeed_v${RELEASE}`;
 
@@ -2092,10 +2092,10 @@ RESPONSE STATISTICS
  Correct: ${result.totalCorrect}
  Wrong: ${result.totalIncorrect}
  Missed: ${result.missedTrials}
+ END REASON: ${result.endReason||"Run complete"}
  Mean paced RT: ${result.pacedResponseMeanMs!=null?result.pacedResponseMeanMs.toFixed(1)+" ms":"—"}
  Paced RT SD: ${sd!=null?sd.toFixed(1)+" ms":"—"}
-\n${hr}\nRANKED TARGET / POSITION AVERAGES — POOLED SAME-MODE SESSIONS\n${formatModePooledRankSection(result.testMode)}\n${hr}\nEND REASON
- ${result.endReason||"Run complete"}`;
+\n${hr}\nRANKED TARGET / POSITION AVERAGES — POOLED SAME-MODE SESSIONS\n${formatModePooledRankSection(result.testMode)}`;
 }
 
 // ─── SPEEDOMETER V2 — Vintage Auto Meter style ────────────────
