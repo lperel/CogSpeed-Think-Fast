@@ -2,7 +2,7 @@
 // CogSpeed V127
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V154";
+const APP_VERSION = "V155";
 
 // ─── Version guard ───
 (function(){
@@ -804,7 +804,17 @@ function applyPacing(rt,correct){
   const roundDuration=state.duration;
   const r=rt/roundDuration;
   let deltaMs=(0.15*r-0.15)*roundDuration;
-  deltaMs=clamp(deltaMs,-100,100); // Cap MAX speed up or slow down to 100ms
+  // Correct-response adaptive update:
+ // - preserve the existing formula
+ // - when deltaMs is negative (speedup), force a minimum 50 ms speedup
+ //   and a maximum 200 ms speedup
+ // - when deltaMs is positive (slowdown), keep the existing 100 ms max slowdown
+ if(deltaMs < 0){
+  const speedupMag = Math.min(200, Math.max(50, Math.abs(deltaMs)));
+  deltaMs = -speedupMag;
+ }else{
+  deltaMs = Math.min(100, deltaMs);
+ } // Cap MAX speed up or slow down to 100ms
   state.duration=clamp(state.duration+deltaMs,settings.minDurationMs,settings.maxDurationMs);
  }else{
   // Wrong response = +100 ms slowdown
