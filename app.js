@@ -1,14 +1,13 @@
 // ═══════════════════════════════════════════════════
-// CogSpeed V165
+// CogSpeed V170
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V165";
-const STORAGE_VERSION = "cogspeed_v165";
+const APP_VERSION = "V170";
 
 // ─── Version guard ───
 (function(){
- const VER = STORAGE_VERSION + "_profileguard", key = "cogspeed_version";
- const preserve = new Set([STORAGE_VERSION + "_profile", key]);
+ const VER="cogspeed_v169_profileguard", key="cogspeed_version";
+ const preserve = new Set(["cogspeed_v169_profile", key]);
  if(localStorage.getItem(key)!==VER){
   Object.keys(localStorage).forEach(k=>{
    if((k.startsWith("cogspeed_")||k.startsWith("cogblock_")) && !preserve.has(k)){
@@ -43,7 +42,7 @@ const DEFAULTS={
  mode3MaxDurationMs:120000,
  mode3BaselineFactor:1.3,
  consecutiveMissesForBlock:2,
- blockRestartPercent:1.3,
+  blockRestartPercent:1.3,
  spRestartWrongLimit:3,
  spRestartCorrectStreak:2,
  maxBlockCount:6,
@@ -168,13 +167,13 @@ const SAMN_PERELLI=[
 
 // ─── Settings ───
 function loadSettings(){
- const s=JSON.parse(localStorage.getItem(STORAGE_VERSION + "_settings")||"null");
+ const s=JSON.parse(localStorage.getItem("cogspeed_v169_settings")||"null");
  if(!s) return {...DEFAULTS};
  const m={...DEFAULTS};
  Object.keys(DEFAULTS).forEach(k=>{ if(s[k]!==undefined) m[k]=s[k]; });
  return m;
 }
-function saveSettings(){ localStorage.setItem(STORAGE_VERSION + "_settings",JSON.stringify(settings)); }
+function saveSettings(){ localStorage.setItem("cogspeed_v169_settings",JSON.stringify(settings)); }
 let settings=loadSettings();
 
 // ─── State ───
@@ -183,7 +182,7 @@ const state={
  current:null, previous:null, unresolvedStreak:0,
  overloads:[], recoveries:[], recoveryCorrectCompleted:0,
  spCorrectStreak:0, spWrongCount:0, terminalBlockReason:null,
- history:(function(){ try { return JSON.parse(localStorage.getItem(STORAGE_VERSION + "_history")||"[]"); } catch(e){ return []; } })(),
+ history:(function(){ try { return JSON.parse(localStorage.getItem("cogspeed_v169_history")||"[]"); } catch(e){ return []; } })(),
  totalTrials:0, totalResponses:0, totalCorrect:0, totalIncorrect:0,
  missedTrials:0, pacedErrors:0, recoveryErrors:0, rollMeanLog:[],
  testStartTime:null, trialTimer:null, absoluteNoResponseTimer:null, maxTestTimer:null,
@@ -203,13 +202,6 @@ const stimGrid=$("stimGrid"), probeCell=$("probeCell"), probeInner=$("probeInner
    recoveryOut=$("recoveryOut"), wrongOut=$("wrongOut"), fatigueOut=$("fatigueOut"),
    cpiOut=$("cpiOut"), statusLine=$("statusLine"), resultBox=$("resultBox"),
    phaseLabel=$("phaseLabel"), modeLabel=$("modeLabel");
-
-function syncVersionUI(){
- const badge=$("versionBadge"); if(badge) badge.textContent=APP_VERSION;
- document.title=`CogSpeed ${APP_VERSION}`;
- const st=$("statusLine"); if(st && /^CogSpeed /i.test(st.textContent||"")) st.textContent=`CogSpeed ${APP_VERSION}`;
-}
-syncVersionUI();
 
 // ─── Utilities ───
 function randInt(min,max){ return Math.floor(Math.random()*(max-min+1))+min; }
@@ -232,8 +224,8 @@ function getSessionMaxDurationMs(){ return isMode2() ? (Number(settings.mode2Max
 // ─── CPI ───
 // ─── CPI SCORE CALCULATION ────────────────────────────────────
 // Converts avg last 2 block durations (ms) to 0-100 CPI score.
-// Live defaults: cpiBestMs=800ms → CPI 100, cpiWorstMs=3000ms → CPI 0.
-// Formula uses the current settings values: (worst-avgMs)/(worst-best)*100
+// Scale: cpiBestMs=900ms → CPI 100, cpiWorstMs=3400ms → CPI 0.
+// Source: Perelli (2026). Formula: (worst-ms)/(worst-best)*100
 // ──────────────────────────────────────────────────────────────
 function computeCPI(avgMs){
  const best=Number(settings.cpiBestMs),worst=Number(settings.cpiWorstMs),span=worst-best;
@@ -257,7 +249,7 @@ function clearMaxTestTimer(){ if(state.maxTestTimer) clearTimeout(state.maxTestT
 // ─── NO-RESPONSE TIMERS ───────────────────────────────────────
 // armNoResponseTimer(): phase-aware timeouts by phase:
 //  calibration trial 1: 20s | cal trials 2+: 10s
-//  machine-paced: 15s safety net | recovery: 10s
+//  machine-paced: 6s (frame ends anyway) | recovery: 10s
 //  Fires end condition if subject stops responding.
 // armMaxTestTimer(): 150s total session wall clock (cal + paced).
 // noteAnyResponse(): called on every tap to reset the 10/20s timer.
@@ -437,29 +429,16 @@ function ensureGearImageStyles(){
   }
   .gear-img-wrap img{
    position:relative;
-   z-index:2;
+   z-index:1;
    width:126%;
    height:126%;
    object-fit:contain;
    display:block;
    filter:contrast(1.14) saturate(0.95) brightness(1.02);
   }
-  .gear-pattern-backdrop{
-   position:absolute;
-   z-index:1;
-   left:50%;
-   top:50%;
-   width:74%;
-   height:74%;
-   transform:translate(-50%,-50%);
-   border-radius:50%;
-   background:#6e6e6e;
-   box-shadow:0 0 14px rgba(0,0,0,0.16) inset;
-   pointer-events:none;
-  }
   .gear-mark{
    position:absolute;
-   z-index:3;
+   z-index:2;
    transform:translate(-50%,-50%);
    background:#ffffff;
    border:3px solid #111;
@@ -531,9 +510,7 @@ function buildGearSVG(si,pattern,size,spinClass){
     }
    });
   }
-  const backdrop = pattern ? '<div class="gear-pattern-backdrop"></div>' : '';
   return `<div class="gear-img-wrap ${spinClass||""}">
-   ${backdrop}
    <img src="${GEAR_IMAGE_SRCS[si]}" alt="gear ${si}" draggable="false"/>
    ${marks.join("")}
   </div>`;
@@ -559,7 +536,7 @@ function buildGearSVG(si,pattern,size,spinClass){
   marks=pattern.map(([k,px,py])=>{
    const ix=cx+(px/100-0.5)*iR*2.20, iy=cy+(py/100-0.5)*iR*2.20;
    if(k==="dot") return `<circle cx="${ix.toFixed(1)}" cy="${iy.toFixed(1)}" r="${dotR}" fill="white" stroke="black" stroke-width="3" opacity="0.95"/>`;
-   return `<rect x="${(ix-lw/2).toFixed(1)}" y="${(iy-lh/2).toFixed(1)}" width="${lw}" height="${lh}" rx="2.5" fill="#000000" stroke="#ffffff" stroke-width="3" opacity="0.95"/>`;
+   return `<rect x="${(ix-lw/2).toFixed(1)}" y="${(iy-lh/2).toFixed(1)}" width="${lw}" height="${lh}" rx="2.5" fill="white" stroke="black" stroke-width="3" opacity="0.95"/>`;
   }).join("");
  }
  const sc=spinClass||"";
@@ -724,9 +701,8 @@ function failCalibration(reason){ state.endReason=reason; finish(); }
 // CHECK ADEQUATELY TRAINED: >4 errors → "TOO MANY WRONG RESPONSES"
 // CHECK RESPONSE SPEED: single RT >3000ms → "NOT RESPONDING IN TIME — Practice!"
 // DETERMINE BASELINE RT: avg of 10 measured RTs → paced start duration
-//  (initialPacedPercent defaults to 1.3 × avg, intentionally slower than calibration,
-//   then clamped to [minDurationMs, maxDurationMs]).
-// CONDITION 4: avg RT > calibrationStopSlowMs → "NEED MORE PRACTICE!"
+//  (initialPacedPercent=0.70 × avg, clamped to 800ms-maxDurationMs).
+// CONDITION 4: avg RT >3000ms → "NEED MORE PRACTICE!"
 // NO-RESPONSE TIMEOUTS: first trial=20s, subsequent=10s
 // ──────────────────────────────────────────────────────────────
 // finishCalibration() now branches by selected mode:
@@ -827,7 +803,7 @@ function applyPacing(rt,correct){
 // Called by all end conditions (success + all 8 failure modes).
 // Computes final CPI, paced RT stats, test duration.
 // Also stamps the session number used by full-size graphs and metadata.
-// Saves result to state.history in localStorage using the current STORAGE_VERSION history key.
+// Saves result to state.history (localStorage: cogspeed_v169_history).
 // Triggers gear spin outro → thinking box → outcome box → summary.
 // ──────────────────────────────────────────────────────────────
 function finish(){
@@ -873,7 +849,7 @@ const modeMetricMs = isMode2() ? (state.selfPacedRTs.length?mean(state.selfPaced
   time:new Date().toISOString(), geo:state.geo
  };
  state.history.push(result);
- localStorage.setItem(STORAGE_VERSION + "_history",JSON.stringify(state.history));
+ localStorage.setItem("cogspeed_v169_history",JSON.stringify(state.history));
  updateCPIDisplay(avg2); setProbeIdle();
  // Build the display text (also used for email)
  buildSummary(result);
@@ -1643,15 +1619,15 @@ function formatModePooledRankSection(mode){
 }
 // ─── Export / Email ───
 // ─── EXPORT / EMAIL ───────────────────────────────────────────
-// exportResults(): downloads full history as <STORAGE_VERSION>_results.json
-// exportCSV(): downloads history as <STORAGE_VERSION>_history.csv
+// exportResults(): downloads full history as cogspeed_v169_results.json
+// exportCSV(): downloads history as cogspeed_v169_history.csv
 //  Columns: session, subjectId, date, SP-FS, calibration, blocks,
 //  CPI, taps, correct, wrong, missed, paced stats, duration, end reason.
 // emailResults(): opens mailto: with last result text in body.
 // ──────────────────────────────────────────────────────────────
 function exportResults(){
  const blob=new Blob([JSON.stringify({settings,history:state.history},null,2)],{type:"application/json"});
- const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=`${STORAGE_VERSION}_results.json`; a.click();
+ const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download="cogspeed_v169_results.json"; a.click();
 }
 function exportCSV(){
  const h=state.history; if(!h.length){setStatus("No history to export."); return;}
@@ -1679,7 +1655,7 @@ function exportCSV(){
  ].map(v=>v==null?"":v).join(","));
  const csv=[cols.join(","), ...rows].join("\n");
  const blob=new Blob([csv],{type:"text/csv"});
- const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=`${STORAGE_VERSION}_history.csv`; a.click();
+ const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download="cogspeed_v169_history.csv"; a.click();
 }
 // Email results
 // Subject line always uses the current APP_VERSION build label.
@@ -1766,11 +1742,11 @@ function stopFX(){ if(_fxRaf){ cancelAnimationFrame(_fxRaf); _fxRaf=null; } }
 // ═══════════════════════════════════════════════════════════════
 // SECTION: REGISTRATION — PROFILE
 // Collects email (subject ID), birth month/year, gender, email pref.
-// Stored in localStorage using the current STORAGE_VERSION profile key
+// Stored in localStorage: cogspeed_v169_profile
 // [PLANNED] Server-side account for population norms.
 // ═══════════════════════════════════════════════════════════════
 
-const PROFILE_KEY = STORAGE_VERSION + "_profile";
+const PROFILE_KEY = "cogspeed_v169_profile";
 
 function loadProfile(){
  try { return JSON.parse(localStorage.getItem(PROFILE_KEY)||"null"); } catch(e){ return null; }
@@ -2477,7 +2453,7 @@ function downloadTrialLogCSV(){
  ].join(",")).join("\n");
  const subj=result?result.subjectId:"current";
  const blob=new Blob([hdr+rows],{type:"text/csv"});
- const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=`${STORAGE_VERSION}_trials_${subj}.csv`; a.click();
+ const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=`cogspeed_v169_trials_${subj}.csv`; a.click();
 }
 
 
@@ -3217,7 +3193,7 @@ $("historyClearBtn").onclick=()=>{
   btn.textContent="🗑 Clear History";
   btn.style.color="rgba(255,100,136,0.5)";
   btn.style.borderColor="rgba(255,100,136,0.3)";
-  state.history=[]; localStorage.removeItem(STORAGE_VERSION + "_history");
+  state.history=[]; localStorage.removeItem("cogspeed_v169_history");
   buildHistoryOverlay(); setStatus("History cleared.");
  } else {
   btn._confirmPending=true;
