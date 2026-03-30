@@ -2,7 +2,7 @@
 // CogSpeed V127
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V157";
+const APP_VERSION = "V158";
 
 // ─── Version guard ───
 (function(){
@@ -183,7 +183,7 @@ const state={
  current:null, previous:null, unresolvedStreak:0,
  overloads:[], recoveries:[], recoveryCorrectCompleted:0,
  spCorrectStreak:0, spWrongCount:0, terminalBlockReason:null,
- history:JSON.parse(localStorage.getItem("cogspeed_v21r10_history")||"[]"),
+ history:(function(){ try { return JSON.parse(localStorage.getItem("cogspeed_v21r10_history")||"[]"); } catch(e){ return []; } })(),
  totalTrials:0, totalResponses:0, totalCorrect:0, totalIncorrect:0,
  missedTrials:0, pacedErrors:0, recoveryErrors:0, rollMeanLog:[],
  testStartTime:null, trialTimer:null, absoluteNoResponseTimer:null, maxTestTimer:null,
@@ -316,10 +316,8 @@ async function captureGeo(){
 }
 
 // ─── SVG rendering ───
-// Lines are rendered black with a white outline in both tutorial and live test.
-// Dots remain unchanged.
-
-// Dots remain unchanged.
+// Lines: black fill with white outline stroke in both tutorial and live test.
+// Dots: white fill with black outline stroke (unchanged).
 
 function patternToSVG(pattern,size="large"){
  const dim=size==="probe"?72:size==="small"?40:56;
@@ -683,7 +681,7 @@ function recordAnswer(ok,isMiss){
    if(ratio<thresh){ state.endReason=`FAILED: rolling mean below threshold (${win} responses, threshold ${thresh})`; finish(); return true; }
   }
   const wc=state.lastFiveAnswers.filter(v=>v===false).length;
-  if(state.lastFiveAnswers.length===settings.wrongWindowSize&&wc>settings.wrongThresholdStop){
+  if(state.lastFiveAnswers.length===settings.wrongWindowSize&&wc>=settings.wrongThresholdStop){
    state.endReason=`FAILED: too many wrong in last ${settings.wrongWindowSize} responses`; finish(); return true;
   }
  }
@@ -751,30 +749,6 @@ function finishCalibration(){
 }
 
 // ─── Pacing ───
-// ─── PACING ALGORITHM — MACHINE-PACED ────────────────────────
-//
-// SPEED UP ON CORRECT RESPONSE:
-//  r = RT / currentDuration (ratio of response time to frame window)
-//  delta = (0.1 × r - 0.1) × currentDuration
-//  newDuration = currentDuration + delta
-//
-//  Interpretation:
-//  • If r < 1.0 (responded well before frame end): delta is NEGATIVE → speeds up
-//  • If r = 1.0 (responded at exactly frame end): delta = 0 → no change
-//  • If r > 1.0 (shouldn't happen on correct): delta is POSITIVE → slows slightly
-//  • The faster the response relative to the frame, the larger the speedup
-//  Example: frame=1000ms, RT=600ms → r=0.6, delta=(0.06-0.1)×1000 = -40ms
-//  Example: frame=1000ms, RT=900ms → r=0.9, delta=(0.09-0.1)×1000 = -10ms
-//
-// SLOW DOWN ON WRONG RESPONSE:
-//  newDuration = currentDuration + 100ms (flat penalty)
-//  This gives the subject more time after an error.
-//
-// RESULT: Algorithm hunts for the fastest rate the subject can
-//  sustain accurately — converging toward their cognitive speed limit.
-//
-// Duration always clamped to [minDurationMs=600, maxDurationMs=3500].
-// ──────────────────────────────────────────────────────────────
 // ─── PACED BASELINE UPDATE ALGORITHM ─────────────────────────
 // PACED MODE ONLY. Self-paced calibration is NOT changed.
 //
@@ -1501,12 +1475,6 @@ function drawModeResultChart(canvas,result){
   ctx.textAlign="left"; ctx.font="10px sans-serif"; ctx.fillStyle="#b7d9ef";
   ctx.fillText(`${modeTxt} · ${spfsTxt}`, PAD.left, PAD.top+12);
  }
- if(!isFull){
-  ctx.textAlign="left"; ctx.font="10px sans-serif"; ctx.fillStyle="#b7d9ef";
-  const spfs = result.samnPerelli ? `SP-FS ${result.samnPerelli.score}` : "SP-FS —";
-  const modeTxt = result.testMode ? String(result.testMode).replace("mode","Mode ") : "";
-  ctx.fillText(`${modeTxt} · ${spfs}`, PAD.left, PAD.top+12);
- }
 }
 
 
@@ -1517,52 +1485,60 @@ function formatModeTag(mode){
 // - parse saved trial logs robustly across old/new session formats
 // - keep positions in true user-facing 1..6 space
 // - do not double-shift positions parsed from strings like "@1"
-function computeRankAverages(rtLog){
- function normalizeRow(r){
-  if(!r || r.rt==null || r.counted===false) return null;
+// ─── SHARED TRIAL ROW NORMALIZER ─────────────────────────────
+// Single canonical normalizeTrialRow() used by both
+// computeRankAverages() and computeCombinationRankAveragesForMode().
+// Parses probe family/count and correct position from both
+// structured fields and older string-serialized formats.
+// String-parsed "@N" positions are already 1-based and must NOT
+// be incremented; only structured 0-based positions are shifted.
+// ──────────────────────────────────────────────────────────────
+function normalizeTrialRow(r){
+ if(!r || r.rt==null || r.counted===false) return null;
 
-  let family = r.probeFamily || null;
-  let count = r.probeCount;
-  let pos = r.correctPos;
+ let family = r.probeFamily || null;
+ let count = r.probeCount;
+ let pos = r.correctPos;
 
-  // Backward-compatible fallback for older saved sessions:
-  // probe often looks like "dots:3" or "lines:5"
-  if((family==null || count==null) && typeof r.probe==="string"){
-   const m = r.probe.match(/^(dots|lines):(\d+)/);
-   if(m){
-    family = family || m[1];
-    if(count==null) count = Number(m[2]);
-   }
+ // Backward-compatible fallback for older saved sessions:
+ // probe often looks like "dots:3" or "lines:5"
+ if((family==null || count==null) && typeof r.probe==="string"){
+  const m = r.probe.match(/^(dots|lines):(\d+)/);
+  if(m){
+   family = family || m[1];
+   if(count==null) count = Number(m[2]);
   }
-
-  // Positions in older string logs are 1-based: "@4" means Position 4.
-  let posFromString = false;
-  if(typeof r.correctCell==="string"){
-   const m = r.correctCell.match(/@(\d+)/);
-   if(m){
-    pos = Number(m[1]);
-    posFromString = true;
-   }
-  }
-
-  // Only structured stored positions may need 0-based -> 1-based normalization.
-  // String-parsed "@4" already means Position 4 and must NOT be incremented.
-  if(!posFromString && typeof pos === "number" && Number.isFinite(pos)){
-   if(pos >= 0 && pos <= 5) pos = pos + 1;
-  }
-
-  if(family==null || count==null || pos==null) return null;
-
-  return {
-   outcome:r.outcome,
-   rt:Number(r.rt),
-   probeFamily:String(family),
-   probeCount:Number(count),
-   correctPos:Number(pos)
-  };
  }
 
- const valid=(rtLog||[]).map(normalizeRow).filter(Boolean);
+ // Positions in older string logs are 1-based: "@4" means Position 4.
+ let posFromString = false;
+ if(typeof r.correctCell==="string"){
+  const m = r.correctCell.match(/@(\d+)/);
+  if(m){
+   pos = Number(m[1]);
+   posFromString = true;
+  }
+ }
+
+ // Only structured stored positions may need 0-based -> 1-based normalization.
+ // String-parsed "@4" already means Position 4 and must NOT be incremented.
+ if(!posFromString && typeof pos === "number" && Number.isFinite(pos)){
+  if(pos >= 0 && pos <= 5) pos = pos + 1;
+ }
+
+ if(family==null || count==null || pos==null) return null;
+
+ return {
+  outcome:r.outcome,
+  rt:Number(r.rt),
+  probeFamily:String(family),
+  probeCount:Number(count),
+  correctPos:Number(pos)
+ };
+}
+
+function computeRankAverages(rtLog){
+ const valid=(rtLog||[]).map(normalizeTrialRow).filter(Boolean);
  const avg=a=>a.length?a.reduce((x,y)=>x+y,0)/a.length:null;
 
  function buildRows(outcome){
@@ -1618,39 +1594,12 @@ function computeRankAveragesForMode(mode){
 // Same-mode pooled combination rankings
 // - combines sessions from the selected mode only
 // - ranks correct / wrong / all combinations by mean RT
+// Same-mode pooled combination rankings
+// Uses shared normalizeTrialRow() for consistent position parsing.
 function computeCombinationRankAveragesForMode(mode){
  const pooledLogs = getModePooledLogsExcludingWarmup(mode);
 
- function normalizeRow(r){
-  if(!r || r.rt==null || r.counted===false) return null;
-  let family = r.probeFamily || null;
-  let count = r.probeCount;
-  let pos = r.correctPos;
-  if((family==null || count==null) && typeof r.probe==="string"){
-   const m = r.probe.match(/^(dots|lines):(\d+)/);
-   if(m){
-    family = family || m[1];
-    if(count==null) count = Number(m[2]);
-   }
-  }
-  if(typeof r.correctCell==="string"){
-   const m = r.correctCell.match(/@(\d+)/);
-   if(m) pos = Number(m[1]);
-  }
-  if(typeof pos === "number" && Number.isFinite(pos)){
-   if(pos >= 0 && pos <= 5) pos = pos + 1;
-  }
-  if(family==null || count==null || pos==null) return null;
-  return {
-   outcome:r.outcome,
-   rt:Number(r.rt),
-   probeFamily:String(family),
-   probeCount:Number(count),
-   correctPos:Number(pos)
-  };
- }
-
- const valid = pooledLogs.map(normalizeRow).filter(Boolean);
+ const valid = pooledLogs.map(normalizeTrialRow).filter(Boolean);
  function buildRows(kind){
   const sub = kind==="all" ? valid : valid.filter(r=>r.outcome===kind);
   const buckets = new Map();
@@ -2073,7 +2022,6 @@ ${hr}
 CALIBRATION
  Average RT: ${result.calibrationAverageMs!=null?result.calibrationAverageMs.toFixed(1)+" ms":"—"}
 ${hr}
-// Mode 1 CPI is intentionally emphasized so it stands out in emailed and on-screen summaries.
 MACHINE-PACED PERFORMANCE
  Block scores:
 ${blockList}
@@ -2385,7 +2333,11 @@ function startOverFlow(){
  clearCurrentSession(); state.subjectId=null; state.samnPerelli=null;
  fatigueOut.textContent="—"; $("subjectIdInput").value="";
  _adminUnlocked=false;
- setStatus("Reset. Enter Subject ID."); showOnly("subjectOverlay"); restoreSubjectFromProfile();
+ // Full reset: clear welcome-back display but preserve saved profile in localStorage
+ const wl=$("subjectWelcome"); if(wl) wl.style.display="none";
+ const we=$("welcomeEmail"); if(we) we.textContent="";
+ const hint=$("subjectHint"); if(hint) hint.textContent="Enter your email to begin.";
+ setStatus("Reset. Enter Subject ID."); showOnly("subjectOverlay");
 }
 
 // ─── Gear spin intro then start ───
@@ -2491,7 +2443,6 @@ function buildTrialLog(sessionIndex){
   tr.innerHTML=`<td style="font-weight:700">${e.seq}</td><td style="font-size:10px">${timeStr}</td><td style="font-size:10px;color:var(--muted)">${e.phase}</td><td>${durStr}</td><td style="font-weight:700">${rtStr}</td><td style="color:${oc};font-weight:700">${e.outcome}</td><td>${e.counted===false?"No":"Yes"}</td><td>${e.probe}</td><td style="color:var(--accent)">${e.correctCell}</td><td style="color:${oc==="var(--muted)"?"var(--muted)":oc}">${e.response}</td>`;
   tbody.appendChild(tr);
  });
- const meta2=$("trialLogMeta"); if(meta2 && !meta2.textContent) meta2.textContent=`${log.length} trials — Session ${idx+1}: ${result?result.subjectId:"current"}`;
 }
 function downloadTrialLogCSV(){
  const sel=$("trialLogSessionSelect");
@@ -3228,7 +3179,7 @@ $("closeAdminBtn").onclick=()=>{
 $("closeAdminBtn2").onclick=()=>$("benchmarkOverlay").classList.add("hidden");
 $("saveAdminBtn").onclick=()=>{ readAdmin(); saveSettings(); renderAdmin(); setStatus("Settings saved"); };
 $("resetAdminBtn").onclick=()=>{ resetAdmin(); setStatus("Settings reset to defaults"); };
-$("exportAdminBtn").onclick=()=>{ const blob=new Blob([JSON.stringify(settings,null,2)],{type:"application/json"}),a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download="cogspeed_v21_settings.json"; a.click(); };
+$("exportAdminBtn").onclick=exportResults;
 const _ecb=$("exportCsvAdminBtn"); if(_ecb) _ecb.onclick=exportCSV;
 $("adminTrialLogBtn").onclick=()=>{ buildTrialLog(state.history.length-1); $("trialLogOverlay").classList.remove("hidden"); };
 $("adminHistoryBtn").onclick=()=>{ buildHistoryOverlay(); $("historyOverlay").classList.remove("hidden"); };
