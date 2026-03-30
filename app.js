@@ -2054,7 +2054,6 @@ MACHINE-PACED PERFORMANCE
 ${blockList}
  Avg last 2 blocks: ${avg2!=null?avg2.toFixed(1)+" ms":"—"}
  Block score diff: ${diffStr}
- CPI: ${cps!=null?cps.toFixed(1)+" / 100":"—"}
 ${hr}
 RESPONSE STATISTICS
  Total taps: ${result.totalResponses}
@@ -2436,8 +2435,8 @@ function buildTrialLog(sessionIndex){
  if(sel){
   sel.innerHTML="";
   // Most recent first
-  [...state.history].reverse().forEach((r,i)=>{
-   const idx=state.history.length-1-i;
+  const selectedMode = (sessionIndex!=null && state.history[sessionIndex]) ? (state.history[sessionIndex].testMode||"mode1") : ((state.history[state.history.length-1]||{}).testMode||"mode1");
+  [...state.history].map((r,i)=>({r,i})).filter(x=>(x.r.testMode||"mode1")===selectedMode).reverse().forEach(({r,i:idx})=>{
    const opt=document.createElement("option");
    opt.value=String(idx);
    opt.textContent=`Session ${idx+1} · ${formatModeTag(r.testMode)} · ${r.subjectId} · ${new Date(r.time).toLocaleString()}`;
@@ -2665,22 +2664,23 @@ function buildHistoryOverlay(sessionIndex){
  const hist = state.history||[];
  const selectedIdx = sessionIndex!=null ? sessionIndex : (buildHistoryOverlay._selectedIndex!=null ? buildHistoryOverlay._selectedIndex : (hist.length?hist.length-1:null));
  buildHistoryOverlay._selectedIndex = selectedIdx;
- // Draw chart
- drawCombinedChart($("histGraphChart"),state.history, selectedIdx);
- const meta=$("historyMeta");
  const selected = (selectedIdx!=null && hist[selectedIdx]) ? hist[selectedIdx] : null;
+ const selectedMode = selected ? (selected.testMode||"mode1") : "mode1";
+ const modeHist = hist.map((r,i)=>({r,i})).filter(x=>(x.r.testMode||"mode1")===selectedMode);
+ // Draw chart
+ drawCombinedChart($("histGraphChart"),modeHist.map(x=>x.r), selectedIdx!=null ? modeHist.findIndex(x=>x.i===selectedIdx) : null);
+ const meta=$("historyMeta");
  if(meta){
-  meta.textContent = selected ? `Session ${selectedIdx+1} · ${formatModeTag(selected.testMode)} · SP-FS ${selected.samnPerelli?selected.samnPerelli.score:"—"} · ${new Date(selected.time).toLocaleString()}` : "No session selected";
+  meta.textContent = selected ? `Session ${selectedIdx+1} · ${formatModeTag(selected.testMode)} · SP-FS ${selected.samnPerelli?selected.samnPerelli.score:"—"} · ${new Date(selected.time).toLocaleString()} · same-mode sessions only` : "No session selected";
  }
  // Build session table
  const tbody=$("historyTableBody"); if(!tbody) return;
  tbody.innerHTML="";
- if(!state.history.length){
+ if(!modeHist.length){
   tbody.innerHTML='<tr><td colspan="10" style="text-align:center;color:var(--muted);padding:12px">No history yet</td></tr>';
   return;
  }
- [...state.history].reverse().forEach((r,ri)=>{
-  const idx=state.history.length-1-ri;
+ [...modeHist].reverse().forEach(({r,i:idx},ri)=>{
   const tr=document.createElement("tr");
   const date=new Date(r.time).toLocaleString("en-US",{month:"short",day:"numeric",hour:"2-digit",minute:"2-digit"});
   const spf=r.samnPerelli?r.samnPerelli.score:"—";
@@ -3230,8 +3230,20 @@ const _tsel=$("trialLogSessionSelect");
 if(_tsel) _tsel.onchange=()=>buildTrialLog();
 const _tlp=$("trialLogPrevBtn"); if(_tlp) _tlp.onclick=()=>{ const s=$("trialLogSessionSelect"); if(!s) return; s.selectedIndex=Math.max(0,s.selectedIndex-1); if(s.onchange) s.onchange(); };
 const _tln=$("trialLogNextBtn"); if(_tln) _tln.onclick=()=>{ const s=$("trialLogSessionSelect"); if(!s) return; s.selectedIndex=Math.min(s.options.length-1,s.selectedIndex+1); if(s.onchange) s.onchange(); };
-const _hp=$("historyPrevBtn"); if(_hp) _hp.onclick=()=>{ const cur=(buildHistoryOverlay._selectedIndex!=null?buildHistoryOverlay._selectedIndex:(state.history.length-1)); buildHistoryOverlay(Math.max(0,cur-1)); };
-const _hn=$("historyNextBtn"); if(_hn) _hn.onclick=()=>{ const cur=(buildHistoryOverlay._selectedIndex!=null?buildHistoryOverlay._selectedIndex:(state.history.length-1)); buildHistoryOverlay(Math.min(state.history.length-1,cur+1)); };
+const _hp=$("historyPrevBtn"); if(_hp) _hp.onclick=()=>{
+ const cur=(buildHistoryOverlay._selectedIndex!=null?buildHistoryOverlay._selectedIndex:(state.history.length-1));
+ const mode=((state.history[cur]||{}).testMode||"mode1");
+ const same=state.history.map((r,i)=>({r,i})).filter(x=>(x.r.testMode||"mode1")===mode).map(x=>x.i);
+ const p=same.indexOf(cur);
+ if(p>0) buildHistoryOverlay(same[p-1]);
+};
+const _hn=$("historyNextBtn"); if(_hn) _hn.onclick=()=>{
+ const cur=(buildHistoryOverlay._selectedIndex!=null?buildHistoryOverlay._selectedIndex:(state.history.length-1));
+ const mode=((state.history[cur]||{}).testMode||"mode1");
+ const same=state.history.map((r,i)=>({r,i})).filter(x=>(x.r.testMode||"mode1")===mode).map(x=>x.i);
+ const p=same.indexOf(cur);
+ if(p>=0 && p<same.length-1) buildHistoryOverlay(same[p+1]);
+};
 const _rrp=$("rateRtPrevBtn"); if(_rrp) _rrp.onclick=()=>{ const s=$("rateRtSessionSelect"); if(!s) return; s.selectedIndex=Math.max(0,s.selectedIndex-1); if(s.onchange) s.onchange(); };
 const _rrn=$("rateRtNextBtn"); if(_rrn) _rrn.onclick=()=>{ const s=$("rateRtSessionSelect"); if(!s) return; s.selectedIndex=Math.min(s.options.length-1,s.selectedIndex+1); if(s.onchange) s.onchange(); };
 
