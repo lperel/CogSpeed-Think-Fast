@@ -1,9 +1,10 @@
 // ═══════════════════════════════════════════════════
-// CogSpeed V172
+// CogSpeed V173
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V172";
-const STORAGE_PREFIX = "cogspeed_v172";
+const APP_VERSION = "V173";
+const RELEASE = APP_VERSION.replace(/^V/i, "");
+const STORAGE_PREFIX = `cogspeed_v${RELEASE}`;
 
 // ─── Version guard ───
 (function(){
@@ -43,8 +44,7 @@ const DEFAULTS={
  mode3MaxDurationMs:120000,
  mode3BaselineFactor:1.3,
  consecutiveMissesForBlock:2,
- resumeSlowerByMs:400,
- blockRestartPercent:1.3,
+  blockRestartPercent:1.3,
  spRestartWrongLimit:3,
  spRestartCorrectStreak:2,
  maxBlockCount:6,
@@ -205,6 +205,14 @@ const stimGrid=$("stimGrid"), probeCell=$("probeCell"), probeInner=$("probeInner
    cpiOut=$("cpiOut"), statusLine=$("statusLine"), resultBox=$("resultBox"),
    phaseLabel=$("phaseLabel"), modeLabel=$("modeLabel");
 
+function syncReleaseUI(){
+ document.title = `CogSpeed ${APP_VERSION}`;
+ const badge = $("versionBadge");
+ if(badge) badge.textContent = APP_VERSION;
+ if(statusLine) statusLine.textContent = `CogSpeed ${APP_VERSION}`;
+}
+syncReleaseUI();
+
 // ─── Utilities ───
 function randInt(min,max){ return Math.floor(Math.random()*(max-min+1))+min; }
 // ─── MATH UTILITIES ───────────────────────────────────────────
@@ -222,15 +230,6 @@ function isMode2(){ return (settings.testMode||"mode1")==="mode2"; }
 function isMode3(){ return (settings.testMode||"mode1")==="mode3"; }
 function currentModeLabel(){ return isMode1() ? "CogSpeed Mode" : isMode2() ? "SPC Mode" : "SPCMP Mode"; }
 function getSessionMaxDurationMs(){ return isMode2() ? (Number(settings.mode2MaxDurationMs)||150000) : isMode3() ? (Number(settings.mode3MaxDurationMs)||150000) : (Number(settings.maxTestDurationMs)||150000); }
-
-function syncVersionUI(){
- const title = `CogSpeed ${APP_VERSION}`;
- document.title = title;
- const badge = document.getElementById("versionBadge");
- if(badge) badge.textContent = APP_VERSION;
- const status = document.getElementById("statusLine");
- if(status) status.textContent = title;
-}
 
 // ─── CPI ───
 // ─── CPI SCORE CALCULATION ────────────────────────────────────
@@ -259,7 +258,7 @@ function clearNoResponseTimer(){ if(state.absoluteNoResponseTimer) clearTimeout(
 function clearMaxTestTimer(){ if(state.maxTestTimer) clearTimeout(state.maxTestTimer); state.maxTestTimer=null; }
 // ─── NO-RESPONSE TIMERS ───────────────────────────────────────
 // armNoResponseTimer(): phase-aware timeouts by phase:
-//  calibration trial 1: 10s | cal trials 2+: 6s
+//  calibration trial 1: 20s | cal trials 2+: 10s
 //  machine-paced: 6s (frame ends anyway) | recovery: 10s
 //  Fires end condition if subject stops responding.
 // armMaxTestTimer(): 150s total session wall clock (cal + paced).
@@ -270,10 +269,10 @@ function armNoResponseTimer(){
  let ms;
  switch(state.phase){
   case "calibration":
-   // First trial 10s (orienting), subsequent 6s
+   // First trial 20s (orienting), subsequent 10s
    ms = (state.calibrationTrialIndex||0)===0
-    ? (Number(settings.calibrationFirstNoResponseMs)||10000)
-    : (Number(settings.calibrationNoResponseMs)||6000);
+    ? (Number(settings.calibrationFirstNoResponseMs)||20000)
+    : (Number(settings.calibrationNoResponseMs)||10000);
    break;
   case "paced":
    // Machine-paced: frame ends anyway, 6s safety net
@@ -428,7 +427,7 @@ function ensureGearImageStyles(){
  const st=document.createElement("style");
  st.id="gearImageStyles";
  st.textContent=`
-  #testScreen{background:#9b9b9b!important;}
+  #testScreen{background:#6e6e6e!important;}
   .gear-img-wrap{
    position:relative;
    width:100%;
@@ -439,26 +438,17 @@ function ensureGearImageStyles(){
    overflow:visible;
   }
   .gear-img-wrap img{
+   position:relative;
+   z-index:1;
    width:126%;
    height:126%;
    object-fit:contain;
    display:block;
    filter:contrast(1.14) saturate(0.95) brightness(1.02);
   }
-  .gear-pattern-backdrop{
-   position:absolute;
-   left:50%;
-   top:50%;
-   width:74%;
-   height:74%;
-   transform:translate(-50%,-50%);
-   border-radius:50%;
-   background:rgba(110,110,110,0.24);
-   box-shadow:0 0 14px rgba(0,0,0,0.16) inset;
-   pointer-events:none;
-  }
   .gear-mark{
    position:absolute;
+   z-index:2;
    transform:translate(-50%,-50%);
    background:#ffffff;
    border:3px solid #111;
@@ -530,10 +520,8 @@ function buildGearSVG(si,pattern,size,spinClass){
     }
    });
   }
-  const backdrop = pattern ? '<div class="gear-pattern-backdrop"></div>' : '';
   return `<div class="gear-img-wrap ${spinClass||""}">
    <img src="${GEAR_IMAGE_SRCS[si]}" alt="gear ${si}" draggable="false"/>
-   ${backdrop}
    ${marks.join("")}
   </div>`;
  }
@@ -878,10 +866,10 @@ const modeMetricMs = isMode2() ? (state.selfPacedRTs.length?mean(state.selfPaced
  drawModeResultChart($("summaryModeChart"), result);
  const fgBtn=$("summaryFullGraphBtn");
  if(fgBtn){
-  fgBtn.style.display = "";
+  fgBtn.style.display = (result.testMode==="mode2" || result.testMode==="mode3") ? "" : "none";
  }
  const fullCanvas=$("fullModeGraph");
- if(fullCanvas){
+ if(fullCanvas && (result.testMode==="mode2" || result.testMode==="mode3")){
   drawModeResultChart(fullCanvas, result);
  }
  state.lastResultText = $("summaryText") ? $("summaryText").textContent : "";
@@ -1116,6 +1104,7 @@ function handleTap(index){
   }
   state.hadResponse=true;
   state.totalResponses+=1; state.totalIncorrect+=1; state.pacedErrors+=1; state.fixedPacedWrong+=1;
+  if(checkMaxPacedWrong()) return;
   logTrial({phase:"paced_fixed_wrong",rt:performance.now()-state.trialOpenedAt,outcome:"wrong",responseIndex:index});
   flashBtn(index,false);
   if(state.fixedPacedPresented >= (Number(settings.mode3PacedTrialLimit)||140)){ state.endReason="Required responses reached"; finish(); return; }
@@ -1372,57 +1361,65 @@ function drawModeResultChart(canvas,result){
  const PAD=isFull ? {top:36,right:28,bottom:48,left:64} : {top:18,right:20,bottom:28,left:48};
  const cW=W-PAD.left-PAD.right,cH=H-PAD.top-PAD.bottom;
 
- const mode = result.testMode || "mode1";
- const responsePhasesByMode = {
-  mode1: new Set(["paced","paced_wrong","paced_late_correct","paced_late_wrong"]),
-  mode2: new Set(["calibration"]),
-  mode3: new Set(["calibration","paced_fixed","paced_fixed_wrong"])
- };
- const missPhasesByMode = {
-  mode1: new Set(["missed"]),
-  mode2: new Set([]),
-  mode3: new Set(["paced_fixed_missed"])
- };
- const pacePhasesByMode = {
-  mode1: new Set(["paced","paced_wrong","paced_late_correct","paced_late_wrong","missed"]),
-  mode2: new Set([]),
-  mode3: new Set(["paced_fixed","paced_fixed_wrong","paced_fixed_missed"])
- };
+ const mode1Trials = result.testMode==="mode1"
+  ? log.filter(e=>[
+     "paced","paced_wrong","paced_late_correct","paced_late_wrong","missed"
+    ].includes(e.phase) && e.durationMs!=null)
+  : [];
+ const mode1Responses = result.testMode==="mode1"
+  ? mode1Trials.filter(e=>e.rt!=null)
+  : [];
+ const mode1Misses = result.testMode==="mode1"
+  ? mode1Trials.filter(e=>e.phase==="missed")
+  : [];
 
- const pts = log.filter(e=>e.rt!=null && responsePhasesByMode[mode] && responsePhasesByMode[mode].has(e.phase));
- const misses = log.filter(e=>e.durationMs!=null && missPhasesByMode[mode] && missPhasesByMode[mode].has(e.phase));
- const presented = log.filter(e=>e.durationMs!=null && pacePhasesByMode[mode] && pacePhasesByMode[mode].has(e.phase));
+ const pts = result.testMode==="mode1"
+  ? mode1Responses
+  : log.filter(e=>e.rt!=null && (
+     result.testMode==="mode2" ? e.phase==="calibration"
+     : result.testMode==="mode3" ? (e.phase==="calibration" || e.phase==="paced_fixed" || e.phase==="paced_fixed_wrong")
+     : false
+    ));
 
- if(!pts.length && !misses.length && !presented.length){
+ const presentedSeries = result.testMode==="mode1"
+  ? mode1Trials
+  : result.testMode==="mode3"
+    ? log.filter(e=>e.durationMs!=null && (e.phase==="paced_fixed" || e.phase==="paced_fixed_wrong" || e.phase==="paced_fixed_missed"))
+    : [];
+
+ if(!pts.length && !presentedSeries.length){
   ctx.fillStyle="#d7e7f8"; ctx.font=(isFull?"bold 20px":"bold 13px")+" sans-serif"; ctx.textAlign="center";
   ctx.fillText("No response-time graph for this session/mode",W/2,H/2); return;
  }
 
  const combinedVals = [
   ...pts.map(p=>p.rt),
-  ...misses.map(p=>p.durationMs),
-  ...presented.map(p=>p.durationMs)
+  ...presentedSeries.map(p=>p.durationMs),
+  ...mode1Misses.map(p=>p.durationMs)
  ].filter(v=>v!=null && isFinite(v));
  const maxRT=Math.ceil(Math.max(...combinedVals,1000)/250)*250;
  const minRT=Math.max(0,Math.floor(Math.min(...combinedVals)/250)*250);
 
- function xO(i, n){ return PAD.left + (i/Math.max(1,n-1))*cW; }
+ const xCount = result.testMode==="mode1"
+  ? Math.max(1, mode1Trials.length)
+  : Math.max(1, Math.max(pts.length, presentedSeries.length));
+ function xO(i, n=xCount){ return PAD.left + (i/Math.max(1,n-1))*cW; }
  function yO(v){ return PAD.top + ((v-minRT)/Math.max(1,(maxRT-minRT)))*cH; }
 
  if(isFull){
   ctx.fillStyle="#d7e7f8";
   ctx.font="bold 22px sans-serif";
   ctx.textAlign="center";
-  const titles = {
-   mode1: "Mode 1 — Adaptive Machine-Paced Response Times",
-   mode2: "Mode 2 — Self-Paced Calibration Response Times",
-   mode3: "Mode 3 — Self-Paced + Machine-Paced Response Times"
-  };
-  ctx.fillText(titles[mode] || "Response Times", W/2, 24);
+  const title = result.testMode==="mode1"
+   ? "Mode 1 — Adaptive Machine-Paced Response Times"
+   : result.testMode==="mode2"
+     ? "Mode 2 — Self-Paced Calibration Response Times"
+     : "Mode 3 — Self-Paced + Machine-Paced Response Times";
+  ctx.fillText(title, W/2, 24);
   ctx.font="12px sans-serif";
   ctx.fillStyle="#b7d9ef";
   const spfs = result.samnPerelli ? `SP-FS: ${result.samnPerelli.score}` : "SP-FS: —";
-  const modeTxt = formatModeTag(mode);
+  const modeTxt = result.testMode ? `${formatModeTag(result.testMode)}` : "";
   const sessionTxt = result.sessionNumber!=null ? `Session ${result.sessionNumber}` : "Latest Session";
   ctx.fillText(`${sessionTxt} · ${modeTxt} · ${spfs}`, W/2, 42);
  }
@@ -1442,12 +1439,13 @@ function drawModeResultChart(canvas,result){
  ctx.lineTo(PAD.left+cW, PAD.top+cH);
  ctx.stroke();
 
- if(presented.length){
+ if(presentedSeries.length){
   ctx.strokeStyle="rgba(255,170,68,0.95)";
   ctx.lineWidth=isFull?3:2;
   ctx.beginPath();
-  presented.forEach((e,i)=>{
-   const x=xO(i, presented.length), y=yO(e.durationMs);
+  presentedSeries.forEach((e,i)=>{
+   const x = result.testMode==="mode1" ? xO(mode1Trials.indexOf(e)) : xO(i, presentedSeries.length);
+   const y = yO(e.durationMs);
    if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
   });
   ctx.stroke();
@@ -1458,7 +1456,8 @@ function drawModeResultChart(canvas,result){
   ctx.lineWidth=isFull?2.5:1.5;
   ctx.beginPath();
   pts.forEach((e,i)=>{
-   const x=xO(i, pts.length), y=yO(e.rt);
+   const x = result.testMode==="mode1" ? xO(mode1Trials.indexOf(e)) : xO(i, pts.length);
+   const y = yO(e.rt);
    if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
   });
   ctx.stroke();
@@ -1466,66 +1465,71 @@ function drawModeResultChart(canvas,result){
 
  pts.forEach((e,i)=>{
   const ok=e.outcome==="correct";
+  const x = result.testMode==="mode1" ? xO(mode1Trials.indexOf(e)) : xO(i, pts.length);
+  const y = yO(e.rt);
   ctx.fillStyle=ok ? "#00ff88" : "#ff4466";
-  ctx.beginPath(); ctx.arc(xO(i, pts.length),yO(e.rt), isFull?5:3.5,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(x,y, isFull?5:3.5,0,Math.PI*2); ctx.fill();
  });
 
- misses.forEach((e,i)=>{
-  const x=xO(i, misses.length), y=yO(e.durationMs);
-  const r=isFull?6:4.5;
-  ctx.strokeStyle="#ffd84d";
-  ctx.lineWidth=isFull?2.5:2;
-  ctx.beginPath();
-  ctx.moveTo(x-r,y-r); ctx.lineTo(x+r,y+r);
-  ctx.moveTo(x+r,y-r); ctx.lineTo(x-r,y+r);
-  ctx.stroke();
- });
+ if(result.testMode==="mode1"){
+  mode1Misses.forEach((e)=>{
+   const x=xO(mode1Trials.indexOf(e)), y=yO(e.durationMs);
+   const s=isFull?6:4;
+   ctx.strokeStyle="#ffd166";
+   ctx.lineWidth=isFull?2.5:2;
+   ctx.beginPath(); ctx.moveTo(x-s,y-s); ctx.lineTo(x+s,y+s); ctx.stroke();
+   ctx.beginPath(); ctx.moveTo(x+s,y-s); ctx.lineTo(x-s,y+s); ctx.stroke();
+  });
+ }
 
- const ly = isFull ? PAD.top + 10 : PAD.top + 6;
- const lx = PAD.left + 10;
- ctx.font=(isFull?"12px":"10px")+" sans-serif";
- ctx.textAlign="left";
+ const showLegend = result.testMode==="mode1" || result.testMode==="mode3";
+ if(showLegend){
+  const ly = isFull ? PAD.top + 10 : PAD.top + 6;
+  const lx = PAD.left + 10;
+  ctx.font=(isFull?"12px":"10px")+" sans-serif";
+  ctx.textAlign="left";
 
- if(presented.length){
   ctx.strokeStyle="rgba(255,170,68,0.95)";
   ctx.lineWidth=isFull?3:2;
   ctx.beginPath(); ctx.moveTo(lx,ly); ctx.lineTo(lx+22,ly); ctx.stroke();
   ctx.fillStyle="#ffd7a0";
-  ctx.fillText("Presented pace", lx+28, ly+4);
- }
+  ctx.fillText(result.testMode==="mode1" ? "Presented machine-paced duration" : "Presentation rate", lx+28, ly+4);
 
- const ly2 = ly + (isFull?20:16);
- ctx.fillStyle="#00ff88";
- ctx.beginPath(); ctx.arc(lx+11,ly2, isFull?5:3.5,0,Math.PI*2); ctx.fill();
- ctx.fillStyle="#d7f3ff";
- ctx.fillText("Correct RT", lx+28, ly2+4);
+  const ly2 = ly + (isFull?20:16);
+  ctx.fillStyle="#00ff88";
+  ctx.beginPath(); ctx.arc(lx+11, ly2, isFull?4:3, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle="#d7f3ff";
+  ctx.fillText("Correct RT", lx+28, ly2+4);
 
- const ly3 = ly2 + (isFull?20:16);
- ctx.fillStyle="#ff4466";
- ctx.beginPath(); ctx.arc(lx+11,ly3, isFull?5:3.5,0,Math.PI*2); ctx.fill();
- ctx.fillStyle="#ffd0d8";
- ctx.fillText("Wrong RT", lx+28, ly3+4);
+  const ly3 = ly2 + (isFull?20:16);
+  ctx.fillStyle="#ff4466";
+  ctx.beginPath(); ctx.arc(lx+11, ly3, isFull?4:3, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle="#ffd5dc";
+  ctx.fillText("Wrong RT", lx+28, ly3+4);
 
- if(misses.length){
-  const ly4 = ly3 + (isFull?20:16);
-  const r=isFull?6:4.5;
-  ctx.strokeStyle="#ffd84d";
-  ctx.lineWidth=isFull?2.5:2;
-  ctx.beginPath();
-  ctx.moveTo(lx+11-r,ly4-r); ctx.lineTo(lx+11+r,ly4+r);
-  ctx.moveTo(lx+11+r,ly4-r); ctx.lineTo(lx+11-r,ly4+r);
-  ctx.stroke();
-  ctx.fillStyle="#fff2a8";
-  ctx.fillText("Miss", lx+28, ly4+4);
+  if(result.testMode==="mode1"){
+   const ly4 = ly3 + (isFull?20:16);
+   const s=isFull?4:3;
+   ctx.strokeStyle="#ffd166";
+   ctx.lineWidth=isFull?2.5:2;
+   ctx.beginPath(); ctx.moveTo(lx+11-s,ly4-s); ctx.lineTo(lx+11+s,ly4+s); ctx.stroke();
+   ctx.beginPath(); ctx.moveTo(lx+11+s,ly4-s); ctx.lineTo(lx+11-s,ly4+s); ctx.stroke();
+   ctx.fillStyle="#ffe3a3";
+   ctx.fillText("Miss", lx+28, ly4+4);
+  }
  }
 
  ctx.fillStyle="#7fa0c0"; ctx.font=(isFull?"13px":"10px")+" sans-serif"; ctx.textAlign="center";
- const xLabel = mode==="mode2" ? "Self-Paced trial →" : mode==="mode3" ? "Self-Paced + Machine-Paced trial →" : "Adaptive paced trial →";
+ const xLabel = result.testMode==="mode1"
+  ? "Machine-paced trial →"
+  : result.testMode==="mode2"
+    ? "Self-Paced trial →"
+    : "Self-Paced + Machine-Paced trial →";
  ctx.fillText(xLabel, PAD.left+cW/2, H-10);
  if(!isFull){
-  const modeTxt=formatModeTag(mode);
+  const modeTxt=formatModeTag(result.testMode);
   const spfsTxt=result.samnPerelli?`SP-FS ${result.samnPerelli.score}`:"SP-FS —";
-  const sessionTxt=result.sessionNumber!=null?`Session ${result.sessionNumber}`:"Latest Session";
+  const sessionTxt=result.sessionNumber!=null?`S${result.sessionNumber}`:"Latest";
   ctx.textAlign="left"; ctx.font="10px sans-serif"; ctx.fillStyle="#b7d9ef";
   ctx.fillText(`${sessionTxt} · ${modeTxt} · ${spfsTxt}`, PAD.left, PAD.top+12);
  }
