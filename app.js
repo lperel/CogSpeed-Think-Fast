@@ -2305,7 +2305,7 @@ function showResultsPage(){
    stopFX(); if(thinking) thinking.classList.add("hidden");
    const outcome=$("outcomeOverlay"),outcomeText=$("outcomeText");
    if(outcome&&outcomeText){
-    outcomeText.textContent=(last.endReason || "Run complete");
+    outcomeText.textContent=((last.testMode||"mode1")==="mode1" ? (success?"Success!":"Failed Test") : (last.endReason || "Run complete"));
     outcomeText.className="outcome-text "+(success?"success":"failed");
     outcome.classList.remove("hidden");
     // Draw speedometer
@@ -2502,6 +2502,11 @@ function downloadTrialLogCSV(){
 // - sessions can have different lengths
 // - selected session is highlighted
 // - smaller ms = better performance and graphs higher
+// Presentation Rate vs Response Time (same-mode overlaid sessions)
+// - only sessions from the SAME mode as the selected session are overlaid
+// - all overlaid sessions share the same x-axis starting at trial 1
+// - smaller ms = better performance and graphs higher
+// - wrong responses are marked with red dots on the RT series
 function drawRateRtChart(canvas, sessions, selectedSessionIndex){
  if(!canvas) return;
  const ctx = canvas.getContext("2d"), W=canvas.width, H=canvas.height;
@@ -2510,9 +2515,13 @@ function drawRateRtChart(canvas, sessions, selectedSessionIndex){
 
  const PAD={top:30,right:56,bottom:48,left:52}, cW=W-PAD.left-PAD.right, cH=H-PAD.top-PAD.bottom;
  const hist = Array.isArray(sessions) ? sessions : [];
- const prepared = hist.map((session, orderIdx)=>{
+ const selected = hist.find(s=>s._actualIndex===selectedSessionIndex) || null;
+ const selectedMode = selected ? (selected.testMode||"mode1") : null;
+ const filtered = selectedMode ? hist.filter(s=>(s.testMode||"mode1")===selectedMode) : hist;
+
+ const prepared = filtered.map((session, orderIdx)=>{
   const log = (Array.isArray(session.rtLog) ? session.rtLog : [])
-   .map((e,i)=>({trial:i+1, rt:e.rt, dur:e.durationMs}))
+   .map((e,i)=>({trial:i+1, rt:e.rt, dur:e.durationMs, outcome:e.outcome}))
    .filter(e=>e.dur!=null || e.rt!=null);
   return {...session, _orderIdx:orderIdx, _preparedLog:log};
  }).filter(s=>s._preparedLog.length);
@@ -2520,14 +2529,14 @@ function drawRateRtChart(canvas, sessions, selectedSessionIndex){
  const allPts = prepared.flatMap(s=>s._preparedLog);
  if(!allPts.length){
   ctx.fillStyle="#d7e7f8"; ctx.font="bold 13px sans-serif"; ctx.textAlign="center";
-  ctx.fillText("No trial data yet", W/2, H/2); return;
+  const modeTxt = selectedMode ? formatModeTag(selectedMode) : "this session mode";
+  ctx.fillText(`No response-time graph for ${modeTxt}`, W/2, H/2); return;
  }
 
  const maxY = Math.max(1000, ...allPts.map(p=>Math.max(p.dur||0,p.rt||0)));
  const yTop = Math.ceil(maxY/250)*250;
  const maxTrial = Math.max(1, ...allPts.map(p=>p.trial));
  function xOf(trial){ return PAD.left + ((trial-1)/Math.max(1,maxTrial-1))*cW; }
- // Smaller ms = better performance = higher on graph
  function yOf(v){ return PAD.top + (((v||0)/yTop)*cH); }
 
  ctx.strokeStyle="rgba(79,111,153,0.25)"; ctx.lineWidth=1;
@@ -2538,7 +2547,6 @@ function drawRateRtChart(canvas, sessions, selectedSessionIndex){
   ctx.fillText(String(v), PAD.left-4, y+4);
  }
 
- // x-axis labels
  ctx.fillStyle="#9fb7d6"; ctx.font="10px sans-serif"; ctx.textAlign="center";
  const every = Math.max(1, Math.ceil(maxTrial/10));
  for(let t=1; t<=maxTrial; t++){
@@ -2548,10 +2556,10 @@ function drawRateRtChart(canvas, sessions, selectedSessionIndex){
 
  ctx.fillStyle="#b7d9ef"; ctx.textAlign="left"; ctx.font="10px sans-serif";
  ctx.fillText("Better performance ↑ (smaller ms)", PAD.left, PAD.top-10);
- ctx.fillText("All sessions start at trial 1", PAD.left+180, PAD.top-10);
+ const modeLabel = selectedMode ? formatModeTag(selectedMode) : "All Modes";
+ ctx.fillText(`${modeLabel} only · all sessions start at trial 1`, PAD.left+180, PAD.top-10);
 
- // base drawing style for non-selected sessions
- prepared.forEach((session, orderIdx)=>{
+ prepared.forEach((session)=>{
   const actualSessionIndex = session._actualIndex;
   const isSelected = actualSessionIndex===selectedSessionIndex;
   const alpha = isSelected ? 0.95 : 0.22;
@@ -2578,7 +2586,20 @@ function drawRateRtChart(canvas, sessions, selectedSessionIndex){
   });
   ctx.stroke();
 
-  // endpoint session label
+  // dots for response times: red for wrong, blue otherwise
+  session._preparedLog.forEach((p)=>{
+   if(p.rt==null) return;
+   const x=xOf(p.trial), y=yOf(p.rt);
+   const wrong = p.outcome==="wrong";
+   if(wrong){
+    ctx.fillStyle=isSelected ? "#ff4466" : "rgba(255,68,102,0.45)";
+   }else{
+    ctx.fillStyle=isSelected ? "#7fd7ff" : "rgba(127,215,255,0.35)";
+   }
+   ctx.beginPath(); ctx.arc(x,y,isSelected?2.8:2.0,0,Math.PI*2); ctx.fill();
+  });
+
+  // session label near endpoint
   const last = session._preparedLog[session._preparedLog.length-1];
   if(last){
    const lx=xOf(last.trial);
@@ -2595,9 +2616,8 @@ function drawRateRtChart(canvas, sessions, selectedSessionIndex){
  ctx.font="bold 10px sans-serif";
  ctx.fillStyle="#ff9f40"; ctx.fillText("■ Presentation rate", PAD.left, PAD.top+12);
  ctx.fillStyle="#7fd7ff"; ctx.fillText("■ Response time", PAD.left+120, PAD.top+12);
+ ctx.fillStyle="#ff4466"; ctx.fillText("● Wrong response", PAD.left+230, PAD.top+12);
 
- // selected session info
- const selected = prepared.find(s=>s._actualIndex===selectedSessionIndex);
  if(selected){
   ctx.fillStyle="#ffffff";
   ctx.font="bold 10px sans-serif";
@@ -2629,7 +2649,7 @@ function buildRateRtOverlay(sessionIndex){
  const result=state.history[idx];
  const meta=$("rateRtMeta");
  if(meta){
-  meta.textContent = result ? `Selected: Session ${idx+1} · ${formatModeTag(result.testMode)} · SP-FS ${result.samnPerelli?result.samnPerelli.score:"—"} · ${result.subjectId} · ${new Date(result.time).toLocaleString()} · all sessions overlaid from trial 1` : "No session selected";
+  meta.textContent = result ? `Selected: Session ${idx+1} · ${formatModeTag(result.testMode)} · SP-FS ${result.samnPerelli?result.samnPerelli.score:"—"} · ${result.subjectId} · ${new Date(result.time).toLocaleString()} · same-mode sessions overlaid from trial 1` : "No session selected";
  }
  drawRateRtChart($("rateRtChart"), reversedSessions, idx);
 }

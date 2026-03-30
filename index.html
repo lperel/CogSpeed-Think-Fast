@@ -624,8 +624,8 @@
 <!-- ═══ RATE vs RT OVERLAY ═══ -->
 <div id="rateRtOverlay" class="overlay hidden">
   <div class="modal" style="max-width:min(98vw,900px)">
-    <h2>Presentation Rate vs Response Time — Overlaid Sessions</h2>
-    <p class="modal-hint" id="rateRtMeta">All saved sessions overlaid on the same trial axis. Each session starts at trial 1. Use Prev/Next to highlight one session.</p>
+    <h2>Presentation Rate vs Response Time — Same-Mode Sessions</h2>
+    <p class="modal-hint" id="rateRtMeta">Sessions are overlaid only within the selected test mode. Each session starts at trial 1. Use Prev/Next to highlight one session.</p>
     <div style="margin-bottom:8px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
       <select id="rateRtSessionSelect" style="flex:1;padding:8px;border:1px solid var(--edge);border-radius:10px;background:#0a1629;color:var(--text);font-size:13px"></select>
     </div>
@@ -680,7 +680,7 @@
   <div class="resp-grid" id="respGrid"></div>
 </div>
 
-<script src="app.js?v=147"></script>
+<script src="app.js?v=148"></script>
 
 <script>
 (function(){
