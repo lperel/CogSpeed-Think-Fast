@@ -1548,16 +1548,32 @@ function formatRankSection(rankSet){
  return `Correct responses:\nDots:\n${formatRankRows(rankSet.correct.dotRows)}\nLines:\n${formatRankRows(rankSet.correct.lineRows)}\nPositions:\n${formatRankRows(rankSet.correct.posRows)}\n\nWrong responses:\nDots:\n${formatRankRows(rankSet.wrong.dotRows)}\nLines:\n${formatRankRows(rankSet.wrong.lineRows)}\nPositions:\n${formatRankRows(rankSet.wrong.posRows)}`;
 }
 
+function getModePooledSessionRecords(mode){
+ const warmupCount = Math.max(0, Number(settings.initialUnusedCalibrationTrials)||0);
+ const sessions = (state.history||[]).filter(s => (s.testMode||"mode1") === (mode||"mode1"));
+ const pooledLogs = sessions.flatMap(s => {
+   const log = Array.isArray(s.rtLog) ? s.rtLog : [];
+   let skippedWarmups = 0;
+   return log.filter(r => {
+    if(r && r.counted===false) return false;
+    if(r && r.phase==="calibration" && skippedWarmups < warmupCount){
+      skippedWarmups += 1;
+      return false;
+    }
+    return true;
+   });
+ });
+ return {sessions, pooledLogs};
+}
+function getModePooledLogsExcludingWarmup(mode){
+ return getModePooledSessionRecords(mode).pooledLogs;
+}
 function computeRankAveragesForMode(mode){
- const pooledLogs = (state.history||[])
-  .filter(s => (s.testMode||"mode1") === (mode||"mode1"))
-  .flatMap(s => Array.isArray(s.rtLog) ? s.rtLog : []);
+ const pooledLogs = getModePooledLogsExcludingWarmup(mode);
  return computeRankAverages(pooledLogs);
 }
 function computeCombinationRankAveragesForMode(mode){
- const pooledLogs = (state.history||[])
-  .filter(s => (s.testMode||"mode1") === (mode||"mode1"))
-  .flatMap(s => Array.isArray(s.rtLog) ? s.rtLog : []);
+ const pooledLogs = getModePooledLogsExcludingWarmup(mode);
 
  function normalizeRow(r){
   if(!r || r.rt==null || r.counted===false) return null;
@@ -1589,8 +1605,8 @@ function computeCombinationRankAveragesForMode(mode){
  }
 
  const valid = pooledLogs.map(normalizeRow).filter(Boolean);
- function buildRows(outcome){
-  const sub = valid.filter(r=>r.outcome===outcome);
+ function buildRows(kind){
+  const sub = kind==="all" ? valid : valid.filter(r=>r.outcome===kind);
   const buckets = new Map();
   sub.forEach(r=>{
    const key = `${r.probeCount} ${r.probeFamily}, Position ${r.correctPos}`;
@@ -1605,12 +1621,17 @@ function computeCombinationRankAveragesForMode(mode){
   rows.sort((a,b)=>a.avg-b.avg);
   return rows;
  }
- return {correct: buildRows("correct"), wrong: buildRows("wrong")};
+ return {correct: buildRows("correct"), wrong: buildRows("wrong"), all: buildRows("all")};
+}
+function formatRankRows(rows){
+ return rows.length ? rows.map(r=>` ${r.label}: ${r.avg.toFixed(1)} ms (n=${r.count})`).join("\n") : " none";
 }
 function formatModePooledRankSection(mode){
  const rs = computeRankAveragesForMode(mode);
  const cs = computeCombinationRankAveragesForMode(mode);
- return `Combined sessions for ${formatModeTag(mode)}\nCorrect responses:\nDots:\n${formatRankRows(rs.correct.dotRows)}\nLines:\n${formatRankRows(rs.correct.lineRows)}\nPositions:\n${formatRankRows(rs.correct.posRows)}\nCombinations:\n${formatRankRows(cs.correct)}\n\nWrong responses:\nDots:\n${formatRankRows(rs.wrong.dotRows)}\nLines:\n${formatRankRows(rs.wrong.lineRows)}\nPositions:\n${formatRankRows(rs.wrong.posRows)}\nCombinations:\n${formatRankRows(cs.wrong)}`;
+ const {sessions, pooledLogs} = getModePooledSessionRecords(mode);
+ const header = `Combined sessions for ${formatModeTag(mode)}\nSessions pooled: ${sessions.length}\nTotal counted pooled trials: ${pooledLogs.length}`;
+ return `${header}\n\nCorrect responses:\nDots:\n${formatRankRows(rs.correct.dotRows)}\nLines:\n${formatRankRows(rs.correct.lineRows)}\nPositions:\n${formatRankRows(rs.correct.posRows)}\nCombinations (correct):\n${formatRankRows(cs.correct)}\n\nWrong responses:\nDots:\n${formatRankRows(rs.wrong.dotRows)}\nLines:\n${formatRankRows(rs.wrong.lineRows)}\nPositions:\n${formatRankRows(rs.wrong.posRows)}\nCombinations (wrong):\n${formatRankRows(cs.wrong)}\n\nAll responses combined:\nCombinations (all):\n${formatRankRows(cs.all)}`;
 }
 // ─── Export / Email ───
 // ─── EXPORT / EMAIL ───────────────────────────────────────────
@@ -1914,8 +1935,10 @@ function isTestSuccess(r){ return (r||"").toLowerCase().startsWith("convergent")
 // Pooled mode-specific ranking summaries:
 // Results page rankings now combine all saved sessions from the SAME test mode only.
 // Mode 1 pools with Mode 1, Mode 2 with Mode 2, Mode 3 with Mode 3.
+// Warm-up calibration trials are excluded from pooled rankings.
 // Pooled rankings include single-factor rankings and full pooled combinations
 // of dots/lines count with correct response position.
+// Combination lists are provided for correct, wrong, and all responses combined.
 function buildSummary(result){
  const el=$("summaryText"); if(!el) return;
  const hr="─────────────────────────";
