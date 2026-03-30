@@ -1,17 +1,13 @@
 // ═══════════════════════════════════════════════════
-// CogSpeed V159
+// CogSpeed V164
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V161";
-
-// Single internal storage/cache namespace for this build family.
-// Bump STORAGE_VERSION whenever you intentionally invalidate old local data.
-const STORAGE_VERSION = "cogspeed_v159";
+const APP_VERSION = "V164";
+const STORAGE_VERSION = "cogspeed_v163";
 
 // ─── Version guard ───
 (function(){
- const VER = STORAGE_VERSION + "_profileguard";
- const key = "cogspeed_version";
+ const VER = STORAGE_VERSION + "_profileguard", key = "cogspeed_version";
  const preserve = new Set([STORAGE_VERSION + "_profile", key]);
  if(localStorage.getItem(key)!==VER){
   Object.keys(localStorage).forEach(k=>{
@@ -200,9 +196,6 @@ const state={
  trialOpenedAt:null, geo:null, benchmark:null, lastResultText:null
 };
 
-let currentSummaryResult = null;
-let currentSummaryIndex = null;
-
 // ─── DOM ───
 const $=id=>document.getElementById(id);
 const stimGrid=$("stimGrid"), probeCell=$("probeCell"), probeInner=$("probeInner"),
@@ -210,6 +203,13 @@ const stimGrid=$("stimGrid"), probeCell=$("probeCell"), probeInner=$("probeInner
    recoveryOut=$("recoveryOut"), wrongOut=$("wrongOut"), fatigueOut=$("fatigueOut"),
    cpiOut=$("cpiOut"), statusLine=$("statusLine"), resultBox=$("resultBox"),
    phaseLabel=$("phaseLabel"), modeLabel=$("modeLabel");
+
+function syncVersionUI(){
+ const badge=$("versionBadge"); if(badge) badge.textContent=APP_VERSION;
+ document.title=`CogSpeed ${APP_VERSION}`;
+ const st=$("statusLine"); if(st && /^CogSpeed /i.test(st.textContent||"")) st.textContent=`CogSpeed ${APP_VERSION}`;
+}
+syncVersionUI();
 
 // ─── Utilities ───
 function randInt(min,max){ return Math.floor(Math.random()*(max-min+1))+min; }
@@ -229,22 +229,11 @@ function isMode3(){ return (settings.testMode||"mode1")==="mode3"; }
 function currentModeLabel(){ return isMode1() ? "CogSpeed Mode" : isMode2() ? "SPC Mode" : "SPCMP Mode"; }
 function getSessionMaxDurationMs(){ return isMode2() ? (Number(settings.mode2MaxDurationMs)||150000) : isMode3() ? (Number(settings.mode3MaxDurationMs)||150000) : (Number(settings.maxTestDurationMs)||150000); }
 
-window.addEventListener("DOMContentLoaded", ()=>{
- document.title = `CogSpeed ${APP_VERSION}`;
- const badge = document.getElementById("versionBadge");
- if(badge) badge.textContent = APP_VERSION;
- const status = document.getElementById("statusLine");
- if(status) status.textContent = `CogSpeed ${APP_VERSION}`;
-});
-
 // ─── CPI ───
 // ─── CPI SCORE CALCULATION ────────────────────────────────────
 // Converts avg last 2 block durations (ms) to 0-100 CPI score.
-// Live defaults:
-//   cpiBestMs = 800 ms  -> CPI 100
-//   cpiWorstMs = 3000 ms -> CPI 0
-// Uses the current settings values, not hard-coded anchors.
-// Source: Perelli (2026). Formula: (worst-ms)/(worst-best)*100
+// Live defaults: cpiBestMs=800ms → CPI 100, cpiWorstMs=3000ms → CPI 0.
+// Formula uses the current settings values: (worst-avgMs)/(worst-best)*100
 // ──────────────────────────────────────────────────────────────
 function computeCPI(avgMs){
  const best=Number(settings.cpiBestMs),worst=Number(settings.cpiWorstMs),span=worst-best;
@@ -267,30 +256,21 @@ function clearNoResponseTimer(){ if(state.absoluteNoResponseTimer) clearTimeout(
 function clearMaxTestTimer(){ if(state.maxTestTimer) clearTimeout(state.maxTestTimer); state.maxTestTimer=null; }
 // ─── NO-RESPONSE TIMERS ───────────────────────────────────────
 // armNoResponseTimer(): phase-aware timeouts by phase:
-//  calibration trial 1: 10s | cal trials 2+: 6s
-//  machine-paced: 6s (frame ends anyway) | recovery: 10s
+//  calibration trial 1: 20s | cal trials 2+: 10s
+//  machine-paced: 15s safety net | recovery: 10s
 //  Fires end condition if subject stops responding.
 // armMaxTestTimer(): 150s total session wall clock (cal + paced).
 // noteAnyResponse(): called on every tap to reset the 10/20s timer.
 // ──────────────────────────────────────────────────────────────
-function armNoResponseTimer(msOverride){
+function armNoResponseTimer(){
  clearNoResponseTimer();
- if(msOverride != null){
-  state.absoluteNoResponseTimer=setTimeout(()=>{
-   state.endReason = state.phase==="calibration"
-    ? "NO RESPONSE — Retest"
-    : "NOT RESPONDING IN TIME — Retest";
-   finish();
-  }, msOverride);
-  return;
- }
  let ms;
  switch(state.phase){
   case "calibration":
-   // First trial 10s (orienting), subsequent 6s
+   // First trial 20s (orienting), subsequent 10s
    ms = (state.calibrationTrialIndex||0)===0
     ? (Number(settings.calibrationFirstNoResponseMs)||20000)
-    : (Number(settings.calibrationNoResponseMs)||6000);
+    : (Number(settings.calibrationNoResponseMs)||10000);
    break;
   case "paced":
    // Machine-paced: frame ends anyway, 6s safety net
@@ -445,7 +425,7 @@ function ensureGearImageStyles(){
  const st=document.createElement("style");
  st.id="gearImageStyles";
  st.textContent=`
-  #testScreen{background:#9b9b9b!important;}
+  #testScreen{background:#6e6e6e!important;}
   .gear-img-wrap{
    position:relative;
    width:100%;
@@ -470,7 +450,7 @@ function ensureGearImageStyles(){
    height:74%;
    transform:translate(-50%,-50%);
    border-radius:50%;
-   background:rgba(128,128,128,0.55);
+   background:rgba(110,110,110,0.78);
    box-shadow:0 0 14px rgba(0,0,0,0.16) inset;
    pointer-events:none;
   }
@@ -478,7 +458,7 @@ function ensureGearImageStyles(){
    position:absolute;
    transform:translate(-50%,-50%);
    background:#ffffff;
-   border:3px solid #000000;
+   border:3px solid #111;
    box-shadow:0 0 4px rgba(0,0,0,0.6);
    opacity:0.98;
    pointer-events:none;
@@ -736,32 +716,20 @@ function maybeTriggerTerminalRule(){
 }
 function failCalibration(reason){ state.endReason=reason; finish(); }
 // ─── CALIBRATION — SELF-PACED ─────────────────────────────────
-// Default flow in Mode 1:
-//   - 1 unused warm-up self-paced trial
-//   - 10 measured self-paced trials
-//
-// Calibration checks in Mode 1 only:
-//   - wrong answers are counted against calibrationStopErrors
-//   - any single correct RT > calibrationStopSlowMs triggers
-//       "NOT RESPONDING IN TIME — Practice!"
-//   - average measured calibration RT > calibrationStopSlowMs triggers
-//       "NEED MORE PRACTICE!"
-//
-// Machine-paced start in Mode 1:
-//   - start duration = measured calibration average × initialPacedPercent
-//   - default initialPacedPercent = 1.3
-//   - this is INTENTIONALLY slower than the calibration average
-//   - final start duration is clamped to [minDurationMs, maxDurationMs]
-//
-// No-response timeouts in calibration:
-//   - first calibration trial uses calibrationFirstNoResponseMs
-//   - subsequent calibration trials use calibrationNoResponseMs
-//
-// finishCalibration() branches by selected mode:
-//   mode1 -> adaptive machine-paced CogSpeed
-//   mode2 -> finish after self-paced-only session
-//   mode3 -> fixed machine-paced phase using
-//            calibration average × mode3BaselineFactor
+// 1 unused + 10 measured self-paced trials.
+// CHECK ADEQUATELY TRAINED: >4 errors → "TOO MANY WRONG RESPONSES"
+// CHECK RESPONSE SPEED: single RT >3000ms → "NOT RESPONDING IN TIME — Practice!"
+// DETERMINE BASELINE RT: avg of 10 measured RTs → paced start duration
+//  (initialPacedPercent defaults to 1.3 × avg, intentionally slower than calibration,
+//   then clamped to [minDurationMs, maxDurationMs]).
+// CONDITION 4: avg RT > calibrationStopSlowMs → "NEED MORE PRACTICE!"
+// NO-RESPONSE TIMEOUTS: first trial=20s, subsequent=10s
+// ──────────────────────────────────────────────────────────────
+// finishCalibration() now branches by selected mode:
+// mode1 -> original adaptive machine-paced CogSpeed phase
+// mode2 -> finish after self-paced-only session
+// mode3 -> begin fixed-baseline machine-paced phase using
+//          calibration average × mode3BaselineFactor
 function finishCalibration(){
  const avg=mean(state.calibrationRTs.length?state.calibrationRTs:state.selfPacedRTs);
  if(isMode2()){
@@ -855,7 +823,7 @@ function applyPacing(rt,correct){
 // Called by all end conditions (success + all 8 failure modes).
 // Computes final CPI, paced RT stats, test duration.
 // Also stamps the session number used by full-size graphs and metadata.
-// Saves result to state.history (localStorage: STORAGE_VERSION + "_history").
+// Saves result to state.history in localStorage using the current STORAGE_VERSION history key.
 // Triggers gear spin outro → thinking box → outcome box → summary.
 // ──────────────────────────────────────────────────────────────
 function finish(){
@@ -904,7 +872,7 @@ const modeMetricMs = isMode2() ? (state.selfPacedRTs.length?mean(state.selfPaced
  localStorage.setItem(STORAGE_VERSION + "_history",JSON.stringify(state.history));
  updateCPIDisplay(avg2); setProbeIdle();
  // Build the display text (also used for email)
- buildSummary(result, state.history.length-1);
+ buildSummary(result);
  drawModeResultChart($("summaryModeChart"), result);
  const fgBtn=$("summaryFullGraphBtn");
  if(fgBtn){
@@ -942,20 +910,10 @@ function openTrial(kind){
  renderTrial(state.current);
  updateMetrics();
  if(kind==="calibration"){
-  const total = isMode2()
-    ? (Number(settings.mode2TrialLimit)||150)
-    : isMode3()
-      ? (Number(settings.mode3CalibrationTrials)||10)
-      : (settings.initialUnusedCalibrationTrials + settings.initialMeasuredCalibrationTrials);
-  const idx = state.calibrationTrialIndex + 1;
-  phaseLabel.textContent = `Cal ${idx}/${total}`;
-  setStatus(isMode1()
-    ? (idx<=settings.initialUnusedCalibrationTrials ? "Self-paced (unused)" : "Self-paced (measured)")
-    : "Self-paced");
-  const calTimeoutMs = (idx === 1)
-    ? (Number(settings.calibrationFirstNoResponseMs) || 20000)
-    : (Number(settings.calibrationNoResponseMs) || 10000);
-  armNoResponseTimer(calTimeoutMs);
+  const total=isMode2()?(Number(settings.mode2TrialLimit)||150):isMode3()?(Number(settings.mode3CalibrationTrials)||10):(settings.initialUnusedCalibrationTrials+settings.initialMeasuredCalibrationTrials), idx=state.calibrationTrialIndex+1;
+  phaseLabel.textContent=`Cal ${idx}/${total}`;
+  setStatus(isMode1()?(idx<=settings.initialUnusedCalibrationTrials?"Self-paced (unused)":"Self-paced (measured)"):"Self-paced");
+  armNoResponseTimer();
  }else if(kind==="paced"){
   // Store the ACTUAL frame duration shown for this paced round.
   // Trial logging must use this presented value, not the updated baseline after response processing.
@@ -1155,10 +1113,7 @@ function handleTap(index){
    openTrial("paced_fixed"); return;
   }
   state.hadResponse=true;
-  state.totalResponses+=1;
-  state.totalIncorrect+=1;
-  state.pacedErrors+=1;
-  state.fixedPacedWrong+=1;
+  state.totalResponses+=1; state.totalIncorrect+=1; state.pacedErrors+=1; state.fixedPacedWrong+=1;
   if(checkMaxPacedWrong()) return;
   logTrial({phase:"paced_fixed_wrong",rt:performance.now()-state.trialOpenedAt,outcome:"wrong",responseIndex:index});
   flashBtn(index,false);
@@ -1684,15 +1639,15 @@ function formatModePooledRankSection(mode){
 }
 // ─── Export / Email ───
 // ─── EXPORT / EMAIL ───────────────────────────────────────────
-// exportResults(): downloads full history using the current APP_VERSION in the filename.
-// exportCSV(): downloads history using the current APP_VERSION in the filename.
+// exportResults(): downloads full history as <STORAGE_VERSION>_results.json
+// exportCSV(): downloads history as <STORAGE_VERSION>_history.csv
 //  Columns: session, subjectId, date, SP-FS, calibration, blocks,
 //  CPI, taps, correct, wrong, missed, paced stats, duration, end reason.
 // emailResults(): opens mailto: with last result text in body.
 // ──────────────────────────────────────────────────────────────
 function exportResults(){
  const blob=new Blob([JSON.stringify({settings,history:state.history},null,2)],{type:"application/json"});
- const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=`cogspeed_${APP_VERSION.toLowerCase()}_results.json`; a.click();
+ const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=`${STORAGE_VERSION}_results.json`; a.click();
 }
 function exportCSV(){
  const h=state.history; if(!h.length){setStatus("No history to export."); return;}
@@ -1720,21 +1675,17 @@ function exportCSV(){
  ].map(v=>v==null?"":v).join(","));
  const csv=[cols.join(","), ...rows].join("\n");
  const blob=new Blob([csv],{type:"text/csv"});
- const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=`cogspeed_${APP_VERSION.toLowerCase()}_history.csv`; a.click();
+ const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=`${STORAGE_VERSION}_history.csv`; a.click();
 }
 // Email results
 // Subject line always uses the current APP_VERSION build label.
-function emailResults(resultIndex=null){
- const idx = resultIndex!=null ? resultIndex : (currentSummaryIndex!=null ? currentSummaryIndex : state.history.length-1);
- const target = (idx!=null && idx>=0 && state.history[idx]) ? state.history[idx] : currentSummaryResult || state.history[state.history.length-1];
- if(!target){ setStatus("No results to email."); return; }
- buildSummary(target, idx);
- const profile = loadProfile() || {};
- const to = profile.emailResults && profile.email ? profile.email : "";
- const rawText = $("summaryText")?.textContent || state.lastResultText || JSON.stringify(target,null,2);
+function emailResults(){
+ const last=state.history[state.history.length-1];
+ if(!last){ setStatus("No results to email."); return; }
+ const to=state.profile?.emailResults&&state.profile?.email?state.profile.email:"";
+ const rawText = state.lastResultText || JSON.stringify(last,null,2);
  const bodyText = rawText.replace(/\n/g,"\r\n");
- const sessionLabel = target.sessionNumber!=null ? ` Session ${target.sessionNumber}` : " Results";
- window.location.href=`mailto:${to}?subject=CogSpeed ${APP_VERSION}${sessionLabel}&body=${encodeURIComponent(bodyText)}`;
+ window.location.href=`mailto:${to}?subject=CogSpeed ${APP_VERSION} Results&body=${encodeURIComponent(bodyText)}`;
 }
 
 
@@ -1811,7 +1762,7 @@ function stopFX(){ if(_fxRaf){ cancelAnimationFrame(_fxRaf); _fxRaf=null; } }
 // ═══════════════════════════════════════════════════════════════
 // SECTION: REGISTRATION — PROFILE
 // Collects email (subject ID), birth month/year, gender, email pref.
-// Stored in localStorage: STORAGE_VERSION + "_profile"
+// Stored in localStorage using the current STORAGE_VERSION profile key
 // [PLANNED] Server-side account for population norms.
 // ═══════════════════════════════════════════════════════════════
 
@@ -1994,9 +1945,7 @@ function isTestSuccess(r){ return (r||"").toLowerCase().startsWith("convergent")
 // Pooled rankings include single-factor rankings and full pooled combinations
 // of dots/lines count with correct response position.
 // Combination lists are provided for correct, wrong, and all responses combined.
-function buildSummary(result, resultIndex=null){
- currentSummaryResult = result || null;
- currentSummaryIndex = resultIndex;
+function buildSummary(result){
  const el=$("summaryText"); if(!el) return;
  const hr="─────────────────────────";
  const spf=result.samnPerelli?`${result.samnPerelli.score} (${result.samnPerelli.label})`:"not recorded";
@@ -2524,7 +2473,7 @@ function downloadTrialLogCSV(){
  ].join(",")).join("\n");
  const subj=result?result.subjectId:"current";
  const blob=new Blob([hdr+rows],{type:"text/csv"});
- const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=`cogspeed_${APP_VERSION.toLowerCase()}_trials_${subj}.csv`; a.click();
+ const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=`${STORAGE_VERSION}_trials_${subj}.csv`; a.click();
 }
 
 
@@ -2743,13 +2692,21 @@ function buildHistoryOverlay(sessionIndex){
   const dur=formatDuration(r.testDurationMs);
   const endShort=(r.endReason||"").substring(0,30)+((r.endReason||"").length>30?"…":"");
   tr.style.cursor="pointer";
-  tr.title="Click to select session";
+  tr.title="Click to view trial detail";
   if(idx===selectedIdx) tr.style.background="rgba(127,215,255,0.10)";
   tr.onclick=()=>{ buildHistoryOverlay(idx); };
   tr.innerHTML=`<td style="font-weight:700;color:var(--accent)">${idx+1}</td><td style="font-size:11px">${date}</td><td>${formatModeTag(r.testMode)} · ${r.subjectId}</td><td style="color:#88ff88">${spf}</td><td>${calRT}</td><td>${r.blockCount||0}</td><td style="color:#ff9f40">${avgBlk}</td><td style="color:var(--accent);font-weight:800">${cps}</td><td>${dur}</td><td style="font-size:10px;color:var(--muted)">${endShort}</td>`;
   tbody.appendChild(tr);
  });
 }
+buildHistoryOverlay._openSelectedTrial=function(){
+ const idx = buildHistoryOverlay._selectedIndex;
+ if(idx==null) return;
+ $("historyOverlay").classList.add("hidden");
+ buildTrialLog(idx);
+ $("trialLogOverlay").classList.remove("hidden");
+};
+
 // ─── Device benchmark ───
 async function runDeviceBenchmark(force){
  const enabled=force||Number(settings.deviceBenchmarkEnabled||0)===1;
@@ -3128,76 +3085,3 @@ function tutSkip(){
  showOnly("fatigueOverlay");
 }
 
-// ─── Event wiring ───
-$("subjectNextBtn").onclick=()=>{
- const v=($("subjectIdInput")?.value||"").trim().toLowerCase();
- if(!v){ setStatus("Enter your email address"); return; }
- if(v==="0"||v==="guest"){
-  state.subjectId="Guest"; state.profile=null;
-  showOnly("refresherOverlay"); setStatus("Continuing as Guest"); return;
- }
- if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)){
-  setStatus("Please enter a valid email address"); return;
- }
- $("subjectIdInput").value=v;
- // If profile already saved for this email → skip profile page
- const saved=loadProfile();
- if(saved&&saved.email===v){
-  state.subjectId=v; state.profile=saved;
-  showOnly("refresherOverlay"); setStatus("Welcome back, "+v);
- } else {
-  // New user or different email → collect profile
-  openProfileOverlay(v);
- }
-};
-$("skipRefresherBtn").onclick=()=>{
- showTutorial(); setStatus("Tutorial");
-};
-$("refBackBtn").onclick=()=>goToStartPage();
-$("refStartOverBtn").onclick=()=>startOverFlow();
-$("fatigueBackBtn").onclick=()=>goToStartPage();
-$("fatigueStartOverBtn").onclick=()=>startOverFlow();
-const _fsb=$("fatigueStartBtn");
-if(_fsb) _fsb.onclick=startTest;
-let _adminUnlocked = false;
-let _adminReturnTo = "subjectOverlay"; // default return destination
-
-$("adminOpenBtn").onclick=()=>{
- _adminReturnTo = "subjectOverlay"; // from subject page
- $("adminOverlay").classList.remove("hidden");
- if(_adminUnlocked){
-  $("adminGate").classList.add("hidden");
-  $("adminBody").classList.remove("hidden");
-  renderAdmin();
- } else {
-  $("adminGate").classList.remove("hidden");
-  $("adminBody").classList.add("hidden");
-  $("adminPass").value="";
- }
-};
-$("tutNextBtn").onclick=()=>tutNext();
-
-// Profile overlay buttons
-const _psb=$("profileSaveBtn"); if(_psb) _psb.onclick=saveAndContinueProfile;
-
-// Profile edit button — from subject page (email must already be entered)
-const _peb=$("profileEditBtn"); if(_peb) _peb.onclick=()=>{
- const email=($("subjectIdInput")?.value||"").trim().toLowerCase();
- if(!email||!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){
-  setStatus("Enter your email first, then tap ⚙ profile"); return;
- }
- openProfileOverlay(email);
-};
-
-// Profile button from summary page
-const _spb=$("summaryProfileBtn"); if(_spb) _spb.onclick=()=>{
- const p=loadProfile();
- const email=p?.email||state.subjectId||"";
- if(email&&/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){
-  // After saving profile from summary, return to summary
-  _profileReturnTo="summaryOverlay";
-  openProfileOverlay(email);
- } else {
-  setStatus("No profile to edit — enter email on start page");
- }
-};

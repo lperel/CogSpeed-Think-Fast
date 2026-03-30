@@ -1,6 +1,76 @@
-// CogSpeed V161 — UI wiring / startup / service worker
-// Edit this file for button handlers, overlays, startup flow, and app boot.
+// ─── Event wiring / startup ───
+$("subjectNextBtn").onclick=()=>{
+ const v=($("subjectIdInput")?.value||"").trim().toLowerCase();
+ if(!v){ setStatus("Enter your email address"); return; }
+ if(v==="0"||v==="guest"){
+  state.subjectId="Guest"; state.profile=null;
+  showOnly("refresherOverlay"); setStatus("Continuing as Guest"); return;
+ }
+ if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)){
+  setStatus("Please enter a valid email address"); return;
+ }
+ $("subjectIdInput").value=v;
+ // If profile already saved for this email → skip profile page
+ const saved=loadProfile();
+ if(saved&&saved.email===v){
+  state.subjectId=v; state.profile=saved;
+  showOnly("refresherOverlay"); setStatus("Welcome back, "+v);
+ } else {
+  // New user or different email → collect profile
+  openProfileOverlay(v);
+ }
+};
+$("skipRefresherBtn").onclick=()=>{
+ showTutorial(); setStatus("Tutorial");
+};
+$("refBackBtn").onclick=()=>goToStartPage();
+$("refStartOverBtn").onclick=()=>startOverFlow();
+$("fatigueBackBtn").onclick=()=>goToStartPage();
+$("fatigueStartOverBtn").onclick=()=>startOverFlow();
+const _fsb=$("fatigueStartBtn");
+if(_fsb) _fsb.onclick=startTest;
+let _adminUnlocked = false;
+let _adminReturnTo = "subjectOverlay"; // default return destination
 
+$("adminOpenBtn").onclick=()=>{
+ _adminReturnTo = "subjectOverlay"; // from subject page
+ $("adminOverlay").classList.remove("hidden");
+ if(_adminUnlocked){
+  $("adminGate").classList.add("hidden");
+  $("adminBody").classList.remove("hidden");
+  renderAdmin();
+ } else {
+  $("adminGate").classList.remove("hidden");
+  $("adminBody").classList.add("hidden");
+  $("adminPass").value="";
+ }
+};
+$("tutNextBtn").onclick=()=>tutNext();
+
+// Profile overlay buttons
+const _psb=$("profileSaveBtn"); if(_psb) _psb.onclick=saveAndContinueProfile;
+
+// Profile edit button — from subject page (email must already be entered)
+const _peb=$("profileEditBtn"); if(_peb) _peb.onclick=()=>{
+ const email=($("subjectIdInput")?.value||"").trim().toLowerCase();
+ if(!email||!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){
+  setStatus("Enter your email first, then tap ⚙ profile"); return;
+ }
+ openProfileOverlay(email);
+};
+
+// Profile button from summary page
+const _spb=$("summaryProfileBtn"); if(_spb) _spb.onclick=()=>{
+ const p=loadProfile();
+ const email=p?.email||state.subjectId||"";
+ if(email&&/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){
+  // After saving profile from summary, return to summary
+  _profileReturnTo="summaryOverlay";
+  openProfileOverlay(email);
+ } else {
+  setStatus("No profile to edit — enter email on start page");
+ }
+};
 const _prb=$("profileResetBtn"); if(_prb) _prb.onclick=resetProfile;
 // Age validation on input change
 const _pbm=$("profileBirthMonth"); if(_pbm) _pbm.onchange=validateProfileAge;
@@ -88,8 +158,7 @@ $("startBtn").onclick=startTest;
 $("backToStartBtn").onclick=goToStartPage;
 $("startOverBtn").onclick=startOverFlow;
 $("summaryRestartBtn").onclick=()=>{ $("summaryOverlay").classList.add("hidden"); const fg=$("fullGraphOverlay"); if(fg) fg.classList.add("hidden"); goToStartPage(); };
-$("summaryEmailBtn").onclick=()=>emailResults(currentSummaryIndex);
-const _heb=$("historyEmailBtn"); if(_heb) _heb.onclick=()=>{ const idx=(buildHistoryOverlay._selectedIndex!=null?buildHistoryOverlay._selectedIndex:(state.history.length-1)); emailResults(idx); };
+$("summaryEmailBtn").onclick=emailResults;
 const _fgb=$("summaryFullGraphBtn"); if(_fgb) _fgb.onclick=()=>{ $("summaryOverlay").classList.add("hidden"); $("fullGraphOverlay").classList.remove("hidden"); };
 const _fgbb=$("fullGraphBackBtn"); if(_fgbb) _fgbb.onclick=()=>{ $("fullGraphOverlay").classList.add("hidden"); $("summaryOverlay").classList.remove("hidden"); };
 const _orb=$("outcomeResultsBtn"); if(_orb) _orb.onclick=()=>{ $("outcomeOverlay").classList.add("hidden"); stopSpeedometer(); $("summaryOverlay").classList.remove("hidden"); setTestingQuiet(false); };
@@ -105,6 +174,11 @@ $("summaryAdminBtn").onclick=()=>{
 };
 // ─── Init ───
 modeLabel.textContent="Subject mode";
+// Sync visible build labels from APP_VERSION.
+document.title = `CogSpeed ${APP_VERSION}`;
+const __vb = $("versionBadge"); if(__vb) __vb.textContent = APP_VERSION;
+const __sl = $("statusLine"); if(__sl) __sl.textContent = `CogSpeed ${APP_VERSION}`;
+
 renderFatigueChecklist();
 renderRefresher();
 updateMetrics();
