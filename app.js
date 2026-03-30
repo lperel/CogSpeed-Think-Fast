@@ -1,7 +1,8 @@
 // ═══════════════════════════════════════════════════
 // CogSpeed V127
 // ═══════════════════════════════════════════════════
-const APP_VERSION = "V127";
+// Current visible build version used in UI and email subject lines.
+const APP_VERSION = "V146";
 
 // ─── Version guard ───
 (function(){
@@ -815,6 +816,7 @@ function applyPacing(rt,correct){
 // ─── TEST FINISH ──────────────────────────────────────────────
 // Called by all end conditions (success + all 8 failure modes).
 // Computes final CPI, paced RT stats, test duration.
+// Also stamps the session number used by full-size graphs and metadata.
 // Saves result to state.history (localStorage: cogspeed_v21_history).
 // Triggers gear spin outro → thinking box → outcome box → summary.
 // ──────────────────────────────────────────────────────────────
@@ -837,6 +839,7 @@ function finish(){
 const modeMetricMs = isMode2() ? (state.selfPacedRTs.length?mean(state.selfPacedRTs):null) : isMode3() ? (state.pacedRTs.length?mean(state.pacedRTs):(state.fixedPacedBaseline||null)) : avg2;
  const modeCPI = (isMode2()||isMode3()) ? null : (modeMetricMs!=null ? computeCPI(modeMetricMs) : cps);
  const result={
+  sessionNumber: state.history.length + 1,
   testMode: state.activeMode||settings.testMode||"mode1",
   subjectId:subjectKey(state.subjectId||"0"),
   profile:state.profile?{gender:state.profile.gender,age:computeAge(state.profile.birthMonth,state.profile.birthYear),emailResults:state.profile.emailResults}:null,
@@ -1347,6 +1350,10 @@ function drawRTScatterChart(canvas,rtLog,blocks,meanRT,sdRT){
 // red dots   = wrong responses
 // Mode 2 graphs self-paced responses only.
 // Mode 3 graphs self-paced + fixed machine-paced responses.
+// Mode 2 / Mode 3 response-time graph
+// - full graph shows session number once in subtitle
+// - smaller ms = better performance and graphs higher
+// - avoid duplicate mode / SP-FS labels on full graph
 function drawModeResultChart(canvas,result){
  if(!canvas){ return; }
  const log=(result&&result.rtLog)||[];
@@ -1391,8 +1398,9 @@ function drawModeResultChart(canvas,result){
   ctx.font="12px sans-serif";
   ctx.fillStyle="#b7d9ef";
   const spfs = result.samnPerelli ? `SP-FS: ${result.samnPerelli.score}` : "SP-FS: —";
-  const modeTxt = result.testMode ? `Test ${String(result.testMode).replace("mode","Mode ")}` : "";
-  ctx.fillText(`${modeTxt}    ${spfs}`, W/2, 42);
+  const modeTxt = result.testMode ? `${formatModeTag(result.testMode)}` : "";
+  const sessionTxt = result.sessionNumber!=null ? `Session ${result.sessionNumber}` : "Latest Session";
+  ctx.fillText(`${sessionTxt} · ${modeTxt} · ${spfs}`, W/2, 42);
  }
 
  ctx.strokeStyle="rgba(79,111,153,0.2)"; ctx.lineWidth=1;
@@ -1463,10 +1471,12 @@ function drawModeResultChart(canvas,result){
 
  ctx.fillStyle="#7fa0c0"; ctx.font=(isFull?"13px":"10px")+" sans-serif"; ctx.textAlign="center";
  ctx.fillText(result.testMode==="mode2"?"Self-Paced trial →":"Self-Paced + Machine-Paced trial →", PAD.left+cW/2, H-10);
- const modeTxt=formatModeTag(result.testMode);
- const spfsTxt=result.samnPerelli?`SP-FS ${result.samnPerelli.score}`:"SP-FS —";
- ctx.textAlign="left"; ctx.font=(isFull?"12px":"10px")+" sans-serif"; ctx.fillStyle="#b7d9ef";
- ctx.fillText(`${modeTxt} · ${spfsTxt}`, PAD.left, isFull?42:PAD.top+12);
+ if(!isFull){
+  const modeTxt=formatModeTag(result.testMode);
+  const spfsTxt=result.samnPerelli?`SP-FS ${result.samnPerelli.score}`:"SP-FS —";
+  ctx.textAlign="left"; ctx.font="10px sans-serif"; ctx.fillStyle="#b7d9ef";
+  ctx.fillText(`${modeTxt} · ${spfsTxt}`, PAD.left, PAD.top+12);
+ }
  if(!isFull){
   ctx.textAlign="left"; ctx.font="10px sans-serif"; ctx.fillStyle="#b7d9ef";
   const spfs = result.samnPerelli ? `SP-FS ${result.samnPerelli.score}` : "SP-FS —";
@@ -1479,6 +1489,10 @@ function drawModeResultChart(canvas,result){
 function formatModeTag(mode){
  return (mode||"mode1").replace("mode","Test Mode ");
 }
+// Ranking helpers
+// - parse saved trial logs robustly across old/new session formats
+// - keep positions in true user-facing 1..6 space
+// - do not double-shift positions parsed from strings like "@1"
 function computeRankAverages(rtLog){
  function normalizeRow(r){
   if(!r || r.rt==null || r.counted===false) return null;
@@ -1498,14 +1512,18 @@ function computeRankAverages(rtLog){
   }
 
   // Positions in older string logs are 1-based: "@4" means Position 4.
+  let posFromString = false;
   if(typeof r.correctCell==="string"){
    const m = r.correctCell.match(/@(\d+)/);
-   if(m) pos = Number(m[1]);
+   if(m){
+    pos = Number(m[1]);
+    posFromString = true;
+   }
   }
 
-  // Positions in structured logs were stored 0-based in some builds.
-  // Normalize everything here to user-facing 1..6 positions.
-  if(typeof pos === "number" && Number.isFinite(pos)){
+  // Only structured stored positions may need 0-based -> 1-based normalization.
+  // String-parsed "@4" already means Position 4 and must NOT be incremented.
+  if(!posFromString && typeof pos === "number" && Number.isFinite(pos)){
    if(pos >= 0 && pos <= 5) pos = pos + 1;
   }
 
@@ -1573,6 +1591,9 @@ function computeRankAveragesForMode(mode){
  const pooledLogs = getModePooledLogsExcludingWarmup(mode);
  return computeRankAverages(pooledLogs);
 }
+// Same-mode pooled combination rankings
+// - combines sessions from the selected mode only
+// - ranks correct / wrong / all combinations by mean RT
 function computeCombinationRankAveragesForMode(mode){
  const pooledLogs = getModePooledLogsExcludingWarmup(mode);
 
@@ -1674,6 +1695,8 @@ function exportCSV(){
  const blob=new Blob([csv],{type:"text/csv"});
  const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download="cogspeed_v21_history.csv"; a.click();
 }
+// Email results
+// Subject line always uses the current APP_VERSION build label.
 function emailResults(){
  const last=state.history[state.history.length-1];
  if(!last){ setStatus("No results to email."); return; }
@@ -1955,7 +1978,7 @@ function buildSummary(result){
   el.textContent=
 `CogSpeed ${APP_VERSION} — ${modeName}
 ${hr}
-Test Mode:  ${formatModeTag(result.testMode)}\nSubject ID:  ${result.subjectId}
+Test Mode:  ${formatModeTag(result.testMode)}\nSession:    ${result.sessionNumber!=null?result.sessionNumber:"—"}\nSubject ID:  ${result.subjectId}
 Date / Time:  ${new Date(result.time).toLocaleString()}
 Test duration: ${formatDuration(result.testDurationMs)}
 Location:   ${geoStr}
@@ -1979,7 +2002,7 @@ SELF-PACED CALIBRATION (SPC)
   el.textContent=
 `CogSpeed ${APP_VERSION} — ${modeName}
 ${hr}
-Test Mode:  ${formatModeTag(result.testMode)}\nSubject ID:  ${result.subjectId}
+Test Mode:  ${formatModeTag(result.testMode)}\nSession:    ${result.sessionNumber!=null?result.sessionNumber:"—"}\nSubject ID:  ${result.subjectId}
 Date / Time:  ${new Date(result.time).toLocaleString()}
 Test duration: ${formatDuration(result.testDurationMs)}
 Location:   ${geoStr}
@@ -2015,7 +2038,7 @@ FIXED MACHINE-PACED PHASE (SPCMP)
  el.textContent=
 `CogSpeed ${APP_VERSION} — ${modeName}
 ${hr}
-Test Mode:  ${formatModeTag(result.testMode)}\nSubject ID:  ${result.subjectId}
+Test Mode:  ${formatModeTag(result.testMode)}\nSession:    ${result.sessionNumber!=null?result.sessionNumber:"—"}\nSubject ID:  ${result.subjectId}
 Date / Time:  ${new Date(result.time).toLocaleString()}
 Test duration: ${formatDuration(result.testDurationMs)}
 Location:   ${geoStr}
@@ -2469,34 +2492,41 @@ function downloadTrialLogCSV(){
 }
 
 
+// Presentation Rate vs Response Time (all sessions)
+// - all sessions plotted on one graph
+// - selected session highlighted with Prev/Next buttons
+// - smaller ms = better performance and graphs higher
+// Presentation Rate vs Response Time (overlaid sessions)
+// - all sessions share the same x-axis
+// - every session starts at trial 1
+// - sessions can have different lengths
+// - selected session is highlighted
+// - smaller ms = better performance and graphs higher
 function drawRateRtChart(canvas, sessions, selectedSessionIndex){
  if(!canvas) return;
  const ctx = canvas.getContext("2d"), W=canvas.width, H=canvas.height;
  ctx.clearRect(0,0,W,H);
  ctx.fillStyle="#081321"; ctx.fillRect(0,0,W,H);
 
- const PAD={top:30,right:56,bottom:42,left:52}, cW=W-PAD.left-PAD.right, cH=H-PAD.top-PAD.bottom;
+ const PAD={top:30,right:56,bottom:48,left:52}, cW=W-PAD.left-PAD.right, cH=H-PAD.top-PAD.bottom;
  const hist = Array.isArray(sessions) ? sessions : [];
- const packed = hist.flatMap((session, orderIdx)=>{
-  const log = Array.isArray(session.rtLog) ? session.rtLog : [];
-  return log.map((e,i)=>({
-   sessionIndex: orderIdx,
-   rt: e.rt,
-   dur: e.durationMs,
-   localIndex: i,
-   label: `S${orderIdx+1}`
-  }));
- }).filter(e=>e.dur!=null || e.rt!=null);
+ const prepared = hist.map((session, orderIdx)=>{
+  const log = (Array.isArray(session.rtLog) ? session.rtLog : [])
+   .map((e,i)=>({trial:i+1, rt:e.rt, dur:e.durationMs}))
+   .filter(e=>e.dur!=null || e.rt!=null);
+  return {...session, _orderIdx:orderIdx, _preparedLog:log};
+ }).filter(s=>s._preparedLog.length);
 
- if(!packed.length){
+ const allPts = prepared.flatMap(s=>s._preparedLog);
+ if(!allPts.length){
   ctx.fillStyle="#d7e7f8"; ctx.font="bold 13px sans-serif"; ctx.textAlign="center";
   ctx.fillText("No trial data yet", W/2, H/2); return;
  }
 
- const maxY = Math.max(1000, ...packed.map(p=>Math.max(p.dur||0,p.rt||0)));
+ const maxY = Math.max(1000, ...allPts.map(p=>Math.max(p.dur||0,p.rt||0)));
  const yTop = Math.ceil(maxY/250)*250;
- const xStep = packed.length>1 ? cW/(packed.length-1) : cW/2;
- function xOf(i){ return PAD.left + (packed.length>1 ? i*xStep : cW/2); }
+ const maxTrial = Math.max(1, ...allPts.map(p=>p.trial));
+ function xOf(trial){ return PAD.left + ((trial-1)/Math.max(1,maxTrial-1))*cW; }
  // Smaller ms = better performance = higher on graph
  function yOf(v){ return PAD.top + (((v||0)/yTop)*cH); }
 
@@ -2507,75 +2537,57 @@ function drawRateRtChart(canvas, sessions, selectedSessionIndex){
   ctx.fillStyle="#7fd7ff"; ctx.font="10px sans-serif"; ctx.textAlign="right";
   ctx.fillText(String(v), PAD.left-4, y+4);
  }
+
+ // x-axis labels
+ ctx.fillStyle="#9fb7d6"; ctx.font="10px sans-serif"; ctx.textAlign="center";
+ const every = Math.max(1, Math.ceil(maxTrial/10));
+ for(let t=1; t<=maxTrial; t++){
+  if(t % every !== 0 && t !== 1 && t !== maxTrial) continue;
+  ctx.fillText(String(t), xOf(t), PAD.top+cH+16);
+ }
+
  ctx.fillStyle="#b7d9ef"; ctx.textAlign="left"; ctx.font="10px sans-serif";
  ctx.fillText("Better performance ↑ (smaller ms)", PAD.left, PAD.top-10);
+ ctx.fillText("All sessions start at trial 1", PAD.left+180, PAD.top-10);
 
- // draw all-session presentation-rate line in orange
- ctx.strokeStyle="#ff9f40"; ctx.lineWidth=1.8; ctx.beginPath();
- let started=false;
- packed.forEach((p,i)=>{
-  if(p.dur==null){ started=false; return; }
-  const x=xOf(i), y=yOf(p.dur);
-  if(!started){ ctx.moveTo(x,y); started=true; } else ctx.lineTo(x,y);
- });
- ctx.stroke();
-
- // draw all-session RT line in blue
- ctx.strokeStyle="#7fd7ff"; ctx.lineWidth=1.8; ctx.beginPath();
- started=false;
- packed.forEach((p,i)=>{
-  if(p.rt==null){ started=false; return; }
-  const x=xOf(i), y=yOf(p.rt);
-  if(!started){ ctx.moveTo(x,y); started=true; } else ctx.lineTo(x,y);
- });
- ctx.stroke();
-
- // draw points
- packed.forEach((p,i)=>{
-  const x=xOf(i);
-  if(p.dur!=null){
-   ctx.fillStyle="#ff9f40"; ctx.beginPath(); ctx.arc(x,yOf(p.dur),2.2,0,Math.PI*2); ctx.fill();
-  }
-  if(p.rt!=null){
-   ctx.fillStyle="#7fd7ff"; ctx.beginPath(); ctx.arc(x,yOf(p.rt),2.2,0,Math.PI*2); ctx.fill();
-  }
- });
-
- // label session boundaries and session number tags
- let cursor = 0;
- hist.forEach((session, orderIdx)=>{
-  const log = Array.isArray(session.rtLog) ? session.rtLog.filter(e=>e.durationMs!=null || e.rt!=null) : [];
-  if(!log.length) return;
-  const firstX = xOf(cursor);
-  const lastX = xOf(cursor + log.length - 1);
-  const midX = (firstX + lastX) / 2;
-
-  // boundary box for selected session
+ // base drawing style for non-selected sessions
+ prepared.forEach((session, orderIdx)=>{
   const actualSessionIndex = session._actualIndex;
   const isSelected = actualSessionIndex===selectedSessionIndex;
-  if(isSelected){
-   ctx.strokeStyle="#ffffff";
-   ctx.lineWidth=2;
-   ctx.strokeRect(firstX-4, PAD.top, Math.max(8, lastX-firstX+8), cH);
+  const alpha = isSelected ? 0.95 : 0.22;
+  const durColor = `rgba(255,159,64,${alpha})`;
+  const rtColor = `rgba(127,215,255,${alpha})`;
+
+  // presentation-rate line
+  ctx.strokeStyle=durColor; ctx.lineWidth=isSelected?2.8:1.2; ctx.beginPath();
+  let started=false;
+  session._preparedLog.forEach((p)=>{
+   if(p.dur==null){ started=false; return; }
+   const x=xOf(p.trial), y=yOf(p.dur);
+   if(!started){ ctx.moveTo(x,y); started=true; } else ctx.lineTo(x,y);
+  });
+  ctx.stroke();
+
+  // response-time line
+  ctx.strokeStyle=rtColor; ctx.lineWidth=isSelected?2.8:1.2; ctx.beginPath();
+  started=false;
+  session._preparedLog.forEach((p)=>{
+   if(p.rt==null){ started=false; return; }
+   const x=xOf(p.trial), y=yOf(p.rt);
+   if(!started){ ctx.moveTo(x,y); started=true; } else ctx.lineTo(x,y);
+  });
+  ctx.stroke();
+
+  // endpoint session label
+  const last = session._preparedLog[session._preparedLog.length-1];
+  if(last){
+   const lx=xOf(last.trial);
+   const ly=yOf((last.rt!=null)?last.rt:(last.dur||0));
+   ctx.fillStyle=isSelected ? "#ffffff" : "#b7d9ef";
+   ctx.font=(isSelected?"bold 11px":"10px")+" sans-serif";
+   ctx.textAlign="left";
+   ctx.fillText(`S${actualSessionIndex+1}`, Math.min(lx+4, W-28), ly-4);
   }
-
-  // vertical separator after each session except last
-  if(orderIdx < hist.length-1){
-   ctx.strokeStyle="rgba(255,255,255,0.18)";
-   ctx.lineWidth=1;
-   ctx.beginPath();
-   ctx.moveTo(lastX+3, PAD.top);
-   ctx.lineTo(lastX+3, PAD.top+cH);
-   ctx.stroke();
-  }
-
-  // session label
-  ctx.fillStyle=isSelected ? "#ffffff" : "#b7d9ef";
-  ctx.font="bold 10px sans-serif";
-  ctx.textAlign="center";
-  ctx.fillText(`Session ${actualSessionIndex+1}`, midX, H-8);
-
-  cursor += log.length;
  });
 
  // legend
@@ -2583,8 +2595,18 @@ function drawRateRtChart(canvas, sessions, selectedSessionIndex){
  ctx.font="bold 10px sans-serif";
  ctx.fillStyle="#ff9f40"; ctx.fillText("■ Presentation rate", PAD.left, PAD.top+12);
  ctx.fillStyle="#7fd7ff"; ctx.fillText("■ Response time", PAD.left+120, PAD.top+12);
+
+ // selected session info
+ const selected = prepared.find(s=>s._actualIndex===selectedSessionIndex);
+ if(selected){
+  ctx.fillStyle="#ffffff";
+  ctx.font="bold 10px sans-serif";
+  ctx.textAlign="right";
+  ctx.fillText(`Highlighted: Session ${selectedSessionIndex+1}`, W-PAD.right, PAD.top+12);
+ }
 }
 
+// Build overlaid all-session Rate vs RT graph and highlight one selected session.
 function buildRateRtOverlay(sessionIndex){
  const sel=$("rateRtSessionSelect");
  const preservedValue = (sessionIndex!=null) ? String(sessionIndex) : (sel ? sel.value : null);
@@ -2607,7 +2629,7 @@ function buildRateRtOverlay(sessionIndex){
  const result=state.history[idx];
  const meta=$("rateRtMeta");
  if(meta){
-  meta.textContent = result ? `Selected: Session ${idx+1} · ${formatModeTag(result.testMode)} · SP-FS ${result.samnPerelli?result.samnPerelli.score:"—"} · ${result.subjectId} · ${new Date(result.time).toLocaleString()} · All sessions graphed together` : "No session selected";
+  meta.textContent = result ? `Selected: Session ${idx+1} · ${formatModeTag(result.testMode)} · SP-FS ${result.samnPerelli?result.samnPerelli.score:"—"} · ${result.subjectId} · ${new Date(result.time).toLocaleString()} · all sessions overlaid from trial 1` : "No session selected";
  }
  drawRateRtChart($("rateRtChart"), reversedSessions, idx);
 }
