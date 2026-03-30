@@ -2,7 +2,7 @@
 // CogSpeed V127
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V155";
+const APP_VERSION = "V156";
 
 // ─── Version guard ───
 (function(){
@@ -43,6 +43,7 @@ const DEFAULTS={
  mode3BaselineFactor:1.3,
  consecutiveMissesForBlock:2,
  resumeSlowerByMs:400,
+ blockRestartPercent:1.3,
  spRestartWrongLimit:3,
  spRestartCorrectStreak:2,
  maxBlockCount:6,
@@ -107,7 +108,7 @@ const ADMIN_FIELDS=[
  // ── Block detection ──
  ["consecutiveMissesForBlock","Misses to trigger block (default 2)","number"],
  // ── Block recovery (SP self-paced after block) ──
- ["resumeSlowerByMs","Block recovery restart: % of Block baseline (default 1.3)","number"],
+ ["blockRestartPercent","Block recovery restart: % of Block baseline (default 1.3)","number"],
  ["maxBlockCount","Max total blocks before fail (default 6)","number"],
  ["spRestartWrongLimit","Block recovery: max wrong before fail (default 3)","number"],
  ["spRestartCorrectStreak","Block recovery: correct streak to resume (default 2)","number"],
@@ -315,6 +316,9 @@ async function captureGeo(){
 }
 
 // ─── SVG rendering ───
+// Lines are rendered solid black in both tutorial and live test.
+// Dots remain unchanged.
+
 function patternToSVG(pattern,size="large"){
  const dim=size==="probe"?72:size==="small"?40:56;
  const dotR=size==="probe"?11:size==="small"?7:10;
@@ -324,7 +328,7 @@ function patternToSVG(pattern,size="large"){
   const px=(x/100)*dim,py=(y/100)*dim;
   return k==="dot"
    ?`<circle cx="${px.toFixed(1)}" cy="${py.toFixed(1)}" r="${dotR}" fill="var(--text)" stroke="black" stroke-width="3"/>`
-   :`<rect x="${(px-lw/2).toFixed(1)}" y="${(py-lh/2).toFixed(1)}" width="${lw}" height="${lh}" rx="2" fill="var(--text)" stroke="black" stroke-width="3"/>`;
+   :`<rect x="${(px-lw/2).toFixed(1)}" y="${(py-lh/2).toFixed(1)}" width="${lw}" height="${lh}" rx="2" fill="#000000" stroke="#000000" stroke-width="3"/>`;
  }).join("");
  return `<svg width="${dim}" height="${dim}" viewBox="0 0 ${dim} ${dim}" xmlns="http://www.w3.org/2000/svg">${marks}</svg>`;
 }
@@ -457,6 +461,8 @@ function ensureGearImageStyles(){
   }
   .gear-mark.line{
    border-radius:3px;
+   background:#000000;
+   border-color:#000000;
   }
   #testScreen .resp-btn.correct-flash .gear-img-wrap{
    filter:brightness(1.45) drop-shadow(0 0 16px rgba(220,255,220,.95));
@@ -776,7 +782,11 @@ function finishCalibration(){
 //           = 0.15 * (responseTime - roundDuration)
 //
 // IMPORTANT:
-//   Cap any single speedup/slowdown to ±100 ms.
+//   On CORRECT responses that speed up baseline:
+//     minimum speedup = 50 ms
+//     maximum speedup = 200 ms
+//   On slowdown from the correct-response formula:
+//     maximum slowdown = 100 ms.
 //
 // WRONG RESPONSE:
 //   baseline += 100 ms (flat slowdown penalty)
@@ -810,11 +820,13 @@ function applyPacing(rt,correct){
  //   and a maximum 200 ms speedup
  // - when deltaMs is positive (slowdown), keep the existing 100 ms max slowdown
  if(deltaMs < 0){
+  // Negative deltaMs means a speedup. Force the speedup magnitude into [50, 200] ms.
   const speedupMag = Math.min(200, Math.max(50, Math.abs(deltaMs)));
   deltaMs = -speedupMag;
  }else{
+  // Positive deltaMs means slowdown from the correct-response formula. Cap at +100 ms.
   deltaMs = Math.min(100, deltaMs);
- } // Cap MAX speed up or slow down to 100ms
+ }
   state.duration=clamp(state.duration+deltaMs,settings.minDurationMs,settings.maxDurationMs);
  }else{
   // Wrong response = +100 ms slowdown
@@ -1066,11 +1078,11 @@ function handleTap(index){
    const need=Math.max(1,Number(settings.spRestartCorrectStreak)||2);
    if(state.spCorrectStreak>=need){
     // REQUIRED RESTART RULE:
-    //   restartMs = blockBaselineMs × initialPacedPercent
-    // Same formula family as "MP start: % of cal avg",
-    // except use block baseline instead of calibration average.
+    //   restartMs = blockBaselineMs × blockRestartPercent
+    // blockBaselineMs is the paced baseline at the block point.
+    // blockRestartPercent defaults to 1.3, so restart is 30% slower than block baseline.
     const restartBaseMs=Number(state.blockRestartBaseline)||Number(state.blockDuration)||0;
-    const restartFactor=Number(settings.initialPacedPercent)||1.3;
+    const restartFactor=Number(settings.blockRestartPercent)||1.3;
     const slower=clamp(Math.round(restartBaseMs*restartFactor),settings.minDurationMs,settings.maxDurationMs);
     state.recoveries.push(slower); state.phase="paced"; state.duration=slower;
     state.spCorrectStreak=0; state.spWrongCount=0;
