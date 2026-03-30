@@ -1,13 +1,18 @@
 // ═══════════════════════════════════════════════════
-// CogSpeed V127
+// CogSpeed V159
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V158";
+const APP_VERSION = "V159";
+
+// Single internal storage/cache namespace for this build family.
+// Bump STORAGE_VERSION whenever you intentionally invalidate old local data.
+const STORAGE_VERSION = "cogspeed_v159";
 
 // ─── Version guard ───
 (function(){
- const VER="cogspeed_v21_profileguard", key="cogspeed_version";
- const preserve = new Set(["cogspeed_v21_profile", key]);
+ const VER = STORAGE_VERSION + "_profileguard";
+ const key = "cogspeed_version";
+ const preserve = new Set([STORAGE_VERSION + "_profile", key]);
  if(localStorage.getItem(key)!==VER){
   Object.keys(localStorage).forEach(k=>{
    if((k.startsWith("cogspeed_")||k.startsWith("cogblock_")) && !preserve.has(k)){
@@ -42,7 +47,6 @@ const DEFAULTS={
  mode3MaxDurationMs:120000,
  mode3BaselineFactor:1.3,
  consecutiveMissesForBlock:2,
- resumeSlowerByMs:400,
  blockRestartPercent:1.3,
  spRestartWrongLimit:3,
  spRestartCorrectStreak:2,
@@ -168,13 +172,13 @@ const SAMN_PERELLI=[
 
 // ─── Settings ───
 function loadSettings(){
- const s=JSON.parse(localStorage.getItem("cogspeed_v21r10_settings")||"null");
+ const s=JSON.parse(localStorage.getItem(STORAGE_VERSION + "_settings")||"null");
  if(!s) return {...DEFAULTS};
  const m={...DEFAULTS};
  Object.keys(DEFAULTS).forEach(k=>{ if(s[k]!==undefined) m[k]=s[k]; });
  return m;
 }
-function saveSettings(){ localStorage.setItem("cogspeed_v21r10_settings",JSON.stringify(settings)); }
+function saveSettings(){ localStorage.setItem(STORAGE_VERSION + "_settings",JSON.stringify(settings)); }
 let settings=loadSettings();
 
 // ─── State ───
@@ -183,7 +187,7 @@ const state={
  current:null, previous:null, unresolvedStreak:0,
  overloads:[], recoveries:[], recoveryCorrectCompleted:0,
  spCorrectStreak:0, spWrongCount:0, terminalBlockReason:null,
- history:(function(){ try { return JSON.parse(localStorage.getItem("cogspeed_v21r10_history")||"[]"); } catch(e){ return []; } })(),
+ history:(function(){ try { return JSON.parse(localStorage.getItem(STORAGE_VERSION + "_history")||"[]"); } catch(e){ return []; } })(),
  totalTrials:0, totalResponses:0, totalCorrect:0, totalIncorrect:0,
  missedTrials:0, pacedErrors:0, recoveryErrors:0, rollMeanLog:[],
  testStartTime:null, trialTimer:null, absoluteNoResponseTimer:null, maxTestTimer:null,
@@ -222,10 +226,21 @@ function isMode3(){ return (settings.testMode||"mode1")==="mode3"; }
 function currentModeLabel(){ return isMode1() ? "CogSpeed Mode" : isMode2() ? "SPC Mode" : "SPCMP Mode"; }
 function getSessionMaxDurationMs(){ return isMode2() ? (Number(settings.mode2MaxDurationMs)||150000) : isMode3() ? (Number(settings.mode3MaxDurationMs)||150000) : (Number(settings.maxTestDurationMs)||150000); }
 
+window.addEventListener("DOMContentLoaded", ()=>{
+ document.title = `CogSpeed ${APP_VERSION}`;
+ const badge = document.getElementById("versionBadge");
+ if(badge) badge.textContent = APP_VERSION;
+ const status = document.getElementById("statusLine");
+ if(status) status.textContent = `CogSpeed ${APP_VERSION}`;
+});
+
 // ─── CPI ───
 // ─── CPI SCORE CALCULATION ────────────────────────────────────
 // Converts avg last 2 block durations (ms) to 0-100 CPI score.
-// Scale: cpiBestMs=900ms → CPI 100, cpiWorstMs=3400ms → CPI 0.
+// Live defaults:
+//   cpiBestMs = 800 ms  -> CPI 100
+//   cpiWorstMs = 3000 ms -> CPI 0
+// Uses the current settings values, not hard-coded anchors.
 // Source: Perelli (2026). Formula: (worst-ms)/(worst-best)*100
 // ──────────────────────────────────────────────────────────────
 function computeCPI(avgMs){
@@ -255,14 +270,23 @@ function clearMaxTestTimer(){ if(state.maxTestTimer) clearTimeout(state.maxTestT
 // armMaxTestTimer(): 150s total session wall clock (cal + paced).
 // noteAnyResponse(): called on every tap to reset the 10/20s timer.
 // ──────────────────────────────────────────────────────────────
-function armNoResponseTimer(){
+function armNoResponseTimer(msOverride){
  clearNoResponseTimer();
+ if(msOverride != null){
+  state.absoluteNoResponseTimer=setTimeout(()=>{
+   state.endReason = state.phase==="calibration"
+    ? "NO RESPONSE — Retest"
+    : "NOT RESPONDING IN TIME — Retest";
+   finish();
+  }, msOverride);
+  return;
+ }
  let ms;
  switch(state.phase){
   case "calibration":
    // First trial 10s (orienting), subsequent 6s
    ms = (state.calibrationTrialIndex||0)===0
-    ? (Number(settings.calibrationFirstNoResponseMs)||10000)
+    ? (Number(settings.calibrationFirstNoResponseMs)||20000)
     : (Number(settings.calibrationNoResponseMs)||6000);
    break;
   case "paced":
@@ -709,19 +733,32 @@ function maybeTriggerTerminalRule(){
 }
 function failCalibration(reason){ state.endReason=reason; finish(); }
 // ─── CALIBRATION — SELF-PACED ─────────────────────────────────
-// 1 unused + 10 measured self-paced trials.
-// CHECK ADEQUATELY TRAINED: >4 errors → "TOO MANY WRONG RESPONSES"
-// CHECK RESPONSE SPEED: single RT >3000ms → "NOT RESPONDING IN TIME — Practice!"
-// DETERMINE BASELINE RT: avg of 10 measured RTs → paced start duration
-//  (initialPacedPercent=0.70 × avg, clamped to 800ms-maxDurationMs).
-// CONDITION 4: avg RT >3000ms → "NEED MORE PRACTICE!"
-// NO-RESPONSE TIMEOUTS: first trial=20s, subsequent=10s
-// ──────────────────────────────────────────────────────────────
-// finishCalibration() now branches by selected mode:
-// mode1 -> original adaptive machine-paced CogSpeed phase
-// mode2 -> finish after self-paced-only session
-// mode3 -> begin fixed-baseline machine-paced phase using
-//          calibration average × mode3BaselineFactor
+// Default flow in Mode 1:
+//   - 1 unused warm-up self-paced trial
+//   - 10 measured self-paced trials
+//
+// Calibration checks in Mode 1 only:
+//   - wrong answers are counted against calibrationStopErrors
+//   - any single correct RT > calibrationStopSlowMs triggers
+//       "NOT RESPONDING IN TIME — Practice!"
+//   - average measured calibration RT > calibrationStopSlowMs triggers
+//       "NEED MORE PRACTICE!"
+//
+// Machine-paced start in Mode 1:
+//   - start duration = measured calibration average × initialPacedPercent
+//   - default initialPacedPercent = 1.3
+//   - this is INTENTIONALLY slower than the calibration average
+//   - final start duration is clamped to [minDurationMs, maxDurationMs]
+//
+// No-response timeouts in calibration:
+//   - first calibration trial uses calibrationFirstNoResponseMs
+//   - subsequent calibration trials use calibrationNoResponseMs
+//
+// finishCalibration() branches by selected mode:
+//   mode1 -> adaptive machine-paced CogSpeed
+//   mode2 -> finish after self-paced-only session
+//   mode3 -> fixed machine-paced phase using
+//            calibration average × mode3BaselineFactor
 function finishCalibration(){
  const avg=mean(state.calibrationRTs.length?state.calibrationRTs:state.selfPacedRTs);
  if(isMode2()){
@@ -861,7 +898,7 @@ const modeMetricMs = isMode2() ? (state.selfPacedRTs.length?mean(state.selfPaced
   time:new Date().toISOString(), geo:state.geo
  };
  state.history.push(result);
- localStorage.setItem("cogspeed_v21r10_history",JSON.stringify(state.history));
+ localStorage.setItem(STORAGE_VERSION + "_history",JSON.stringify(state.history));
  updateCPIDisplay(avg2); setProbeIdle();
  // Build the display text (also used for email)
  buildSummary(result);
@@ -902,10 +939,20 @@ function openTrial(kind){
  renderTrial(state.current);
  updateMetrics();
  if(kind==="calibration"){
-  const total=isMode2()?(Number(settings.mode2TrialLimit)||150):isMode3()?(Number(settings.mode3CalibrationTrials)||10):(settings.initialUnusedCalibrationTrials+settings.initialMeasuredCalibrationTrials), idx=state.calibrationTrialIndex+1;
-  phaseLabel.textContent=`Cal ${idx}/${total}`;
-  setStatus(isMode1()?(idx<=settings.initialUnusedCalibrationTrials?"Self-paced (unused)":"Self-paced (measured)"):"Self-paced");
-  armNoResponseTimer();
+  const total = isMode2()
+    ? (Number(settings.mode2TrialLimit)||150)
+    : isMode3()
+      ? (Number(settings.mode3CalibrationTrials)||10)
+      : (settings.initialUnusedCalibrationTrials + settings.initialMeasuredCalibrationTrials);
+  const idx = state.calibrationTrialIndex + 1;
+  phaseLabel.textContent = `Cal ${idx}/${total}`;
+  setStatus(isMode1()
+    ? (idx<=settings.initialUnusedCalibrationTrials ? "Self-paced (unused)" : "Self-paced (measured)")
+    : "Self-paced");
+  const calTimeoutMs = (idx === 1)
+    ? (Number(settings.calibrationFirstNoResponseMs) || 20000)
+    : (Number(settings.calibrationNoResponseMs) || 10000);
+  armNoResponseTimer(calTimeoutMs);
  }else if(kind==="paced"){
   // Store the ACTUAL frame duration shown for this paced round.
   // Trial logging must use this presented value, not the updated baseline after response processing.
@@ -1105,7 +1152,11 @@ function handleTap(index){
    openTrial("paced_fixed"); return;
   }
   state.hadResponse=true;
-  state.totalResponses+=1; state.totalIncorrect+=1; state.pacedErrors+=1; state.fixedPacedWrong+=1;
+  state.totalResponses+=1;
+  state.totalIncorrect+=1;
+  state.pacedErrors+=1;
+  state.fixedPacedWrong+=1;
+  if(checkMaxPacedWrong()) return;
   logTrial({phase:"paced_fixed_wrong",rt:performance.now()-state.trialOpenedAt,outcome:"wrong",responseIndex:index});
   flashBtn(index,false);
   if(state.fixedPacedPresented >= (Number(settings.mode3PacedTrialLimit)||140)){ state.endReason="Required responses reached"; finish(); return; }
@@ -3204,7 +3255,7 @@ $("historyClearBtn").onclick=()=>{
   btn.textContent="🗑 Clear History";
   btn.style.color="rgba(255,100,136,0.5)";
   btn.style.borderColor="rgba(255,100,136,0.3)";
-  state.history=[]; localStorage.removeItem("cogspeed_v21r10_history");
+  state.history=[]; localStorage.removeItem(STORAGE_VERSION + "_history");
   buildHistoryOverlay(); setStatus("History cleared.");
  } else {
   btn._confirmPending=true;
