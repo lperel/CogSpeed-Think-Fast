@@ -2,7 +2,7 @@
 // CogSpeed V127
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V146";
+const APP_VERSION = "V154";
 
 // ─── Version guard ───
 (function(){
@@ -2520,18 +2520,36 @@ function drawRateRtChart(canvas, sessions, selectedSessionIndex){
  const selectedMode = selected ? (selected.testMode||"mode1") : null;
  const filtered = selectedMode ? hist.filter(s=>(s.testMode||"mode1")===selectedMode) : hist;
 
- const prepared = filtered.map((session, orderIdx)=>{
+ function inferDuration(entry){
+  if(!entry || typeof entry!=="object") return null;
+  if(entry.durationMs!=null && Number.isFinite(Number(entry.durationMs))) return Number(entry.durationMs);
+  for(const key of ["duration","roundDuration","presentedRoundDuration","baselineMs"]){
+   if(entry[key]!=null && Number.isFinite(Number(entry[key]))) return Number(entry[key]);
+  }
+  return null;
+ }
+
+ const prepared = filtered.map((session)=>{
   const log = (Array.isArray(session.rtLog) ? session.rtLog : [])
-   .map((e,i)=>({trial:i+1, rt:e.rt, dur:e.durationMs, outcome:e.outcome}))
+   .map((e,i)=>({
+     trial:i+1,
+     rt:(e && e.rt!=null && Number.isFinite(Number(e.rt))) ? Number(e.rt) : null,
+     dur:inferDuration(e),
+     outcome:e ? e.outcome : null
+   }))
    .filter(e=>e.dur!=null || e.rt!=null);
-  return {...session, _orderIdx:orderIdx, _preparedLog:log};
+  return {...session, _preparedLog:log};
  }).filter(s=>s._preparedLog.length);
 
  const allPts = prepared.flatMap(s=>s._preparedLog);
  if(!allPts.length){
   ctx.fillStyle="#d7e7f8"; ctx.font="bold 13px sans-serif"; ctx.textAlign="center";
   const modeTxt = selectedMode ? formatModeTag(selectedMode) : "selected session";
-  ctx.fillText(`No response-time graph for ${modeTxt}`, W/2, H/2); return;
+  ctx.fillText(`No response-time graph for ${modeTxt}`, W/2, H/2);
+  ctx.font="11px sans-serif";
+  ctx.fillStyle="#b7d9ef";
+  ctx.fillText("No plottable RT or presentation-rate points were found in saved history.", W/2, H/2 + 22);
+  return;
  }
 
  const maxY = Math.max(1000, ...allPts.map(p=>Math.max(p.dur||0,p.rt||0)));
@@ -2567,7 +2585,6 @@ function drawRateRtChart(canvas, sessions, selectedSessionIndex){
   const durColor = `rgba(255,159,64,${alpha})`;
   const rtColor = `rgba(127,215,255,${alpha})`;
 
-  // presentation-rate line
   ctx.strokeStyle=durColor; ctx.lineWidth=isSelected?2.8:1.2; ctx.beginPath();
   let started=false;
   session._preparedLog.forEach((p)=>{
@@ -2577,7 +2594,6 @@ function drawRateRtChart(canvas, sessions, selectedSessionIndex){
   });
   ctx.stroke();
 
-  // response-time line
   ctx.strokeStyle=rtColor; ctx.lineWidth=isSelected?2.8:1.2; ctx.beginPath();
   started=false;
   session._preparedLog.forEach((p)=>{
@@ -2587,7 +2603,6 @@ function drawRateRtChart(canvas, sessions, selectedSessionIndex){
   });
   ctx.stroke();
 
-  // dots for response times: red for wrong, blue otherwise
   session._preparedLog.forEach((p)=>{
    if(p.rt==null) return;
    const x=xOf(p.trial), y=yOf(p.rt);
@@ -2600,7 +2615,6 @@ function drawRateRtChart(canvas, sessions, selectedSessionIndex){
    ctx.beginPath(); ctx.arc(x,y,isSelected?2.8:2.0,0,Math.PI*2); ctx.fill();
   });
 
-  // session label near endpoint
   const last = session._preparedLog[session._preparedLog.length-1];
   if(last){
    const lx=xOf(last.trial);
@@ -2612,7 +2626,6 @@ function drawRateRtChart(canvas, sessions, selectedSessionIndex){
   }
  });
 
- // legend
  ctx.textAlign="left";
  ctx.font="bold 10px sans-serif";
  ctx.fillStyle="#ff9f40"; ctx.fillText("■ Presentation rate", PAD.left, PAD.top+12);
@@ -2627,8 +2640,6 @@ function drawRateRtChart(canvas, sessions, selectedSessionIndex){
  }
 }
 
-// Build overlaid all-session Rate vs RT graph and highlight one selected session.
-// Build same-mode overlaid Rate vs RT graph and highlight one selected session.
 function buildRateRtOverlay(sessionIndex){
  const sel=$("rateRtSessionSelect");
  const preservedValue = (sessionIndex!=null) ? String(sessionIndex) : (sel ? sel.value : null);
@@ -2652,9 +2663,7 @@ function buildRateRtOverlay(sessionIndex){
  const idx=sel?Number(sel.value):state.history.length-1;
  const result=(idx!=null && idx>=0)?state.history[idx]:null;
  const selectedMode = result ? (result.testMode||"mode1") : null;
- const sameModeSessions = selectedMode
-   ? reversedSessions.filter(s => (s.testMode||"mode1")===selectedMode)
-   : reversedSessions;
+ const sameModeSessions = selectedMode ? reversedSessions.filter(s => (s.testMode||"mode1")===selectedMode) : reversedSessions;
  const sessionsForChart = sameModeSessions.length ? sameModeSessions : (result ? [{...result, _actualIndex: idx}] : []);
  const meta=$("rateRtMeta");
  if(meta){
