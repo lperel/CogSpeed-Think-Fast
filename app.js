@@ -2049,12 +2049,13 @@ ${hr}
 CALIBRATION
  Average RT: ${result.calibrationAverageMs!=null?result.calibrationAverageMs.toFixed(1)+" ms":"—"}
 ${hr}
+// Mode 1 CPI is intentionally emphasized so it stands out in emailed and on-screen summaries.
 MACHINE-PACED PERFORMANCE
  Block scores:
 ${blockList}
  Avg last 2 blocks: ${avg2!=null?avg2.toFixed(1)+" ms":"—"}
  Block score diff: ${diffStr}
- CPI: ${cps!=null?cps.toFixed(1)+" / 100":"—"}
+ *** CPI: ${cps!=null?cps.toFixed(1)+" / 100":"—"} ***
 ${hr}
 RESPONSE STATISTICS
  Total taps: ${result.totalResponses}
