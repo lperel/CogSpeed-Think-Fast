@@ -2,7 +2,7 @@
 // CogSpeed V173
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V180";
+const APP_VERSION = "V181";
 const RELEASE = APP_VERSION.replace(/^V/i, "");
 const STORAGE_PREFIX = `cogspeed_v${RELEASE}`;
 
@@ -1229,6 +1229,32 @@ function renderAdmin(){
 }
 function readAdmin(){ for(const [k,,t] of ADMIN_FIELDS){ const el=$("adm_"+k); if(el) settings[k]=t==="number"?Number(el.value):el.value; } }
 function resetAdmin(){ settings={...DEFAULTS}; saveSettings(); renderAdmin(); }
+
+function bindDoubleTapConfirm(btn, action, idleText, confirmText){
+ if(!btn) return;
+ let armed = false;
+ let timer = null;
+ const resetState = ()=>{
+  armed = false;
+  btn.textContent = idleText;
+  btn.style.borderColor = "";
+  btn.style.color = "";
+  if(timer){ clearTimeout(timer); timer = null; }
+ };
+ btn.onclick = ()=>{
+  if(!armed){
+   armed = true;
+   btn.textContent = confirmText;
+   btn.style.borderColor = "rgba(255,100,136,0.75)";
+   btn.style.color = "#ff8aa0";
+   timer = setTimeout(resetState, 2200);
+   return;
+  }
+  resetState();
+  action();
+ };
+}
+
 
 // ─── Charts ───
 // ─── HISTORY AND GRAPHS ───────────────────────────────────────
@@ -3287,7 +3313,7 @@ const _rrp=$("rateRtPrevBtn"); if(_rrp) _rrp.onclick=()=>{ const s=$("rateRtSess
 const _rrn=$("rateRtNextBtn"); if(_rrn) _rrn.onclick=()=>{ const s=$("rateRtSessionSelect"); if(!s) return; s.selectedIndex=Math.min(s.options.length-1,s.selectedIndex+1); if(s.onchange) s.onchange(); };
 
 $("adminBackBtn").onclick=()=>goToStartPage();
-$("adminStartOverBtn").onclick=()=>startOverFlow();
+bindDoubleTapConfirm($("adminStartOverBtn"), ()=>startOverFlow(), "Full Reset", "Tap again for full reset");
 $("benchRunBtn").onclick=()=>runDeviceBenchmark(true);
 $("benchMainBtn").onclick=()=>{ $("benchmarkOverlay").classList.add("hidden"); };
 $("startBtn").onclick=startTest;
