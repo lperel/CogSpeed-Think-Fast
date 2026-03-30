@@ -2,7 +2,7 @@
 // CogSpeed V127
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V156";
+const APP_VERSION = "V157";
 
 // ─── Version guard ───
 (function(){
@@ -316,7 +316,9 @@ async function captureGeo(){
 }
 
 // ─── SVG rendering ───
-// Lines are rendered solid black in both tutorial and live test.
+// Lines are rendered black with a white outline in both tutorial and live test.
+// Dots remain unchanged.
+
 // Dots remain unchanged.
 
 function patternToSVG(pattern,size="large"){
@@ -328,7 +330,7 @@ function patternToSVG(pattern,size="large"){
   const px=(x/100)*dim,py=(y/100)*dim;
   return k==="dot"
    ?`<circle cx="${px.toFixed(1)}" cy="${py.toFixed(1)}" r="${dotR}" fill="var(--text)" stroke="black" stroke-width="3"/>`
-   :`<rect x="${(px-lw/2).toFixed(1)}" y="${(py-lh/2).toFixed(1)}" width="${lw}" height="${lh}" rx="2" fill="#000000" stroke="#000000" stroke-width="3"/>`;
+   :`<rect x="${(px-lw/2).toFixed(1)}" y="${(py-lh/2).toFixed(1)}" width="${lw}" height="${lh}" rx="2" fill="#000000" stroke="#ffffff" stroke-width="3"/>`;
  }).join("");
  return `<svg width="${dim}" height="${dim}" viewBox="0 0 ${dim} ${dim}" xmlns="http://www.w3.org/2000/svg">${marks}</svg>`;
 }
@@ -462,7 +464,7 @@ function ensureGearImageStyles(){
   .gear-mark.line{
    border-radius:3px;
    background:#000000;
-   border-color:#000000;
+   border-color:#ffffff;
   }
   #testScreen .resp-btn.correct-flash .gear-img-wrap{
    filter:brightness(1.45) drop-shadow(0 0 16px rgba(220,255,220,.95));
