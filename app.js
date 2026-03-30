@@ -1496,11 +1496,16 @@ function computeRankAverages(rtLog){
    }
   }
 
-  // Backward-compatible fallback for older saved sessions:
-  // correctCell often looks like "dots:4 @2" or "lines:6 @1"
-  if(pos==null && typeof r.correctCell==="string"){
+  // Positions in older string logs are 1-based: "@4" means Position 4.
+  if(typeof r.correctCell==="string"){
    const m = r.correctCell.match(/@(\d+)/);
    if(m) pos = Number(m[1]);
+  }
+
+  // Positions in structured logs were stored 0-based in some builds.
+  // Normalize everything here to user-facing 1..6 positions.
+  if(typeof pos === "number" && Number.isFinite(pos)){
+   if(pos >= 0 && pos <= 5) pos = pos + 1;
   }
 
   if(family==null || count==null || pos==null) return null;
@@ -1523,7 +1528,7 @@ function computeRankAverages(rtLog){
   for(let n=1;n<=6;n++){
    const dots=sub.filter(r=>r.probeFamily==="dots" && r.probeCount===n).map(r=>r.rt);
    const lines=sub.filter(r=>r.probeFamily==="lines" && r.probeCount===n).map(r=>r.rt);
-   const pos=sub.filter(r=>r.correctPos===n-1).map(r=>r.rt);
+   const pos=sub.filter(r=>r.correctPos===n).map(r=>r.rt);
    if(dots.length) rows.dotRows.push({label:`${n} dots`,avg:avg(dots),count:dots.length});
    if(lines.length) rows.lineRows.push({label:`${n} lines`,avg:avg(lines),count:lines.length});
    if(pos.length) rows.posRows.push({label:`Position ${n}`,avg:avg(pos),count:pos.length});
@@ -1541,6 +1546,71 @@ function formatRankRows(rows){
 }
 function formatRankSection(rankSet){
  return `Correct responses:\nDots:\n${formatRankRows(rankSet.correct.dotRows)}\nLines:\n${formatRankRows(rankSet.correct.lineRows)}\nPositions:\n${formatRankRows(rankSet.correct.posRows)}\n\nWrong responses:\nDots:\n${formatRankRows(rankSet.wrong.dotRows)}\nLines:\n${formatRankRows(rankSet.wrong.lineRows)}\nPositions:\n${formatRankRows(rankSet.wrong.posRows)}`;
+}
+
+function computeRankAveragesForMode(mode){
+ const pooledLogs = (state.history||[])
+  .filter(s => (s.testMode||"mode1") === (mode||"mode1"))
+  .flatMap(s => Array.isArray(s.rtLog) ? s.rtLog : []);
+ return computeRankAverages(pooledLogs);
+}
+function computeCombinationRankAveragesForMode(mode){
+ const pooledLogs = (state.history||[])
+  .filter(s => (s.testMode||"mode1") === (mode||"mode1"))
+  .flatMap(s => Array.isArray(s.rtLog) ? s.rtLog : []);
+
+ function normalizeRow(r){
+  if(!r || r.rt==null || r.counted===false) return null;
+  let family = r.probeFamily || null;
+  let count = r.probeCount;
+  let pos = r.correctPos;
+  if((family==null || count==null) && typeof r.probe==="string"){
+   const m = r.probe.match(/^(dots|lines):(\d+)/);
+   if(m){
+    family = family || m[1];
+    if(count==null) count = Number(m[2]);
+   }
+  }
+  if(typeof r.correctCell==="string"){
+   const m = r.correctCell.match(/@(\d+)/);
+   if(m) pos = Number(m[1]);
+  }
+  if(typeof pos === "number" && Number.isFinite(pos)){
+   if(pos >= 0 && pos <= 5) pos = pos + 1;
+  }
+  if(family==null || count==null || pos==null) return null;
+  return {
+   outcome:r.outcome,
+   rt:Number(r.rt),
+   probeFamily:String(family),
+   probeCount:Number(count),
+   correctPos:Number(pos)
+  };
+ }
+
+ const valid = pooledLogs.map(normalizeRow).filter(Boolean);
+ function buildRows(outcome){
+  const sub = valid.filter(r=>r.outcome===outcome);
+  const buckets = new Map();
+  sub.forEach(r=>{
+   const key = `${r.probeCount} ${r.probeFamily}, Position ${r.correctPos}`;
+   if(!buckets.has(key)) buckets.set(key, []);
+   buckets.get(key).push(r.rt);
+  });
+  const rows = [...buckets.entries()].map(([label, vals])=>({
+   label,
+   avg: vals.reduce((a,b)=>a+b,0)/vals.length,
+   count: vals.length
+  }));
+  rows.sort((a,b)=>a.avg-b.avg);
+  return rows;
+ }
+ return {correct: buildRows("correct"), wrong: buildRows("wrong")};
+}
+function formatModePooledRankSection(mode){
+ const rs = computeRankAveragesForMode(mode);
+ const cs = computeCombinationRankAveragesForMode(mode);
+ return `Combined sessions for ${formatModeTag(mode)}\nCorrect responses:\nDots:\n${formatRankRows(rs.correct.dotRows)}\nLines:\n${formatRankRows(rs.correct.lineRows)}\nPositions:\n${formatRankRows(rs.correct.posRows)}\nCombinations:\n${formatRankRows(cs.correct)}\n\nWrong responses:\nDots:\n${formatRankRows(rs.wrong.dotRows)}\nLines:\n${formatRankRows(rs.wrong.lineRows)}\nPositions:\n${formatRankRows(rs.wrong.posRows)}\nCombinations:\n${formatRankRows(cs.wrong)}`;
 }
 // ─── Export / Email ───
 // ─── EXPORT / EMAIL ───────────────────────────────────────────
@@ -1841,6 +1911,11 @@ function isTestSuccess(r){ return (r||"").toLowerCase().startsWith("convergent")
 // REFERENCE TABLE: 7-row S-PF/CPI/MBS lookup from Perelli (2026)
 //  with ← YOUR SCORE arrow on the matching CPI band.
 // ──────────────────────────────────────────────────────────────
+// Pooled mode-specific ranking summaries:
+// Results page rankings now combine all saved sessions from the SAME test mode only.
+// Mode 1 pools with Mode 1, Mode 2 with Mode 2, Mode 3 with Mode 3.
+// Pooled rankings include single-factor rankings and full pooled combinations
+// of dots/lines count with correct response position.
 function buildSummary(result){
  const el=$("summaryText"); if(!el) return;
  const hr="─────────────────────────";
@@ -1872,7 +1947,7 @@ SELF-PACED CALIBRATION (SPC)
  Total response SD:  ${result.allResponseSdMs!=null?result.allResponseSdMs.toFixed(1)+" ms":"—"}
  Correct self-paced: ${result.selfPacedCorrect}
  Wrong self-paced:   ${result.selfPacedWrong}
-\n${hr}\nRANKED TARGET / POSITION AVERAGES\n${(()=>{ const rs=computeRankAverages(result.rtLog); return formatRankSection(rs); })()}\n${hr}\nEND REASON
+\n${hr}\nRANKED TARGET / POSITION AVERAGES — POOLED SAME-MODE SESSIONS\n${formatModePooledRankSection(result.testMode)}\n${hr}\nEND REASON
  ${result.endReason||"Run complete"}`;
   return;
  }
@@ -1903,7 +1978,7 @@ FIXED MACHINE-PACED PHASE (SPCMP)
  Total machine-paced presented: ${result.fixedPacedPresented||0}
  Machine-paced correct: ${result.fixedPacedCorrect||0}
  Machine-paced wrong:   ${result.fixedPacedWrong||0}
-\n${hr}\nRANKED TARGET / POSITION AVERAGES\n${(()=>{ const rs=computeRankAverages(result.rtLog); return formatRankSection(rs); })()}\n${hr}\nEND REASON
+\n${hr}\nRANKED TARGET / POSITION AVERAGES — POOLED SAME-MODE SESSIONS\n${formatModePooledRankSection(result.testMode)}\n${hr}\nEND REASON
  ${result.endReason||"Run complete"}`;
   return;
  }
@@ -1941,7 +2016,7 @@ RESPONSE STATISTICS
  Missed: ${result.missedTrials}
  Mean paced RT: ${result.pacedResponseMeanMs!=null?result.pacedResponseMeanMs.toFixed(1)+" ms":"—"}
  Paced RT SD: ${sd!=null?sd.toFixed(1)+" ms":"—"}
-\n${hr}\nRANKED TARGET / POSITION AVERAGES\n${(()=>{ const rs=computeRankAverages(result.rtLog); return formatRankSection(rs); })()}\n${hr}\nEND REASON
+\n${hr}\nRANKED TARGET / POSITION AVERAGES — POOLED SAME-MODE SESSIONS\n${formatModePooledRankSection(result.testMode)}\n${hr}\nEND REASON
  ${result.endReason||"Run complete"}`;
 }
 
