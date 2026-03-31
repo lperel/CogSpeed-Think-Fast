@@ -2,7 +2,7 @@
 // CogSpeed V173
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V248";
+const APP_VERSION = "V249";
 const RELEASE = APP_VERSION.replace(/^V/i, "");
 const STORAGE_PREFIX = `cogspeed_v${RELEASE}`;
 
@@ -1663,74 +1663,24 @@ function drawPerformanceOverTimeChart(canvas,hist){
  const mbsVals = slice.map(r=>r.averageLast2BlockingScoresMs!=null?Number(r.averageLast2BlockingScoresMs):null);
  const spfVals = slice.map(r=>r.samnPerelli&&r.samnPerelli.score!=null?Number(r.samnPerelli.score):null);
 
- function drawCompositeLeftMarkers(cpiVals, mbsVals){
-  // Shared left-axis location: CPI and MBS occupy the same y position.
-  // MBS is an orange open circle; CPI is a blue dot inside it.
-  const sharedVals = cpiVals.map((v,i)=> v!=null ? v : (mbsVals[i]!=null ? cpiFromMs(mbsVals[i]) : null));
-
-  // connecting line
-  ctx.strokeStyle="#ffb357";
-  ctx.lineWidth=2.5;
-  ctx.beginPath();
-  let started=false;
-  sharedVals.forEach((v,i)=>{
-   if(v==null){ started=false; return; }
-   const x=xOf(i), y=yLeftFromCpi(v);
-   if(!started){ ctx.moveTo(x,y); started=true; } else { ctx.lineTo(x,y); }
-  });
-  if(sharedVals.filter(v=>v!=null).length>1) ctx.stroke();
-
-  sharedVals.forEach((v,i)=>{
-   if(v==null) return;
-   const x=xOf(i), y=yLeftFromCpi(v);
-
-   // MBS orange circle
-   ctx.strokeStyle="#ffb357";
-   ctx.lineWidth=2.2;
-   ctx.beginPath();
-   ctx.arc(x,y,6.5,0,Math.PI*2);
-   ctx.stroke();
-
-   // CPI blue dot inside
-   ctx.fillStyle="#7fd7ff";
-   ctx.beginPath();
-   ctx.arc(x,y,3.1,0,Math.PI*2);
-   ctx.fill();
-  });
+ function yLeftFromCpiVisible(v,i){
+  const base = yLeftFromCpi(v);
+  const m = mbsVals[i];
+  if(m==null) return base;
+  const delta = Math.abs(base - yLeftFromMs(m));
+  return delta < 6 ? base - 6 : base;
  }
 
- drawCompositeLeftMarkers(cpiVals, mbsVals);
+ drawLine(mbsVals, v=>yLeftFromMs(v), "#ffb357", "square");
+ drawLine(cpiVals, (v,i)=>yLeftFromCpiVisible(v,i), "#7fd7ff", "circle");
  drawLine(spfVals, v=>yRightFromSpf(v), "#88ff88", "diamond");
 
  // legend
  ctx.textAlign="left";
  ctx.font="bold 11px sans-serif";
-
- // CPI blue dot
- ctx.fillStyle="#7fd7ff";
- ctx.beginPath();
- ctx.arc(PAD.left+4, PAD.top-18, 3.1, 0, Math.PI*2);
- ctx.fill();
- ctx.fillText(" CPI", PAD.left+12, PAD.top-14);
-
- // MBS orange circle
- ctx.strokeStyle="#ffb357";
- ctx.lineWidth=2.2;
- ctx.beginPath();
- ctx.arc(PAD.left+68, PAD.top-18, 6.5, 0, Math.PI*2);
- ctx.stroke();
- ctx.fillStyle="#ffb357";
- ctx.fillText(" MBS", PAD.left+78, PAD.top-14);
-
- // SP-FS diamond
- ctx.save();
- ctx.translate(PAD.left+148, PAD.top-18);
- ctx.rotate(Math.PI/4);
- ctx.fillStyle="#88ff88";
- ctx.fillRect(-4,-4,8,8);
- ctx.restore();
- ctx.fillStyle="#88ff88";
- ctx.fillText(" SP-FS", PAD.left+158, PAD.top-14);
+ ctx.fillStyle="#7fd7ff"; ctx.fillText("● CPI", PAD.left, PAD.top-14);
+ ctx.fillStyle="#ffb357"; ctx.fillText("■ MBS", PAD.left+64, PAD.top-14);
+ ctx.fillStyle="#88ff88"; ctx.fillText("◆ SP-FS", PAD.left+132, PAD.top-14);
 }
 
 // ─── RT scatter chart ───
@@ -3770,9 +3720,9 @@ if ("serviceWorker" in navigator) {
    for(const r of regs) await r.unregister();
    const keys = await caches.keys();
    for(const k of keys) await caches.delete(k);
-   console.log("V248 recovery build: old service workers unregistered and caches cleared.");
+   console.log("V249 recovery build: old service workers unregistered and caches cleared.");
   }catch(err){
-   console.warn("V248 recovery cleanup failed:", err);
+   console.warn("V249 recovery cleanup failed:", err);
   }
  });
 }
