@@ -2,7 +2,7 @@
 // CogSpeed V173
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V216";
+const APP_VERSION = "V219";
 const RELEASE = APP_VERSION.replace(/^V/i, "");
 const STORAGE_PREFIX = `cogspeed_v${RELEASE}`;
 
@@ -1862,7 +1862,7 @@ function emailResults(){
  const to=state.profile?.emailResults&&state.profile?.email?state.profile.email:"";
  const rawText = state.lastResultText || JSON.stringify(last,null,2);
  const bodyText = rawText.replace(/\n/g,"\r\n");
- window.location.href=`mailto:${to}?subject=CogSpeed ${APP_VERSION} Results&body=${encodeURIComponent(bodyText)}`;
+ window.location.href=`mailto:${to}?subject=CogSpeed® ${APP_VERSION} Results&body=${encodeURIComponent(bodyText)}`;
 }
 
 
@@ -3493,6 +3493,7 @@ $("summaryEmailBtn").onclick=emailResults;
 const _fgb=$("summaryFullGraphBtn"); if(_fgb) _fgb.onclick=()=>{ $("summaryOverlay").classList.add("hidden"); $("fullGraphOverlay").classList.remove("hidden"); };
 const _fgbb=$("fullGraphBackBtn"); if(_fgbb) _fgbb.onclick=()=>{ $("fullGraphOverlay").classList.add("hidden"); $("summaryOverlay").classList.remove("hidden"); };
 const _orb=$("outcomeResultsBtn"); if(_orb) _orb.onclick=()=>{ $("outcomeOverlay").classList.add("hidden"); stopSpeedometer(); $("summaryOverlay").classList.remove("hidden"); setTestingQuiet(false); };
+const _sadmin=$("speedAdminBtn"); if(_sadmin) _sadmin.onclick=()=>{ _adminReturnTo = "outcomeOverlay"; $("outcomeOverlay").classList.add("hidden"); $("adminOverlay").classList.remove("hidden"); if(_adminUnlocked){ $("adminGate").classList.add("hidden"); $("adminBody").classList.remove("hidden"); renderAdmin(); } else { $("adminGate").classList.remove("hidden"); $("adminBody").classList.add("hidden"); $("adminPass").value=""; } };
 $("summaryAdminBtn").onclick=()=>{
  _adminReturnTo = "summaryOverlay"; // return here on close
  $("summaryOverlay").classList.add("hidden");
@@ -3517,9 +3518,9 @@ if ("serviceWorker" in navigator) {
    for(const r of regs) await r.unregister();
    const keys = await caches.keys();
    for(const k of keys) await caches.delete(k);
-   console.log("V216 recovery build: old service workers unregistered and caches cleared.");
+   console.log("V219 recovery build: old service workers unregistered and caches cleared.");
   }catch(err){
-   console.warn("V216 recovery cleanup failed:", err);
+   console.warn("V219 recovery cleanup failed:", err);
   }
  });
 }
