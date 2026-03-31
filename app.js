@@ -2,7 +2,7 @@
 // CogSpeed V173
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V241";
+const APP_VERSION = "V244";
 const RELEASE = APP_VERSION.replace(/^V/i, "");
 const STORAGE_PREFIX = `cogspeed_v${RELEASE}`;
 
@@ -1466,7 +1466,7 @@ function drawPerformanceOverTimeChart(canvas,hist){
  const n = slice.length;
 
  const bestMs = 800, worstMs = 3000;
- const PAD = {top:72,right:74,bottom:n===1?64:92,left:90};
+ const PAD = {top:72,right:76,bottom:n===1?64:92,left:126};
  const cW = W - PAD.left - PAD.right;
  const cH = H - PAD.top - PAD.bottom;
 
@@ -1481,33 +1481,54 @@ function drawPerformanceOverTimeChart(canvas,hist){
  }
  function yLeftFromMs(ms){ return yLeftFromCpi(cpiFromMs(ms)); }
  function yRightFromSpf(v){ return PAD.top + cH - (((v-1)/6))*cH; }
- function msAtCpi(cpi){
-  const span=(worstMs-bestMs)||1;
-  return Math.round(bestMs + ((100-cpi)/100)*span);
- }
 
- // grid
- ctx.strokeStyle="rgba(127,215,255,0.18)";
+ // grid lines follow CPI positions on shared plot area
+ ctx.strokeStyle="rgba(127,215,255,0.16)";
  ctx.lineWidth=1;
  [0,25,50,75,100].forEach(v=>{
   const y=yLeftFromCpi(v);
   ctx.beginPath(); ctx.moveTo(PAD.left,y); ctx.lineTo(PAD.left+cW,y); ctx.stroke();
  });
 
- // axes labels
+ // left dual axis tick marks and labels: outer=MBS, inner=CPI
+ const cpiTicks = [100,75,50,25,0];
+ const mbsTicks = [800,1240,1900,2450,3000];
  ctx.font="11px sans-serif";
  ctx.textAlign="right";
- ctx.fillStyle="#d7e7f8";
- [100,75,50,25,0].forEach(cpi=>{
-  const y=yLeftFromCpi(cpi);
-  ctx.fillText(`${cpi} | ${msAtCpi(cpi)} ms`, PAD.left-10, y+4);
+
+ cpiTicks.forEach((cpi, i)=>{
+  const y = yLeftFromCpi(cpi);
+
+  // outer MBS tick/label
+  ctx.strokeStyle="#ffb357";
+  ctx.beginPath();
+  ctx.moveTo(PAD.left-46, y);
+  ctx.lineTo(PAD.left-36, y);
+  ctx.stroke();
+  ctx.fillStyle="#ffb357";
+  ctx.fillText(String(mbsTicks[i]), PAD.left-52, y+4);
+
+  // inner CPI tick/label
+  ctx.strokeStyle="#7fd7ff";
+  ctx.beginPath();
+  ctx.moveTo(PAD.left-16, y);
+  ctx.lineTo(PAD.left-6, y);
+  ctx.stroke();
+  ctx.fillStyle="#7fd7ff";
+  ctx.fillText(String(cpi), PAD.left-22, y+4);
  });
 
+ // right axis SP-FS
  ctx.textAlign="left";
  ctx.fillStyle="#88ff88";
  [7,6,5,4,3,2,1].forEach(v=>{
   const y=yRightFromSpf(v);
-  ctx.fillText(String(v), PAD.left+cW+10, y+4);
+  ctx.strokeStyle="#88ff88";
+  ctx.beginPath();
+  ctx.moveTo(PAD.left+cW+6, y);
+  ctx.lineTo(PAD.left+cW+16, y);
+  ctx.stroke();
+  ctx.fillText(String(v), PAD.left+cW+22, y+4);
  });
 
  // title/meta
@@ -1522,12 +1543,21 @@ function drawPerformanceOverTimeChart(canvas,hist){
 
  // axis titles
  ctx.save();
- ctx.translate(24, PAD.top + cH/2);
+ ctx.translate(18, PAD.top + cH/2);
  ctx.rotate(-Math.PI/2);
- ctx.fillStyle="#d7e7f8";
+ ctx.fillStyle="#ffb357";
  ctx.textAlign="center";
- ctx.font="bold 12px sans-serif";
- ctx.fillText("CPI 0–100 | MBS 800–3000 ms (up is better)", 0, 0);
+ ctx.font="bold 11px sans-serif";
+ ctx.fillText("MBS ms", 0, 0);
+ ctx.restore();
+
+ ctx.save();
+ ctx.translate(42, PAD.top + cH/2);
+ ctx.rotate(-Math.PI/2);
+ ctx.fillStyle="#7fd7ff";
+ ctx.textAlign="center";
+ ctx.font="bold 11px sans-serif";
+ ctx.fillText("CPI", 0, 0);
  ctx.restore();
 
  ctx.save();
@@ -1602,7 +1632,6 @@ function drawPerformanceOverTimeChart(canvas,hist){
   return delta < 6 ? base - 6 : base;
  }
 
- // Draw MBS first so CPI remains visible on top when values align on the shared left axis.
  drawLine(mbsVals, v=>yLeftFromMs(v), "#ffb357", "square");
  drawLine(cpiVals, (v,i)=>yLeftFromCpiVisible(v,i), "#7fd7ff", "circle");
  drawLine(spfVals, v=>yRightFromSpf(v), "#88ff88", "diamond");
@@ -3653,9 +3682,9 @@ if ("serviceWorker" in navigator) {
    for(const r of regs) await r.unregister();
    const keys = await caches.keys();
    for(const k of keys) await caches.delete(k);
-   console.log("V241 recovery build: old service workers unregistered and caches cleared.");
+   console.log("V244 recovery build: old service workers unregistered and caches cleared.");
   }catch(err){
-   console.warn("V241 recovery cleanup failed:", err);
+   console.warn("V244 recovery cleanup failed:", err);
   }
  });
 }
