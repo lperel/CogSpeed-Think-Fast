@@ -1,8 +1,11 @@
 // ═══════════════════════════════════════════════════
+// V210 no-SW stabilization build
+// Service worker registration intentionally disabled while core flow is re-verified.
+
 // CogSpeed V173
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V209";
+const APP_VERSION = "V210";
 const RELEASE = APP_VERSION.replace(/^V/i, "");
 const STORAGE_PREFIX = `cogspeed_v${RELEASE}`;
 
@@ -3572,18 +3575,16 @@ updateMetrics();
 
 
 if ("serviceWorker" in navigator) {
- let __swRefreshing = false;
- navigator.serviceWorker.addEventListener("controllerchange", () => {
-  if (__swRefreshing) return;
-  __swRefreshing = true;
-  window.location.reload();
- });
- window.addEventListener("load", () => {
-  navigator.serviceWorker.register("./sw.js").then(reg => {
-   reg.update();
-  }).catch(err => {
-   console.warn("SW registration failed:", err);
-  });
+ window.addEventListener("load", async () => {
+  try{
+   const regs = await navigator.serviceWorker.getRegistrations();
+   for(const r of regs) await r.unregister();
+   const keys = await caches.keys();
+   for(const k of keys) await caches.delete(k);
+   console.log("V210 no-SW stabilization: old service workers unregistered and caches cleared.");
+  }catch(err){
+   console.warn("V210 no-SW stabilization cleanup failed:", err);
+  }
  });
 }
 
