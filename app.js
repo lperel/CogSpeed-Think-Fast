@@ -2,7 +2,7 @@
 // CogSpeed V173
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V219";
+const APP_VERSION = "V222";
 const RELEASE = APP_VERSION.replace(/^V/i, "");
 const STORAGE_PREFIX = `cogspeed_v${RELEASE}`;
 
@@ -1213,8 +1213,7 @@ function renderFatigueChecklist(){
 // HISTORY AND GRAPHS: combined CPI/MBS ms/SP-FS chart (last 20).
 // TRIAL DETAIL: per-trial table with session selector + CSV download.
 // LAST RESULTS: shows summary overlay for most recent test.
-// EXPORT JSON: full history + settings as .json file.
-// EXPORT CSV: history as spreadsheet-ready .csv file.
+// // EXPORT CSV: history as spreadsheet-ready .csv file.
 // BENCHMARK: device timing calibration test.
 // ──────────────────────────────────────────────────────────────
 function renderAdmin(){
@@ -1822,10 +1821,7 @@ function formatModePooledRankSection(mode){
 //  CPI, taps, correct, wrong, missed, paced stats, duration, end reason.
 // emailResults(): opens mailto: with last result text in body.
 // ──────────────────────────────────────────────────────────────
-function exportResults(){
- const blob=new Blob([JSON.stringify({settings,history:state.history},null,2)],{type:"application/json"});
- const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=`${STORAGE_PREFIX}_results.json`; a.click();
-}
+
 function exportCSV(){
  const h=state.history; if(!h.length){setStatus("No history to export."); return;}
  const cols=["session","subjectId","date","samnPerelli","calibAvgMs","blocks",
@@ -3432,7 +3428,6 @@ $("closeAdminBtn").onclick=()=>{
 $("closeAdminBtn2").onclick=()=>$("benchmarkOverlay").classList.add("hidden");
 $("saveAdminBtn").onclick=()=>{ readAdmin(); saveSettings(); renderAdmin(); setStatus("Settings saved"); };
 bindDoubleTapConfirm($("resetAdminBtn"), ()=>{ resetAdmin(); setStatus("Settings reset to defaults"); }, "Reset", "Tap again to reset");
-$("exportAdminBtn").onclick=exportResults;
 const _ecb=$("exportCsvAdminBtn"); if(_ecb) _ecb.onclick=exportCSV;
 $("adminTrialLogBtn").onclick=()=>{ buildTrialLog(state.history.length-1); $("trialLogOverlay").classList.remove("hidden"); };
 $("adminHistoryBtn").onclick=()=>{ buildHistoryOverlay(); $("historyOverlay").classList.remove("hidden"); };
@@ -3518,9 +3513,9 @@ if ("serviceWorker" in navigator) {
    for(const r of regs) await r.unregister();
    const keys = await caches.keys();
    for(const k of keys) await caches.delete(k);
-   console.log("V219 recovery build: old service workers unregistered and caches cleared.");
+   console.log("V222 recovery build: old service workers unregistered and caches cleared.");
   }catch(err){
-   console.warn("V219 recovery cleanup failed:", err);
+   console.warn("V222 recovery cleanup failed:", err);
   }
  });
 }
