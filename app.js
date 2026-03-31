@@ -2,7 +2,7 @@
 // CogSpeed V173
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V185";
+const APP_VERSION = "V186";
 const RELEASE = APP_VERSION.replace(/^V/i, "");
 const STORAGE_PREFIX = `cogspeed_v${RELEASE}`;
 
@@ -644,7 +644,8 @@ function logTrial({phase,rt,outcome,responseIndex,counted}){
   probe:`${trial.probeFamily}:${trial.probeCount}`,
   correctCell:ci?`${ci.family}:${ci.count} @${trial.correctPos+1}`:"—",
   response:ri?`${ri.family}:${ri.count} @${responseIndex+1}`:(responseIndex!=null?`pos${responseIndex+1}`:"no_response"),
-  warmup: counted===false
+  warmup: counted===false,
+  counted
  });
 }
 
