@@ -2,7 +2,7 @@
 // CogSpeed V173
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V200";
+const APP_VERSION = "V204";
 const RELEASE = APP_VERSION.replace(/^V/i, "");
 const STORAGE_PREFIX = `cogspeed_v${RELEASE}`;
 
@@ -1237,7 +1237,8 @@ function bindDoubleTapAction(btn, action, idleText, confirmText){
 // HISTORY AND GRAPHS: combined CPI/MBS ms/SP-FS chart (last 20).
 // TRIAL DETAIL: per-trial table with session selector + CSV download.
 // LAST RESULTS: shows summary overlay for most recent test.
-// // EXPORT CSV: history as spreadsheet-ready .csv file.
+// EXPORT JSON: full history + settings as .json file.
+// EXPORT CSV: history as spreadsheet-ready .csv file.
 // BENCHMARK: device timing calibration test.
 // ──────────────────────────────────────────────────────────────
 function renderAdmin(){
@@ -1846,34 +1847,6 @@ function formatModePooledRankSection(mode){
 // emailResults(): opens mailto: with last result text in body.
 // ──────────────────────────────────────────────────────────────
 function exportResults(){ setStatus("Export JSON removed."); }
-function exportCSV(){
- const h=state.history; if(!h.length){setStatus("No history to export."); return;}
- const cols=["session","subjectId","date","samnPerelli","calibAvgMs","blocks",
-  "avgLast2Ms","blockDiffMs","cpi","totalTaps","correct","wrong","missed",
-  "pacedCorrect","pacedWrong","spRestartWrong","meanPacedRtMs","pacedRtSd",
-  "testDurationMs","endReason","location"];
- const rows=h.map((r,i)=>[
-  i+1,
-  r.subjectId||"",
-  r.time?new Date(r.time).toLocaleString():"",
-  r.samnPerelli?`${r.samnPerelli.score} - ${r.samnPerelli.label}`:"",
-  r.calibrationAverageMs!=null?r.calibrationAverageMs.toFixed(1):"",
-  (r.blocks||[]).join("|"),
-  r.averageLast2BlockingScoresMs!=null?r.averageLast2BlockingScoresMs.toFixed(1):"",
-  r.blockScoreDifferenceMs!=null?r.blockScoreDifferenceMs.toFixed(1):"",
-  r.cognitivePerformanceIndex!=null?r.cognitivePerformanceIndex.toFixed(1):"",
-  r.totalResponses||0, r.totalCorrect||0, r.totalIncorrect||0, r.missedTrials||0,
-  r.pacedResponseCount||0, r.pacedErrors||0, r.recoveryErrors||0,
-  r.pacedResponseMeanMs!=null?r.pacedResponseMeanMs.toFixed(1):"",
-  r.pacedResponseSdMs!=null?r.pacedResponseSdMs.toFixed(1):"",
-  r.testDurationMs!=null?Math.round(r.testDurationMs):"",
-  `"${(r.endReason||"").replace(/"/g,'""')}"`,
-  `"${(r.location||"").replace(/"/g,'""')}"`
- ].map(v=>v==null?"":v).join(","));
- const csv=[cols.join(","), ...rows].join("\n");
- const blob=new Blob([csv],{type:"text/csv"});
- const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=`${STORAGE_PREFIX}_history.csv`; a.click();
-}
 // Email results
 // Subject line always uses the current APP_VERSION build label.
 function emailResults(){
@@ -3419,9 +3392,7 @@ $("skipRefresherBtn").onclick=()=>{
  showTutorial(); setStatus("Tutorial");
 };
 $("refBackBtn").onclick=()=>goToStartPage();
-$("refStartOverBtn").onclick=()=>startOverFlow();
 $("fatigueBackBtn").onclick=()=>goToStartPage();
-$("fatigueStartOverBtn").onclick=()=>startOverFlow();
 const _fsb=$("fatigueStartBtn");
 if(_fsb) _fsb.onclick=startTest;
 let _adminUnlocked = false;
@@ -3496,10 +3467,8 @@ $("closeAdminBtn").onclick=()=>{
 $("closeAdminBtn2").onclick=()=>$("benchmarkOverlay").classList.add("hidden");
 $("saveAdminBtn").onclick=()=>{ readAdmin(); saveSettings(); renderAdmin(); setStatus("Settings saved"); };
 bindDoubleTapConfirm($("resetAdminBtn"), ()=>{ resetAdmin(); setStatus("Settings reset to defaults"); }, "Reset", "Tap again to reset");
-$("exportAdminBtn").onclick=exportResults;
 const _ecb=$("exportCsvAdminBtn"); if(_ecb) _ecb.onclick=exportCSV;
 $("adminTrialLogBtn").onclick=()=>{ buildTrialLog(state.history.length-1); $("trialLogOverlay").classList.remove("hidden"); };
-$("adminHistoryBtn").onclick=()=>{ buildHistoryOverlay(); $("historyOverlay").classList.remove("hidden"); };
 const _arrb=$("adminRateRtBtn"); if(_arrb) _arrb.onclick=()=>{ $("adminOverlay").classList.add("hidden"); $("rateRtOverlay").classList.remove("hidden"); buildRateRtOverlay(); };
 $("adminLastResultBtn").onclick=()=>{
  const last=state.history[state.history.length-1];
@@ -3510,38 +3479,12 @@ $("adminLastResultBtn").onclick=()=>{
 };
 $("trialLogCloseBtn").onclick=()=>{ $("trialLogOverlay").classList.add("hidden"); openSpeedometerHub(); };
 $("trialLogCsvBtn").onclick=()=>downloadTrialLogCSV();
-$("historyCloseBtn").onclick=()=>$("historyOverlay").classList.add("hidden");
 const _rrsel=$("rateRtSessionSelect"); if(_rrsel) _rrsel.onchange=()=>buildRateRtOverlay();
 const _rrcb=$("rateRtCloseBtn"); if(_rrcb) _rrcb.onclick=()=>{ $("rateRtOverlay").classList.add("hidden"); $("adminOverlay").classList.remove("hidden"); if(_adminUnlocked){ $("adminGate").classList.add("hidden"); $("adminBody").classList.remove("hidden"); renderAdmin(); } };
-$("historyClearBtn").onclick=()=>{
- const btn=$("historyClearBtn");
- if(btn._confirmPending){
-  clearTimeout(btn._confirmTimer);
-  btn._confirmPending=false;
-  btn.textContent="🗑 Clear History";
-  btn.style.color="rgba(255,100,136,0.5)";
-  btn.style.borderColor="rgba(255,100,136,0.3)";
-  state.history=[]; localStorage.removeItem(`${STORAGE_PREFIX}_history`);
-  buildHistoryOverlay(); setStatus("History cleared.");
- } else {
-  btn._confirmPending=true;
-  btn.textContent="Tap again to confirm";
-  btn.style.color="#ff6688";
-  btn.style.borderColor="#ff6688";
-  btn._confirmTimer=setTimeout(()=>{
-   btn._confirmPending=false;
-   btn.textContent="🗑 Clear History";
-   btn.style.color="rgba(255,100,136,0.5)";
-   btn.style.borderColor="rgba(255,100,136,0.3)";
-  },2000);
- }
-};
 const _tsel=$("trialLogSessionSelect");
 if(_tsel) _tsel.onchange=()=>buildTrialLog();
 const _tlp=$("trialLogPrevBtn"); if(_tlp) _tlp.onclick=()=>{ const s=$("trialLogSessionSelect"); if(!s) return; s.selectedIndex=Math.max(0,s.selectedIndex-1); if(s.onchange) s.onchange(); };
 const _tln=$("trialLogNextBtn"); if(_tln) _tln.onclick=()=>{ const s=$("trialLogSessionSelect"); if(!s) return; s.selectedIndex=Math.min(s.options.length-1,s.selectedIndex+1); if(s.onchange) s.onchange(); };
-const _hp=$("historyPrevBtn"); if(_hp) _hp.onclick=()=>{ const cur=(buildHistoryOverlay._selectedIndex!=null?buildHistoryOverlay._selectedIndex:(state.history.length-1)); buildHistoryOverlay(Math.max(0,cur-1)); };
-const _hn=$("historyNextBtn"); if(_hn) _hn.onclick=()=>{ const cur=(buildHistoryOverlay._selectedIndex!=null?buildHistoryOverlay._selectedIndex:(state.history.length-1)); buildHistoryOverlay(Math.min(state.history.length-1,cur+1)); };
 const _rrp=$("rateRtPrevBtn"); if(_rrp) _rrp.onclick=()=>{ const s=$("rateRtSessionSelect"); if(!s) return; s.selectedIndex=Math.max(0,s.selectedIndex-1); if(s.onchange) s.onchange(); };
 const _rrn=$("rateRtNextBtn"); if(_rrn) _rrn.onclick=()=>{ const s=$("rateRtSessionSelect"); if(!s) return; s.selectedIndex=Math.min(s.options.length-1,s.selectedIndex+1); if(s.onchange) s.onchange(); };
 
@@ -3620,3 +3563,7 @@ const _edb=$("emailDataBtn"); if(_edb) _edb.onclick=()=>{ const val=window.promp
 const _esb=$("emailSendBtn"); if(_esb) _esb.onclick=()=>{ const last=currentResult(); if(!last) return; const to=_emailSelectedRecipient || (state.profile&&state.profile.emailResults&&state.profile.email ? state.profile.email : ""); buildSummary(last); const body=buildEmailBodyForSelection(last,_emailSelectedData).replace(/\n/g,"\r\n"); window.location.href=`mailto:${to}?subject=CogSpeed® ${APP_VERSION} Results&body=${encodeURIComponent(body)}`; };
 const _ebb=$("emailBackBtn"); if(_ebb) _ebb.onclick=()=>{ $("emailSelectOverlay").classList.add("hidden"); openSpeedometerHub(); };
 
+
+bindDoubleTapAction($("refStartOverBtn"), ()=>{ renderRefresher(); }, "Reset", "Tap again to reset");
+
+bindDoubleTapAction($("fatigueStartOverBtn"), ()=>{ state.samnPerelli=null; renderFatigueChecklist(); }, "Reset", "Tap again to reset");
