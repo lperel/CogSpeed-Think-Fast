@@ -2,7 +2,7 @@
 // CogSpeed V173
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V232";
+const APP_VERSION = "V234";
 const RELEASE = APP_VERSION.replace(/^V/i, "");
 const STORAGE_PREFIX = `cogspeed_v${RELEASE}`;
 
@@ -255,14 +255,12 @@ function updateCPIDisplay(avg){
 function clearTimer(){ if(state.trialTimer) clearTimeout(state.trialTimer); state.trialTimer=null; }
 function clearNoResponseTimer(){ if(state.absoluteNoResponseTimer) clearTimeout(state.absoluteNoResponseTimer); state.absoluteNoResponseTimer=null; }
 function clearMaxTestTimer(){ if(state.maxTestTimer) clearTimeout(state.maxTestTimer); state.maxTestTimer=null; }
-// ─── NO-RESPONSE TIMERS ───────────────────────────────────────
-// armNoResponseTimer(): phase-aware timeouts by phase:
-//  calibration trial 1: 20s | cal trials 2+: 10s
-//  machine-paced: 6s (frame ends anyway) | recovery: 10s
-//  Fires end condition if subject stops responding.
-// armMaxTestTimer(): 150s total session wall clock (cal + paced).
-// noteAnyResponse(): called on every tap to reset the 10/20s timer.
-// ──────────────────────────────────────────────────────────────
+// Absolute "not responding" timer — keeps tests from hanging forever.
+// Calibration trial 1 uses calibrationFirstNoResponseMs (default 10s).
+// Later calibration trials use calibrationNoResponseMs (default 6s).
+// Machine-paced uses machinePacedNoResponseMs (default 15s).
+// Recovery uses recoveryNoResponseMs (default 10s).
+// Fires finish() with a no-response end reason if nothing is tapped in time.
 function armNoResponseTimer(){
  clearNoResponseTimer();
  let ms;
@@ -3671,9 +3669,9 @@ if ("serviceWorker" in navigator) {
    for(const r of regs) await r.unregister();
    const keys = await caches.keys();
    for(const k of keys) await caches.delete(k);
-   console.log("V232 recovery build: old service workers unregistered and caches cleared.");
+   console.log("V234 recovery build: old service workers unregistered and caches cleared.");
   }catch(err){
-   console.warn("V232 recovery cleanup failed:", err);
+   console.warn("V234 recovery cleanup failed:", err);
   }
  });
 }
