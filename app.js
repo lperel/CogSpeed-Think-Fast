@@ -2,7 +2,7 @@
 // CogSpeed V173
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V186";
+const APP_VERSION = "V187";
 const RELEASE = APP_VERSION.replace(/^V/i, "");
 const STORAGE_PREFIX = `cogspeed_v${RELEASE}`;
 
@@ -2521,14 +2521,17 @@ function buildTrialLog(sessionIndex){
   return;
  }
  // Color coding
- const outcomeColor={correct:"#00ff88",wrong:"#ff4466",missed:"#888"};
+ const outcomeColor={correct:"#00ff88",wrong:"#ff4466",missed:"#888","Warm up":"#ffd166"};
  log.forEach(e=>{
   const tr=document.createElement("tr");
   const timeStr=e.clockTime?new Date(e.clockTime).toLocaleTimeString("en-US",{hour12:false,hour:"2-digit",minute:"2-digit",second:"2-digit",fractionalSecondDigits:3}):"—";
   const rtStr=e.rt!=null?e.rt.toLocaleString():"—";
   const durStr=e.durationMs!=null?e.durationMs.toLocaleString()+"ms":"—";
-  const oc=outcomeColor[e.outcome]||"var(--muted)";
-  tr.innerHTML=`<td style="font-weight:700">${e.seq}</td><td style="font-size:10px">${timeStr}</td><td style="font-size:10px;color:var(--muted)">${e.phase}</td><td>${durStr}</td><td style="font-weight:700">${rtStr}</td><td style="color:${oc};font-weight:700">${e.outcome}</td><td>${e.counted===false?"No":"Yes"}</td><td>${e.probe}</td><td style="color:var(--accent)">${e.correctCell}</td><td style="color:${oc==="var(--muted)"?"var(--muted)":oc}">${e.response}</td>`;
+  const isWarmup = !!(e.warmup || e.counted===false || e.outcome==="Warm up");
+  const phaseLabel = isWarmup ? "Warm up" : (e.phase||"—");
+  const outcomeLabel = isWarmup ? "Warm up" : (e.outcome||"—");
+  const oc=outcomeColor[outcomeLabel]||"var(--muted)";
+  tr.innerHTML=`<td style="font-weight:700">${e.seq}</td><td style="font-size:10px">${timeStr}</td><td style="font-size:10px;color:var(--muted)">${phaseLabel}</td><td>${durStr}</td><td style="font-weight:700">${rtStr}</td><td style="color:${oc};font-weight:700">${outcomeLabel}</td><td>${e.counted===false?"No":"Yes"}</td><td>${e.probe}</td><td style="color:var(--accent)">${e.correctCell}</td><td style="color:${oc==="var(--muted)"?"var(--muted)":oc}">${e.response}</td>`;
   tbody.appendChild(tr);
  });
 }
