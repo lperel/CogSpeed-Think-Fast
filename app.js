@@ -2,7 +2,7 @@
 // CogSpeed V173
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V208";
+const APP_VERSION = "V209";
 const RELEASE = APP_VERSION.replace(/^V/i, "");
 const STORAGE_PREFIX = `cogspeed_v${RELEASE}`;
 
@@ -2144,6 +2144,37 @@ function isTestSuccess(r){ return (r||"").toLowerCase().startsWith("convergent")
 let _emailSelectedData = "summary";
 let _emailSelectedRecipient = "";
 
+
+function goToStartPageFromAdmin(){
+ const admin = $("adminOverlay");
+ if(admin) admin.classList.add("hidden");
+ goToStartPage();
+}
+
+function openSpeedometerFromAdmin(){
+ const admin = $("adminOverlay");
+ if(admin) admin.classList.add("hidden");
+ if(typeof openSpeedometerHub==="function" && state.history && state.history.length){
+  openSpeedometerHub();
+ }else{
+  goToStartPage();
+ }
+}
+
+function startTestFromFatigue(){
+ if(!state.subjectId){
+  showOnly("subjectOverlay");
+  setStatus("Enter Subject ID first");
+  return;
+ }
+ if(!state.samnPerelli){
+  showOnly("fatigueOverlay");
+  setStatus("Select fatigue rating first");
+  return;
+ }
+ startTest();
+}
+
 function currentResult(){
  return state.history && state.history.length ? state.history[state.history.length-1] : null;
 }
@@ -3412,8 +3443,6 @@ $("skipRefresherBtn").onclick=()=>{
 };
 $("refBackBtn").onclick=()=>goToStartPage();
 $("fatigueBackBtn").onclick=()=>goToStartPage();
-const _fsb=$("fatigueStartBtn");
-if(_fsb) _fsb.onclick=()=>startTest();
 let _adminUnlocked = false;
 
 bindDoubleTapAction($("refStartOverBtn"), ()=>{ renderRefresher(); }, "Reset", "Tap again to reset");
@@ -3510,7 +3539,6 @@ const _tln=$("trialLogNextBtn"); if(_tln) _tln.onclick=()=>{ const s=$("trialLog
 const _rrp=$("rateRtPrevBtn"); if(_rrp) _rrp.onclick=()=>{ const s=$("rateRtSessionSelect"); if(!s) return; s.selectedIndex=Math.max(0,s.selectedIndex-1); if(s.onchange) s.onchange(); };
 const _rrn=$("rateRtNextBtn"); if(_rrn) _rrn.onclick=()=>{ const s=$("rateRtSessionSelect"); if(!s) return; s.selectedIndex=Math.min(s.options.length-1,s.selectedIndex+1); if(s.onchange) s.onchange(); };
 
-$("adminBackBtn").onclick=()=>goToStartPage();
 bindDoubleTapConfirm($("adminStartOverBtn"), ()=>startOverFlow(), "Full Reset", "Tap again for full reset");
 $("benchRunBtn").onclick=()=>runDeviceBenchmark(true);
 $("benchMainBtn").onclick=()=>{ $("benchmarkOverlay").classList.add("hidden"); };
@@ -3522,6 +3550,10 @@ $("summaryEmailBtn").onclick=emailResults;
 const _fgb=$("summaryFullGraphBtn"); if(_fgb) _fgb.onclick=()=>{ $("summaryOverlay").classList.add("hidden"); $("fullGraphOverlay").classList.remove("hidden"); };
 
 const _orb=$("outcomeResultsBtn"); if(_orb) _orb.onclick=()=>{ openSpeedometerHub(); };
+
+$("adminBackBtn").onclick=()=>goToStartPageFromAdmin();
+const _asb=$("adminSpeedometerBtn"); if(_asb) _asb.onclick=()=>openSpeedometerFromAdmin();
+const _fsb=$("fatigueStartBtn"); if(_fsb){ _fsb.onclick=()=>startTestFromFatigue(); _fsb.addEventListener("click", ()=>startTestFromFatigue()); }
 $("summaryAdminBtn").onclick=()=>{
  _adminReturnTo = "summaryOverlay"; // return here on close
  $("summaryOverlay").classList.add("hidden");
