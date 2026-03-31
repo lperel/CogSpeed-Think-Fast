@@ -2,7 +2,7 @@
 // CogSpeed V173
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V211";
+const APP_VERSION = "V212";
 const RELEASE = APP_VERSION.replace(/^V/i, "");
 const STORAGE_PREFIX = `cogspeed_v${RELEASE}`;
 
@@ -82,50 +82,49 @@ const ADMIN_FIELDS=[
  // 1. Admin passcode
  ["adminPasscode","1. Admin passcode","text"],
 
- // 2-17. Defaults used across all modes, in rough order of use
+ // 2-16. Defaults used across all modes, ordered by use in the test
  ["initialUnusedCalibrationTrials","2. Warm-up calibration trials (default 1)","number"],
  ["initialMeasuredCalibrationTrials","3. Measured calibration trials (default 10)","number"],
  ["calibrationFirstNoResponseMs","4. Calibration first-trial no-response (ms, default 20000)","number"],
  ["calibrationNoResponseMs","5. Calibration later-trial no-response (ms, default 10000)","number"],
  ["calibrationStopErrors","6. Calibration stop after N wrong (default 4)","number"],
  ["calibrationStopSlowMs","7. Calibration avg RT limit (ms, default 3000)","number"],
- ["lateResponseThresholdMs","8. Late-response threshold after prior miss (ms, default 600)","number"],
- ["minDurationMs","9. MP frame minimum duration (ms, default 700)","number"],
- ["maxDurationMs","10. MP frame maximum duration (ms, default 3000)","number"],
- ["machinePacedNoResponseMs","11. MP no-response timeout (ms, default 15000)","number"],
- ["maxTestDurationMs","12. Max total test time (ms, default 150000)","number"],
- ["wrongWindowSize","13. Anti-spoof wrong window size (default 5)","number"],
- ["wrongThresholdStop","14. Anti-spoof max wrong in window (default 4)","number"],
- ["rollMeanWindow","15. Anti-spoof rolling mean window (default 8)","number"],
- ["rollMeanThreshold","16. Anti-spoof rolling mean threshold (default 0.50)","number"],
- ["deviceBenchmarkEnabled","17. Device benchmark (0=off, 1=on)","number"],
+ ["minDurationMs","8. MP frame minimum duration (ms, default 700)","number"],
+ ["maxDurationMs","9. MP frame maximum duration (ms, default 3000)","number"],
+ ["machinePacedNoResponseMs","10. MP no-response timeout (ms, default 15000)","number"],
+ ["maxTestDurationMs","11. Max total test time (ms, default 150000)","number"],
+ ["wrongWindowSize","12. Anti-spoof wrong window size (default 5)","number"],
+ ["wrongThresholdStop","13. Anti-spoof max wrong in window (default 4)","number"],
+ ["rollMeanWindow","14. Anti-spoof rolling mean window (default 8)","number"],
+ ["rollMeanThreshold","15. Anti-spoof rolling mean threshold (default 0.50)","number"],
+ ["deviceBenchmarkEnabled","16. Device benchmark (0=off, 1=on)","number"],
 
- // 18. Test mode
- ["testMode","18. Test mode","select:mode1|mode2|mode3"],
+ // 17. Test mode
+ ["testMode","17. Test mode","select:mode1|mode2|mode3"],
 
- // 19-30. Mode 1 (CogSpeed) settings, in order of use
- ["initialPacedPercent","19. Mode 1 MP start: % of calibration avg (default 1.3)","number"],
- ["consecutiveMissesForBlock","20. Mode 1 misses to trigger block (default 2)","number"],
- ["blockRestartPercent","21. Mode 1 restart: % of block baseline (default 1.3)","number"],
- ["spRestartCorrectStreak","22. Mode 1 recovery correct streak to resume (default 2)","number"],
- ["spRestartWrongLimit","23. Mode 1 recovery max wrong before fail (default 3)","number"],
- ["recoveryNoResponseMs","24. Mode 1 recovery no-response timeout (ms, default 10000)","number"],
- ["maxBlockCount","25. Mode 1 max total blocks before fail (default 6)","number"],
- ["qualifyingBlockGapMs","26. Mode 1 convergent block max gap (ms, default 250)","number"],
- ["maxTrialCount","27. Mode 1 max paced trials (default 180)","number"],
- ["maxPacedWrong","28. Mode 1 max paced wrong before fail (default 20)","number"],
- ["cpiBestMs","29. Mode 1 CPI best ms anchor (default 800)","number"],
- ["cpiWorstMs","30. Mode 1 CPI worst ms anchor (default 3000)","number"],
+ // 18-29. Mode 1 settings, ordered by use
+ ["initialPacedPercent","18. Mode 1 MP start: % of calibration avg (default 1.3)","number"],
+ ["consecutiveMissesForBlock","19. Mode 1 misses to trigger block (default 2)","number"],
+ ["blockRestartPercent","20. Mode 1 restart: % of block baseline (default 1.3)","number"],
+ ["spRestartCorrectStreak","21. Mode 1 recovery correct streak to resume (default 2)","number"],
+ ["spRestartWrongLimit","22. Mode 1 recovery max wrong before fail (default 3)","number"],
+ ["recoveryNoResponseMs","23. Mode 1 recovery no-response timeout (ms, default 10000)","number"],
+ ["maxBlockCount","24. Mode 1 max total blocks before fail (default 6)","number"],
+ ["qualifyingBlockGapMs","25. Mode 1 convergent block max gap (ms, default 250)","number"],
+ ["maxTrialCount","26. Mode 1 max paced trials (default 180)","number"],
+ ["maxPacedWrong","27. Mode 1 max paced wrong before fail (default 20)","number"],
+ ["cpiBestMs","28. Mode 1 CPI best ms anchor (default 800)","number"],
+ ["cpiWorstMs","29. Mode 1 CPI worst ms anchor (default 3000)","number"],
 
- // 31-32. Mode 2 (SPC) settings
- ["mode2TrialLimit","31. Mode 2 SPC trial limit (default 150)","number"],
- ["mode2MaxDurationMs","32. Mode 2 total duration ms (default 120000)","number"],
+ // 30-31. Mode 2 settings, ordered by use
+ ["mode2TrialLimit","30. Mode 2 SPC trial limit (default 150)","number"],
+ ["mode2MaxDurationMs","31. Mode 2 total duration ms (default 120000)","number"],
 
- // 33-36. Mode 3 (SPCMP) settings
- ["mode3CalibrationTrials","33. Mode 3 self-paced calibration trials (default 10)","number"],
- ["mode3BaselineFactor","34. Mode 3 MP baseline factor from cal avg (default 1.3)","number"],
- ["mode3PacedTrialLimit","35. Mode 3 fixed machine-paced trial limit (default 140)","number"],
- ["mode3MaxDurationMs","36. Mode 3 total duration ms (default 120000)","number"],
+ // 32-35. Mode 3 settings, ordered by use
+ ["mode3CalibrationTrials","32. Mode 3 self-paced calibration trials (default 10)","number"],
+ ["mode3BaselineFactor","33. Mode 3 MP baseline factor from cal avg (default 1.3)","number"],
+ ["mode3PacedTrialLimit","34. Mode 3 fixed machine-paced trial limit (default 140)","number"],
+ ["mode3MaxDurationMs","35. Mode 3 total duration ms (default 120000)","number"],
 ];
 
 // ─── Patterns ───
@@ -1207,6 +1206,9 @@ function renderFatigueChecklist(){
 
 // ─── Admin ───
 // ─── ADMIN PANEL ──────────────────────────────────────────────
+// Admin defaults are displayed in numbered order:
+// 1) Admin passcode, 2) shared defaults used across all modes,
+// 3) Test mode, 4) mode-specific groups in test-use order.
 // Password-protected (default: 4822). Stays unlocked per session.
 // HISTORY AND GRAPHS: combined CPI/MBS ms/SP-FS chart (last 20).
 // TRIAL DETAIL: per-trial table with session selector + CSV download.
@@ -3513,9 +3515,9 @@ if ("serviceWorker" in navigator) {
    for(const r of regs) await r.unregister();
    const keys = await caches.keys();
    for(const k of keys) await caches.delete(k);
-   console.log("V211 recovery build: old service workers unregistered and caches cleared.");
+   console.log("V212 recovery build: old service workers unregistered and caches cleared.");
   }catch(err){
-   console.warn("V211 recovery cleanup failed:", err);
+   console.warn("V212 recovery cleanup failed:", err);
   }
  });
 }
