@@ -2,7 +2,7 @@
 // CogSpeed V173
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V187";
+const APP_VERSION = "V194";
 const RELEASE = APP_VERSION.replace(/^V/i, "");
 const STORAGE_PREFIX = `cogspeed_v${RELEASE}`;
 
@@ -79,55 +79,53 @@ const DEFAULTS={
 // Drives the admin form UI and maps to DEFAULTS keys above.
 // ═══════════════════════════════════════════════════════════════
 const ADMIN_FIELDS=[
- // ── Admin ──
- ["adminPasscode","Admin passcode","text"],
- // Test mode selector shown on Admin page.
-// mode1 keeps the current adaptive CogSpeed behavior.
-// mode2 runs self-paced only.
-// mode3 runs self-paced calibration, then fixed machine-paced.
-["testMode","Test mode","select:mode1|mode2|mode3"],
- ["mode2TrialLimit","Mode 2 — SPC trial limit (default 150)","number"],
- ["mode2MaxDurationMs","Mode 2 — total duration ms (default 120000)","number"],
- ["mode3CalibrationTrials","Mode 3 — self-paced calibration trials (default 10)","number"],
- ["mode3PacedTrialLimit","Mode 3 — fixed machine-paced trials (default 140)","number"],
- ["mode3MaxDurationMs","Mode 3 — total duration ms (default 120000)","number"],
- ["mode3BaselineFactor","Mode 3 — MP baseline factor from cal avg (default 1.3)","number"],
- // ── Calibration (self-paced) ──
- ["initialUnusedCalibrationTrials","Initial (warm-up) cal trials","number"],
- ["initialMeasuredCalibrationTrials","Measured cal trials (default 10)","number"],
- ["calibrationFirstNoResponseMs","Cal first-trial no-response (ms, default 20000)","number"],
- ["calibrationNoResponseMs","Cal subsequent no-response (ms, default 10000)","number"],
- ["calibrationStopErrors","Cal stop after N wrong (default 4)","number"],
- ["calibrationStopSlowMs","Cal avg RT limit (ms, default 3000)","number"],
- // ── Machine-paced ──
- ["initialPacedPercent","MP start: % of cal avg (default 1.3)","number"],
- ["minDurationMs","MP FRAME RANGE — minimum frame duration (ms, default 700)","number"],
- ["maxDurationMs","MP FRAME RANGE — maximum frame duration (ms, default 3000)","number"],
- ["machinePacedNoResponseMs","MP no-response timeout (ms, default 15000)","number"],
- ["maxTestDurationMs","Max TOTAL test time (ms, default 150000)","number"],
- ["maxTrialCount","MP max paced trials","number"],
- ["maxPacedWrong","MP max total wrong before fail (default 20)","number"],
- // ── Block detection ──
- ["consecutiveMissesForBlock","Misses to trigger block (default 2)","number"],
- // ── Block recovery (SP self-paced after block) ──
- ["blockRestartPercent","Block recovery restart: % of Block baseline (default 1.3)","number"],
- ["maxBlockCount","Max total blocks before fail (default 6)","number"],
- ["spRestartWrongLimit","Block recovery: max wrong before fail (default 3)","number"],
- ["spRestartCorrectStreak","Block recovery: correct streak to resume (default 2)","number"],
- ["recoveryNoResponseMs","Block recovery no-response (ms, default 10000)","number"],
- // ── Convergence ──
- ["qualifyingBlockGapMs","Convergence: max gap between blocks (ms, default 250)","number"],
- // ── Anti-spoof ──
- ["wrongWindowSize","Anti-spoof: wrong window size","number"],
- ["wrongThresholdStop","Anti-spoof: max wrong in window","number"],
- ["rollMeanWindow","Anti-spoof: rolling mean window (responses)","number"],
- ["rollMeanThreshold","Anti-spoof threshold (0–1, e.g. 0.50)","number"],
- // ── Scoring ──
- ["cpiBestMs","CPI SCORING ANCHOR — best ms (default 800)","number"],
- ["cpiWorstMs","CPI SCORING ANCHOR — worst ms (default 3000, matches MP max)","number"],
- // ── System ──
- ["deviceBenchmarkEnabled","Device benchmark (0=off, 1=on)","number"],
- ["lateResponseThresholdMs","Late-response threshold after prior miss (ms, default 600)","number"],
+ // 1. Admin passcode
+ ["adminPasscode","1. Admin passcode","text"],
+
+ // 2-17. Defaults used across all modes, in rough order of use
+ ["initialUnusedCalibrationTrials","2. Warm-up calibration trials (default 1)","number"],
+ ["initialMeasuredCalibrationTrials","3. Measured calibration trials (default 10)","number"],
+ ["calibrationFirstNoResponseMs","4. Calibration first-trial no-response (ms, default 20000)","number"],
+ ["calibrationNoResponseMs","5. Calibration later-trial no-response (ms, default 10000)","number"],
+ ["calibrationStopErrors","6. Calibration stop after N wrong (default 4)","number"],
+ ["calibrationStopSlowMs","7. Calibration avg RT limit (ms, default 3000)","number"],
+ ["lateResponseThresholdMs","8. Late-response threshold after prior miss (ms, default 600)","number"],
+ ["minDurationMs","9. MP frame minimum duration (ms, default 700)","number"],
+ ["maxDurationMs","10. MP frame maximum duration (ms, default 3000)","number"],
+ ["machinePacedNoResponseMs","11. MP no-response timeout (ms, default 15000)","number"],
+ ["maxTestDurationMs","12. Max total test time (ms, default 150000)","number"],
+ ["wrongWindowSize","13. Anti-spoof wrong window size (default 5)","number"],
+ ["wrongThresholdStop","14. Anti-spoof max wrong in window (default 4)","number"],
+ ["rollMeanWindow","15. Anti-spoof rolling mean window (default 8)","number"],
+ ["rollMeanThreshold","16. Anti-spoof rolling mean threshold (default 0.50)","number"],
+ ["deviceBenchmarkEnabled","17. Device benchmark (0=off, 1=on)","number"],
+
+ // 18. Test mode
+ ["testMode","18. Test mode","select:mode1|mode2|mode3"],
+
+ // 19-30. Mode 1 (CogSpeed) settings, in order of use
+ ["initialPacedPercent","19. Mode 1 MP start: % of calibration avg (default 1.3)","number"],
+ ["consecutiveMissesForBlock","20. Mode 1 misses to trigger block (default 2)","number"],
+ ["blockRestartPercent","21. Mode 1 restart: % of block baseline (default 1.3)","number"],
+ ["spRestartCorrectStreak","22. Mode 1 recovery correct streak to resume (default 2)","number"],
+ ["spRestartWrongLimit","23. Mode 1 recovery max wrong before fail (default 3)","number"],
+ ["recoveryNoResponseMs","24. Mode 1 recovery no-response timeout (ms, default 10000)","number"],
+ ["maxBlockCount","25. Mode 1 max total blocks before fail (default 6)","number"],
+ ["qualifyingBlockGapMs","26. Mode 1 convergent block max gap (ms, default 250)","number"],
+ ["maxTrialCount","27. Mode 1 max paced trials (default 180)","number"],
+ ["maxPacedWrong","28. Mode 1 max paced wrong before fail (default 20)","number"],
+ ["cpiBestMs","29. Mode 1 CPI best ms anchor (default 800)","number"],
+ ["cpiWorstMs","30. Mode 1 CPI worst ms anchor (default 3000)","number"],
+
+ // 31-32. Mode 2 (SPC) settings
+ ["mode2TrialLimit","31. Mode 2 SPC trial limit (default 150)","number"],
+ ["mode2MaxDurationMs","32. Mode 2 total duration ms (default 120000)","number"],
+
+ // 33-36. Mode 3 (SPCMP) settings
+ ["mode3CalibrationTrials","33. Mode 3 self-paced calibration trials (default 10)","number"],
+ ["mode3BaselineFactor","34. Mode 3 MP baseline factor from cal avg (default 1.3)","number"],
+ ["mode3PacedTrialLimit","35. Mode 3 fixed machine-paced trial limit (default 140)","number"],
+ ["mode3MaxDurationMs","36. Mode 3 total duration ms (default 120000)","number"],
 ];
 
 // ─── Patterns ───
@@ -863,6 +861,7 @@ const modeMetricMs = isMode2() ? (state.selfPacedRTs.length?mean(state.selfPaced
   time:new Date().toISOString(), geo:state.geo
  };
  state.history.push(result);
+ updateStartPageLinks();
  localStorage.setItem(`${STORAGE_PREFIX}_history`,JSON.stringify(state.history));
  updateCPIDisplay(avg2); setProbeIdle();
  // Build the display text (also used for email)
@@ -878,6 +877,7 @@ const modeMetricMs = isMode2() ? (state.selfPacedRTs.length?mean(state.selfPaced
  }
  state.lastResultText = $("summaryText") ? $("summaryText").textContent : "";
  showResultsPage();
+ updateStartPageLinks();
 }
 
 // ─── Open trial ───
@@ -1271,73 +1271,169 @@ function bindDoubleTapConfirm(btn, action, idleText, confirmText){
 function drawCombinedChart(canvas,hist,selectedIdx){
  if(!canvas) return;
  const ctx=canvas.getContext("2d"),W=canvas.width,H=canvas.height;
- ctx.clearRect(0,0,W,H); ctx.fillStyle="#081321"; ctx.fillRect(0,0,W,H);
- const PAD={top:32,right:52,bottom:38,left:48},cW=W-PAD.left-PAD.right,cH=H-PAD.top-PAD.bottom;
- if(!hist.length){ ctx.fillStyle="#d7e7f8"; ctx.font="bold 13px sans-serif"; ctx.textAlign="center"; ctx.fillText("No data yet",W/2,H/2); return; }
- const slice=hist.slice(-20),n=slice.length,xStep=n>1?cW/(n-1):cW;
- const cpsVals=slice.map(x=>x.cognitivePerformanceIndex??null);
- const blockVals=slice.map(x=>x.averageLast2BlockingScoresMs??null);
- const spfVals=slice.map(x=>x.samnPerelli?x.samnPerelli.score:null);
+ ctx.clearRect(0,0,W,H);
+ ctx.fillStyle="#081321";
+ ctx.fillRect(0,0,W,H);
+
+ const PAD={top:62,right:56,bottom:82,left:76}, cW=W-PAD.left-PAD.right, cH=H-PAD.top-PAD.bottom;
+ if(!hist.length){
+  ctx.fillStyle="#d7e7f8";
+  ctx.font="bold 13px sans-serif";
+  ctx.textAlign="center";
+  ctx.fillText("No data yet",W/2,H/2);
+  return;
+ }
+
+ const slice=hist.slice(-20);
+ const n=slice.length;
+ const selected = (selectedIdx!=null && hist[selectedIdx]) ? hist[selectedIdx] : slice[slice.length-1] || null;
+
  const bestMs = Number(settings.cpiBestMs)||800;
  const worstMs = Number(settings.cpiWorstMs)||3000;
- function yL(v,lo,hi){ return PAD.top+cH-((v-lo)/((hi-lo)||1))*cH; }
- function xO(i){ return PAD.left+(n>1?i*xStep:cW/2); }
+
+ function xO(i){ return PAD.left + (n>1 ? (i/(n-1))*cW : cW/2); }
+ function yLeftFromCpi(v){ return PAD.top + cH - ((v-0)/100)*cH; }
  function cpiFromMs(ms){
   const span = (worstMs-bestMs)||1;
   return Math.max(0,Math.min(100,100*(worstMs-ms)/span));
  }
  function msFromCpi(cpi){
   const span = (worstMs-bestMs)||1;
-  return bestMs + ((100-cpi)/100)*span;
+  return Math.round(bestMs + ((100-cpi)/100)*span);
  }
- ctx.strokeStyle="rgba(79,111,153,0.25)"; ctx.lineWidth=1;
- [0,25,50,75,100].forEach(v=>{ const y=yL(v,0,100); ctx.beginPath(); ctx.moveTo(PAD.left,y); ctx.lineTo(PAD.left+cW,y); ctx.stroke(); });
- ctx.font="10px sans-serif"; ctx.fillStyle="#7fd7ff"; ctx.textAlign="right";
- [0,25,50,75,100].forEach(v=>ctx.fillText(String(v),PAD.left-4,yL(v,0,100)+4));
- // ms axis on the right, aligned to the same vertical locations as CPI because MBS is derived from CPI.
- ctx.fillStyle="#ff9f40"; ctx.textAlign="left";
- [100,75,50,25,0].forEach(cpi=>{
-  const y=yL(cpi,0,100);
-  const v=msFromCpi(cpi);
-  const label=v>=1000?(v/1000).toFixed(1)+"s":Math.round(v)+"ms";
-  ctx.fillText(label,PAD.left+cW+4,y+4);
+ function yLeftFromMs(ms){ return yLeftFromCpi(cpiFromMs(ms)); }
+ function yRightFromSpf(v){ return PAD.top + cH - (((v-1)/6))*cH; }
+
+ // Gridlines
+ ctx.strokeStyle="rgba(79,111,153,0.26)";
+ ctx.lineWidth=1;
+ [0,25,50,75,100].forEach(v=>{
+  const y=yLeftFromCpi(v);
+  ctx.beginPath();
+  ctx.moveTo(PAD.left,y);
+  ctx.lineTo(PAD.left+cW,y);
+  ctx.stroke();
  });
- // x-axis session labels
- ctx.fillStyle="#7fa0c0"; ctx.font="10px sans-serif"; ctx.textAlign="center";
- for(let i=0;i<n;i++) ctx.fillText(String(i+1),xO(i),PAD.top+cH+14);
- ctx.fillStyle="#b7d9ef"; ctx.textAlign="left"; ctx.fillText("Better performance ↑", PAD.left, PAD.top-16);
- // drawSeries: draw line + dots + value labels
- function drawOffsetSeries(vals,toY,color,dx,dy,labelDy){
-  ctx.strokeStyle=color; ctx.lineWidth=2.2; ctx.beginPath(); let started=false;
+
+ // Left axis labels: CPI and matching MBS ms
+ ctx.font="10px sans-serif";
+ ctx.textAlign="right";
+ ctx.fillStyle="#d7e7f8";
+ [100,75,50,25,0].forEach(cpi=>{
+  const y=yLeftFromCpi(cpi);
+  const ms=msFromCpi(cpi);
+  ctx.fillText(`${cpi} | ${ms}ms`, PAD.left-8, y+3);
+ });
+
+ // Right axis labels: SP-FS
+ ctx.textAlign="left";
+ ctx.fillStyle="#88ff88";
+ [7,6,5,4,3,2,1].forEach(v=>{
+  const y=yRightFromSpf(v);
+  ctx.fillText(String(v), PAD.left+cW+8, y+3);
+ });
+
+ // Axes titles
+ ctx.save();
+ ctx.translate(22, PAD.top + cH/2);
+ ctx.rotate(-Math.PI/2);
+ ctx.fillStyle="#d7e7f8";
+ ctx.font="bold 11px sans-serif";
+ ctx.textAlign="center";
+ ctx.fillText("CPI | MBS (up is better)", 0, 0);
+ ctx.restore();
+
+ ctx.save();
+ ctx.translate(W-18, PAD.top + cH/2);
+ ctx.rotate(Math.PI/2);
+ ctx.fillStyle="#88ff88";
+ ctx.font="bold 11px sans-serif";
+ ctx.textAlign="center";
+ ctx.fillText("SP-FS (up is better)", 0, 0);
+ ctx.restore();
+
+ // Title and selected-session metadata
+ ctx.fillStyle="#b7d9ef";
+ ctx.textAlign="left";
+ ctx.font="bold 12px sans-serif";
+ ctx.fillText("CPI, MBS, and SP-FS by Test Date/Time", PAD.left, 22);
+
+ if(selected){
+  ctx.font="11px sans-serif";
+  ctx.fillStyle="#d7e7f8";
+  const sid = selected.subjectId || "—";
+  const mode = formatModeTag(selected.testMode);
+  ctx.fillText(`Subject ID: ${sid}    Test Mode: ${mode}`, PAD.left, 40);
+ }
+
+ // X-axis labels by date/time of test
+ ctx.strokeStyle="rgba(79,111,153,0.35)";
+ ctx.beginPath();
+ ctx.moveTo(PAD.left, PAD.top+cH);
+ ctx.lineTo(PAD.left+cW, PAD.top+cH);
+ ctx.stroke();
+
+ ctx.font="9px sans-serif";
+ ctx.fillStyle="#7fa0c0";
+ ctx.textAlign="right";
+ slice.forEach((r,i)=>{
+  const x=xO(i), y=PAD.top+cH+8;
+  const d=new Date(r.time);
+  const label=`${d.toLocaleDateString("en-US",{month:"numeric",day:"numeric"})} ${d.toLocaleTimeString("en-US",{hour:"2-digit",minute:"2-digit"})}`;
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(-Math.PI/4);
+  ctx.fillText(label, 0, 0);
+  ctx.restore();
+ });
+
+ function drawLine(vals, yFunc, color, pointStyle){
+  ctx.strokeStyle=color;
+  ctx.lineWidth=2.2;
+  ctx.beginPath();
+  let started=false;
   vals.forEach((v,i)=>{
-   if(v==null){started=false;return;}
-   const x=xO(i)+dx,y=toY(v)+dy;
-   if(!started){ctx.moveTo(x,y);started=true;} else ctx.lineTo(x,y);
+   if(v==null){ started=false; return; }
+   const x=xO(i), y=yFunc(v);
+   if(!started){ ctx.moveTo(x,y); started=true; } else { ctx.lineTo(x,y); }
   });
   ctx.stroke();
+
   vals.forEach((v,i)=>{
    if(v==null) return;
-   const x=xO(i)+dx,y=toY(v)+dy;
+   const x=xO(i), y=yFunc(v);
    ctx.fillStyle=color;
-   ctx.beginPath(); ctx.arc(x,y,3.5,0,Math.PI*2); ctx.fill();
-   ctx.font="9px sans-serif"; ctx.textAlign="center";
-   ctx.fillText(v>100?(v/1000).toFixed(1)+"s":v.toFixed(0),x,y+labelDy);
-   ctx.textAlign="left";
+   if(pointStyle==="square"){
+    ctx.fillRect(x-3.5,y-3.5,7,7);
+   }else if(pointStyle==="diamond"){
+    ctx.save();
+    ctx.translate(x,y);
+    ctx.rotate(Math.PI/4);
+    ctx.fillRect(-3.5,-3.5,7,7);
+    ctx.restore();
+   }else{
+    ctx.beginPath();
+    ctx.arc(x,y,3.7,0,Math.PI*2);
+    ctx.fill();
+   }
   });
  }
- // blockToY: map MBS ms through CPI anchors so CPI and MBS occupy the same vertical location.
- function blockToY(v){ return yL(cpiFromMs(v),0,100); }
- function spfToY(v){ return yL(v,1,7); }
- drawOffsetSeries(blockVals,blockToY,"#ff9f40",4,2,12);
- drawOffsetSeries(cpsVals,v=>yL(v,0,100),"#7fd7ff",-4,-2,-8);
- drawOffsetSeries(spfVals,spfToY,"#88ff88",0,0,-6);
- ctx.fillStyle="#7fd7ff"; ctx.font="bold 9px sans-serif"; ctx.textAlign="left"; ctx.fillText("■ CPI",PAD.left,PAD.top-4);
- ctx.fillStyle="#ff9f40"; ctx.fillText("■ MBS ms",PAD.left+50,PAD.top-4);
- ctx.fillStyle="#88ff88"; ctx.fillText("■ S-PF",PAD.left+115,PAD.top-4);
- ctx.fillStyle="rgba(255,159,64,0.7)"; ctx.font="9px sans-serif"; ctx.textAlign="right";
- ctx.fillText("\u2191 better",PAD.left+cW+50,PAD.top-4);
-}
 
+ const cpsVals=slice.map(r=>r.cognitivePerformanceIndex!=null?Number(r.cognitivePerformanceIndex):null);
+ const mbsVals=slice.map(r=>r.averageLast2BlockingScoresMs!=null?Number(r.averageLast2BlockingScoresMs):null);
+ const spfVals=slice.map(r=>r.samnPerelli&&r.samnPerelli.score!=null?Number(r.samnPerelli.score):null);
+
+ drawLine(cpsVals, v=>yLeftFromCpi(v), "#7fd7ff", "circle");
+ drawLine(mbsVals, v=>yLeftFromMs(v), "#ff9f40", "square");
+ drawLine(spfVals, v=>yRightFromSpf(v), "#88ff88", "diamond");
+
+ // Legend
+ ctx.textAlign="left";
+ ctx.font="bold 10px sans-serif";
+ ctx.fillStyle="#7fd7ff"; ctx.fillText("● CPI", PAD.left, PAD.top-10);
+ ctx.fillStyle="#ff9f40"; ctx.fillText("■ MBS", PAD.left+58, PAD.top-10);
+ ctx.fillStyle="#88ff88"; ctx.fillText("◆ SP-FS", PAD.left+116, PAD.top-10);
+}
 
 // ─── RT scatter chart ───
 function drawRTScatterChart(canvas,rtLog,blocks,meanRT,sdRT){
@@ -2002,13 +2098,91 @@ function resetProfile(){
 // _adminReturnTo: tracks which page opened admin so Close returns there.
 // ──────────────────────────────────────────────────────────────
 function hideAllOverlays(){
- ["subjectOverlay","profileOverlay","refresherOverlay","fatigueOverlay","tutorialOverlay","adminOverlay","resultsOverlay","summaryOverlay","trialLogOverlay","historyOverlay","rateRtOverlay","thinkingOverlay","outcomeOverlay"].forEach(id=>{ const el=$(id); if(el) el.classList.add("hidden"); });
+ ["subjectOverlay","profileOverlay","refresherOverlay","fatigueOverlay","tutorialOverlay","adminOverlay","resultsOverlay","summaryOverlay","rankedOverlay","trialLogOverlay","historyOverlay","rateRtOverlay","thinkingOverlay","outcomeOverlay"].forEach(id=>{ const el=$(id); if(el) el.classList.add("hidden"); });
 }
 function showOnly(id){
- ["subjectOverlay","profileOverlay","refresherOverlay","fatigueOverlay","adminOverlay","resultsOverlay","summaryOverlay","trialLogOverlay","historyOverlay","rateRtOverlay","tutorialOverlay"].forEach(oid=>{ const el=$(oid); if(el) el.classList[oid===id?"remove":"add"]("hidden"); });
+ ["subjectOverlay","profileOverlay","refresherOverlay","fatigueOverlay","adminOverlay","resultsOverlay","summaryOverlay","rankedOverlay","trialLogOverlay","historyOverlay","rateRtOverlay","tutorialOverlay"].forEach(oid=>{ const el=$(oid); if(el) el.classList[oid===id?"remove":"add"]("hidden"); });
 }
+
+
+function updateStartPageLinks(){
+ const wrap = $("speedometerStartLinkWrap");
+ const link = $("speedometerStartLink");
+ if(!wrap || !link) return;
+ const hasData = Array.isArray(state.history) && state.history.length > 0;
+ wrap.style.display = hasData ? "" : "none";
+ if(!hasData) return;
+ // Prefer a real speedometer page/button if present.
+ if($("resultsOverlay")){
+  link.onclick = (e)=>{
+   e.preventDefault();
+   const last = state.history[state.history.length-1];
+   if(!last) return;
+   // Reuse existing results page flow if available.
+   if(typeof buildSummary === "function") buildSummary(last);
+   if(typeof drawModeResultChart === "function") drawModeResultChart($("summaryModeChart"), last);
+   openSpeedometerHub();
+  };
+ } else {
+  link.onclick = null;
+ }
+}
+
 function isTestSuccess(r){ return (r||"").toLowerCase().startsWith("convergent"); }
 
+
+// ─── Speedometer hub + E-mail Select state ───────────────────
+// Speedometer hub is the post-test navigation page. It provides
+// one-button access to summary, trial detail, graph, ranked
+// averages, restart, e-mail selection, and a dim admin link.
+// E-mail Select lets the user choose a recipient and which data
+// block(s) to include before opening the mail client.
+let _emailSelectedData = "summary";
+let _emailSelectedRecipient = "";
+
+function currentResult(){
+ return state.history && state.history.length ? state.history[state.history.length-1] : null;
+}
+
+function buildEmailBodyForSelection(result, choice){
+ const summary = ($("summaryText") && $("summaryText").textContent) ? $("summaryText").textContent : "";
+ const ranked = (typeof formatModePooledRankSection==="function") ? formatModePooledRankSection(result.testMode) : "";
+ const graphMeta = `Graph data\nSession: ${result.sessionNumber!=null?result.sessionNumber:"—"}\nSubject ID: ${result.subjectId||"—"}\nMode: ${formatModeTag(result.testMode)}\nSP-FS: ${result.samnPerelli&&result.samnPerelli.score!=null?result.samnPerelli.score:"—"}\nCPI: ${result.cognitivePerformanceIndex!=null?result.cognitivePerformanceIndex.toFixed(1):"—"}\nMBS: ${result.averageLast2BlockingScoresMs!=null?result.averageLast2BlockingScoresMs.toFixed(1)+" ms":"—"}`;
+ const trialMeta = "See Trial Detail Log in app for full per-trial table.";
+ if(choice==="summary") return summary;
+ if(choice==="trial") return trialMeta;
+ if(choice==="graph") return graphMeta;
+ if(choice==="ranked") return "RANKED TARGET / POSITION AVERAGES\n" + ranked;
+ return [summary, graphMeta, "RANKED TARGET / POSITION AVERAGES\n"+ranked, trialMeta].join("\n\n─────────────────────────\n\n");
+}
+
+function updateEmailSelectMeta(){
+ const meta=$("emailSelectMeta");
+ if(!meta) return;
+ const recipient = _emailSelectedRecipient || "not selected";
+ const map = {summary:"Summary",trial:"Trial Detail",graph:"Graph",ranked:"Ranked Averages",all:"All data"};
+ meta.textContent = `Recipient: ${recipient}\nData: ${map[_emailSelectedData]||_emailSelectedData}`;
+}
+
+function openSpeedometerHub(){
+ const last = currentResult();
+ if(!last) return;
+ hideAllOverlays();
+ const outcome=$("outcomeOverlay");
+ const text=$("outcomeText");
+ if(text){
+  text.textContent = "Speedometer";
+  text.className = "outcome-text success";
+ }
+ if(outcome) outcome.classList.remove("hidden");
+ setTestingQuiet(false);
+}
+
+function openEmailSelect(){
+ hideAllOverlays();
+ updateEmailSelectMeta();
+ $("emailSelectOverlay").classList.remove("hidden");
+}
 // ─── Summary ───
 // ─── SUMMARY TEST RESULTS ─────────────────────────────────────
 // Formats full monospace result text (state.lastResultText).
@@ -2024,6 +2198,34 @@ function isTestSuccess(r){ return (r||"").toLowerCase().startsWith("convergent")
 // Pooled rankings include single-factor rankings and full pooled combinations
 // of dots/lines count with correct response position.
 // Combination lists are provided for correct, wrong, and all responses combined.
+
+function getCognitivePerformanceTableText(result){
+ if((result.testMode||"mode1")!=="mode1") return "Not used in this mode.";
+ const cpi = result.cognitivePerformanceIndex!=null ? Number(result.cognitivePerformanceIndex) : null;
+ const rows = [
+  {band:7,cpi:100,ms:800},
+  {band:6,cpi:80,ms:1240},
+  {band:5,cpi:75,ms:1350},
+  {band:4,cpi:50,ms:1900},
+  {band:3,cpi:25,ms:2450},
+  {band:2,cpi:11,ms:2758},
+  {band:1,cpi:0,ms:3000},
+ ];
+ return rows.map(r=>{
+   const mark = (cpi!=null && Math.abs(cpi-r.cpi)===Math.min(...rows.map(x=>Math.abs(cpi-x.cpi))) && Math.abs(cpi-r.cpi)<=(rows.length?100:0)) ? "  ← YOUR SCORE" : "";
+   return ` Band ${r.band}: CPI ${r.cpi.toString().padStart(3," ")} | ${r.ms} ms${mark}`;
+ }).join("\n");
+}
+function buildRankedSummary(result){
+ const el=$("rankedText"); if(!el) return;
+ const hr="─────────────────────────";
+ const modeName = result.testMode==="mode2" ? "SPC Mode" : result.testMode==="mode3" ? "SPCMP Mode" : "CogSpeed Mode";
+ el.textContent =
+`CogSpeed ${APP_VERSION} — ${modeName}
+${hr}
+RANKED TARGET / POSITION AVERAGES — POOLED SAME-MODE SESSIONS
+${formatModePooledRankSection(result.testMode)}`;
+}
 function buildSummary(result){
  const el=$("summaryText"); if(!el) return;
  const hr="─────────────────────────";
@@ -2055,7 +2257,11 @@ SELF-PACED CALIBRATION (SPC)
  Total response SD:  ${result.allResponseSdMs!=null?result.allResponseSdMs.toFixed(1)+" ms":"—"}
  Correct self-paced: ${result.selfPacedCorrect}
  Wrong self-paced:   ${result.selfPacedWrong}
-\n${hr}\nRANKED TARGET / POSITION AVERAGES — POOLED SAME-MODE SESSIONS\n${formatModePooledRankSection(result.testMode)}\n${hr}\nEND REASON
+${hr}
+COGNITIVE PERFORMANCE TABLE
+ ${getCognitivePerformanceTableText(result)}
+${hr}
+END REASON
  ${result.endReason||"Run complete"}`;
   return;
  }
@@ -2086,7 +2292,11 @@ FIXED MACHINE-PACED PHASE (SPCMP)
  Total machine-paced presented: ${result.fixedPacedPresented||0}
  Machine-paced correct: ${result.fixedPacedCorrect||0}
  Machine-paced wrong:   ${result.fixedPacedWrong||0}
-\n${hr}\nRANKED TARGET / POSITION AVERAGES — POOLED SAME-MODE SESSIONS\n${formatModePooledRankSection(result.testMode)}\n${hr}\nEND REASON
+${hr}
+COGNITIVE PERFORMANCE TABLE
+ ${getCognitivePerformanceTableText(result)}
+${hr}
+END REASON
  ${result.endReason||"Run complete"}`;
   return;
  }
@@ -2415,7 +2625,8 @@ function goToStartPage(){
  ["thinkingOverlay","outcomeOverlay","testScreen"].forEach(id=>{ const el=$(id); if(el) el.classList.add("hidden"); });
  const curtain=$("curtain"); if(curtain) curtain.classList.remove("open");
  probeCell.classList.remove("gspin-f","gspin-r","gidle-f","gidle-r");
- stopFX(); setStatus("Ready"); showOnly("subjectOverlay"); restoreSubjectFromProfile();
+ stopFX(); setStatus("Ready"); showOnly("subjectOverlay");
+ updateStartPageLinks(); restoreSubjectFromProfile();
 }
 function startOverFlow(){
  clearCurrentSession(); state.subjectId=null; state.samnPerelli=null;
@@ -3282,7 +3493,7 @@ $("adminLastResultBtn").onclick=()=>{
  buildSummary(last);
  $("summaryOverlay").classList.remove("hidden");
 };
-$("trialLogCloseBtn").onclick=()=>$("trialLogOverlay").classList.add("hidden");
+$("trialLogCloseBtn").onclick=()=>{ $("trialLogOverlay").classList.add("hidden"); openSpeedometerHub(); };
 $("trialLogCsvBtn").onclick=()=>downloadTrialLogCSV();
 $("historyCloseBtn").onclick=()=>$("historyOverlay").classList.add("hidden");
 const _rrsel=$("rateRtSessionSelect"); if(_rrsel) _rrsel.onchange=()=>buildRateRtOverlay();
@@ -3329,8 +3540,8 @@ $("startOverBtn").onclick=startOverFlow;
 $("summaryRestartBtn").onclick=()=>{ $("summaryOverlay").classList.add("hidden"); const fg=$("fullGraphOverlay"); if(fg) fg.classList.add("hidden"); goToStartPage(); };
 $("summaryEmailBtn").onclick=emailResults;
 const _fgb=$("summaryFullGraphBtn"); if(_fgb) _fgb.onclick=()=>{ $("summaryOverlay").classList.add("hidden"); $("fullGraphOverlay").classList.remove("hidden"); };
-const _fgbb=$("fullGraphBackBtn"); if(_fgbb) _fgbb.onclick=()=>{ $("fullGraphOverlay").classList.add("hidden"); $("summaryOverlay").classList.remove("hidden"); };
-const _orb=$("outcomeResultsBtn"); if(_orb) _orb.onclick=()=>{ $("outcomeOverlay").classList.add("hidden"); stopSpeedometer(); $("summaryOverlay").classList.remove("hidden"); setTestingQuiet(false); };
+
+const _orb=$("outcomeResultsBtn"); if(_orb) _orb.onclick=()=>{ openSpeedometerHub(); };
 $("summaryAdminBtn").onclick=()=>{
  _adminReturnTo = "summaryOverlay"; // return here on close
  $("summaryOverlay").classList.add("hidden");
@@ -3365,4 +3576,33 @@ if ("serviceWorker" in navigator) {
 }
 
 
+
+
+$("summaryRankedBtn").onclick=()=>{ const last=state.history[state.history.length-1]; if(!last) return; buildRankedSummary(last); $("summaryOverlay").classList.add("hidden"); $("rankedOverlay").classList.remove("hidden"); };
+$("rankedBackBtn").onclick=()=>{ $("rankedOverlay").classList.add("hidden"); $("summaryOverlay").classList.remove("hidden"); };
+$("rankedCloseBtn").onclick=()=>{ $("rankedOverlay").classList.add("hidden"); openSpeedometerHub(); };
+
+try{ updateStartPageLinks(); }catch(e){}
+
+
+// Speedometer hub navigation
+const _ssb=$("speedSummaryBtn"); if(_ssb) _ssb.onclick=()=>{ const last=currentResult(); if(!last) return; buildSummary(last); drawModeResultChart($("summaryModeChart"), last); $("outcomeOverlay").classList.add("hidden"); $("summaryOverlay").classList.remove("hidden"); };
+const _stb=$("speedTrialBtn"); if(_stb) _stb.onclick=()=>{ $("outcomeOverlay").classList.add("hidden"); buildTrialLog(); $("trialLogOverlay").classList.remove("hidden"); };
+const _sgb=$("speedGraphBtn"); if(_sgb) _sgb.onclick=()=>{ const last=currentResult(); if(!last) return; $("outcomeOverlay").classList.add("hidden"); const fg=$("fullGraphOverlay"); if(fg) fg.classList.remove("hidden"); drawModeResultChart($("fullModeGraph"), last); };
+const _srb=$("speedRankedBtn"); if(_srb) _srb.onclick=()=>{ const last=currentResult(); if(!last) return; buildRankedSummary(last); $("outcomeOverlay").classList.add("hidden"); $("rankedOverlay").classList.remove("hidden"); };
+const _srestart=$("speedRestartBtn"); if(_srestart) _srestart.onclick=()=>{ $("outcomeOverlay").classList.add("hidden"); stopSpeedometer(); goToStartPage(); };
+const _semail=$("speedEmailBtn"); if(_semail) _semail.onclick=()=>{ $("outcomeOverlay").classList.add("hidden"); openEmailSelect(); };
+const _sadmin=$("speedAdminBtn"); if(_sadmin) _sadmin.onclick=()=>{ _adminReturnTo = "outcomeOverlay"; $("outcomeOverlay").classList.add("hidden"); $("adminOverlay").classList.remove("hidden"); if(_adminUnlocked){ $("adminGate").classList.add("hidden"); $("adminBody").classList.remove("hidden"); renderAdmin(); } else { $("adminGate").classList.remove("hidden"); $("adminBody").classList.add("hidden"); $("adminPass").value=""; } };
+
+// Back-to-speedometer links on detail pages
+const _sbs=$("summaryBackSpeedBtn"); if(_sbs) _sbs.onclick=()=>{ $("summaryOverlay").classList.add("hidden"); openSpeedometerHub(); };
+const _tbs=$("trialLogBackSpeedBtn"); if(_tbs) _tbs.onclick=()=>{ $("trialLogOverlay").classList.add("hidden"); openSpeedometerHub(); };
+const _rbb=$("rankedBackBtn"); if(_rbb) _rbb.onclick=()=>{ $("rankedOverlay").classList.add("hidden"); openSpeedometerHub(); };
+const _fbb=$("fullGraphBackBtn"); if(_fbb) _fbb.onclick=()=>{ $("fullGraphOverlay").classList.add("hidden"); openSpeedometerHub(); };
+
+// E-mail Select controls
+const _erb=$("emailRecipientBtn"); if(_erb) _erb.onclick=()=>{ const def=_emailSelectedRecipient || (state.profile&&state.profile.email?state.profile.email:""); const val=window.prompt("Recipient e-mail address", def||""); if(val!=null){ _emailSelectedRecipient = val.trim(); updateEmailSelectMeta(); } };
+const _edb=$("emailDataBtn"); if(_edb) _edb.onclick=()=>{ const val=window.prompt("Enter data to include: summary, trial, graph, ranked, or all", _emailSelectedData); if(val!=null){ const norm=val.trim().toLowerCase(); if(["summary","trial","graph","ranked","all"].includes(norm)) _emailSelectedData = norm; updateEmailSelectMeta(); } };
+const _esb=$("emailSendBtn"); if(_esb) _esb.onclick=()=>{ const last=currentResult(); if(!last) return; const to=_emailSelectedRecipient || (state.profile&&state.profile.emailResults&&state.profile.email ? state.profile.email : ""); buildSummary(last); const body=buildEmailBodyForSelection(last,_emailSelectedData).replace(/\n/g,"\r\n"); window.location.href=`mailto:${to}?subject=CogSpeed ${APP_VERSION} Results&body=${encodeURIComponent(body)}`; };
+const _ebb=$("emailBackBtn"); if(_ebb) _ebb.onclick=()=>{ $("emailSelectOverlay").classList.add("hidden"); openSpeedometerHub(); };
 

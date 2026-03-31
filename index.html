@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
   <meta name="theme-color" content="#0b1830"/>
   <link rel="manifest" href="manifest.json"/>
-  <title>CogSpeed V187</title>
+  <title>CogSpeed V194</title>
     <style>
 
     :root{--bg:#091426;--bg2:#132746;--panel:#0d1b33;--panel2:#10213e;--text:#f5fbff;--muted:#d7e7f8;--edge:#4f6f99;--accent:#7fd7ff;--probe:#00f0ff}
@@ -63,7 +63,7 @@
     .summary-title{font-size:18px;font-weight:800;text-align:center;color:var(--accent);margin-bottom:12px}
     .summary-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px}
     .summary-card{background:#0a1629;border:1px solid var(--edge);border-radius:12px;padding:10px;text-align:center}
-    .summary-card-label{font-size:11px;color:var(--muted);margin-bottom:4px}
+    .summary-card-label{font-size:13px;color:var(--muted);margin-bottom:4px}
     .summary-card-val{font-size:22px;font-weight:800;color:var(--accent)}
     .bench-grade{text-align:center;font-size:22px;font-weight:800;padding:10px;border-radius:12px;margin:8px 0}
     .bench-grade.a{color:#00ff88;background:rgba(0,255,136,.1)}.bench-grade.b{color:#7fd7ff;background:rgba(127,215,255,.1)}
@@ -347,6 +347,15 @@
     </div>
   </div>
 </div>
+    <div style="text-align:center;margin-top:10px;font-size:14px;color:var(--muted)">
+      <a href="about.html" style="color:var(--accent)">About CogSpeed</a>
+    </div>
+    <div id="speedometerStartLinkWrap" style="text-align:center;margin-top:8px;font-size:15px;color:var(--muted);display:none">
+      <a href="#speedometer" id="speedometerStartLink" style="color:var(--accent)">Speedometer</a>
+    </div>
+    <div style="text-align:center;margin-top:10px;font-size:14px;color:var(--muted)">
+    </div>
+
 
 
 <!-- ═══ PROFILE OVERLAY ═══ -->
@@ -559,7 +568,16 @@
   <!-- SUCCESS! / Test Failed label -->
   <div id="outcomeText" class="outcome-text" style="margin:8px 0 14px;font-size:clamp(24px,6vw,48px)"></div>
   <!-- Results button — stays until tapped -->
-  <button class="ctrl-btn" id="outcomeResultsBtn" style="width:min(90vw,320px);font-size:16px;padding:15px 24px;background:linear-gradient(180deg,#1a3a5a,#0d1e30);border-color:#4f6f99;color:#d9fbff;letter-spacing:.06em">View Results →</button>
+  
+  <div class="controls" style="width:min(92vw,420px);display:grid;grid-template-columns:1fr;gap:8px;margin-top:8px">
+    <button class="ctrl-btn" id="speedSummaryBtn">1. Results Summary</button>
+    <button class="ctrl-btn" id="speedTrialBtn">2. Trial Detail</button>
+    <button class="ctrl-btn" id="speedGraphBtn">3. Graph</button>
+    <button class="ctrl-btn" id="speedRankedBtn">4. RANKED TARGET / POSITION AVERAGES</button>
+    <button class="ctrl-btn" id="speedRestartBtn">5. Start Page for Restart</button>
+    <button class="ctrl-btn" id="speedEmailBtn">6. E-mail Select</button>
+    <button id="speedAdminBtn" style="background:none;border:none;color:rgba(127,215,255,0.35);font-size:12px;padding:6px 10px;cursor:pointer;font-family:inherit;letter-spacing:.05em">7. Admin</button>
+  </div>
 </div>
 
 <!-- ═══ SUMMARY OVERLAY ═══ -->
@@ -569,11 +587,42 @@
     <div id="summaryText" style="font-family:monospace;font-size:15px;color:var(--muted);white-space:pre;overflow-x:auto;max-height:46vh;overflow-y:auto;background:#060e1a;border:1px solid var(--edge);border-radius:10px;padding:14px;line-height:1.75"></div>
     <canvas id="summaryModeChart" width="760" height="260" style="display:block;width:100%;margin-top:10px;border-radius:10px;border:1px solid var(--edge);background:#081321"></canvas>
     <div style="display:flex;align-items:center;gap:8px;margin-top:10px;flex-wrap:wrap">
+      <button class="ctrl-btn" id="summaryBackSpeedBtn" style="flex:1">← Speedometer</button>
       <button class="ctrl-btn" id="summaryRestartBtn" style="flex:1">New Test</button>
       <button class="ctrl-btn" id="summaryEmailBtn" style="flex:1">Email Results</button>
+      <button class="ctrl-btn" id="summaryRankedBtn" style="flex:1">Ranked Averages</button>
       <button class="ctrl-btn" id="summaryFullGraphBtn" style="flex:1;display:none">Full Graph</button>
       <button id="summaryProfileBtn" style="background:none;border:none;color:rgba(127,215,255,0.5);font-size:18px;padding:4px 10px;cursor:pointer">⚙</button>
       <button id="summaryAdminBtn" style="background:none;border:none;color:rgba(127,215,255,0.3);font-size:11px;padding:4px 10px;cursor:pointer;font-family:inherit;letter-spacing:.05em">Admin →</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- ═══ RANKED RESULTS OVERLAY ═══ -->
+<div id="rankedOverlay" class="overlay hidden">
+  <div class="modal">
+    <div style="text-align:center;margin-bottom:10px"><span class="badge">Ranked Target / Position Averages</span></div>
+    <div id="rankedText" style="font-family:monospace;font-size:15px;color:var(--muted);white-space:pre;overflow-x:auto;max-height:58vh;overflow-y:auto;background:#060e1a;border:1px solid var(--edge);border-radius:10px;padding:14px;line-height:1.75"></div>
+    <div style="display:flex;align-items:center;gap:8px;margin-top:10px;flex-wrap:wrap">
+      <button class="ctrl-btn" id="rankedBackBtn" style="flex:1">← Speedometer</button>
+      <button class="ctrl-btn" id="rankedCloseBtn" style="flex:1">Close</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- ═══ EMAIL SELECT OVERLAY ═══ -->
+<div id="emailSelectOverlay" class="overlay hidden">
+  <div class="modal">
+    <div style="text-align:center;margin-bottom:10px"><span class="badge">E-mail Select</span></div>
+    <div id="emailSelectMeta" style="font-size:14px;color:var(--muted);line-height:1.6;background:#060e1a;border:1px solid var(--edge);border-radius:10px;padding:12px;margin-bottom:10px">Recipient: not selected
+Data: Summary</div>
+    <div class="controls" style="display:grid;grid-template-columns:1fr;gap:8px">
+      <button class="ctrl-btn" id="emailRecipientBtn">1. Select Recipient</button>
+      <button class="ctrl-btn" id="emailDataBtn">2. Select Which Data to Include</button>
+      <button class="ctrl-btn" id="emailSendBtn">Send E-mail</button>
+      <button class="ctrl-btn" id="emailBackBtn">← Back to Speedometer</button>
     </div>
   </div>
 </div>
@@ -584,7 +633,7 @@
     <div style="text-align:center;margin-bottom:10px"><span class="badge">Full Response-Time Graph</span></div>
     <canvas id="fullModeGraph" width="1100" height="620" style="display:block;width:100%;border-radius:12px;border:1px solid var(--edge);background:#081321"></canvas>
     <div class="controls" style="margin-top:12px">
-      <button class="ctrl-btn" id="fullGraphBackBtn" style="flex:1">Back to Results</button>
+      <button class="ctrl-btn" id="fullGraphBackBtn" style="flex:1">← Speedometer</button>
     </div>
   </div>
 </div>
@@ -617,7 +666,7 @@
 </div>
 
 <!-- ═══ HISTORY & GRAPHS OVERLAY ═══ -->
-<div id="historyOverlay" class="overlay hidden">
+<div id="historyOverlay" class="overlay hidden" style="display:none !important">
   <div class="modal">
     <h2>History &amp; Graphs</h2>
     <p class="modal-hint" id="historyMeta"></p>
@@ -667,7 +716,7 @@
     <span id="fatigueOut">—</span>
     <span id="modeLabel">Subject mode</span>
     <span id="phaseLabel">Ready</span>
-    <span id="statusLine">CogSpeed V187</span>
+    <span id="statusLine">CogSpeed V194</span>
     <span id="rateOut">—</span>
     <span id="blocksOut">0</span>
     <span id="recoveryOut">0</span>
@@ -700,7 +749,7 @@
   <div class="resp-grid" id="respGrid"></div>
 </div>
 
-<script src="app.js?v=187"></script>
+<script src="app.js?v=194"></script>
 
 </body>
 </html>
