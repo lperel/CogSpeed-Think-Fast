@@ -1,8 +1,8 @@
 // ═══════════════════════════════════════════════════
-// CogSpeed V173
+// CogSpeed V184
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V183";
+const APP_VERSION = "V184";
 const RELEASE = APP_VERSION.replace(/^V/i, "");
 const STORAGE_PREFIX = `cogspeed_v${RELEASE}`;
 
@@ -234,7 +234,7 @@ function getSessionMaxDurationMs(){ return isMode2() ? (Number(settings.mode2Max
 // ─── CPI ───
 // ─── CPI SCORE CALCULATION ────────────────────────────────────
 // Converts avg last 2 block durations (ms) to 0-100 CPI score.
-// Scale: cpiBestMs=900ms → CPI 100, cpiWorstMs=3400ms → CPI 0.
+// Scale: cpiBestMs=800ms → CPI 100, cpiWorstMs=3000ms → CPI 0.
 // Source: Perelli (2026). Formula: (worst-ms)/(worst-best)*100
 // ──────────────────────────────────────────────────────────────
 function computeCPI(avgMs){
@@ -427,7 +427,7 @@ function ensureGearImageStyles(){
  const st=document.createElement("style");
  st.id="gearImageStyles";
  st.textContent=`
-  #testScreen{background:#6e6e6e!important;}
+  #testScreen{background:#9b9b9b!important;}
   .gear-img-wrap{
    position:relative;
    width:100%;
@@ -652,7 +652,7 @@ function logTrial({phase,rt,outcome,responseIndex,counted}){
 // recordAnswer(): updates rolling mean + wrong-window checks.
 // ANTI-SPOOF — ROLLING MEAN: if correct% < 50% in last 8 taps
 //  → "TOO MANY WRONG RESPONSES! — Retest"
-// ANTI-SPOOF — WRONG WINDOW: if >4 wrong in last 5 taps → stop.
+// ANTI-SPOOF — WRONG WINDOW: if ≥4 wrong in last 5 taps → stop.
 // Misses (isMiss=true) excluded from both checks (taps only).
 // ──────────────────────────────────────────────────────────────
 function trialMatches(trial,index){ return trial&&index===trial.correctPos; }
@@ -1335,44 +1335,11 @@ function drawCombinedChart(canvas,hist,selectedIdx){
 }
 
 
-// ─── RT scatter chart ───
-function drawRTScatterChart(canvas,rtLog,blocks,meanRT,sdRT){
- if(!canvas||!rtLog.length) return;
- const ctx=canvas.getContext("2d"),W=canvas.width,H=canvas.height;
- ctx.clearRect(0,0,W,H); ctx.fillStyle="#081321"; ctx.fillRect(0,0,W,H);
- const PAD={top:20,right:20,bottom:30,left:48},cW=W-PAD.left-PAD.right,cH=H-PAD.top-PAD.bottom;
- const rts=rtLog.filter(e=>e.rt!=null).map(e=>e.rt);
- if(!rts.length) return;
- const maxRT=Math.ceil(Math.max(...rts,1000)/500)*500;
- const minRT=Math.max(0,Math.floor(Math.min(...rts)/500)*500);
- const n=rtLog.length;
- function xO(i){ return PAD.left+(i/(n-1||1))*cW; }
- // REVERSED: smaller RT → smaller y → higher on chart
- function yO(v){ return PAD.top+((v-minRT)/((maxRT-minRT)||1))*cH; }
- ctx.strokeStyle="rgba(79,111,153,0.2)"; ctx.lineWidth=1;
- // Gridlines and labels — larger ms at bottom, smaller at top
- [250,500,750,1000,1500,2000,2500,3000].filter(v=>v>=minRT&&v<=maxRT+100).forEach(v=>{
-  const y=yO(v);
-  ctx.beginPath(); ctx.moveTo(PAD.left,y); ctx.lineTo(PAD.left+cW,y); ctx.stroke();
-  ctx.fillStyle="#7fa0c0"; ctx.font="9px sans-serif"; ctx.textAlign="right";
-  ctx.fillText(`${v}ms`,PAD.left-3,y+3);
- });
- const colorMap={correct:"#00ff88",wrong:"#ff4466",missed:"#888",paced:"#00ff88",paced_wrong:"#ff4466","paced_late_correct":"#ffff00","paced_late_wrong":"#ff8800",calibration:"#88aaff",recovery:"#ffaa00",terminal_recovery:"#ff88ff"};
- rtLog.forEach((e,i)=>{
-  if(e.rt==null) return;
-  ctx.fillStyle=colorMap[e.phase]||colorMap[e.outcome]||"#aaa";
-  ctx.beginPath(); ctx.arc(xO(i),yO(e.rt),3,0,Math.PI*2); ctx.fill();
- });
- if(meanRT){ ctx.strokeStyle="rgba(127,215,255,0.6)"; ctx.lineWidth=1.5; ctx.setLineDash([4,3]); ctx.beginPath(); ctx.moveTo(PAD.left,yO(meanRT)); ctx.lineTo(PAD.left+cW,yO(meanRT)); ctx.stroke(); ctx.setLineDash([]); }
- ctx.fillStyle="#7fa0c0"; ctx.font="9px sans-serif"; ctx.textAlign="center"; ctx.fillText("Trial →",PAD.left+cW/2,H-2);
-}
-
-
-// Mode 2 / Mode 3 result chart:
-// green dots = correct responses
-// red dots   = wrong responses
-// Mode 2 graphs self-paced responses only.
-// Mode 3 graphs self-paced + fixed machine-paced responses.
+// ─── UNIFIED RESULT CHART ────────────────────────────────────
+// drawModeResultChart(): single chart function for all 3 modes.
+// Mode 1: plots paced presentation-rate line, correct/wrong RT dots, miss ×'s.
+// Mode 2: plots self-paced correct/wrong RT dots only.
+// Mode 3: plots self-paced + fixed MP presentation-rate line and RT dots.
 // Mode 2 / Mode 3 response-time graph
 // - full graph shows session number once in subtitle
 // - smaller ms = better performance and graphs higher
@@ -1647,9 +1614,6 @@ function computeRankAverages(rtLog){
 function formatRankRows(rows){
  return rows.length ? rows.map(r=>` ${r.label}: ${r.avg.toFixed(1)} ms (n=${r.count})`).join("\n") : " none";
 }
-function formatRankSection(rankSet){
- return `Correct responses:\nDots:\n${formatRankRows(rankSet.correct.dotRows)}\nLines:\n${formatRankRows(rankSet.correct.lineRows)}\nPositions:\n${formatRankRows(rankSet.correct.posRows)}\n\nWrong responses:\nDots:\n${formatRankRows(rankSet.wrong.dotRows)}\nLines:\n${formatRankRows(rankSet.wrong.lineRows)}\nPositions:\n${formatRankRows(rankSet.wrong.posRows)}`;
-}
 
 function getModePooledSessionRecords(mode){
  const warmupCount = Math.max(0, Number(settings.initialUnusedCalibrationTrials)||0);
@@ -1678,7 +1642,6 @@ function computeRankAveragesForMode(mode){
 // Same-mode pooled combination rankings
 // - combines sessions from the selected mode only
 // - ranks correct / wrong / all combinations by mean RT
-// Same-mode pooled combination rankings
 // Uses shared normalizeTrialRow() for consistent position parsing.
 function computeCombinationRankAveragesForMode(mode){
  const pooledLogs = getModePooledLogsExcludingWarmup(mode);
@@ -1701,9 +1664,6 @@ function computeCombinationRankAveragesForMode(mode){
   return rows;
  }
  return {correct: buildRows("correct"), wrong: buildRows("wrong"), all: buildRows("all")};
-}
-function formatRankRows(rows){
- return rows.length ? rows.map(r=>` ${r.label}: ${r.avg.toFixed(1)} ms (n=${r.count})`).join("\n") : " none";
 }
 function formatModePooledRankSection(mode){
  const rs = computeRankAveragesForMode(mode);
@@ -1746,7 +1706,7 @@ function exportCSV(){
   r.pacedResponseSdMs!=null?r.pacedResponseSdMs.toFixed(1):"",
   r.testDurationMs!=null?Math.round(r.testDurationMs):"",
   `"${(r.endReason||"").replace(/"/g,'""')}"`,
-  `"${(r.location||"").replace(/"/g,'""')}"`
+  `"${(r.geo&&r.geo.address?r.geo.address:r.geo&&r.geo.status?r.geo.status:"").replace(/"/g,'""')}"`
  ].map(v=>v==null?"":v).join(","));
  const csv=[cols.join(","), ...rows].join("\n");
  const blob=new Blob([csv],{type:"text/csv"});
@@ -1880,7 +1840,6 @@ function computeAge(bMonth, bYear){
 }
 
 // Current profile being edited
-let _profileData = {email:"", birthMonth:0, birthYear:0, gender:"", emailResults:false};
 let _profileGenderSelected = "";
 
 function profileSelectGender(g){
@@ -2509,11 +2468,12 @@ function buildTrialLog(sessionIndex){
  const idx=sel?Number(sel.value):state.history.length-1;
  const result=state.history[idx];
  const log=result?result.rtLog:state.rtLog;
- const meta=$("trialLogMeta"); if(meta && result) meta.textContent=`Session ${idx+1} · ${formatModeTag(result.testMode)} · SP-FS ${result.samnPerelli?result.samnPerelli.score:"—"} · ${new Date(result.time).toLocaleString()}`;
+ const meta=$("trialLogMeta");
+ if(meta && result) meta.textContent=`Session ${idx+1} · ${formatModeTag(result.testMode)} · SP-FS ${result.samnPerelli?result.samnPerelli.score:"—"} · ${new Date(result.time).toLocaleString()}`;
  tbody.innerHTML="";
  if(!log||!log.length){
   tbody.innerHTML='<tr><td colspan="10" style="text-align:center;color:var(--muted);padding:12px">No trial data for this session</td></tr>';
-  const meta=$("trialLogMeta"); if(meta) meta.textContent="No data";
+  if(meta) meta.textContent="No data";
   return;
  }
  // Color coding
@@ -2774,13 +2734,6 @@ function buildHistoryOverlay(sessionIndex){
   tbody.appendChild(tr);
  });
 }
-buildHistoryOverlay._openSelectedTrial=function(){
- const idx = buildHistoryOverlay._selectedIndex;
- if(idx==null) return;
- $("historyOverlay").classList.add("hidden");
- buildTrialLog(idx);
- $("trialLogOverlay").classList.remove("hidden");
-};
 
 // ─── Device benchmark ───
 async function runDeviceBenchmark(force){
@@ -2862,20 +2815,6 @@ function buildTutProbe(pulsing){
  </div>`;
 }
 
-function buildTutRespGrid(flashPos){
- let html = '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;width:100%;max-width:380px">';
- for(let i=0;i<6;i++){
-  const isFL = flashPos===i;
-  const glow  = isFL ? "drop-shadow(0 0 8px rgba(0,255,136,0.9))" : "none";
-  const border = isFL ? "2px solid #00ff88" : "2px solid transparent";
-  html += `<div style="aspect-ratio:1;border-radius:10px;border:${border};filter:${glow};position:relative;min-height:104px">
-   ${buildGearSVG(i+1, null, "large", "")}
-  </div>`;
- }
- html += '</div>';
- return html;
-}
-
 
 function buildTutGearGridAnimated(showPatterns){
  let html = `<style>
@@ -2955,7 +2894,7 @@ function buildMiniScreen(highlightPart){
   padding:12px;
   opacity:0.22;
   pointer-events:none;
-  background:#969696;
+  background:#9b9b9b;
   overflow:hidden;
  ">
   <!-- stim grid -->
