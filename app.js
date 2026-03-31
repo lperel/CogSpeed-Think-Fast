@@ -2,7 +2,7 @@
 // CogSpeed V173
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V196";
+const APP_VERSION = "V197";
 const RELEASE = APP_VERSION.replace(/^V/i, "");
 const STORAGE_PREFIX = `cogspeed_v${RELEASE}`;
 
@@ -63,7 +63,7 @@ const DEFAULTS={
  minDurationMs:700,
  maxDurationMs:3000,
  initialUnusedCalibrationTrials:1,
- initialMeasuredCalibrationTrials:10,
+ initialMeasuredCalibrationTrials:7,
  initialPacedPercent:1.3,
  calibrationStopErrors:4,
  calibrationStopSlowMs:3000,
@@ -84,7 +84,7 @@ const ADMIN_FIELDS=[
 
  // 2-17. Defaults used across all modes, in rough order of use
  ["initialUnusedCalibrationTrials","2. Warm-up calibration trials (default 1)","number"],
- ["initialMeasuredCalibrationTrials","3. Measured calibration trials (default 10)","number"],
+ ["initialMeasuredCalibrationTrials","3. Measured calibration trials (default 7)","number"],
  ["calibrationFirstNoResponseMs","4. Calibration first-trial no-response (ms, default 20000)","number"],
  ["calibrationNoResponseMs","5. Calibration later-trial no-response (ms, default 10000)","number"],
  ["calibrationStopErrors","6. Calibration stop after N wrong (default 4)","number"],
