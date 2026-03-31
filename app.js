@@ -2,7 +2,7 @@
 // CogSpeed V173
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V198";
+const APP_VERSION = "V199";
 const RELEASE = APP_VERSION.replace(/^V/i, "");
 const STORAGE_PREFIX = `cogspeed_v${RELEASE}`;
 
@@ -53,8 +53,8 @@ const DEFAULTS={
  rollMeanThreshold:0.50,
  machinePacedNoResponseMs:15000,
  recoveryNoResponseMs:10000,
- calibrationFirstNoResponseMs:20000,
- calibrationNoResponseMs:10000,
+ calibrationFirstNoResponseMs:10000,
+ calibrationNoResponseMs:6000,
  wrongWindowSize:5,
  wrongThresholdStop:4,
  maxTrialCount:180,
@@ -62,7 +62,7 @@ const DEFAULTS={
  maxTestDurationMs:150000,
  minDurationMs:700,
  maxDurationMs:3000,
- initialUnusedCalibrationTrials:1,
+ initialUnusedCalibrationTrials:2,
  initialMeasuredCalibrationTrials:7,
  initialPacedPercent:1.3,
  calibrationStopErrors:4,
@@ -83,10 +83,10 @@ const ADMIN_FIELDS=[
  ["adminPasscode","1. Admin passcode","text"],
 
  // 2-17. Defaults used across all modes, in rough order of use
- ["initialUnusedCalibrationTrials","2. Warm-up calibration trials (default 1)","number"],
+ ["initialUnusedCalibrationTrials","2. Warmup calibration trials (default 2)","number"],
  ["initialMeasuredCalibrationTrials","3. Measured calibration trials (default 7)","number"],
- ["calibrationFirstNoResponseMs","4. Calibration first-trial no-response (ms, default 20000)","number"],
- ["calibrationNoResponseMs","5. Calibration later-trial no-response (ms, default 10000)","number"],
+ ["calibrationFirstNoResponseMs","4. Calibration first-trial no-response (ms, default 10000)","number"],
+ ["calibrationNoResponseMs","5. Calibration later-trial no-response (ms, default 6000)","number"],
  ["calibrationStopErrors","6. Calibration stop after N wrong (default 4)","number"],
  ["calibrationStopSlowMs","7. Calibration avg RT limit (ms, default 3000)","number"],
  ["lateResponseThresholdMs","8. Late-response threshold after prior miss (ms, default 600)","number"],
@@ -1011,7 +1011,7 @@ function handleTap(index){
   const includeInAverages = state.calibrationTrialIndex>=settings.initialUnusedCalibrationTrials;
   if(includeInAverages) state.selfPacedRTs.push(rt);
   if(ok){ state.totalCorrect+=1; if(includeInAverages) state.selfPacedCorrect+=1; } else { state.totalIncorrect+=1; if(includeInAverages) state.selfPacedWrong+=1; }
-  logTrial({phase:"calibration",rt,outcome:includeInAverages?(ok?"correct":"wrong"):"Warm up",responseIndex:index,counted:includeInAverages});
+  logTrial({phase:"calibration",rt,outcome:includeInAverages?(ok?"correct":"wrong"):"Warmup",responseIndex:index,counted:includeInAverages});
   if(isMode1()){
    if(!ok){
     state.calibrationErrors+=1; updateMetrics();
@@ -1860,7 +1860,7 @@ function emailResults(){
  const to=state.profile?.emailResults&&state.profile?.email?state.profile.email:"";
  const rawText = state.lastResultText || JSON.stringify(last,null,2);
  const bodyText = rawText.replace(/\n/g,"\r\n");
- window.location.href=`mailto:${to}?subject=CogSpeed ${APP_VERSION} Results&body=${encodeURIComponent(bodyText)}`;
+ window.location.href=`mailto:${to}?subject=CogSpeed® ${APP_VERSION} Results&body=${encodeURIComponent(bodyText)}`;
 }
 
 
@@ -2111,21 +2111,11 @@ function updateStartPageLinks(){
  if(!wrap || !link) return;
  const hasData = Array.isArray(state.history) && state.history.length > 0;
  wrap.style.display = hasData ? "" : "none";
- if(!hasData) return;
- // Prefer a real speedometer page/button if present.
- if($("resultsOverlay")){
-  link.onclick = (e)=>{
-   e.preventDefault();
-   const last = state.history[state.history.length-1];
-   if(!last) return;
-   // Reuse existing results page flow if available.
-   if(typeof buildSummary === "function") buildSummary(last);
-   if(typeof drawModeResultChart === "function") drawModeResultChart($("summaryModeChart"), last);
-   openSpeedometerHub();
-  };
- } else {
-  link.onclick = null;
- }
+ if(!hasData){ link.onclick = null; return; }
+ link.onclick = (e)=>{
+  e.preventDefault();
+  openSpeedometerHub();
+ };
 }
 
 function isTestSuccess(r){ return (r||"").toLowerCase().startsWith("convergent"); }
@@ -2162,6 +2152,7 @@ function updateEmailSelectMeta(){
  const recipient = _emailSelectedRecipient || "not selected";
  const map = {summary:"Summary",trial:"Trial Detail",graph:"Graph",ranked:"Ranked Averages",all:"All data"};
  meta.textContent = `Recipient: ${recipient}\nData: ${map[_emailSelectedData]||_emailSelectedData}`;
+ const sel=$("emailDataSelect"); if(sel) sel.value=_emailSelectedData;
 }
 
 function openSpeedometerHub(){
@@ -2171,8 +2162,10 @@ function openSpeedometerHub(){
  const outcome=$("outcomeOverlay");
  const text=$("outcomeText");
  if(text){
-  text.textContent = "Speedometer";
-  text.className = "outcome-text success";
+  text.textContent = last.endReason || "Run complete";
+  text.className = "outcome-text " + (isTestSuccess(last.endReason) ? "success" : "failed");
+  text.style.fontSize = "clamp(16px,4.2vw,28px)";
+  text.style.margin = "10px 0 12px";
  }
  if(outcome) outcome.classList.remove("hidden");
  setTestingQuiet(false);
@@ -2221,7 +2214,7 @@ function buildRankedSummary(result){
  const hr="─────────────────────────";
  const modeName = result.testMode==="mode2" ? "SPC Mode" : result.testMode==="mode3" ? "SPCMP Mode" : "CogSpeed Mode";
  el.textContent =
-`CogSpeed ${APP_VERSION} — ${modeName}
+`CogSpeed® ${APP_VERSION} — ${modeName}
 ${hr}
 RANKED TARGET / POSITION AVERAGES — POOLED SAME-MODE SESSIONS
 ${formatModePooledRankSection(result.testMode)}`;
@@ -2239,7 +2232,7 @@ function buildSummary(result){
  const modeName = result.testMode==="mode2" ? "SPC Mode" : result.testMode==="mode3" ? "SPCMP Mode" : "CogSpeed Mode";
  if(result.testMode==="mode2"){
   el.textContent=
-`CogSpeed ${APP_VERSION} — ${modeName}
+`CogSpeed® ${APP_VERSION} — ${modeName}
 ${hr}
 Test Mode:  ${formatModeTag(result.testMode)}\nSession:    ${result.sessionNumber!=null?result.sessionNumber:"—"}\nSubject ID:  ${result.subjectId}
 Date / Time:  ${new Date(result.time).toLocaleString()}
@@ -2267,7 +2260,7 @@ END REASON
  }
  if(result.testMode==="mode3"){
   el.textContent=
-`CogSpeed ${APP_VERSION} — ${modeName}
+`CogSpeed® ${APP_VERSION} — ${modeName}
 ${hr}
 Test Mode:  ${formatModeTag(result.testMode)}\nSession:    ${result.sessionNumber!=null?result.sessionNumber:"—"}\nSubject ID:  ${result.subjectId}
 Date / Time:  ${new Date(result.time).toLocaleString()}
@@ -2307,7 +2300,7 @@ END REASON
  const cps=result.cognitivePerformanceIndex;
  const sd=result.pacedResponseSdMs;
  el.textContent=
-`CogSpeed ${APP_VERSION} — ${modeName}
+`CogSpeed® ${APP_VERSION} — ${modeName}
 ${hr}
 Test Mode:  ${formatModeTag(result.testMode)}\nSession:    ${result.sessionNumber!=null?result.sessionNumber:"—"}\nSubject ID:  ${result.subjectId}
 Date / Time:  ${new Date(result.time).toLocaleString()}
@@ -2732,15 +2725,15 @@ function buildTrialLog(sessionIndex){
   return;
  }
  // Color coding
- const outcomeColor={correct:"#00ff88",wrong:"#ff4466",missed:"#888","Warm up":"#ffd166"};
+ const outcomeColor={correct:"#00ff88",wrong:"#ff4466",missed:"#888","Warmup":"#ffd166"};
  log.forEach(e=>{
   const tr=document.createElement("tr");
   const timeStr=e.clockTime?new Date(e.clockTime).toLocaleTimeString("en-US",{hour12:false,hour:"2-digit",minute:"2-digit",second:"2-digit",fractionalSecondDigits:3}):"—";
   const rtStr=e.rt!=null?e.rt.toLocaleString():"—";
   const durStr=e.durationMs!=null?e.durationMs.toLocaleString()+"ms":"—";
-  const isWarmup = !!(e.warmup || e.counted===false || e.outcome==="Warm up");
-  const phaseLabel = isWarmup ? "Warm up" : (e.phase||"—");
-  const outcomeLabel = isWarmup ? "Warm up" : (e.outcome||"—");
+  const isWarmup = !!(e.warmup || e.counted===false || e.outcome==="Warmup");
+  const phaseLabel = isWarmup ? "Warmup" : (e.phase||"—");
+  const outcomeLabel = isWarmup ? "Warmup" : (e.outcome||"—");
   const oc=outcomeColor[outcomeLabel]||"var(--muted)";
   tr.innerHTML=`<td style="font-weight:700">${e.seq}</td><td style="font-size:10px">${timeStr}</td><td style="font-size:10px;color:var(--muted)">${phaseLabel}</td><td>${durStr}</td><td style="font-weight:700">${rtStr}</td><td style="color:${oc};font-weight:700">${outcomeLabel}</td><td>${e.counted===false?"No":"Yes"}</td><td>${e.probe}</td><td style="color:var(--accent)">${e.correctCell}</td><td style="color:${oc==="var(--muted)"?"var(--muted)":oc}">${e.response}</td>`;
   tbody.appendChild(tr);
@@ -3599,7 +3592,8 @@ const _fbb=$("fullGraphBackBtn"); if(_fbb) _fbb.onclick=()=>{ $("fullGraphOverla
 
 // E-mail Select controls
 const _erb=$("emailRecipientBtn"); if(_erb) _erb.onclick=()=>{ const def=_emailSelectedRecipient || (state.profile&&state.profile.email?state.profile.email:""); const val=window.prompt("Recipient e-mail address", def||""); if(val!=null){ _emailSelectedRecipient = val.trim(); updateEmailSelectMeta(); } };
+const _eds=$("emailDataSelect"); if(_eds){ _eds.value=_emailSelectedData; _eds.onchange=()=>{ _emailSelectedData=_eds.value; updateEmailSelectMeta(); }; }
 const _edb=$("emailDataBtn"); if(_edb) _edb.onclick=()=>{ const val=window.prompt("Enter data to include: summary, trial, graph, ranked, or all", _emailSelectedData); if(val!=null){ const norm=val.trim().toLowerCase(); if(["summary","trial","graph","ranked","all"].includes(norm)) _emailSelectedData = norm; updateEmailSelectMeta(); } };
-const _esb=$("emailSendBtn"); if(_esb) _esb.onclick=()=>{ const last=currentResult(); if(!last) return; const to=_emailSelectedRecipient || (state.profile&&state.profile.emailResults&&state.profile.email ? state.profile.email : ""); buildSummary(last); const body=buildEmailBodyForSelection(last,_emailSelectedData).replace(/\n/g,"\r\n"); window.location.href=`mailto:${to}?subject=CogSpeed ${APP_VERSION} Results&body=${encodeURIComponent(body)}`; };
+const _esb=$("emailSendBtn"); if(_esb) _esb.onclick=()=>{ const last=currentResult(); if(!last) return; const to=_emailSelectedRecipient || (state.profile&&state.profile.emailResults&&state.profile.email ? state.profile.email : ""); buildSummary(last); const body=buildEmailBodyForSelection(last,_emailSelectedData).replace(/\n/g,"\r\n"); window.location.href=`mailto:${to}?subject=CogSpeed® ${APP_VERSION} Results&body=${encodeURIComponent(body)}`; };
 const _ebb=$("emailBackBtn"); if(_ebb) _ebb.onclick=()=>{ $("emailSelectOverlay").classList.add("hidden"); openSpeedometerHub(); };
 
