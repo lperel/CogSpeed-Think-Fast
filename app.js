@@ -2,7 +2,7 @@
 // CogSpeed V173
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V234";
+const APP_VERSION = "V238";
 const RELEASE = APP_VERSION.replace(/^V/i, "");
 const STORAGE_PREFIX = `cogspeed_v${RELEASE}`;
 
@@ -1571,14 +1571,14 @@ function drawPerformanceOverTimeChart(canvas,hist){
   let started=false;
   vals.forEach((v,i)=>{
    if(v==null){ started=false; return; }
-   const x=xOf(i), y=yFunc(v);
+   const x=xOf(i), y=yFunc(v,i);
    if(!started){ ctx.moveTo(x,y); started=true; } else { ctx.lineTo(x,y); }
   });
   if(vals.filter(v=>v!=null).length>1) ctx.stroke();
 
   vals.forEach((v,i)=>{
    if(v==null) return;
-   const x=xOf(i), y=yFunc(v);
+   const x=xOf(i), y=yFunc(v,i);
    ctx.fillStyle=color;
    if(style==="square"){
     ctx.fillRect(x-4,y-4,8,8);
@@ -1594,8 +1594,17 @@ function drawPerformanceOverTimeChart(canvas,hist){
  const mbsVals = slice.map(r=>r.averageLast2BlockingScoresMs!=null?Number(r.averageLast2BlockingScoresMs):null);
  const spfVals = slice.map(r=>r.samnPerelli&&r.samnPerelli.score!=null?Number(r.samnPerelli.score):null);
 
- drawLine(cpiVals, v=>yLeftFromCpi(v), "#7fd7ff", "circle");
+ function yLeftFromCpiVisible(v,i){
+  const base = yLeftFromCpi(v);
+  const m = mbsVals[i];
+  if(m==null) return base;
+  const delta = Math.abs(base - yLeftFromMs(m));
+  return delta < 6 ? base - 6 : base;
+ }
+
+ // Draw MBS first so CPI remains visible on top when values align on the shared left axis.
  drawLine(mbsVals, v=>yLeftFromMs(v), "#ffb357", "square");
+ drawLine(cpiVals, (v,i)=>yLeftFromCpiVisible(v,i), "#7fd7ff", "circle");
  drawLine(spfVals, v=>yRightFromSpf(v), "#88ff88", "diamond");
 
  // legend
@@ -2692,6 +2701,7 @@ function showResultsPage(){
   setTimeout(()=>{
    stopFX(); if(thinking) thinking.classList.add("hidden");
    renderSpeedometerOutcome(last);
+ try{ updateStartPageLinks(); }catch(e){}
   },2000);
  },500);
 }
@@ -3506,6 +3516,7 @@ $("skipRefresherBtn").onclick=()=>{
  showTutorial(); setStatus("Tutorial");
 };
 $("refBackBtn").onclick=()=>goToStartPage();
+ try{ updateStartPageLinks(); }catch(e){}
 $("refStartOverBtn").onclick=()=>startOverFlow();
 $("fatigueBackBtn").onclick=()=>goToStartPage();
 $("fatigueStartOverBtn").onclick=()=>startOverFlow();
@@ -3631,7 +3642,7 @@ const _hn=$("historyNextBtn"); if(_hn) _hn.onclick=()=>{ const cur=(buildHistory
 const _rrp=$("rateRtPrevBtn"); if(_rrp) _rrp.onclick=()=>{ const s=$("rateRtSessionSelect"); if(!s) return; s.selectedIndex=Math.max(0,s.selectedIndex-1); if(s.onchange) s.onchange(); };
 const _rrn=$("rateRtNextBtn"); if(_rrn) _rrn.onclick=()=>{ const s=$("rateRtSessionSelect"); if(!s) return; s.selectedIndex=Math.min(s.options.length-1,s.selectedIndex+1); if(s.onchange) s.onchange(); };
 
-$("adminBackBtn").onclick=()=>goToStartPage();
+$("adminBackBtn").onclick=()=>{ goToStartPage(); try{ updateStartPageLinks(); }catch(e){} };
 const _asb=$("adminSpeedometerBtn"); if(_asb) _asb.onclick=()=>openSpeedometerFromAdmin();
 bindDoubleTapConfirm($("adminStartOverBtn"), ()=>startOverFlow(), "Full Reset", "Tap again for full reset");
 $("benchRunBtn").onclick=()=>runDeviceBenchmark(true);
@@ -3669,9 +3680,9 @@ if ("serviceWorker" in navigator) {
    for(const r of regs) await r.unregister();
    const keys = await caches.keys();
    for(const k of keys) await caches.delete(k);
-   console.log("V234 recovery build: old service workers unregistered and caches cleared.");
+   console.log("V238 recovery build: old service workers unregistered and caches cleared.");
   }catch(err){
-   console.warn("V234 recovery cleanup failed:", err);
+   console.warn("V238 recovery cleanup failed:", err);
   }
  });
 }
@@ -3756,3 +3767,9 @@ const _pta=$("perfTimeAdminBtn"); if(_pta) _pta.onclick=()=>{ $("perfTimeOverlay
 const _rsp=$("rankedSpeedometerBtn"); if(_rsp) _rsp.onclick=()=>{ $("rankedOverlay").classList.add("hidden"); openSpeedometerPage(); };
 const _rrs=$("rankedRestartBtn"); if(_rrs) _rrs.onclick=()=>{ $("rankedOverlay").classList.add("hidden"); goToStartPage(); };
 const _rra=$("rankedAdminBtn"); if(_rra) _rra.onclick=()=>{ $("rankedOverlay").classList.add("hidden"); $("adminOverlay").classList.remove("hidden"); if(_adminUnlocked){ $("adminGate").classList.add("hidden"); $("adminBody").classList.remove("hidden"); renderAdmin(); } else { $("adminGate").classList.remove("hidden"); $("adminBody").classList.add("hidden"); $("adminPass").value=""; } };
+
+const _stl=$("speedTrialLogBtn"); if(_stl) _stl.onclick=()=>{ $("outcomeOverlay").classList.add("hidden"); buildTrialLog(); $("trialLogOverlay").classList.remove("hidden"); };
+
+const _srr=$("speedRateRtBtn"); if(_srr) _srr.onclick=()=>{ $("outcomeOverlay").classList.add("hidden"); buildRateRtOverlay(); $("rateRtOverlay").classList.remove("hidden"); };
+
+const _tla=$("trialLogAdminBtn"); if(_tla) _tla.onclick=()=>{ $("trialLogOverlay").classList.add("hidden"); $("adminOverlay").classList.remove("hidden"); if(_adminUnlocked){ $("adminGate").classList.add("hidden"); $("adminBody").classList.remove("hidden"); renderAdmin(); } else { $("adminGate").classList.remove("hidden"); $("adminBody").classList.add("hidden"); $("adminPass").value=""; } };
