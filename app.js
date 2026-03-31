@@ -2,7 +2,7 @@
 // CogSpeed V173
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V199";
+const APP_VERSION = "V200";
 const RELEASE = APP_VERSION.replace(/^V/i, "");
 const STORAGE_PREFIX = `cogspeed_v${RELEASE}`;
 
@@ -1205,14 +1205,39 @@ function renderFatigueChecklist(){
  }
 }
 
+
+function bindDoubleTapAction(btn, action, idleText, confirmText){
+ if(!btn) return;
+ let armed = false;
+ let timer = null;
+ const resetState = ()=>{
+  armed = false;
+  btn.textContent = idleText;
+  btn.style.borderColor = "";
+  btn.style.color = "";
+  if(timer){ clearTimeout(timer); timer = null; }
+ };
+ btn.onclick = ()=>{
+  if(!armed){
+   armed = true;
+   btn.textContent = confirmText;
+   btn.style.borderColor = "rgba(255,100,136,0.75)";
+   btn.style.color = "#ff8aa0";
+   timer = setTimeout(resetState, 2200);
+   return;
+  }
+  resetState();
+  action();
+ };
+}
+
 // ─── Admin ───
 // ─── ADMIN PANEL ──────────────────────────────────────────────
 // Password-protected (default: 4822). Stays unlocked per session.
 // HISTORY AND GRAPHS: combined CPI/MBS ms/SP-FS chart (last 20).
 // TRIAL DETAIL: per-trial table with session selector + CSV download.
 // LAST RESULTS: shows summary overlay for most recent test.
-// EXPORT JSON: full history + settings as .json file.
-// EXPORT CSV: history as spreadsheet-ready .csv file.
+// // EXPORT CSV: history as spreadsheet-ready .csv file.
 // BENCHMARK: device timing calibration test.
 // ──────────────────────────────────────────────────────────────
 function renderAdmin(){
@@ -1820,10 +1845,7 @@ function formatModePooledRankSection(mode){
 //  CPI, taps, correct, wrong, missed, paced stats, duration, end reason.
 // emailResults(): opens mailto: with last result text in body.
 // ──────────────────────────────────────────────────────────────
-function exportResults(){
- const blob=new Blob([JSON.stringify({settings,history:state.history},null,2)],{type:"application/json"});
- const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=`${STORAGE_PREFIX}_results.json`; a.click();
-}
+function exportResults(){ setStatus("Export JSON removed."); }
 function exportCSV(){
  const h=state.history; if(!h.length){setStatus("No history to export."); return;}
  const cols=["session","subjectId","date","samnPerelli","calibAvgMs","blocks",
@@ -3579,6 +3601,7 @@ try{ updateStartPageLinks(); }catch(e){}
 const _ssb=$("speedSummaryBtn"); if(_ssb) _ssb.onclick=()=>{ const last=currentResult(); if(!last) return; buildSummary(last); drawModeResultChart($("summaryModeChart"), last); $("outcomeOverlay").classList.add("hidden"); $("summaryOverlay").classList.remove("hidden"); };
 const _stb=$("speedTrialBtn"); if(_stb) _stb.onclick=()=>{ $("outcomeOverlay").classList.add("hidden"); buildTrialLog(); $("trialLogOverlay").classList.remove("hidden"); };
 const _sgb=$("speedGraphBtn"); if(_sgb) _sgb.onclick=()=>{ const last=currentResult(); if(!last) return; $("outcomeOverlay").classList.add("hidden"); const fg=$("fullGraphOverlay"); if(fg) fg.classList.remove("hidden"); drawModeResultChart($("fullModeGraph"), last); };
+const _ssmg=$("speedSameModeGraphBtn"); if(_ssmg) _ssmg.onclick=()=>{ $("outcomeOverlay").classList.add("hidden"); buildRateRtOverlay(); $("rateRtOverlay").classList.remove("hidden"); };
 const _srb=$("speedRankedBtn"); if(_srb) _srb.onclick=()=>{ const last=currentResult(); if(!last) return; buildRankedSummary(last); $("outcomeOverlay").classList.add("hidden"); $("rankedOverlay").classList.remove("hidden"); };
 const _srestart=$("speedRestartBtn"); if(_srestart) _srestart.onclick=()=>{ $("outcomeOverlay").classList.add("hidden"); stopSpeedometer(); goToStartPage(); };
 const _semail=$("speedEmailBtn"); if(_semail) _semail.onclick=()=>{ $("outcomeOverlay").classList.add("hidden"); openEmailSelect(); };
