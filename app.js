@@ -2,7 +2,7 @@
 // CogSpeed V173
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V214";
+const APP_VERSION = "V216";
 const RELEASE = APP_VERSION.replace(/^V/i, "");
 const STORAGE_PREFIX = `cogspeed_v${RELEASE}`;
 
@@ -53,8 +53,8 @@ const DEFAULTS={
  rollMeanThreshold:0.50,
  machinePacedNoResponseMs:15000,
  recoveryNoResponseMs:10000,
- calibrationFirstNoResponseMs:20000,
- calibrationNoResponseMs:10000,
+ calibrationFirstNoResponseMs:10000,
+ calibrationNoResponseMs:6000,
  wrongWindowSize:5,
  wrongThresholdStop:4,
  maxTrialCount:180,
@@ -62,7 +62,7 @@ const DEFAULTS={
  maxTestDurationMs:150000,
  minDurationMs:700,
  maxDurationMs:3000,
- initialUnusedCalibrationTrials:1,
+ initialUnusedCalibrationTrials:2,
  initialMeasuredCalibrationTrials:10,
  initialPacedPercent:1.3,
  calibrationStopErrors:4,
@@ -83,10 +83,10 @@ const ADMIN_FIELDS=[
  ["adminPasscode","1. Admin passcode","text"],
 
  // 2-16. Defaults used across all modes, ordered by use in the test
- ["initialUnusedCalibrationTrials","2. Warm-up calibration trials (default 1)","number"],
+ ["initialUnusedCalibrationTrials","2. Warm-up calibration trials (default 2)","number"],
  ["initialMeasuredCalibrationTrials","3. Measured calibration trials (default 10)","number"],
- ["calibrationFirstNoResponseMs","4. Calibration first-trial no-response (ms, default 20000)","number"],
- ["calibrationNoResponseMs","5. Calibration later-trial no-response (ms, default 10000)","number"],
+ ["calibrationFirstNoResponseMs","4. Calibration first-trial no-response (ms, default 10000)","number"],
+ ["calibrationNoResponseMs","5. Calibration later-trial no-response (ms, default 6000)","number"],
  ["calibrationStopErrors","6. Calibration stop after N wrong (default 4)","number"],
  ["calibrationStopSlowMs","7. Calibration avg RT limit (ms, default 3000)","number"],
  ["minDurationMs","8. MP frame minimum duration (ms, default 700)","number"],
@@ -1010,7 +1010,7 @@ function handleTap(index){
   const includeInAverages = state.calibrationTrialIndex>=settings.initialUnusedCalibrationTrials;
   if(includeInAverages) state.selfPacedRTs.push(rt);
   if(ok){ state.totalCorrect+=1; if(includeInAverages) state.selfPacedCorrect+=1; } else { state.totalIncorrect+=1; if(includeInAverages) state.selfPacedWrong+=1; }
-  logTrial({phase:"calibration",rt,outcome:includeInAverages?(ok?"correct":"wrong"):"Warm up",responseIndex:index,counted:includeInAverages});
+  logTrial({phase:"calibration",rt,outcome:includeInAverages?(ok?"correct":"wrong"):"Warmup",responseIndex:index,counted:includeInAverages});
   if(isMode1()){
    if(!ok){
     state.calibrationErrors+=1; updateMetrics();
@@ -2683,15 +2683,15 @@ function buildTrialLog(sessionIndex){
   return;
  }
  // Color coding
- const outcomeColor={correct:"#00ff88",wrong:"#ff4466",missed:"#888","Warm up":"#ffd166"};
+ const outcomeColor={correct:"#00ff88",wrong:"#ff4466",missed:"#888","Warmup":"#ffd166"};
  log.forEach(e=>{
   const tr=document.createElement("tr");
   const timeStr=e.clockTime?new Date(e.clockTime).toLocaleTimeString("en-US",{hour12:false,hour:"2-digit",minute:"2-digit",second:"2-digit",fractionalSecondDigits:3}):"—";
   const rtStr=e.rt!=null?e.rt.toLocaleString():"—";
   const durStr=e.durationMs!=null?e.durationMs.toLocaleString()+"ms":"—";
-  const isWarmup = !!(e.warmup || e.counted===false || e.outcome==="Warm up");
-  const phaseLabel = isWarmup ? "Warm up" : (e.phase||"—");
-  const outcomeLabel = isWarmup ? "Warm up" : (e.outcome||"—");
+  const isWarmup = !!(e.warmup || e.counted===false || e.outcome==="Warmup");
+  const phaseLabel = isWarmup ? "Warmup" : (e.phase||"—");
+  const outcomeLabel = isWarmup ? "Warmup" : (e.outcome||"—");
   const oc=outcomeColor[outcomeLabel]||"var(--muted)";
   tr.innerHTML=`<td style="font-weight:700">${e.seq}</td><td style="font-size:10px">${timeStr}</td><td style="font-size:10px;color:var(--muted)">${phaseLabel}</td><td>${durStr}</td><td style="font-weight:700">${rtStr}</td><td style="color:${oc};font-weight:700">${outcomeLabel}</td><td>${e.counted===false?"No":"Yes"}</td><td>${e.probe}</td><td style="color:var(--accent)">${e.correctCell}</td><td style="color:${oc==="var(--muted)"?"var(--muted)":oc}">${e.response}</td>`;
   tbody.appendChild(tr);
@@ -3517,9 +3517,9 @@ if ("serviceWorker" in navigator) {
    for(const r of regs) await r.unregister();
    const keys = await caches.keys();
    for(const k of keys) await caches.delete(k);
-   console.log("V214 recovery build: old service workers unregistered and caches cleared.");
+   console.log("V216 recovery build: old service workers unregistered and caches cleared.");
   }catch(err){
-   console.warn("V214 recovery cleanup failed:", err);
+   console.warn("V216 recovery cleanup failed:", err);
   }
  });
 }
