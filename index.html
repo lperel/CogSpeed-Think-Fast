@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
   <meta name="theme-color" content="#0b1830"/>
   <link rel="manifest" href="manifest.json"/>
-  <title>CogSpeed V194</title>
+  <title>CogSpeed V196</title>
     <style>
 
     :root{--bg:#091426;--bg2:#132746;--panel:#0d1b33;--panel2:#10213e;--text:#f5fbff;--muted:#d7e7f8;--edge:#4f6f99;--accent:#7fd7ff;--probe:#00f0ff}
@@ -562,7 +562,7 @@
 <!-- ═══ OUTCOME OVERLAY ═══ -->
 <div id="outcomeOverlay" class="outcome-overlay hidden" style="flex-direction:column;align-items:center;justify-content:center;gap:0;padding:10px 8px 20px">
   <!-- Square speedometer canvas — fills ~top half of screen -->
-  <div id="speedometerWrap" style="width:min(90vw,50vh);aspect-ratio:1/1;flex-shrink:0">
+  <div id="speedometerWrap" style="width:min(90vw,50vh);aspect-ratio:1/1;flex-shrink:0;margin-top:24px">
     <canvas id="speedometerCanvas" style="width:100%;height:100%;display:block"></canvas>
   </div>
   <!-- SUCCESS! / Test Failed label -->
@@ -574,7 +574,7 @@
     <button class="ctrl-btn" id="speedTrialBtn">2. Trial Detail</button>
     <button class="ctrl-btn" id="speedGraphBtn">3. Graph</button>
     <button class="ctrl-btn" id="speedRankedBtn">4. RANKED TARGET / POSITION AVERAGES</button>
-    <button class="ctrl-btn" id="speedRestartBtn">5. Start Page for Restart</button>
+        <button class="ctrl-btn" id="speedRestartBtn">5. Start Page for Restart</button>
     <button class="ctrl-btn" id="speedEmailBtn">6. E-mail Select</button>
     <button id="speedAdminBtn" style="background:none;border:none;color:rgba(127,215,255,0.35);font-size:12px;padding:6px 10px;cursor:pointer;font-family:inherit;letter-spacing:.05em">7. Admin</button>
   </div>
@@ -590,8 +590,7 @@
       <button class="ctrl-btn" id="summaryBackSpeedBtn" style="flex:1">← Speedometer</button>
       <button class="ctrl-btn" id="summaryRestartBtn" style="flex:1">New Test</button>
       <button class="ctrl-btn" id="summaryEmailBtn" style="flex:1">Email Results</button>
-      <button class="ctrl-btn" id="summaryRankedBtn" style="flex:1">Ranked Averages</button>
-      <button class="ctrl-btn" id="summaryFullGraphBtn" style="flex:1;display:none">Full Graph</button>
+            <button class="ctrl-btn" id="summaryFullGraphBtn" style="flex:1;display:none">Full Graph</button>
       <button id="summaryProfileBtn" style="background:none;border:none;color:rgba(127,215,255,0.5);font-size:18px;padding:4px 10px;cursor:pointer">⚙</button>
       <button id="summaryAdminBtn" style="background:none;border:none;color:rgba(127,215,255,0.3);font-size:11px;padding:4px 10px;cursor:pointer;font-family:inherit;letter-spacing:.05em">Admin →</button>
     </div>
@@ -716,7 +715,7 @@ Data: Summary</div>
     <span id="fatigueOut">—</span>
     <span id="modeLabel">Subject mode</span>
     <span id="phaseLabel">Ready</span>
-    <span id="statusLine">CogSpeed V194</span>
+    <span id="statusLine">CogSpeed V196</span>
     <span id="rateOut">—</span>
     <span id="blocksOut">0</span>
     <span id="recoveryOut">0</span>
@@ -749,7 +748,7 @@ Data: Summary</div>
   <div class="resp-grid" id="respGrid"></div>
 </div>
 
-<script src="app.js?v=194"></script>
+<script src="app.js?v=196"></script>
 
 </body>
 </html>

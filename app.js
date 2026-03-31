@@ -2,7 +2,7 @@
 // CogSpeed V173
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V194";
+const APP_VERSION = "V196";
 const RELEASE = APP_VERSION.replace(/^V/i, "");
 const STORAGE_PREFIX = `cogspeed_v${RELEASE}`;
 
@@ -2335,7 +2335,7 @@ RESPONSE STATISTICS
  END REASON: ${result.endReason||"Run complete"}
  Mean paced RT: ${result.pacedResponseMeanMs!=null?result.pacedResponseMeanMs.toFixed(1)+" ms":"—"}
  Paced RT SD: ${sd!=null?sd.toFixed(1)+" ms":"—"}
-\n${hr}\nRANKED TARGET / POSITION AVERAGES — POOLED SAME-MODE SESSIONS\n${formatModePooledRankSection(result.testMode)}`;
+`;
 }
 
 // ─── SPEEDOMETER V2 — Vintage Auto Meter style ────────────────
@@ -3578,9 +3578,6 @@ if ("serviceWorker" in navigator) {
 
 
 
-$("summaryRankedBtn").onclick=()=>{ const last=state.history[state.history.length-1]; if(!last) return; buildRankedSummary(last); $("summaryOverlay").classList.add("hidden"); $("rankedOverlay").classList.remove("hidden"); };
-$("rankedBackBtn").onclick=()=>{ $("rankedOverlay").classList.add("hidden"); $("summaryOverlay").classList.remove("hidden"); };
-$("rankedCloseBtn").onclick=()=>{ $("rankedOverlay").classList.add("hidden"); openSpeedometerHub(); };
 
 try{ updateStartPageLinks(); }catch(e){}
 
