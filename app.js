@@ -2,7 +2,7 @@
 // CogSpeed V173
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V227";
+const APP_VERSION = "V228";
 const RELEASE = APP_VERSION.replace(/^V/i, "");
 const STORAGE_PREFIX = `cogspeed_v${RELEASE}`;
 
@@ -3443,7 +3443,7 @@ $("trialLogCloseBtn").onclick=()=>$("trialLogOverlay").classList.add("hidden");
 $("trialLogCsvBtn").onclick=()=>downloadTrialLogCSV();
 $("historyCloseBtn").onclick=()=>$("historyOverlay").classList.add("hidden");
 const _rrsel=$("rateRtSessionSelect"); if(_rrsel) _rrsel.onchange=()=>buildRateRtOverlay();
-const _rrcb=$("rateRtCloseBtn"); if(_rrcb) _rrcb.onclick=()=>{ $("rateRtOverlay").classList.add("hidden"); $("adminOverlay").classList.remove("hidden"); if(_adminUnlocked){ $("adminGate").classList.add("hidden"); $("adminBody").classList.remove("hidden"); renderAdmin(); } };
+const _rrcb=$("rateRtCloseBtn"); if(_rrcb) _rrcb.onclick=()=>{ $("rateRtOverlay").classList.add("hidden"); openSpeedometerPage(); };
 $("historyClearBtn").onclick=()=>{
  const btn=$("historyClearBtn");
  if(btn._confirmPending){
@@ -3514,9 +3514,9 @@ if ("serviceWorker" in navigator) {
    for(const r of regs) await r.unregister();
    const keys = await caches.keys();
    for(const k of keys) await caches.delete(k);
-   console.log("V227 recovery build: old service workers unregistered and caches cleared.");
+   console.log("V228 recovery build: old service workers unregistered and caches cleared.");
   }catch(err){
-   console.warn("V227 recovery cleanup failed:", err);
+   console.warn("V228 recovery cleanup failed:", err);
   }
  });
 }
@@ -3539,6 +3539,23 @@ function syncOutcomeStatusText(result){
  ot.textContent = ok ? "Success!" : "Failed";
  ot.className = "outcome-text " + (ok ? "success" : "failed");
  if(orr) orr.textContent = (result && result.endReason) ? result.endReason : "Run complete";
+}
+
+
+function openSpeedometerPage(){
+ if(typeof openSpeedometerHub==="function" && state.history && state.history.length){
+  openSpeedometerHub();
+ }else{
+  const outcome = $("outcomeOverlay");
+  if(outcome){
+   const last = state.history && state.history.length ? state.history[state.history.length-1] : null;
+   if(typeof syncOutcomeStatusText==="function") syncOutcomeStatusText(last);
+   outcome.classList.remove("hidden");
+   setTestingQuiet(false);
+  }else{
+   goToStartPage();
+  }
+ }
 }
 
 function openSpeedometerFromAdmin(){
@@ -3567,3 +3584,5 @@ function openSpeedometerFromAdmin(){
 
 
 $("trialLogCloseBtn").onclick=()=>{ $("trialLogOverlay").classList.add("hidden"); openSpeedometerFromAdmin(); };
+
+const _rrab=$("rateRtAdminBtn"); if(_rrab) _rrab.onclick=()=>{ $("rateRtOverlay").classList.add("hidden"); $("adminOverlay").classList.remove("hidden"); if(_adminUnlocked){ $("adminGate").classList.add("hidden"); $("adminBody").classList.remove("hidden"); renderAdmin(); } else { $("adminGate").classList.remove("hidden"); $("adminBody").classList.add("hidden"); $("adminPass").value=""; } };

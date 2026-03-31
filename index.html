@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
   <meta name="theme-color" content="#0b1830"/>
   <link rel="manifest" href="manifest.json"/>
-  <title>CogSpeed® V227</title>
+  <title>CogSpeed® V228</title>
     <style>
 
     :root{--bg:#091426;--bg2:#132746;--panel:#0d1b33;--panel2:#10213e;--text:#f5fbff;--muted:#d7e7f8;--edge:#4f6f99;--accent:#7fd7ff;--probe:#00f0ff}
@@ -596,6 +596,7 @@
     <div id="rankedText" style="font-family:monospace;font-size:15px;color:var(--muted);white-space:pre;overflow-x:auto;max-height:58vh;overflow-y:auto;background:#060e1a;border:1px solid var(--edge);border-radius:10px;padding:14px;line-height:1.75"></div>
     <div style="display:flex;align-items:center;gap:8px;margin-top:10px;flex-wrap:wrap">
       <button class="ctrl-btn" id="rankedBackBtn" style="flex:1">← Back to Summary</button>
+      <a id="rankedAboutBtn" href="about.html" style="align-self:center;color:rgba(127,215,255,0.6);font-size:18px;text-decoration:none;padding:4px 8px">*</a>
       <button class="ctrl-btn" id="rankedCloseBtn" style="flex:1">Close</button>
     </div>
   </div>
@@ -676,7 +677,8 @@
     <div class="controls">
       <button class="ctrl-btn" id="rateRtPrevBtn">← Prev Session</button>
       <button class="ctrl-btn" id="rateRtNextBtn">Next Session →</button>
-      <button class="ctrl-btn" id="rateRtCloseBtn">← Back to Admin</button>
+      <button class="ctrl-btn" id="rateRtCloseBtn">← Back to Speedometer</button>
+      <button id="rateRtAdminBtn" style="background:none;border:none;color:rgba(127,215,255,0.38);font-size:12px;padding:6px 10px;cursor:pointer;font-family:inherit;letter-spacing:.05em">Admin</button>
     </div>
   </div>
 </div>
@@ -690,7 +692,7 @@
     <span id="fatigueOut">—</span>
     <span id="modeLabel">Subject mode</span>
     <span id="phaseLabel">Ready</span>
-    <span id="statusLine">CogSpeed V227</span>
+    <span id="statusLine">CogSpeed V228</span>
     <span id="rateOut">—</span>
     <span id="blocksOut">0</span>
     <span id="recoveryOut">0</span>
