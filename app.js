@@ -2,7 +2,7 @@
 // CogSpeed V173
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V212";
+const APP_VERSION = "V213";
 const RELEASE = APP_VERSION.replace(/^V/i, "");
 const STORAGE_PREFIX = `cogspeed_v${RELEASE}`;
 
@@ -2284,7 +2284,9 @@ RESPONSE STATISTICS
  END REASON: ${result.endReason||"Run complete"}
  Mean paced RT: ${result.pacedResponseMeanMs!=null?result.pacedResponseMeanMs.toFixed(1)+" ms":"—"}
  Paced RT SD: ${sd!=null?sd.toFixed(1)+" ms":"—"}
-\n${hr}\nRANKED TARGET / POSITION AVERAGES — POOLED SAME-MODE SESSIONS\n${formatModePooledRankSection(result.testMode)}`;
+${hr}
+COGNITIVE PERFORMANCE TABLE
+${getCognitivePerformanceTableText(result)}`;
 }
 
 // ─── SPEEDOMETER V2 — Vintage Auto Meter style ────────────────
@@ -3515,9 +3517,9 @@ if ("serviceWorker" in navigator) {
    for(const r of regs) await r.unregister();
    const keys = await caches.keys();
    for(const k of keys) await caches.delete(k);
-   console.log("V212 recovery build: old service workers unregistered and caches cleared.");
+   console.log("V213 recovery build: old service workers unregistered and caches cleared.");
   }catch(err){
-   console.warn("V212 recovery cleanup failed:", err);
+   console.warn("V213 recovery cleanup failed:", err);
   }
  });
 }
