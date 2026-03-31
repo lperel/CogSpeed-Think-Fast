@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
   <meta name="theme-color" content="#0b1830"/>
   <link rel="manifest" href="manifest.json"/>
-  <title>CogSpeed® V238</title>
+  <title>CogSpeed® V241</title>
     <style>
 
     :root{--bg:#091426;--bg2:#132746;--panel:#0d1b33;--panel2:#10213e;--text:#f5fbff;--muted:#d7e7f8;--edge:#4f6f99;--accent:#7fd7ff;--probe:#00f0ff}
@@ -502,7 +502,7 @@
       <div class="controls" style="margin-bottom:6px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px">
         <button class="ctrl-btn" id="adminTrialLogBtn" style="width:100%;background:linear-gradient(180deg,#1a3355,#0d1b33);border-color:#4f8fcc">📋 Trial Detail</button>
         <button class="ctrl-btn" id="adminPerfTimeBtn" style="width:100%;background:linear-gradient(180deg,#1a3355,#0d1b33);border-color:#4f8fcc">📈 Performance vs Time</button>
-        <button class="ctrl-btn" id="adminHistoryBtn" style="width:100%;background:linear-gradient(180deg,#1a3355,#0d1b33);border-color:#4f8fcc">📈 History &amp; Graphs</button>
+        
         <button class="ctrl-btn" id="adminRateRtBtn" style="width:100%;background:linear-gradient(180deg,#1a3355,#0d1b33);border-color:#4f8fcc">📉 Rates + RT</button>
       </div>
       <div class="controls" style="margin-bottom:8px;display:grid;grid-template-columns:1fr 1fr;gap:6px">
@@ -571,6 +571,7 @@
   <button class="ctrl-btn" id="outcomeResultsBtn" style="width:min(90vw,320px);font-size:16px;padding:15px 24px;background:linear-gradient(180deg,#1a3a5a,#0d1e30);border-color:#4f6f99;color:#d9fbff;letter-spacing:.06em">View Results →</button>
   <button class="ctrl-btn" id="speedPerfTimeBtn" style="width:min(90vw,320px);font-size:15px;padding:12px 20px;margin-top:8px">Performance vs Time</button>
   <button class="ctrl-btn" id="speedTrialLogBtn" style="width:min(90vw,320px);font-size:15px;padding:12px 20px;margin-top:8px">Trial Detail Log</button>
+  <button class="ctrl-btn" id="speedStartPageBtn" style="width:min(90vw,320px);font-size:15px;padding:12px 20px;margin-top:8px">Start</button>
   <button class="ctrl-btn" id="speedRateRtBtn" style="width:min(90vw,320px);font-size:15px;padding:12px 20px;margin-top:8px">Presentation Rate vs Response Time</button>
   <button id="speedAdminBtn" style="background:none;border:none;color:rgba(127,215,255,0.38);font-size:12px;padding:8px 10px;cursor:pointer;font-family:inherit;letter-spacing:.05em">Admin</button>
 </div>
@@ -658,30 +659,6 @@
   </div>
 </div>
 
-<!-- ═══ HISTORY & GRAPHS OVERLAY ═══ -->
-<div id="historyOverlay" class="overlay hidden" style="display:none !important">
-  <div class="modal">
-    <h2>History &amp; Graphs</h2>
-    <p class="modal-hint" id="historyMeta"></p>
-    <canvas id="histGraphChart" width="380" height="280" style="margin-bottom:12px"></canvas>
-    <div id="historyTable" style="max-height:50vh;overflow:auto;border-radius:10px;border:1px solid var(--edge);margin-bottom:10px">
-      <table class="trial-log-table">
-        <thead><tr>
-          <th>#</th><th>Date</th><th>Subject</th><th>S-PF</th>
-          <th>Cal RT</th><th>Blocks</th><th>Avg Block</th><th>CPS</th><th>Duration</th><th>End Reason</th>
-        </tr></thead>
-        <tbody id="historyTableBody"></tbody>
-      </table>
-    </div>
-    <div class="controls">
-      <button class="ctrl-btn" id="historyPrevBtn">← Prev Session</button>
-      <button class="ctrl-btn" id="historyNextBtn">Next Session →</button>
-      <button class="ctrl-btn" id="historyCloseBtn">← Back to Admin</button>
-      <button id="historyClearBtn" style="background:none;border:1px solid rgba(255,100,136,0.3);color:rgba(255,100,136,0.5);border-radius:10px;font-size:11px;padding:6px 10px;cursor:pointer;font-family:inherit;letter-spacing:.03em">🗑 Clear History</button>
-    </div>
-  </div>
-</div>
-
 
 <!-- ═══ RATE vs RT OVERLAY ═══ -->
 <div id="rateRtOverlay" class="overlay hidden">
@@ -710,7 +687,7 @@
     <span id="fatigueOut">—</span>
     <span id="modeLabel">Subject mode</span>
     <span id="phaseLabel">Ready</span>
-    <span id="statusLine">CogSpeed V238</span>
+    <span id="statusLine">CogSpeed V241</span>
     <span id="rateOut">—</span>
     <span id="blocksOut">0</span>
     <span id="recoveryOut">0</span>

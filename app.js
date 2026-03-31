@@ -2,7 +2,7 @@
 // CogSpeed V173
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V238";
+const APP_VERSION = "V241";
 const RELEASE = APP_VERSION.replace(/^V/i, "");
 const STORAGE_PREFIX = `cogspeed_v${RELEASE}`;
 
@@ -3596,7 +3596,6 @@ $("saveAdminBtn").onclick=()=>{ readAdmin(); saveSettings(); renderAdmin(); setS
 bindDoubleTapConfirm($("resetAdminBtn"), ()=>{ resetAdmin(); setStatus("Settings reset to defaults"); }, "Reset", "Tap again to reset");
 const _ecb=$("exportCsvAdminBtn"); if(_ecb) _ecb.onclick=exportCSV;
 $("adminTrialLogBtn").onclick=()=>{ buildTrialLog(state.history.length-1); $("trialLogOverlay").classList.remove("hidden"); };
-$("adminHistoryBtn").onclick=()=>{ buildHistoryOverlay(); $("historyOverlay").classList.remove("hidden"); };
 const _arrb=$("adminRateRtBtn"); if(_arrb) _arrb.onclick=()=>{ $("adminOverlay").classList.add("hidden"); $("rateRtOverlay").classList.remove("hidden"); buildRateRtOverlay(); };
 $("adminLastResultBtn").onclick=()=>{
  const last=state.history[state.history.length-1];
@@ -3607,38 +3606,12 @@ $("adminLastResultBtn").onclick=()=>{
 };
 $("trialLogCloseBtn").onclick=()=>$("trialLogOverlay").classList.add("hidden");
 $("trialLogCsvBtn").onclick=()=>downloadTrialLogCSV();
-$("historyCloseBtn").onclick=()=>$("historyOverlay").classList.add("hidden");
 const _rrsel=$("rateRtSessionSelect"); if(_rrsel) _rrsel.onchange=()=>buildRateRtOverlay();
 const _rrcb=$("rateRtCloseBtn"); if(_rrcb) _rrcb.onclick=()=>{ $("rateRtOverlay").classList.add("hidden"); openSpeedometerPage(); };
-$("historyClearBtn").onclick=()=>{
- const btn=$("historyClearBtn");
- if(btn._confirmPending){
-  clearTimeout(btn._confirmTimer);
-  btn._confirmPending=false;
-  btn.textContent="🗑 Clear History";
-  btn.style.color="rgba(255,100,136,0.5)";
-  btn.style.borderColor="rgba(255,100,136,0.3)";
-  state.history=[]; localStorage.removeItem(`${STORAGE_PREFIX}_history`);
-  buildHistoryOverlay(); setStatus("History cleared.");
- } else {
-  btn._confirmPending=true;
-  btn.textContent="Tap again to confirm";
-  btn.style.color="#ff6688";
-  btn.style.borderColor="#ff6688";
-  btn._confirmTimer=setTimeout(()=>{
-   btn._confirmPending=false;
-   btn.textContent="🗑 Clear History";
-   btn.style.color="rgba(255,100,136,0.5)";
-   btn.style.borderColor="rgba(255,100,136,0.3)";
-  },2000);
- }
-};
 const _tsel=$("trialLogSessionSelect");
 if(_tsel) _tsel.onchange=()=>buildTrialLog();
 const _tlp=$("trialLogPrevBtn"); if(_tlp) _tlp.onclick=()=>{ const s=$("trialLogSessionSelect"); if(!s) return; s.selectedIndex=Math.max(0,s.selectedIndex-1); if(s.onchange) s.onchange(); };
 const _tln=$("trialLogNextBtn"); if(_tln) _tln.onclick=()=>{ const s=$("trialLogSessionSelect"); if(!s) return; s.selectedIndex=Math.min(s.options.length-1,s.selectedIndex+1); if(s.onchange) s.onchange(); };
-const _hp=$("historyPrevBtn"); if(_hp) _hp.onclick=()=>{ const cur=(buildHistoryOverlay._selectedIndex!=null?buildHistoryOverlay._selectedIndex:(state.history.length-1)); buildHistoryOverlay(Math.max(0,cur-1)); };
-const _hn=$("historyNextBtn"); if(_hn) _hn.onclick=()=>{ const cur=(buildHistoryOverlay._selectedIndex!=null?buildHistoryOverlay._selectedIndex:(state.history.length-1)); buildHistoryOverlay(Math.min(state.history.length-1,cur+1)); };
 const _rrp=$("rateRtPrevBtn"); if(_rrp) _rrp.onclick=()=>{ const s=$("rateRtSessionSelect"); if(!s) return; s.selectedIndex=Math.max(0,s.selectedIndex-1); if(s.onchange) s.onchange(); };
 const _rrn=$("rateRtNextBtn"); if(_rrn) _rrn.onclick=()=>{ const s=$("rateRtSessionSelect"); if(!s) return; s.selectedIndex=Math.min(s.options.length-1,s.selectedIndex+1); if(s.onchange) s.onchange(); };
 
@@ -3680,9 +3653,9 @@ if ("serviceWorker" in navigator) {
    for(const r of regs) await r.unregister();
    const keys = await caches.keys();
    for(const k of keys) await caches.delete(k);
-   console.log("V238 recovery build: old service workers unregistered and caches cleared.");
+   console.log("V241 recovery build: old service workers unregistered and caches cleared.");
   }catch(err){
-   console.warn("V238 recovery cleanup failed:", err);
+   console.warn("V241 recovery cleanup failed:", err);
   }
  });
 }
@@ -3773,3 +3746,5 @@ const _stl=$("speedTrialLogBtn"); if(_stl) _stl.onclick=()=>{ $("outcomeOverlay"
 const _srr=$("speedRateRtBtn"); if(_srr) _srr.onclick=()=>{ $("outcomeOverlay").classList.add("hidden"); buildRateRtOverlay(); $("rateRtOverlay").classList.remove("hidden"); };
 
 const _tla=$("trialLogAdminBtn"); if(_tla) _tla.onclick=()=>{ $("trialLogOverlay").classList.add("hidden"); $("adminOverlay").classList.remove("hidden"); if(_adminUnlocked){ $("adminGate").classList.add("hidden"); $("adminBody").classList.remove("hidden"); renderAdmin(); } else { $("adminGate").classList.remove("hidden"); $("adminBody").classList.add("hidden"); $("adminPass").value=""; } };
+
+const _ssp=$("speedStartPageBtn"); if(_ssp) _ssp.onclick=()=>{ $("outcomeOverlay").classList.add("hidden"); goToStartPage(); try{ updateStartPageLinks(); }catch(e){} };
