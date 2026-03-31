@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
   <meta name="theme-color" content="#0b1830"/>
   <link rel="manifest" href="manifest.json"/>
-  <title>CogSpeed® V228</title>
+  <title>CogSpeed® V229</title>
     <style>
 
     :root{--bg:#091426;--bg2:#132746;--panel:#0d1b33;--panel2:#10213e;--text:#f5fbff;--muted:#d7e7f8;--edge:#4f6f99;--accent:#7fd7ff;--probe:#00f0ff}
@@ -501,6 +501,7 @@
       
       <div class="controls" style="margin-bottom:6px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px">
         <button class="ctrl-btn" id="adminTrialLogBtn" style="width:100%;background:linear-gradient(180deg,#1a3355,#0d1b33);border-color:#4f8fcc">📋 Trial Detail</button>
+        <button class="ctrl-btn" id="adminPerfTimeBtn" style="width:100%;background:linear-gradient(180deg,#1a3355,#0d1b33);border-color:#4f8fcc">📈 Performance vs Time</button>
         <button class="ctrl-btn" id="adminHistoryBtn" style="width:100%;background:linear-gradient(180deg,#1a3355,#0d1b33);border-color:#4f8fcc">📈 History &amp; Graphs</button>
         <button class="ctrl-btn" id="adminRateRtBtn" style="width:100%;background:linear-gradient(180deg,#1a3355,#0d1b33);border-color:#4f8fcc">📉 Rates + RT</button>
       </div>
@@ -568,6 +569,7 @@
   <div id="outcomeReasonText" style="margin:0 0 14px;font-size:clamp(14px,3.5vw,22px);color:var(--muted);text-align:center;max-width:min(92vw,720px)"></div>
   <!-- Results button — stays until tapped -->
   <button class="ctrl-btn" id="outcomeResultsBtn" style="width:min(90vw,320px);font-size:16px;padding:15px 24px;background:linear-gradient(180deg,#1a3a5a,#0d1e30);border-color:#4f6f99;color:#d9fbff;letter-spacing:.06em">View Results →</button>
+  <button class="ctrl-btn" id="speedPerfTimeBtn" style="width:min(90vw,320px);font-size:15px;padding:12px 20px;margin-top:8px">Performance vs Time</button>
   <button id="speedAdminBtn" style="background:none;border:none;color:rgba(127,215,255,0.38);font-size:12px;padding:8px 10px;cursor:pointer;font-family:inherit;letter-spacing:.05em">Admin</button>
 </div>
 
@@ -598,6 +600,19 @@
       <button class="ctrl-btn" id="rankedBackBtn" style="flex:1">← Back to Summary</button>
       <a id="rankedAboutBtn" href="about.html" style="align-self:center;color:rgba(127,215,255,0.6);font-size:18px;text-decoration:none;padding:4px 8px">*</a>
       <button class="ctrl-btn" id="rankedCloseBtn" style="flex:1">Close</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- ═══ PERFORMANCE OVER TIME OVERLAY ═══ -->
+<div id="perfTimeOverlay" class="overlay hidden">
+  <div class="modal" style="max-width:min(98vw,1100px);padding:16px">
+    <div style="text-align:center;margin-bottom:10px"><span class="badge">Performance over Date and Time</span></div>
+    <canvas id="perfTimeGraph" width="1100" height="620" style="display:block;width:100%;border-radius:12px;border:1px solid var(--edge);background:#081321"></canvas>
+    <div class="controls" style="margin-top:12px">
+      <button class="ctrl-btn" id="perfTimeBackBtn" style="flex:1">← Back to Speedometer</button>
+      <button id="perfTimeAdminBtn" style="background:none;border:none;color:rgba(127,215,255,0.38);font-size:12px;padding:6px 10px;cursor:pointer;font-family:inherit;letter-spacing:.05em">Admin</button>
     </div>
   </div>
 </div>
@@ -692,7 +707,7 @@
     <span id="fatigueOut">—</span>
     <span id="modeLabel">Subject mode</span>
     <span id="phaseLabel">Ready</span>
-    <span id="statusLine">CogSpeed V228</span>
+    <span id="statusLine">CogSpeed V229</span>
     <span id="rateOut">—</span>
     <span id="blocksOut">0</span>
     <span id="recoveryOut">0</span>

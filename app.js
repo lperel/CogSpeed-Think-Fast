@@ -2,7 +2,7 @@
 // CogSpeed V173
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V228";
+const APP_VERSION = "V229";
 const RELEASE = APP_VERSION.replace(/^V/i, "");
 const STORAGE_PREFIX = `cogspeed_v${RELEASE}`;
 
@@ -1436,6 +1436,152 @@ function drawCombinedChart(canvas,hist,selectedIdx){
  ctx.fillStyle="#88ff88"; ctx.fillText("◆ SP-FS", PAD.left+116, PAD.top-10);
 }
 
+
+function drawPerformanceOverTimeChart(canvas,hist){
+ if(!canvas) return;
+ const ctx=canvas.getContext("2d"), W=canvas.width, H=canvas.height;
+ ctx.clearRect(0,0,W,H);
+ ctx.fillStyle="#081321";
+ ctx.fillRect(0,0,W,H);
+
+ const PAD={top:66,right:64,bottom:90,left:82}, cW=W-PAD.left-PAD.right, cH=H-PAD.top-PAD.bottom;
+ if(!hist || !hist.length){
+  ctx.fillStyle="#d7e7f8";
+  ctx.font="bold 14px sans-serif";
+  ctx.textAlign="center";
+  ctx.fillText("No session history yet", W/2, H/2);
+  return;
+ }
+
+ const slice = hist.slice(-24);
+ const n = slice.length;
+ const bestMs = 800, worstMs = 3000;
+
+ function xOf(i){ return PAD.left + (n>1 ? (i/(n-1))*cW : cW/2); }
+ function yLeftFromCpi(v){ return PAD.top + cH - ((v-0)/100)*cH; }
+ function cpiFromMs(ms){
+  const span=(worstMs-bestMs)||1;
+  return Math.max(0, Math.min(100, 100*(worstMs-ms)/span));
+ }
+ function yLeftFromMs(ms){ return yLeftFromCpi(cpiFromMs(ms)); }
+ function yRightFromSpf(v){ return PAD.top + cH - (((v-1)/6))*cH; }
+ function msAtCpi(cpi){
+  const span=(worstMs-bestMs)||1;
+  return Math.round(bestMs + ((100-cpi)/100)*span);
+ }
+
+ // Grid
+ ctx.strokeStyle="rgba(127,215,255,0.18)";
+ ctx.lineWidth=1;
+ [0,25,50,75,100].forEach(v=>{
+  const y=yLeftFromCpi(v);
+  ctx.beginPath(); ctx.moveTo(PAD.left,y); ctx.lineTo(PAD.left+cW,y); ctx.stroke();
+ });
+
+ // Axes labels
+ ctx.font="10px sans-serif";
+ ctx.textAlign="right";
+ ctx.fillStyle="#d7e7f8";
+ [100,75,50,25,0].forEach(cpi=>{
+  const y=yLeftFromCpi(cpi);
+  ctx.fillText(`${cpi} | ${msAtCpi(cpi)} ms`, PAD.left-8, y+3);
+ });
+
+ ctx.textAlign="left";
+ ctx.fillStyle="#88ff88";
+ [7,6,5,4,3,2,1].forEach(v=>{
+  const y=yRightFromSpf(v);
+  ctx.fillText(String(v), PAD.left+cW+8, y+3);
+ });
+
+ // Titles
+ ctx.fillStyle="#b7d9ef";
+ ctx.textAlign="left";
+ ctx.font="bold 12px sans-serif";
+ ctx.fillText("Performance over Date and Time", PAD.left, 22);
+
+ const last=slice[slice.length-1]||{};
+ ctx.font="11px sans-serif";
+ ctx.fillStyle="#d7e7f8";
+ ctx.fillText(`Subject ID: ${last.subjectId||"—"}    Test Mode: ${formatModeTag(last.testMode||"mode1")}`, PAD.left, 40);
+
+ // Axis titles
+ ctx.save();
+ ctx.translate(22, PAD.top + cH/2);
+ ctx.rotate(-Math.PI/2);
+ ctx.fillStyle="#d7e7f8";
+ ctx.textAlign="center";
+ ctx.font="bold 11px sans-serif";
+ ctx.fillText("CPI 0–100 | MBS ms 800–3000 (up is better)", 0, 0);
+ ctx.restore();
+
+ ctx.save();
+ ctx.translate(W-20, PAD.top + cH/2);
+ ctx.rotate(Math.PI/2);
+ ctx.fillStyle="#88ff88";
+ ctx.textAlign="center";
+ ctx.font="bold 11px sans-serif";
+ ctx.fillText("SP-FS 1–7 (up is better)", 0, 0);
+ ctx.restore();
+
+ // X-axis labels
+ ctx.strokeStyle="rgba(79,111,153,0.35)";
+ ctx.beginPath();
+ ctx.moveTo(PAD.left, PAD.top+cH);
+ ctx.lineTo(PAD.left+cW, PAD.top+cH);
+ ctx.stroke();
+
+ ctx.font="9px sans-serif";
+ ctx.fillStyle="#7fa0c0";
+ ctx.textAlign="right";
+ slice.forEach((r,i)=>{
+  const x=xOf(i), y=PAD.top+cH+8;
+  const d=new Date(r.time);
+  const label=`${d.toLocaleDateString("en-US",{month:"numeric",day:"numeric"})} ${d.toLocaleTimeString("en-US",{hour:"2-digit",minute:"2-digit"})}`;
+  ctx.save(); ctx.translate(x,y); ctx.rotate(-Math.PI/4); ctx.fillText(label,0,0); ctx.restore();
+ });
+
+ function drawLine(vals, yFunc, color, style){
+  ctx.strokeStyle=color;
+  ctx.lineWidth=2.2;
+  ctx.beginPath();
+  let started=false;
+  vals.forEach((v,i)=>{
+   if(v==null){ started=false; return; }
+   const x=xOf(i), y=yFunc(v);
+   if(!started){ ctx.moveTo(x,y); started=true; } else ctx.lineTo(x,y);
+  });
+  ctx.stroke();
+  vals.forEach((v,i)=>{
+   if(v==null) return;
+   const x=xOf(i), y=yFunc(v);
+   ctx.fillStyle=color;
+   if(style==="square"){
+    ctx.fillRect(x-3.5,y-3.5,7,7);
+   }else if(style==="diamond"){
+    ctx.save(); ctx.translate(x,y); ctx.rotate(Math.PI/4); ctx.fillRect(-3.5,-3.5,7,7); ctx.restore();
+   }else{
+    ctx.beginPath(); ctx.arc(x,y,3.7,0,Math.PI*2); ctx.fill();
+   }
+  });
+ }
+
+ const cpiVals = slice.map(r=>r.cognitivePerformanceIndex!=null?Number(r.cognitivePerformanceIndex):null);
+ const mbsVals = slice.map(r=>r.averageLast2BlockingScoresMs!=null?Number(r.averageLast2BlockingScoresMs):null);
+ const spfVals = slice.map(r=>r.samnPerelli&&r.samnPerelli.score!=null?Number(r.samnPerelli.score):null);
+
+ drawLine(cpiVals, v=>yLeftFromCpi(v), "#7fd7ff", "circle");
+ drawLine(mbsVals, v=>yLeftFromMs(v), "#ffb357", "square");
+ drawLine(spfVals, v=>yRightFromSpf(v), "#88ff88", "diamond");
+
+ // Legend
+ ctx.textAlign="left";
+ ctx.font="bold 10px sans-serif";
+ ctx.fillStyle="#7fd7ff"; ctx.fillText("● CPI", PAD.left, PAD.top-10);
+ ctx.fillStyle="#ffb357"; ctx.fillText("■ MBS", PAD.left+58, PAD.top-10);
+ ctx.fillStyle="#88ff88"; ctx.fillText("◆ SP-FS", PAD.left+116, PAD.top-10);
+}
+
 // ─── RT scatter chart ───
 function drawRTScatterChart(canvas,rtLog,blocks,meanRT,sdRT){
  if(!canvas||!rtLog.length) return;
@@ -2096,10 +2242,10 @@ function resetProfile(){
 // _adminReturnTo: tracks which page opened admin so Close returns there.
 // ──────────────────────────────────────────────────────────────
 function hideAllOverlays(){
- ["subjectOverlay","profileOverlay","refresherOverlay","fatigueOverlay","tutorialOverlay","adminOverlay","resultsOverlay","summaryOverlay","rankedOverlay","trialLogOverlay","historyOverlay","rateRtOverlay","thinkingOverlay","outcomeOverlay"].forEach(id=>{ const el=$(id); if(el) el.classList.add("hidden"); });
+ ["subjectOverlay","profileOverlay","refresherOverlay","fatigueOverlay","tutorialOverlay","adminOverlay","resultsOverlay","summaryOverlay","rankedOverlay","trialLogOverlay","historyOverlay","rateRtOverlay","perfTimeOverlay","thinkingOverlay","outcomeOverlay"].forEach(id=>{ const el=$(id); if(el) el.classList.add("hidden"); });
 }
 function showOnly(id){
- ["subjectOverlay","profileOverlay","refresherOverlay","fatigueOverlay","adminOverlay","resultsOverlay","summaryOverlay","rankedOverlay","trialLogOverlay","historyOverlay","rateRtOverlay","tutorialOverlay"].forEach(oid=>{ const el=$(oid); if(el) el.classList[oid===id?"remove":"add"]("hidden"); });
+ ["subjectOverlay","profileOverlay","refresherOverlay","fatigueOverlay","adminOverlay","resultsOverlay","summaryOverlay","rankedOverlay","trialLogOverlay","historyOverlay","rateRtOverlay","perfTimeOverlay","tutorialOverlay"].forEach(oid=>{ const el=$(oid); if(el) el.classList[oid===id?"remove":"add"]("hidden"); });
 }
 
 
@@ -3514,9 +3660,9 @@ if ("serviceWorker" in navigator) {
    for(const r of regs) await r.unregister();
    const keys = await caches.keys();
    for(const k of keys) await caches.delete(k);
-   console.log("V228 recovery build: old service workers unregistered and caches cleared.");
+   console.log("V229 recovery build: old service workers unregistered and caches cleared.");
   }catch(err){
-   console.warn("V228 recovery cleanup failed:", err);
+   console.warn("V229 recovery cleanup failed:", err);
   }
  });
 }
@@ -3586,3 +3732,17 @@ function openSpeedometerFromAdmin(){
 $("trialLogCloseBtn").onclick=()=>{ $("trialLogOverlay").classList.add("hidden"); openSpeedometerFromAdmin(); };
 
 const _rrab=$("rateRtAdminBtn"); if(_rrab) _rrab.onclick=()=>{ $("rateRtOverlay").classList.add("hidden"); $("adminOverlay").classList.remove("hidden"); if(_adminUnlocked){ $("adminGate").classList.add("hidden"); $("adminBody").classList.remove("hidden"); renderAdmin(); } else { $("adminGate").classList.remove("hidden"); $("adminBody").classList.add("hidden"); $("adminPass").value=""; } };
+
+function openPerformanceOverTimePage(){
+ hideAllOverlays();
+ const ov=$("perfTimeOverlay");
+ if(ov) ov.classList.remove("hidden");
+ drawPerformanceOverTimeChart($("perfTimeGraph"), state.history||[]);
+}
+
+
+const _apt=$("adminPerfTimeBtn"); if(_apt) _apt.onclick=()=>{ $("adminOverlay").classList.add("hidden"); openPerformanceOverTimePage(); };
+const _spt=$("speedPerfTimeBtn"); if(_spt) _spt.onclick=()=>{ $("outcomeOverlay").classList.add("hidden"); openPerformanceOverTimePage(); };
+const _ptb=$("perfTimeBackBtn"); if(_ptb) _ptb.onclick=()=>{ $("perfTimeOverlay").classList.add("hidden"); openSpeedometerPage(); };
+const _pta=$("perfTimeAdminBtn"); if(_pta) _pta.onclick=()=>{ $("perfTimeOverlay").classList.add("hidden"); $("adminOverlay").classList.remove("hidden"); if(_adminUnlocked){ $("adminGate").classList.add("hidden"); $("adminBody").classList.remove("hidden"); renderAdmin(); } else { $("adminGate").classList.remove("hidden"); $("adminBody").classList.add("hidden"); $("adminPass").value=""; } };
+
