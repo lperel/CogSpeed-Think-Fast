@@ -1,11 +1,8 @@
 // ═══════════════════════════════════════════════════
-// V210 no-SW stabilization build
-// Service worker registration intentionally disabled while core flow is re-verified.
-
 // CogSpeed V173
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V210";
+const APP_VERSION = "V211";
 const RELEASE = APP_VERSION.replace(/^V/i, "");
 const STORAGE_PREFIX = `cogspeed_v${RELEASE}`;
 
@@ -56,8 +53,8 @@ const DEFAULTS={
  rollMeanThreshold:0.50,
  machinePacedNoResponseMs:15000,
  recoveryNoResponseMs:10000,
- calibrationFirstNoResponseMs:10000,
- calibrationNoResponseMs:6000,
+ calibrationFirstNoResponseMs:20000,
+ calibrationNoResponseMs:10000,
  wrongWindowSize:5,
  wrongThresholdStop:4,
  maxTrialCount:180,
@@ -65,8 +62,8 @@ const DEFAULTS={
  maxTestDurationMs:150000,
  minDurationMs:700,
  maxDurationMs:3000,
- initialUnusedCalibrationTrials:2,
- initialMeasuredCalibrationTrials:7,
+ initialUnusedCalibrationTrials:1,
+ initialMeasuredCalibrationTrials:10,
  initialPacedPercent:1.3,
  calibrationStopErrors:4,
  calibrationStopSlowMs:3000,
@@ -86,10 +83,10 @@ const ADMIN_FIELDS=[
  ["adminPasscode","1. Admin passcode","text"],
 
  // 2-17. Defaults used across all modes, in rough order of use
- ["initialUnusedCalibrationTrials","2. Warmup calibration trials (default 2)","number"],
- ["initialMeasuredCalibrationTrials","3. Measured calibration trials (default 7)","number"],
- ["calibrationFirstNoResponseMs","4. Calibration first-trial no-response (ms, default 10000)","number"],
- ["calibrationNoResponseMs","5. Calibration later-trial no-response (ms, default 6000)","number"],
+ ["initialUnusedCalibrationTrials","2. Warm-up calibration trials (default 1)","number"],
+ ["initialMeasuredCalibrationTrials","3. Measured calibration trials (default 10)","number"],
+ ["calibrationFirstNoResponseMs","4. Calibration first-trial no-response (ms, default 20000)","number"],
+ ["calibrationNoResponseMs","5. Calibration later-trial no-response (ms, default 10000)","number"],
  ["calibrationStopErrors","6. Calibration stop after N wrong (default 4)","number"],
  ["calibrationStopSlowMs","7. Calibration avg RT limit (ms, default 3000)","number"],
  ["lateResponseThresholdMs","8. Late-response threshold after prior miss (ms, default 600)","number"],
@@ -1014,7 +1011,7 @@ function handleTap(index){
   const includeInAverages = state.calibrationTrialIndex>=settings.initialUnusedCalibrationTrials;
   if(includeInAverages) state.selfPacedRTs.push(rt);
   if(ok){ state.totalCorrect+=1; if(includeInAverages) state.selfPacedCorrect+=1; } else { state.totalIncorrect+=1; if(includeInAverages) state.selfPacedWrong+=1; }
-  logTrial({phase:"calibration",rt,outcome:includeInAverages?(ok?"correct":"wrong"):"Warmup",responseIndex:index,counted:includeInAverages});
+  logTrial({phase:"calibration",rt,outcome:includeInAverages?(ok?"correct":"wrong"):"Warm up",responseIndex:index,counted:includeInAverages});
   if(isMode1()){
    if(!ok){
     state.calibrationErrors+=1; updateMetrics();
@@ -1206,32 +1203,6 @@ function renderFatigueChecklist(){
   };
   f.appendChild(b);
  }
-}
-
-
-function bindDoubleTapAction(btn, action, idleText, confirmText){
- if(!btn) return;
- let armed = false;
- let timer = null;
- const resetState = ()=>{
-  armed = false;
-  btn.textContent = idleText;
-  btn.style.borderColor = "";
-  btn.style.color = "";
-  if(timer){ clearTimeout(timer); timer = null; }
- };
- btn.onclick = ()=>{
-  if(!armed){
-   armed = true;
-   btn.textContent = confirmText;
-   btn.style.borderColor = "rgba(255,100,136,0.75)";
-   btn.style.color = "#ff8aa0";
-   timer = setTimeout(resetState, 2200);
-   return;
-  }
-  resetState();
-  action();
- };
 }
 
 // ─── Admin ───
@@ -1849,26 +1820,38 @@ function formatModePooledRankSection(mode){
 //  CPI, taps, correct, wrong, missed, paced stats, duration, end reason.
 // emailResults(): opens mailto: with last result text in body.
 // ──────────────────────────────────────────────────────────────
-
-// ─── Admin-only cache reset (preserves saved history/settings) ────────────
-// Clears service workers and Cache Storage, but intentionally preserves
-// localStorage/session data used for saved history and settings.
-// Use this when a stale service worker or cached shell is serving old code.
-async function clearServiceWorkerAndCachePreserveData(){
- try{
-  const regs = await navigator.serviceWorker.getRegistrations();
-  for(const r of regs) await r.unregister();
-  const keys = await caches.keys();
-  for(const k of keys) await caches.delete(k);
-  setStatus("Service worker and caches cleared. Reloading…");
-  setTimeout(()=>location.reload(), 250);
- }catch(err){
-  console.error("Clear SW + Cache failed:", err);
-  setStatus("Clear SW + Cache failed");
- }
+function exportResults(){
+ const blob=new Blob([JSON.stringify({settings,history:state.history},null,2)],{type:"application/json"});
+ const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=`${STORAGE_PREFIX}_results.json`; a.click();
 }
-
-function exportResults(){ setStatus("Export JSON removed."); }
+function exportCSV(){
+ const h=state.history; if(!h.length){setStatus("No history to export."); return;}
+ const cols=["session","subjectId","date","samnPerelli","calibAvgMs","blocks",
+  "avgLast2Ms","blockDiffMs","cpi","totalTaps","correct","wrong","missed",
+  "pacedCorrect","pacedWrong","spRestartWrong","meanPacedRtMs","pacedRtSd",
+  "testDurationMs","endReason","location"];
+ const rows=h.map((r,i)=>[
+  i+1,
+  r.subjectId||"",
+  r.time?new Date(r.time).toLocaleString():"",
+  r.samnPerelli?`${r.samnPerelli.score} - ${r.samnPerelli.label}`:"",
+  r.calibrationAverageMs!=null?r.calibrationAverageMs.toFixed(1):"",
+  (r.blocks||[]).join("|"),
+  r.averageLast2BlockingScoresMs!=null?r.averageLast2BlockingScoresMs.toFixed(1):"",
+  r.blockScoreDifferenceMs!=null?r.blockScoreDifferenceMs.toFixed(1):"",
+  r.cognitivePerformanceIndex!=null?r.cognitivePerformanceIndex.toFixed(1):"",
+  r.totalResponses||0, r.totalCorrect||0, r.totalIncorrect||0, r.missedTrials||0,
+  r.pacedResponseCount||0, r.pacedErrors||0, r.recoveryErrors||0,
+  r.pacedResponseMeanMs!=null?r.pacedResponseMeanMs.toFixed(1):"",
+  r.pacedResponseSdMs!=null?r.pacedResponseSdMs.toFixed(1):"",
+  r.testDurationMs!=null?Math.round(r.testDurationMs):"",
+  `"${(r.endReason||"").replace(/"/g,'""')}"`,
+  `"${(r.location||"").replace(/"/g,'""')}"`
+ ].map(v=>v==null?"":v).join(","));
+ const csv=[cols.join(","), ...rows].join("\n");
+ const blob=new Blob([csv],{type:"text/csv"});
+ const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=`${STORAGE_PREFIX}_history.csv`; a.click();
+}
 // Email results
 // Subject line always uses the current APP_VERSION build label.
 function emailResults(){
@@ -1877,7 +1860,7 @@ function emailResults(){
  const to=state.profile?.emailResults&&state.profile?.email?state.profile.email:"";
  const rawText = state.lastResultText || JSON.stringify(last,null,2);
  const bodyText = rawText.replace(/\n/g,"\r\n");
- window.location.href=`mailto:${to}?subject=CogSpeed® ${APP_VERSION} Results&body=${encodeURIComponent(bodyText)}`;
+ window.location.href=`mailto:${to}?subject=CogSpeed ${APP_VERSION} Results&body=${encodeURIComponent(bodyText)}`;
 }
 
 
@@ -2128,102 +2111,25 @@ function updateStartPageLinks(){
  if(!wrap || !link) return;
  const hasData = Array.isArray(state.history) && state.history.length > 0;
  wrap.style.display = hasData ? "" : "none";
- if(!hasData){ link.onclick = null; return; }
- link.onclick = (e)=>{
-  e.preventDefault();
-  openSpeedometerHub();
- };
+ if(!hasData) return;
+ // Prefer a real speedometer page/button if present.
+ if($("resultsOverlay")){
+  link.onclick = (e)=>{
+   e.preventDefault();
+   const last = state.history[state.history.length-1];
+   if(!last) return;
+   // Reuse existing results page flow if available.
+   if(typeof buildSummary === "function") buildSummary(last);
+   if(typeof drawModeResultChart === "function") drawModeResultChart($("summaryModeChart"), last);
+   showOnly("summaryOverlay");
+  };
+ } else {
+  link.onclick = null;
+ }
 }
 
 function isTestSuccess(r){ return (r||"").toLowerCase().startsWith("convergent"); }
 
-
-// ─── Speedometer hub + E-mail Select state ───────────────────
-// Speedometer hub is the post-test navigation page. It provides
-// one-button access to summary, trial detail, graph, ranked
-// averages, restart, e-mail selection, and a dim admin link.
-// E-mail Select lets the user choose a recipient and which data
-// block(s) to include before opening the mail client.
-let _emailSelectedData = "summary";
-let _emailSelectedRecipient = "";
-
-
-function goToStartPageFromAdmin(){
- const admin = $("adminOverlay");
- if(admin) admin.classList.add("hidden");
- goToStartPage();
-}
-
-function openSpeedometerFromAdmin(){
- const admin = $("adminOverlay");
- if(admin) admin.classList.add("hidden");
- if(typeof openSpeedometerHub==="function" && state.history && state.history.length){
-  openSpeedometerHub();
- }else{
-  goToStartPage();
- }
-}
-
-function startTestFromFatigue(){
- if(!state.subjectId){
-  showOnly("subjectOverlay");
-  setStatus("Enter Subject ID first");
-  return;
- }
- if(!state.samnPerelli){
-  showOnly("fatigueOverlay");
-  setStatus("Select fatigue rating first");
-  return;
- }
- startTest();
-}
-
-function currentResult(){
- return state.history && state.history.length ? state.history[state.history.length-1] : null;
-}
-
-function buildEmailBodyForSelection(result, choice){
- const summary = ($("summaryText") && $("summaryText").textContent) ? $("summaryText").textContent : "";
- const ranked = (typeof formatModePooledRankSection==="function") ? formatModePooledRankSection(result.testMode) : "";
- const graphMeta = `Graph data\nSession: ${result.sessionNumber!=null?result.sessionNumber:"—"}\nSubject ID: ${result.subjectId||"—"}\nMode: ${formatModeTag(result.testMode)}\nSP-FS: ${result.samnPerelli&&result.samnPerelli.score!=null?result.samnPerelli.score:"—"}\nCPI: ${result.cognitivePerformanceIndex!=null?result.cognitivePerformanceIndex.toFixed(1):"—"}\nMBS: ${result.averageLast2BlockingScoresMs!=null?result.averageLast2BlockingScoresMs.toFixed(1)+" ms":"—"}`;
- const trialMeta = "See Trial Detail Log in app for full per-trial table.";
- if(choice==="summary") return summary;
- if(choice==="trial") return trialMeta;
- if(choice==="graph") return graphMeta;
- if(choice==="ranked") return "RANKED TARGET / POSITION AVERAGES\n" + ranked;
- return [summary, graphMeta, "RANKED TARGET / POSITION AVERAGES\n"+ranked, trialMeta].join("\n\n─────────────────────────\n\n");
-}
-
-function updateEmailSelectMeta(){
- const meta=$("emailSelectMeta");
- if(!meta) return;
- const recipient = _emailSelectedRecipient || "not selected";
- const map = {summary:"Summary",trial:"Trial Detail",graph:"Graph",ranked:"Ranked Averages",all:"All data"};
- meta.textContent = `Recipient: ${recipient}\nData: ${map[_emailSelectedData]||_emailSelectedData}`;
- const sel=$("emailDataSelect"); if(sel) sel.value=_emailSelectedData;
-}
-
-function openSpeedometerHub(){
- const last = currentResult();
- if(!last) return;
- hideAllOverlays();
- const outcome=$("outcomeOverlay");
- const text=$("outcomeText");
- if(text){
-  text.textContent = last.endReason || "Run complete";
-  text.className = "outcome-text " + (isTestSuccess(last.endReason) ? "success" : "failed");
-  text.style.fontSize = "clamp(16px,4.2vw,28px)";
-  text.style.margin = "10px 0 12px";
- }
- if(outcome) outcome.classList.remove("hidden");
- setTestingQuiet(false);
-}
-
-function openEmailSelect(){
- hideAllOverlays();
- updateEmailSelectMeta();
- $("emailSelectOverlay").classList.remove("hidden");
-}
 // ─── Summary ───
 // ─── SUMMARY TEST RESULTS ─────────────────────────────────────
 // Formats full monospace result text (state.lastResultText).
@@ -2262,7 +2168,7 @@ function buildRankedSummary(result){
  const hr="─────────────────────────";
  const modeName = result.testMode==="mode2" ? "SPC Mode" : result.testMode==="mode3" ? "SPCMP Mode" : "CogSpeed Mode";
  el.textContent =
-`CogSpeed® ${APP_VERSION} — ${modeName}
+`CogSpeed ${APP_VERSION} — ${modeName}
 ${hr}
 RANKED TARGET / POSITION AVERAGES — POOLED SAME-MODE SESSIONS
 ${formatModePooledRankSection(result.testMode)}`;
@@ -2280,7 +2186,7 @@ function buildSummary(result){
  const modeName = result.testMode==="mode2" ? "SPC Mode" : result.testMode==="mode3" ? "SPCMP Mode" : "CogSpeed Mode";
  if(result.testMode==="mode2"){
   el.textContent=
-`CogSpeed® ${APP_VERSION} — ${modeName}
+`CogSpeed ${APP_VERSION} — ${modeName}
 ${hr}
 Test Mode:  ${formatModeTag(result.testMode)}\nSession:    ${result.sessionNumber!=null?result.sessionNumber:"—"}\nSubject ID:  ${result.subjectId}
 Date / Time:  ${new Date(result.time).toLocaleString()}
@@ -2308,7 +2214,7 @@ END REASON
  }
  if(result.testMode==="mode3"){
   el.textContent=
-`CogSpeed® ${APP_VERSION} — ${modeName}
+`CogSpeed ${APP_VERSION} — ${modeName}
 ${hr}
 Test Mode:  ${formatModeTag(result.testMode)}\nSession:    ${result.sessionNumber!=null?result.sessionNumber:"—"}\nSubject ID:  ${result.subjectId}
 Date / Time:  ${new Date(result.time).toLocaleString()}
@@ -2348,7 +2254,7 @@ END REASON
  const cps=result.cognitivePerformanceIndex;
  const sd=result.pacedResponseSdMs;
  el.textContent=
-`CogSpeed® ${APP_VERSION} — ${modeName}
+`CogSpeed ${APP_VERSION} — ${modeName}
 ${hr}
 Test Mode:  ${formatModeTag(result.testMode)}\nSession:    ${result.sessionNumber!=null?result.sessionNumber:"—"}\nSubject ID:  ${result.subjectId}
 Date / Time:  ${new Date(result.time).toLocaleString()}
@@ -2376,7 +2282,7 @@ RESPONSE STATISTICS
  END REASON: ${result.endReason||"Run complete"}
  Mean paced RT: ${result.pacedResponseMeanMs!=null?result.pacedResponseMeanMs.toFixed(1)+" ms":"—"}
  Paced RT SD: ${sd!=null?sd.toFixed(1)+" ms":"—"}
-`;
+\n${hr}\nRANKED TARGET / POSITION AVERAGES — POOLED SAME-MODE SESSIONS\n${formatModePooledRankSection(result.testMode)}`;
 }
 
 // ─── SPEEDOMETER V2 — Vintage Auto Meter style ────────────────
@@ -2773,15 +2679,15 @@ function buildTrialLog(sessionIndex){
   return;
  }
  // Color coding
- const outcomeColor={correct:"#00ff88",wrong:"#ff4466",missed:"#888","Warmup":"#ffd166"};
+ const outcomeColor={correct:"#00ff88",wrong:"#ff4466",missed:"#888","Warm up":"#ffd166"};
  log.forEach(e=>{
   const tr=document.createElement("tr");
   const timeStr=e.clockTime?new Date(e.clockTime).toLocaleTimeString("en-US",{hour12:false,hour:"2-digit",minute:"2-digit",second:"2-digit",fractionalSecondDigits:3}):"—";
   const rtStr=e.rt!=null?e.rt.toLocaleString():"—";
   const durStr=e.durationMs!=null?e.durationMs.toLocaleString()+"ms":"—";
-  const isWarmup = !!(e.warmup || e.counted===false || e.outcome==="Warmup");
-  const phaseLabel = isWarmup ? "Warmup" : (e.phase||"—");
-  const outcomeLabel = isWarmup ? "Warmup" : (e.outcome||"—");
+  const isWarmup = !!(e.warmup || e.counted===false || e.outcome==="Warm up");
+  const phaseLabel = isWarmup ? "Warm up" : (e.phase||"—");
+  const outcomeLabel = isWarmup ? "Warm up" : (e.outcome||"—");
   const oc=outcomeColor[outcomeLabel]||"var(--muted)";
   tr.innerHTML=`<td style="font-weight:700">${e.seq}</td><td style="font-size:10px">${timeStr}</td><td style="font-size:10px;color:var(--muted)">${phaseLabel}</td><td>${durStr}</td><td style="font-weight:700">${rtStr}</td><td style="color:${oc};font-weight:700">${outcomeLabel}</td><td>${e.counted===false?"No":"Yes"}</td><td>${e.probe}</td><td style="color:var(--accent)">${e.correctCell}</td><td style="color:${oc==="var(--muted)"?"var(--muted)":oc}">${e.response}</td>`;
   tbody.appendChild(tr);
@@ -3445,11 +3351,12 @@ $("skipRefresherBtn").onclick=()=>{
  showTutorial(); setStatus("Tutorial");
 };
 $("refBackBtn").onclick=()=>goToStartPage();
+$("refStartOverBtn").onclick=()=>startOverFlow();
 $("fatigueBackBtn").onclick=()=>goToStartPage();
+$("fatigueStartOverBtn").onclick=()=>startOverFlow();
+const _fsb=$("fatigueStartBtn");
+if(_fsb) _fsb.onclick=startTest;
 let _adminUnlocked = false;
-
-bindDoubleTapAction($("refStartOverBtn"), ()=>{ renderRefresher(); }, "Reset", "Tap again to reset");
-bindDoubleTapAction($("fatigueStartOverBtn"), ()=>{ state.samnPerelli=null; renderFatigueChecklist(); const sb=$("fatigueStartBtn"); if(sb) sb.classList.add("hidden"); }, "Reset", "Tap again to reset");
 let _adminReturnTo = "subjectOverlay"; // default return destination
 
 $("adminOpenBtn").onclick=()=>{
@@ -3520,10 +3427,12 @@ $("closeAdminBtn").onclick=()=>{
 };
 $("closeAdminBtn2").onclick=()=>$("benchmarkOverlay").classList.add("hidden");
 $("saveAdminBtn").onclick=()=>{ readAdmin(); saveSettings(); renderAdmin(); setStatus("Settings saved"); };
-bindDoubleTapConfirm($("clearSwCacheBtn"), ()=>clearServiceWorkerAndCachePreserveData(), "Clear SW + Cache", "Tap again to clear");
 bindDoubleTapConfirm($("resetAdminBtn"), ()=>{ resetAdmin(); setStatus("Settings reset to defaults"); }, "Reset", "Tap again to reset");
+$("exportAdminBtn").onclick=exportResults;
 const _ecb=$("exportCsvAdminBtn"); if(_ecb) _ecb.onclick=exportCSV;
 $("adminTrialLogBtn").onclick=()=>{ buildTrialLog(state.history.length-1); $("trialLogOverlay").classList.remove("hidden"); };
+$("adminHistoryBtn").onclick=()=>{ buildHistoryOverlay(); $("historyOverlay").classList.remove("hidden"); };
+const _arrb=$("adminRateRtBtn"); if(_arrb) _arrb.onclick=()=>{ $("adminOverlay").classList.add("hidden"); $("rateRtOverlay").classList.remove("hidden"); buildRateRtOverlay(); };
 $("adminLastResultBtn").onclick=()=>{
  const last=state.history[state.history.length-1];
  if(!last){ setStatus("No results yet."); return; }
@@ -3531,17 +3440,44 @@ $("adminLastResultBtn").onclick=()=>{
  buildSummary(last);
  $("summaryOverlay").classList.remove("hidden");
 };
-$("trialLogCloseBtn").onclick=()=>{ $("trialLogOverlay").classList.add("hidden"); openSpeedometerHub(); };
+$("trialLogCloseBtn").onclick=()=>$("trialLogOverlay").classList.add("hidden");
 $("trialLogCsvBtn").onclick=()=>downloadTrialLogCSV();
+$("historyCloseBtn").onclick=()=>$("historyOverlay").classList.add("hidden");
 const _rrsel=$("rateRtSessionSelect"); if(_rrsel) _rrsel.onchange=()=>buildRateRtOverlay();
 const _rrcb=$("rateRtCloseBtn"); if(_rrcb) _rrcb.onclick=()=>{ $("rateRtOverlay").classList.add("hidden"); $("adminOverlay").classList.remove("hidden"); if(_adminUnlocked){ $("adminGate").classList.add("hidden"); $("adminBody").classList.remove("hidden"); renderAdmin(); } };
+$("historyClearBtn").onclick=()=>{
+ const btn=$("historyClearBtn");
+ if(btn._confirmPending){
+  clearTimeout(btn._confirmTimer);
+  btn._confirmPending=false;
+  btn.textContent="🗑 Clear History";
+  btn.style.color="rgba(255,100,136,0.5)";
+  btn.style.borderColor="rgba(255,100,136,0.3)";
+  state.history=[]; localStorage.removeItem(`${STORAGE_PREFIX}_history`);
+  buildHistoryOverlay(); setStatus("History cleared.");
+ } else {
+  btn._confirmPending=true;
+  btn.textContent="Tap again to confirm";
+  btn.style.color="#ff6688";
+  btn.style.borderColor="#ff6688";
+  btn._confirmTimer=setTimeout(()=>{
+   btn._confirmPending=false;
+   btn.textContent="🗑 Clear History";
+   btn.style.color="rgba(255,100,136,0.5)";
+   btn.style.borderColor="rgba(255,100,136,0.3)";
+  },2000);
+ }
+};
 const _tsel=$("trialLogSessionSelect");
 if(_tsel) _tsel.onchange=()=>buildTrialLog();
 const _tlp=$("trialLogPrevBtn"); if(_tlp) _tlp.onclick=()=>{ const s=$("trialLogSessionSelect"); if(!s) return; s.selectedIndex=Math.max(0,s.selectedIndex-1); if(s.onchange) s.onchange(); };
 const _tln=$("trialLogNextBtn"); if(_tln) _tln.onclick=()=>{ const s=$("trialLogSessionSelect"); if(!s) return; s.selectedIndex=Math.min(s.options.length-1,s.selectedIndex+1); if(s.onchange) s.onchange(); };
+const _hp=$("historyPrevBtn"); if(_hp) _hp.onclick=()=>{ const cur=(buildHistoryOverlay._selectedIndex!=null?buildHistoryOverlay._selectedIndex:(state.history.length-1)); buildHistoryOverlay(Math.max(0,cur-1)); };
+const _hn=$("historyNextBtn"); if(_hn) _hn.onclick=()=>{ const cur=(buildHistoryOverlay._selectedIndex!=null?buildHistoryOverlay._selectedIndex:(state.history.length-1)); buildHistoryOverlay(Math.min(state.history.length-1,cur+1)); };
 const _rrp=$("rateRtPrevBtn"); if(_rrp) _rrp.onclick=()=>{ const s=$("rateRtSessionSelect"); if(!s) return; s.selectedIndex=Math.max(0,s.selectedIndex-1); if(s.onchange) s.onchange(); };
 const _rrn=$("rateRtNextBtn"); if(_rrn) _rrn.onclick=()=>{ const s=$("rateRtSessionSelect"); if(!s) return; s.selectedIndex=Math.min(s.options.length-1,s.selectedIndex+1); if(s.onchange) s.onchange(); };
 
+$("adminBackBtn").onclick=()=>goToStartPage();
 bindDoubleTapConfirm($("adminStartOverBtn"), ()=>startOverFlow(), "Full Reset", "Tap again for full reset");
 $("benchRunBtn").onclick=()=>runDeviceBenchmark(true);
 $("benchMainBtn").onclick=()=>{ $("benchmarkOverlay").classList.add("hidden"); };
@@ -3551,12 +3487,8 @@ $("startOverBtn").onclick=startOverFlow;
 $("summaryRestartBtn").onclick=()=>{ $("summaryOverlay").classList.add("hidden"); const fg=$("fullGraphOverlay"); if(fg) fg.classList.add("hidden"); goToStartPage(); };
 $("summaryEmailBtn").onclick=emailResults;
 const _fgb=$("summaryFullGraphBtn"); if(_fgb) _fgb.onclick=()=>{ $("summaryOverlay").classList.add("hidden"); $("fullGraphOverlay").classList.remove("hidden"); };
-
-const _orb=$("outcomeResultsBtn"); if(_orb) _orb.onclick=()=>{ openSpeedometerHub(); };
-
-$("adminBackBtn").onclick=()=>goToStartPageFromAdmin();
-const _asb=$("adminSpeedometerBtn"); if(_asb) _asb.onclick=()=>openSpeedometerFromAdmin();
-const _fsb=$("fatigueStartBtn"); if(_fsb){ _fsb.onclick=()=>startTestFromFatigue(); _fsb.addEventListener("click", ()=>startTestFromFatigue()); }
+const _fgbb=$("fullGraphBackBtn"); if(_fgbb) _fgbb.onclick=()=>{ $("fullGraphOverlay").classList.add("hidden"); $("summaryOverlay").classList.remove("hidden"); };
+const _orb=$("outcomeResultsBtn"); if(_orb) _orb.onclick=()=>{ $("outcomeOverlay").classList.add("hidden"); stopSpeedometer(); $("summaryOverlay").classList.remove("hidden"); setTestingQuiet(false); };
 $("summaryAdminBtn").onclick=()=>{
  _adminReturnTo = "summaryOverlay"; // return here on close
  $("summaryOverlay").classList.add("hidden");
@@ -3581,9 +3513,9 @@ if ("serviceWorker" in navigator) {
    for(const r of regs) await r.unregister();
    const keys = await caches.keys();
    for(const k of keys) await caches.delete(k);
-   console.log("V210 no-SW stabilization: old service workers unregistered and caches cleared.");
+   console.log("V211 recovery build: old service workers unregistered and caches cleared.");
   }catch(err){
-   console.warn("V210 no-SW stabilization cleanup failed:", err);
+   console.warn("V211 recovery cleanup failed:", err);
   }
  });
 }
@@ -3591,32 +3523,8 @@ if ("serviceWorker" in navigator) {
 
 
 
+$("summaryRankedBtn").onclick=()=>{ const last=state.history[state.history.length-1]; if(!last) return; buildRankedSummary(last); $("summaryOverlay").classList.add("hidden"); $("rankedOverlay").classList.remove("hidden"); };
+$("rankedBackBtn").onclick=()=>{ $("rankedOverlay").classList.add("hidden"); $("summaryOverlay").classList.remove("hidden"); };
+$("rankedCloseBtn").onclick=()=>{ $("rankedOverlay").classList.add("hidden"); };
 
 try{ updateStartPageLinks(); }catch(e){}
-
-
-// Speedometer hub navigation
-const _ssb=$("speedSummaryBtn"); if(_ssb) _ssb.onclick=()=>{ const last=currentResult(); if(!last) return; buildSummary(last); drawModeResultChart($("summaryModeChart"), last); $("outcomeOverlay").classList.add("hidden"); $("summaryOverlay").classList.remove("hidden"); };
-const _stb=$("speedTrialBtn"); if(_stb) _stb.onclick=()=>{ $("outcomeOverlay").classList.add("hidden"); buildTrialLog(); $("trialLogOverlay").classList.remove("hidden"); };
-const _sgb=$("speedGraphBtn"); if(_sgb) _sgb.onclick=()=>{ const last=currentResult(); if(!last) return; $("outcomeOverlay").classList.add("hidden"); const fg=$("fullGraphOverlay"); if(fg) fg.classList.remove("hidden"); drawModeResultChart($("fullModeGraph"), last); };
-const _ssmg=$("speedSameModeGraphBtn"); if(_ssmg) _ssmg.onclick=()=>{ $("outcomeOverlay").classList.add("hidden"); buildRateRtOverlay(); $("rateRtOverlay").classList.remove("hidden"); };
-const _srb=$("speedRankedBtn"); if(_srb) _srb.onclick=()=>{ const last=currentResult(); if(!last) return; buildRankedSummary(last); $("outcomeOverlay").classList.add("hidden"); $("rankedOverlay").classList.remove("hidden"); };
-const _srestart=$("speedRestartBtn"); if(_srestart) _srestart.onclick=()=>{ $("outcomeOverlay").classList.add("hidden"); stopSpeedometer(); goToStartPage(); };
-const _semail=$("speedEmailBtn"); if(_semail) _semail.onclick=()=>{ $("outcomeOverlay").classList.add("hidden"); openEmailSelect(); };
-const _sadmin=$("speedAdminBtn"); if(_sadmin) _sadmin.onclick=()=>{ _adminReturnTo = "outcomeOverlay"; $("outcomeOverlay").classList.add("hidden"); $("adminOverlay").classList.remove("hidden"); if(_adminUnlocked){ $("adminGate").classList.add("hidden"); $("adminBody").classList.remove("hidden"); renderAdmin(); } else { $("adminGate").classList.remove("hidden"); $("adminBody").classList.add("hidden"); $("adminPass").value=""; } };
-
-// Back-to-speedometer links on detail pages
-const _sbs=$("summaryBackSpeedBtn"); if(_sbs) _sbs.onclick=()=>{ $("summaryOverlay").classList.add("hidden"); openSpeedometerHub(); };
-const _tbs=$("trialLogBackSpeedBtn"); if(_tbs) _tbs.onclick=()=>{ $("trialLogOverlay").classList.add("hidden"); openSpeedometerHub(); };
-const _rbb=$("rankedBackBtn"); if(_rbb) _rbb.onclick=()=>{ $("rankedOverlay").classList.add("hidden"); openSpeedometerHub(); };
-const _fbb=$("fullGraphBackBtn"); if(_fbb) _fbb.onclick=()=>{ $("fullGraphOverlay").classList.add("hidden"); openSpeedometerHub(); };
-
-// E-mail Select controls
-const _erb=$("emailRecipientBtn"); if(_erb) _erb.onclick=()=>{ const def=_emailSelectedRecipient || (state.profile&&state.profile.email?state.profile.email:""); const val=window.prompt("Recipient e-mail address", def||""); if(val!=null){ _emailSelectedRecipient = val.trim(); updateEmailSelectMeta(); } };
-const _eds=$("emailDataSelect"); if(_eds){ _eds.value=_emailSelectedData; _eds.onchange=()=>{ _emailSelectedData=_eds.value; updateEmailSelectMeta(); }; }
-const _edb=$("emailDataBtn"); if(_edb) _edb.onclick=()=>{ const val=window.prompt("Enter data to include: summary, trial, graph, ranked, or all", _emailSelectedData); if(val!=null){ const norm=val.trim().toLowerCase(); if(["summary","trial","graph","ranked","all"].includes(norm)) _emailSelectedData = norm; updateEmailSelectMeta(); } };
-const _esb=$("emailSendBtn"); if(_esb) _esb.onclick=()=>{ const last=currentResult(); if(!last) return; const to=_emailSelectedRecipient || (state.profile&&state.profile.emailResults&&state.profile.email ? state.profile.email : ""); buildSummary(last); const body=buildEmailBodyForSelection(last,_emailSelectedData).replace(/\n/g,"\r\n"); window.location.href=`mailto:${to}?subject=CogSpeed® ${APP_VERSION} Results&body=${encodeURIComponent(body)}`; };
-const _ebb=$("emailBackBtn"); if(_ebb) _ebb.onclick=()=>{ $("emailSelectOverlay").classList.add("hidden"); openSpeedometerHub(); };
-
-
-
