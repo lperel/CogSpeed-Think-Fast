@@ -2,7 +2,7 @@
 // CogSpeed V173
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V206";
+const APP_VERSION = "V208";
 const RELEASE = APP_VERSION.replace(/^V/i, "");
 const STORAGE_PREFIX = `cogspeed_v${RELEASE}`;
 
@@ -1846,6 +1846,25 @@ function formatModePooledRankSection(mode){
 //  CPI, taps, correct, wrong, missed, paced stats, duration, end reason.
 // emailResults(): opens mailto: with last result text in body.
 // ──────────────────────────────────────────────────────────────
+
+// ─── Admin-only cache reset (preserves saved history/settings) ────────────
+// Clears service workers and Cache Storage, but intentionally preserves
+// localStorage/session data used for saved history and settings.
+// Use this when a stale service worker or cached shell is serving old code.
+async function clearServiceWorkerAndCachePreserveData(){
+ try{
+  const regs = await navigator.serviceWorker.getRegistrations();
+  for(const r of regs) await r.unregister();
+  const keys = await caches.keys();
+  for(const k of keys) await caches.delete(k);
+  setStatus("Service worker and caches cleared. Reloading…");
+  setTimeout(()=>location.reload(), 250);
+ }catch(err){
+  console.error("Clear SW + Cache failed:", err);
+  setStatus("Clear SW + Cache failed");
+ }
+}
+
 function exportResults(){ setStatus("Export JSON removed."); }
 // Email results
 // Subject line always uses the current APP_VERSION build label.
@@ -3393,8 +3412,12 @@ $("skipRefresherBtn").onclick=()=>{
 };
 $("refBackBtn").onclick=()=>goToStartPage();
 $("fatigueBackBtn").onclick=()=>goToStartPage();
-const _fsb=$("fatigueStartBtn"); if(_fsb) _fsb.onclick=()=>startTest();
+const _fsb=$("fatigueStartBtn");
+if(_fsb) _fsb.onclick=()=>startTest();
 let _adminUnlocked = false;
+
+bindDoubleTapAction($("refStartOverBtn"), ()=>{ renderRefresher(); }, "Reset", "Tap again to reset");
+bindDoubleTapAction($("fatigueStartOverBtn"), ()=>{ state.samnPerelli=null; renderFatigueChecklist(); const sb=$("fatigueStartBtn"); if(sb) sb.classList.add("hidden"); }, "Reset", "Tap again to reset");
 let _adminReturnTo = "subjectOverlay"; // default return destination
 
 $("adminOpenBtn").onclick=()=>{
@@ -3465,6 +3488,7 @@ $("closeAdminBtn").onclick=()=>{
 };
 $("closeAdminBtn2").onclick=()=>$("benchmarkOverlay").classList.add("hidden");
 $("saveAdminBtn").onclick=()=>{ readAdmin(); saveSettings(); renderAdmin(); setStatus("Settings saved"); };
+bindDoubleTapConfirm($("clearSwCacheBtn"), ()=>clearServiceWorkerAndCachePreserveData(), "Clear SW + Cache", "Tap again to clear");
 bindDoubleTapConfirm($("resetAdminBtn"), ()=>{ resetAdmin(); setStatus("Settings reset to defaults"); }, "Reset", "Tap again to reset");
 const _ecb=$("exportCsvAdminBtn"); if(_ecb) _ecb.onclick=exportCSV;
 $("adminTrialLogBtn").onclick=()=>{ buildTrialLog(state.history.length-1); $("trialLogOverlay").classList.remove("hidden"); };
@@ -3514,9 +3538,6 @@ renderFatigueChecklist();
 renderRefresher();
 updateMetrics();
 
-// Explicit reset bindings for refresher and Samn-Perelli pages.
-bindDoubleTapAction($("refStartOverBtn"), ()=>{ renderRefresher(); }, "Reset", "Tap again to reset");
-bindDoubleTapAction($("fatigueStartOverBtn"), ()=>{ state.samnPerelli=null; renderFatigueChecklist(); const sb=$("fatigueStartBtn"); if(sb) sb.classList.add("hidden"); }, "Reset", "Tap again to reset");
 
 if ("serviceWorker" in navigator) {
  let __swRefreshing = false;
