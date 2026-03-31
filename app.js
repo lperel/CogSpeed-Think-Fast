@@ -2,7 +2,7 @@
 // CogSpeed V173
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V229";
+const APP_VERSION = "V232";
 const RELEASE = APP_VERSION.replace(/^V/i, "");
 const STORAGE_PREFIX = `cogspeed_v${RELEASE}`;
 
@@ -1439,25 +1439,43 @@ function drawCombinedChart(canvas,hist,selectedIdx){
 
 function drawPerformanceOverTimeChart(canvas,hist){
  if(!canvas) return;
- const ctx=canvas.getContext("2d"), W=canvas.width, H=canvas.height;
+ const dpr = window.devicePixelRatio || 1;
+ const cssW = Math.max(320, Math.round(canvas.clientWidth || canvas.offsetWidth || 900));
+ const cssH = Math.max(320, Math.round(canvas.clientHeight || 520));
+ canvas.width = Math.round(cssW * dpr);
+ canvas.height = Math.round(cssH * dpr);
+ const ctx = canvas.getContext("2d");
+ ctx.setTransform(dpr,0,0,dpr,0,0);
+
+ const W = cssW, H = cssH;
  ctx.clearRect(0,0,W,H);
  ctx.fillStyle="#081321";
  ctx.fillRect(0,0,W,H);
 
- const PAD={top:66,right:64,bottom:90,left:82}, cW=W-PAD.left-PAD.right, cH=H-PAD.top-PAD.bottom;
  if(!hist || !hist.length){
   ctx.fillStyle="#d7e7f8";
-  ctx.font="bold 14px sans-serif";
+  ctx.font="bold 16px sans-serif";
   ctx.textAlign="center";
   ctx.fillText("No session history yet", W/2, H/2);
   return;
  }
 
- const slice = hist.slice(-24);
+ const last = hist[hist.length-1] || {};
+ const lastMode = last.testMode || "mode1";
+ const lastSubject = last.subjectId || "";
+ const filtered = hist.filter(r => (r.testMode||"mode1")===lastMode && (r.subjectId||"")==lastSubject);
+ const slice = (filtered.length ? filtered : hist).slice(-18);
  const n = slice.length;
- const bestMs = 800, worstMs = 3000;
 
- function xOf(i){ return PAD.left + (n>1 ? (i/(n-1))*cW : cW/2); }
+ const bestMs = 800, worstMs = 3000;
+ const PAD = {top:72,right:74,bottom:n===1?64:92,left:90};
+ const cW = W - PAD.left - PAD.right;
+ const cH = H - PAD.top - PAD.bottom;
+
+ function xOf(i){
+  if(n<=1) return PAD.left + cW/2;
+  return PAD.left + (i/(n-1))*cW;
+ }
  function yLeftFromCpi(v){ return PAD.top + cH - ((v-0)/100)*cH; }
  function cpiFromMs(ms){
   const span=(worstMs-bestMs)||1;
@@ -1470,7 +1488,7 @@ function drawPerformanceOverTimeChart(canvas,hist){
   return Math.round(bestMs + ((100-cpi)/100)*span);
  }
 
- // Grid
+ // grid
  ctx.strokeStyle="rgba(127,215,255,0.18)";
  ctx.lineWidth=1;
  [0,25,50,75,100].forEach(v=>{
@@ -1478,41 +1496,40 @@ function drawPerformanceOverTimeChart(canvas,hist){
   ctx.beginPath(); ctx.moveTo(PAD.left,y); ctx.lineTo(PAD.left+cW,y); ctx.stroke();
  });
 
- // Axes labels
- ctx.font="10px sans-serif";
+ // axes labels
+ ctx.font="11px sans-serif";
  ctx.textAlign="right";
  ctx.fillStyle="#d7e7f8";
  [100,75,50,25,0].forEach(cpi=>{
   const y=yLeftFromCpi(cpi);
-  ctx.fillText(`${cpi} | ${msAtCpi(cpi)} ms`, PAD.left-8, y+3);
+  ctx.fillText(`${cpi} | ${msAtCpi(cpi)} ms`, PAD.left-10, y+4);
  });
 
  ctx.textAlign="left";
  ctx.fillStyle="#88ff88";
  [7,6,5,4,3,2,1].forEach(v=>{
   const y=yRightFromSpf(v);
-  ctx.fillText(String(v), PAD.left+cW+8, y+3);
+  ctx.fillText(String(v), PAD.left+cW+10, y+4);
  });
 
- // Titles
+ // title/meta
  ctx.fillStyle="#b7d9ef";
  ctx.textAlign="left";
- ctx.font="bold 12px sans-serif";
- ctx.fillText("Performance over Date and Time", PAD.left, 22);
+ ctx.font="bold 16px sans-serif";
+ ctx.fillText("Performance over Date and Time", PAD.left, 24);
 
- const last=slice[slice.length-1]||{};
- ctx.font="11px sans-serif";
+ ctx.font="12px sans-serif";
  ctx.fillStyle="#d7e7f8";
- ctx.fillText(`Subject ID: ${last.subjectId||"—"}    Test Mode: ${formatModeTag(last.testMode||"mode1")}`, PAD.left, 40);
+ ctx.fillText(`Subject ID: ${lastSubject||"—"}    Test Mode: ${formatModeTag(lastMode)}`, PAD.left, 46);
 
- // Axis titles
+ // axis titles
  ctx.save();
- ctx.translate(22, PAD.top + cH/2);
+ ctx.translate(24, PAD.top + cH/2);
  ctx.rotate(-Math.PI/2);
  ctx.fillStyle="#d7e7f8";
  ctx.textAlign="center";
- ctx.font="bold 11px sans-serif";
- ctx.fillText("CPI 0–100 | MBS ms 800–3000 (up is better)", 0, 0);
+ ctx.font="bold 12px sans-serif";
+ ctx.fillText("CPI 0–100 | MBS 800–3000 ms (up is better)", 0, 0);
  ctx.restore();
 
  ctx.save();
@@ -1520,48 +1537,57 @@ function drawPerformanceOverTimeChart(canvas,hist){
  ctx.rotate(Math.PI/2);
  ctx.fillStyle="#88ff88";
  ctx.textAlign="center";
- ctx.font="bold 11px sans-serif";
+ ctx.font="bold 12px sans-serif";
  ctx.fillText("SP-FS 1–7 (up is better)", 0, 0);
  ctx.restore();
 
- // X-axis labels
+ // x-axis baseline
  ctx.strokeStyle="rgba(79,111,153,0.35)";
  ctx.beginPath();
  ctx.moveTo(PAD.left, PAD.top+cH);
  ctx.lineTo(PAD.left+cW, PAD.top+cH);
  ctx.stroke();
 
- ctx.font="9px sans-serif";
- ctx.fillStyle="#7fa0c0";
- ctx.textAlign="right";
- slice.forEach((r,i)=>{
-  const x=xOf(i), y=PAD.top+cH+8;
-  const d=new Date(r.time);
-  const label=`${d.toLocaleDateString("en-US",{month:"numeric",day:"numeric"})} ${d.toLocaleTimeString("en-US",{hour:"2-digit",minute:"2-digit"})}`;
-  ctx.save(); ctx.translate(x,y); ctx.rotate(-Math.PI/4); ctx.fillText(label,0,0); ctx.restore();
- });
+ // x labels
+ ctx.font="10px sans-serif";
+ ctx.fillStyle="#9ab6d3";
+ if(n===1){
+  const d=new Date(slice[0].time);
+  const label=`${d.toLocaleDateString("en-US",{month:"numeric",day:"numeric",year:"2-digit"})} ${d.toLocaleTimeString("en-US",{hour:"2-digit",minute:"2-digit"})}`;
+  ctx.textAlign="center";
+  ctx.fillText(label, xOf(0), PAD.top+cH+26);
+ }else{
+  ctx.textAlign="right";
+  slice.forEach((r,i)=>{
+   const x=xOf(i), y=PAD.top+cH+8;
+   const d=new Date(r.time);
+   const label=`${d.toLocaleDateString("en-US",{month:"numeric",day:"numeric"})} ${d.toLocaleTimeString("en-US",{hour:"2-digit",minute:"2-digit"})}`;
+   ctx.save(); ctx.translate(x,y); ctx.rotate(-Math.PI/4); ctx.fillText(label,0,0); ctx.restore();
+  });
+ }
 
  function drawLine(vals, yFunc, color, style){
   ctx.strokeStyle=color;
-  ctx.lineWidth=2.2;
+  ctx.lineWidth=2.5;
   ctx.beginPath();
   let started=false;
   vals.forEach((v,i)=>{
    if(v==null){ started=false; return; }
    const x=xOf(i), y=yFunc(v);
-   if(!started){ ctx.moveTo(x,y); started=true; } else ctx.lineTo(x,y);
+   if(!started){ ctx.moveTo(x,y); started=true; } else { ctx.lineTo(x,y); }
   });
-  ctx.stroke();
+  if(vals.filter(v=>v!=null).length>1) ctx.stroke();
+
   vals.forEach((v,i)=>{
    if(v==null) return;
    const x=xOf(i), y=yFunc(v);
    ctx.fillStyle=color;
    if(style==="square"){
-    ctx.fillRect(x-3.5,y-3.5,7,7);
+    ctx.fillRect(x-4,y-4,8,8);
    }else if(style==="diamond"){
-    ctx.save(); ctx.translate(x,y); ctx.rotate(Math.PI/4); ctx.fillRect(-3.5,-3.5,7,7); ctx.restore();
+    ctx.save(); ctx.translate(x,y); ctx.rotate(Math.PI/4); ctx.fillRect(-4,-4,8,8); ctx.restore();
    }else{
-    ctx.beginPath(); ctx.arc(x,y,3.7,0,Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(x,y,4.2,0,Math.PI*2); ctx.fill();
    }
   });
  }
@@ -1574,12 +1600,12 @@ function drawPerformanceOverTimeChart(canvas,hist){
  drawLine(mbsVals, v=>yLeftFromMs(v), "#ffb357", "square");
  drawLine(spfVals, v=>yRightFromSpf(v), "#88ff88", "diamond");
 
- // Legend
+ // legend
  ctx.textAlign="left";
- ctx.font="bold 10px sans-serif";
- ctx.fillStyle="#7fd7ff"; ctx.fillText("● CPI", PAD.left, PAD.top-10);
- ctx.fillStyle="#ffb357"; ctx.fillText("■ MBS", PAD.left+58, PAD.top-10);
- ctx.fillStyle="#88ff88"; ctx.fillText("◆ SP-FS", PAD.left+116, PAD.top-10);
+ ctx.font="bold 11px sans-serif";
+ ctx.fillStyle="#7fd7ff"; ctx.fillText("● CPI", PAD.left, PAD.top-14);
+ ctx.fillStyle="#ffb357"; ctx.fillText("■ MBS", PAD.left+64, PAD.top-14);
+ ctx.fillStyle="#88ff88"; ctx.fillText("◆ SP-FS", PAD.left+132, PAD.top-14);
 }
 
 // ─── RT scatter chart ───
@@ -2667,22 +2693,7 @@ function showResultsPage(){
   if(thinking){ thinking.classList.remove("hidden"); startFX(); }
   setTimeout(()=>{
    stopFX(); if(thinking) thinking.classList.add("hidden");
-   const outcome=$("outcomeOverlay"),outcomeText=$("outcomeText");
-   if(outcome&&outcomeText){
-    outcomeText.textContent=((last.testMode||"mode1")==="mode1" ? (success?"Success!":"Failed Test") : (last.endReason || "Run complete"));
-    outcomeText.className="outcome-text "+(success?"success":"failed");
-    outcome.classList.remove("hidden");
-    // Draw speedometer
-    const canvas=$("speedometerCanvas");
-    if(canvas){
-     const cps=success&&last?Math.max(0,Math.min(100,last.cognitivePerformanceIndex||0)):0;
-     const mbs=last&&last.averageLast2BlockingScoresMs!=null?last.averageLast2BlockingScoresMs:null;
-     const wrap=$("speedometerWrap");
-     if(wrap) canvas.style.width=wrap.offsetWidth+"px";
-     setTimeout(()=>animateSpeedometer(canvas, cps, mbs, success), 100);
-    }
-    // Speedometer stays visible until user taps "View Results"
-   }
+   renderSpeedometerOutcome(last);
   },2000);
  },500);
 }
@@ -3631,7 +3642,7 @@ $("startBtn").onclick=startTest;
 $("backToStartBtn").onclick=goToStartPage;
 $("startOverBtn").onclick=startOverFlow;
 $("summaryRestartBtn").onclick=()=>{ $("summaryOverlay").classList.add("hidden"); const fg=$("fullGraphOverlay"); if(fg) fg.classList.add("hidden"); goToStartPage(); };
-$("summaryEmailBtn").onclick=emailResults;
+const _sspeed=$("summarySpeedometerBtn"); if(_sspeed) _sspeed.onclick=()=>{ $("summaryOverlay").classList.add("hidden"); openSpeedometerPage(); };
 const _fgb=$("summaryFullGraphBtn"); if(_fgb) _fgb.onclick=()=>{ $("summaryOverlay").classList.add("hidden"); $("fullGraphOverlay").classList.remove("hidden"); };
 const _fgbb=$("fullGraphBackBtn"); if(_fgbb) _fgbb.onclick=()=>{ $("fullGraphOverlay").classList.add("hidden"); $("summaryOverlay").classList.remove("hidden"); };
 const _orb=$("outcomeResultsBtn"); if(_orb) _orb.onclick=()=>{ $("outcomeOverlay").classList.add("hidden"); stopSpeedometer(); $("summaryOverlay").classList.remove("hidden"); setTestingQuiet(false); };
@@ -3660,9 +3671,9 @@ if ("serviceWorker" in navigator) {
    for(const r of regs) await r.unregister();
    const keys = await caches.keys();
    for(const k of keys) await caches.delete(k);
-   console.log("V229 recovery build: old service workers unregistered and caches cleared.");
+   console.log("V232 recovery build: old service workers unregistered and caches cleared.");
   }catch(err){
-   console.warn("V229 recovery cleanup failed:", err);
+   console.warn("V232 recovery cleanup failed:", err);
   }
  });
 }
@@ -3671,12 +3682,27 @@ if ("serviceWorker" in navigator) {
 
 
 $("summaryRankedBtn").onclick=()=>{ const last=state.history[state.history.length-1]; if(!last) return; buildRankedSummary(last); $("summaryOverlay").classList.add("hidden"); $("rankedOverlay").classList.remove("hidden"); };
-$("rankedBackBtn").onclick=()=>{ $("rankedOverlay").classList.add("hidden"); $("summaryOverlay").classList.remove("hidden"); };
-$("rankedCloseBtn").onclick=()=>{ $("rankedOverlay").classList.add("hidden"); };
 
 try{ updateStartPageLinks(); }catch(e){}
 
 
+
+
+function renderSpeedometerOutcome(result){
+ const outcome = $("outcomeOverlay");
+ const canvas = $("speedometerCanvas");
+ syncOutcomeStatusText(result);
+ if(!outcome || !canvas) return;
+ outcome.classList.remove("hidden");
+ const success = !!(result && isTestSuccess(result.endReason));
+ const cps = success && result ? Math.max(0, Math.min(100, result.cognitivePerformanceIndex||0)) : 0;
+ const mbs = result && result.averageLast2BlockingScoresMs!=null ? result.averageLast2BlockingScoresMs : null;
+ const wrap = $("speedometerWrap");
+ if(wrap) canvas.style.width = wrap.offsetWidth + "px";
+ stopSpeedometer();
+ setTimeout(()=>animateSpeedometer(canvas, cps, mbs, success), 80);
+ setTestingQuiet(false);
+}
 
 function syncOutcomeStatusText(result){
  const ot=$("outcomeText"), orr=$("outcomeReasonText");
@@ -3689,42 +3715,24 @@ function syncOutcomeStatusText(result){
 
 
 function openSpeedometerPage(){
- if(typeof openSpeedometerHub==="function" && state.history && state.history.length){
-  openSpeedometerHub();
+ const last = state.history && state.history.length ? state.history[state.history.length-1] : null;
+ if(last){
+  hideAllOverlays();
+  renderSpeedometerOutcome(last);
  }else{
-  const outcome = $("outcomeOverlay");
-  if(outcome){
-   const last = state.history && state.history.length ? state.history[state.history.length-1] : null;
-   if(typeof syncOutcomeStatusText==="function") syncOutcomeStatusText(last);
-   outcome.classList.remove("hidden");
-   setTestingQuiet(false);
-  }else{
-   goToStartPage();
-  }
+  goToStartPage();
  }
 }
 
 function openSpeedometerFromAdmin(){
  const admin = $("adminOverlay");
  if(admin) admin.classList.add("hidden");
- if(typeof openSpeedometerHub==="function" && state.history && state.history.length){
-  openSpeedometerHub();
+ const last = state.history && state.history.length ? state.history[state.history.length-1] : null;
+ if(last){
+  hideAllOverlays();
+  renderSpeedometerOutcome(last);
  }else{
-  const outcome = $("outcomeOverlay");
-  if(outcome){
-   const last = state.history && state.history.length ? state.history[state.history.length-1] : null;
-   const ot=$("outcomeText"), orr=$("outcomeReasonText");
-   if(ot){
-    const ok = !!(last && isTestSuccess(last.endReason));
-    ot.textContent = ok ? "Success!" : "Failed";
-    ot.className = "outcome-text " + (ok ? "success" : "failed");
-   }
-   if(orr) orr.textContent = (last && last.endReason) ? last.endReason : "Run complete";
-   outcome.classList.remove("hidden");
-   setTestingQuiet(false);
-  }else{
-   goToStartPage();
-  }
+  goToStartPage();
  }
 }
 
@@ -3746,3 +3754,7 @@ const _spt=$("speedPerfTimeBtn"); if(_spt) _spt.onclick=()=>{ $("outcomeOverlay"
 const _ptb=$("perfTimeBackBtn"); if(_ptb) _ptb.onclick=()=>{ $("perfTimeOverlay").classList.add("hidden"); openSpeedometerPage(); };
 const _pta=$("perfTimeAdminBtn"); if(_pta) _pta.onclick=()=>{ $("perfTimeOverlay").classList.add("hidden"); $("adminOverlay").classList.remove("hidden"); if(_adminUnlocked){ $("adminGate").classList.add("hidden"); $("adminBody").classList.remove("hidden"); renderAdmin(); } else { $("adminGate").classList.remove("hidden"); $("adminBody").classList.add("hidden"); $("adminPass").value=""; } };
 
+
+const _rsp=$("rankedSpeedometerBtn"); if(_rsp) _rsp.onclick=()=>{ $("rankedOverlay").classList.add("hidden"); openSpeedometerPage(); };
+const _rrs=$("rankedRestartBtn"); if(_rrs) _rrs.onclick=()=>{ $("rankedOverlay").classList.add("hidden"); goToStartPage(); };
+const _rra=$("rankedAdminBtn"); if(_rra) _rra.onclick=()=>{ $("rankedOverlay").classList.add("hidden"); $("adminOverlay").classList.remove("hidden"); if(_adminUnlocked){ $("adminGate").classList.add("hidden"); $("adminBody").classList.remove("hidden"); renderAdmin(); } else { $("adminGate").classList.remove("hidden"); $("adminBody").classList.add("hidden"); $("adminPass").value=""; } };
