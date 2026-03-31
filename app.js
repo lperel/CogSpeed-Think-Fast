@@ -2,7 +2,7 @@
 // CogSpeed V173
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V213";
+const APP_VERSION = "V214";
 const RELEASE = APP_VERSION.replace(/^V/i, "");
 const STORAGE_PREFIX = `cogspeed_v${RELEASE}`;
 
@@ -3517,9 +3517,9 @@ if ("serviceWorker" in navigator) {
    for(const r of regs) await r.unregister();
    const keys = await caches.keys();
    for(const k of keys) await caches.delete(k);
-   console.log("V213 recovery build: old service workers unregistered and caches cleared.");
+   console.log("V214 recovery build: old service workers unregistered and caches cleared.");
   }catch(err){
-   console.warn("V213 recovery cleanup failed:", err);
+   console.warn("V214 recovery cleanup failed:", err);
   }
  });
 }
