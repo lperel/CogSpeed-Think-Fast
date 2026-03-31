@@ -2,7 +2,7 @@
 // CogSpeed V173
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V204";
+const APP_VERSION = "V206";
 const RELEASE = APP_VERSION.replace(/^V/i, "");
 const STORAGE_PREFIX = `cogspeed_v${RELEASE}`;
 
@@ -3393,8 +3393,7 @@ $("skipRefresherBtn").onclick=()=>{
 };
 $("refBackBtn").onclick=()=>goToStartPage();
 $("fatigueBackBtn").onclick=()=>goToStartPage();
-const _fsb=$("fatigueStartBtn");
-if(_fsb) _fsb.onclick=startTest;
+const _fsb=$("fatigueStartBtn"); if(_fsb) _fsb.onclick=()=>startTest();
 let _adminUnlocked = false;
 let _adminReturnTo = "subjectOverlay"; // default return destination
 
@@ -3469,7 +3468,6 @@ $("saveAdminBtn").onclick=()=>{ readAdmin(); saveSettings(); renderAdmin(); setS
 bindDoubleTapConfirm($("resetAdminBtn"), ()=>{ resetAdmin(); setStatus("Settings reset to defaults"); }, "Reset", "Tap again to reset");
 const _ecb=$("exportCsvAdminBtn"); if(_ecb) _ecb.onclick=exportCSV;
 $("adminTrialLogBtn").onclick=()=>{ buildTrialLog(state.history.length-1); $("trialLogOverlay").classList.remove("hidden"); };
-const _arrb=$("adminRateRtBtn"); if(_arrb) _arrb.onclick=()=>{ $("adminOverlay").classList.add("hidden"); $("rateRtOverlay").classList.remove("hidden"); buildRateRtOverlay(); };
 $("adminLastResultBtn").onclick=()=>{
  const last=state.history[state.history.length-1];
  if(!last){ setStatus("No results yet."); return; }
@@ -3516,6 +3514,9 @@ renderFatigueChecklist();
 renderRefresher();
 updateMetrics();
 
+// Explicit reset bindings for refresher and Samn-Perelli pages.
+bindDoubleTapAction($("refStartOverBtn"), ()=>{ renderRefresher(); }, "Reset", "Tap again to reset");
+bindDoubleTapAction($("fatigueStartOverBtn"), ()=>{ state.samnPerelli=null; renderFatigueChecklist(); const sb=$("fatigueStartBtn"); if(sb) sb.classList.add("hidden"); }, "Reset", "Tap again to reset");
 
 if ("serviceWorker" in navigator) {
  let __swRefreshing = false;
@@ -3564,6 +3565,4 @@ const _esb=$("emailSendBtn"); if(_esb) _esb.onclick=()=>{ const last=currentResu
 const _ebb=$("emailBackBtn"); if(_ebb) _ebb.onclick=()=>{ $("emailSelectOverlay").classList.add("hidden"); openSpeedometerHub(); };
 
 
-bindDoubleTapAction($("refStartOverBtn"), ()=>{ renderRefresher(); }, "Reset", "Tap again to reset");
 
-bindDoubleTapAction($("fatigueStartOverBtn"), ()=>{ state.samnPerelli=null; renderFatigueChecklist(); }, "Reset", "Tap again to reset");
