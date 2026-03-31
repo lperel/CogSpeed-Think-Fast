@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
   <meta name="theme-color" content="#0b1830"/>
   <link rel="manifest" href="manifest.json"/>
-  <title>CogSpeed® V222</title>
+  <title>CogSpeed® V227</title>
     <style>
 
     :root{--bg:#091426;--bg2:#132746;--panel:#0d1b33;--panel2:#10213e;--text:#f5fbff;--muted:#d7e7f8;--edge:#4f6f99;--accent:#7fd7ff;--probe:#00f0ff}
@@ -419,8 +419,10 @@
       You must be 14 or older to use CogSpeed.<br>Your data is stored only on this device.
     </div>
 
+    <div style="margin-top:auto;padding-top:10px;text-align:center;font-size:12px;color:rgba(127,215,255,0.62)">For more information or comments: Infograymattermetrics@gmail.com</div>
+
     <!-- Buttons -->
-    <div style="display:flex;gap:10px;margin-top:auto">
+    <div style="display:flex;gap:10px;margin-top:10px">
       <button class="ctrl-btn" id="profileResetBtn" style="flex:0 0 auto;padding:12px 18px;font-size:15px;opacity:0.6">Reset</button>
       <button class="ctrl-btn" id="profileSaveBtn" style="flex:1;font-size:18px;font-weight:900;min-height:52px">Save &amp; Continue →</button>
     </div>
@@ -505,6 +507,7 @@
       <div class="controls" style="margin-bottom:8px;display:grid;grid-template-columns:1fr 1fr;gap:6px">
         <button class="ctrl-btn" id="adminLastResultBtn" style="width:100%;background:linear-gradient(180deg,#1a3355,#0d1b33);border-color:#4f8fcc">📄 Last Results</button>
         <button class="ctrl-btn" id="adminBackBtn">Back to Start</button>
+        <button class="ctrl-btn" id="adminSpeedometerBtn">← Speedometer</button>
       </div>
       <div class="controls" style="margin-bottom:8px;flex-wrap:wrap;gap:6px">
         <button class="ctrl-btn" id="saveAdminBtn">Save</button>
@@ -561,7 +564,8 @@
     <canvas id="speedometerCanvas" style="width:100%;height:100%;display:block"></canvas>
   </div>
   <!-- SUCCESS! / Test Failed label -->
-  <div id="outcomeText" class="outcome-text" style="margin:8px 0 14px;font-size:clamp(24px,6vw,48px)"></div>
+  <div id="outcomeText" class="outcome-text" style="margin:8px 0 6px;font-size:clamp(24px,6vw,48px)"></div>
+  <div id="outcomeReasonText" style="margin:0 0 14px;font-size:clamp(14px,3.5vw,22px);color:var(--muted);text-align:center;max-width:min(92vw,720px)"></div>
   <!-- Results button — stays until tapped -->
   <button class="ctrl-btn" id="outcomeResultsBtn" style="width:min(90vw,320px);font-size:16px;padding:15px 24px;background:linear-gradient(180deg,#1a3a5a,#0d1e30);border-color:#4f6f99;color:#d9fbff;letter-spacing:.06em">View Results →</button>
   <button id="speedAdminBtn" style="background:none;border:none;color:rgba(127,215,255,0.38);font-size:12px;padding:8px 10px;cursor:pointer;font-family:inherit;letter-spacing:.05em">Admin</button>
@@ -630,7 +634,7 @@
       <button class="ctrl-btn" id="trialLogPrevBtn">← Prev Session</button>
       <button class="ctrl-btn" id="trialLogNextBtn">Next Session →</button>
       <button class="ctrl-btn" id="trialLogCsvBtn">⬇ Download CSV</button>
-      <button class="ctrl-btn" id="trialLogCloseBtn">← Back to Admin</button>
+      <button class="ctrl-btn" id="trialLogCloseBtn">← Speedometer</button>
     </div>
   </div>
 </div>
@@ -686,7 +690,7 @@
     <span id="fatigueOut">—</span>
     <span id="modeLabel">Subject mode</span>
     <span id="phaseLabel">Ready</span>
-    <span id="statusLine">CogSpeed V222</span>
+    <span id="statusLine">CogSpeed V227</span>
     <span id="rateOut">—</span>
     <span id="blocksOut">0</span>
     <span id="recoveryOut">0</span>
@@ -719,7 +723,7 @@
   <div class="resp-grid" id="respGrid"></div>
 </div>
 
-<script src="app.js?v=222"></script>
+<script src="app.js?v=225"></script>
 
 </body>
 </html>

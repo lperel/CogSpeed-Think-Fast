@@ -2,7 +2,7 @@
 // CogSpeed V173
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V222";
+const APP_VERSION = "V227";
 const RELEASE = APP_VERSION.replace(/^V/i, "");
 const STORAGE_PREFIX = `cogspeed_v${RELEASE}`;
 
@@ -267,20 +267,20 @@ function armNoResponseTimer(){
  clearNoResponseTimer();
  let ms;
  switch(state.phase){
-  case "calibration":
-   // First trial 20s (orienting), subsequent 10s
-   ms = (state.calibrationTrialIndex||0)===0
-    ? (Number(settings.calibrationFirstNoResponseMs)||20000)
-    : (Number(settings.calibrationNoResponseMs)||10000);
-   break;
   case "paced":
-   // Machine-paced: frame ends anyway, 6s safety net
+  case "mode3_paced":
    ms = Number(settings.machinePacedNoResponseMs)||15000;
    break;
   case "recovery":
   case "terminal_recovery":
    // Self-paced recovery after block: more time to stabilize
    ms = Number(settings.recoveryNoResponseMs)||10000;
+   break;
+  case "calibration":
+   // First calibration response uses its own timeout; later calibration responses use the shorter later-trial timeout.
+   ms = state.calibrationResponses===0
+    ? (Number(settings.calibrationFirstNoResponseMs)||10000)
+    : (Number(settings.calibrationNoResponseMs)||6000);
    break;
   default:
    ms = 20000;
@@ -3477,6 +3477,7 @@ const _rrp=$("rateRtPrevBtn"); if(_rrp) _rrp.onclick=()=>{ const s=$("rateRtSess
 const _rrn=$("rateRtNextBtn"); if(_rrn) _rrn.onclick=()=>{ const s=$("rateRtSessionSelect"); if(!s) return; s.selectedIndex=Math.min(s.options.length-1,s.selectedIndex+1); if(s.onchange) s.onchange(); };
 
 $("adminBackBtn").onclick=()=>goToStartPage();
+const _asb=$("adminSpeedometerBtn"); if(_asb) _asb.onclick=()=>openSpeedometerFromAdmin();
 bindDoubleTapConfirm($("adminStartOverBtn"), ()=>startOverFlow(), "Full Reset", "Tap again for full reset");
 $("benchRunBtn").onclick=()=>runDeviceBenchmark(true);
 $("benchMainBtn").onclick=()=>{ $("benchmarkOverlay").classList.add("hidden"); };
@@ -3513,9 +3514,9 @@ if ("serviceWorker" in navigator) {
    for(const r of regs) await r.unregister();
    const keys = await caches.keys();
    for(const k of keys) await caches.delete(k);
-   console.log("V222 recovery build: old service workers unregistered and caches cleared.");
+   console.log("V227 recovery build: old service workers unregistered and caches cleared.");
   }catch(err){
-   console.warn("V222 recovery cleanup failed:", err);
+   console.warn("V227 recovery cleanup failed:", err);
   }
  });
 }
@@ -3528,3 +3529,41 @@ $("rankedBackBtn").onclick=()=>{ $("rankedOverlay").classList.add("hidden"); $("
 $("rankedCloseBtn").onclick=()=>{ $("rankedOverlay").classList.add("hidden"); };
 
 try{ updateStartPageLinks(); }catch(e){}
+
+
+
+function syncOutcomeStatusText(result){
+ const ot=$("outcomeText"), orr=$("outcomeReasonText");
+ if(!ot) return;
+ const ok = !!(result && isTestSuccess(result.endReason));
+ ot.textContent = ok ? "Success!" : "Failed";
+ ot.className = "outcome-text " + (ok ? "success" : "failed");
+ if(orr) orr.textContent = (result && result.endReason) ? result.endReason : "Run complete";
+}
+
+function openSpeedometerFromAdmin(){
+ const admin = $("adminOverlay");
+ if(admin) admin.classList.add("hidden");
+ if(typeof openSpeedometerHub==="function" && state.history && state.history.length){
+  openSpeedometerHub();
+ }else{
+  const outcome = $("outcomeOverlay");
+  if(outcome){
+   const last = state.history && state.history.length ? state.history[state.history.length-1] : null;
+   const ot=$("outcomeText"), orr=$("outcomeReasonText");
+   if(ot){
+    const ok = !!(last && isTestSuccess(last.endReason));
+    ot.textContent = ok ? "Success!" : "Failed";
+    ot.className = "outcome-text " + (ok ? "success" : "failed");
+   }
+   if(orr) orr.textContent = (last && last.endReason) ? last.endReason : "Run complete";
+   outcome.classList.remove("hidden");
+   setTestingQuiet(false);
+  }else{
+   goToStartPage();
+  }
+ }
+}
+
+
+$("trialLogCloseBtn").onclick=()=>{ $("trialLogOverlay").classList.add("hidden"); openSpeedometerFromAdmin(); };
