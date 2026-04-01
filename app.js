@@ -2,7 +2,7 @@
 // CogSpeed V173
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V246";
+const APP_VERSION = "V244";
 const RELEASE = APP_VERSION.replace(/^V/i, "");
 const STORAGE_PREFIX = `cogspeed_v${RELEASE}`;
 
@@ -221,43 +221,6 @@ function stdDev(a){ if(a.length<2) return null; const m=mean(a); return Math.sqr
 function shuffle(arr){ const a=[...arr]; for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]; } return a; }
 function subjectKey(id){ return id==="0"?"Guest":id; }
 function setStatus(m){ statusLine.textContent=m; }
-
-function getSessionTimeMeta(){
- const now = new Date();
- let zoneName = "";
- try{
-  const parts = new Intl.DateTimeFormat("en-US",{timeZoneName:"short"}).formatToParts(now);
-  const tz = parts.find(p=>p.type==="timeZoneName");
-  zoneName = tz ? tz.value : "";
- }catch(e){}
- let ianaTimeZone = "";
- try{
-  ianaTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || "";
- }catch(e){}
- return {
-  utcMs: now.getTime(),
-  isoUtc: now.toISOString(),
-  localDateTime: now.toLocaleString(),
-  timeZoneName: zoneName,
-  ianaTimeZone,
-  tzOffsetMinutes: -now.getTimezoneOffset()
- };
-}
-function getSessionUtcMs(r){
- if(r && r.sessionTimeMeta && Number.isFinite(Number(r.sessionTimeMeta.utcMs))) return Number(r.sessionTimeMeta.utcMs);
- if(r && r.time) return new Date(r.time).getTime();
- return NaN;
-}
-function formatSessionAxisLabel(r){
- if(!r) return "";
- const meta = r.sessionTimeMeta || null;
- if(meta && meta.localDateTime){
-  return `${meta.localDateTime}${meta.timeZoneName ? " " + meta.timeZoneName : ""}`;
- }
- const d = r.time ? new Date(r.time) : new Date();
- return `${d.toLocaleDateString("en-US",{month:"numeric",day:"numeric"})} ${d.toLocaleTimeString("en-US",{hour:"2-digit",minute:"2-digit"})}`;
-}
-
 function formatDuration(ms){ if(ms==null) return "—"; const s=Math.round(ms/1000),m=Math.floor(s/60); return m>0?`${m}m ${s%60}s`:`${s}s`; }
 // Mode helpers centralize mode checks so start / finish / summary logic
 // can switch cleanly between CogSpeed, SPC, and SPCMP behavior.
@@ -892,8 +855,7 @@ const modeMetricMs = isMode2() ? (state.selfPacedRTs.length?mean(state.selfPaced
   fixedPacedBaselineMs: state.fixedPacedBaseline, fixedPacedPresented: state.fixedPacedPresented,
   fixedPacedCorrect: state.fixedPacedCorrect, fixedPacedWrong: state.fixedPacedWrong,
   rtLog:[...state.rtLog], endReason:state.endReason||"Run complete",
-  time:new Date().toISOString(),
-  sessionTimeMeta:getSessionTimeMeta(), geo:state.geo
+  time:new Date().toISOString(), geo:state.geo
  };
  state.history.push(result);
  updateStartPageLinks();
@@ -1500,8 +1462,7 @@ function drawPerformanceOverTimeChart(canvas,hist){
  const lastMode = last.testMode || "mode1";
  const lastSubject = last.subjectId || "";
  const filtered = hist.filter(r => (r.testMode||"mode1")===lastMode && (r.subjectId||"")==lastSubject);
- const baseSeries = (filtered.length ? filtered : hist).slice().sort((a,b)=>getSessionUtcMs(a)-getSessionUtcMs(b));
- const slice = baseSeries.slice(-18);
+ const slice = (filtered.length ? filtered : hist).slice(-18);
  const n = slice.length;
 
  const bestMs = 800, worstMs = 3000;
@@ -1578,7 +1539,7 @@ function drawPerformanceOverTimeChart(canvas,hist){
 
  ctx.font="12px sans-serif";
  ctx.fillStyle="#d7e7f8";
- ctx.fillText(`Subject ID: ${lastSubject||"—"}    Test Mode: ${formatModeTag(lastMode)}    Chronology: UTC`, PAD.left, 46);
+ ctx.fillText(`Subject ID: ${lastSubject||"—"}    Test Mode: ${formatModeTag(lastMode)}`, PAD.left, 46);
 
  // axis titles
  ctx.save();
@@ -1619,16 +1580,16 @@ function drawPerformanceOverTimeChart(canvas,hist){
  ctx.font="10px sans-serif";
  ctx.fillStyle="#9ab6d3";
  if(n===1){
-  const raw = formatSessionAxisLabel(slice[0]);
-  const label = raw.length>26 ? raw.slice(0,26) : raw;
+  const d=new Date(slice[0].time);
+  const label=`${d.toLocaleDateString("en-US",{month:"numeric",day:"numeric",year:"2-digit"})} ${d.toLocaleTimeString("en-US",{hour:"2-digit",minute:"2-digit"})}`;
   ctx.textAlign="center";
   ctx.fillText(label, xOf(0), PAD.top+cH+26);
  }else{
   ctx.textAlign="right";
   slice.forEach((r,i)=>{
    const x=xOf(i), y=PAD.top+cH+8;
-   const raw = formatSessionAxisLabel(r);
-   const label = raw.length>22 ? raw.slice(0,22) : raw;
+   const d=new Date(r.time);
+   const label=`${d.toLocaleDateString("en-US",{month:"numeric",day:"numeric"})} ${d.toLocaleTimeString("en-US",{hour:"2-digit",minute:"2-digit"})}`;
    ctx.save(); ctx.translate(x,y); ctx.rotate(-Math.PI/4); ctx.fillText(label,0,0); ctx.restore();
   });
  }
@@ -2354,22 +2315,23 @@ function updateStartPageLinks(){
  const wrap = $("speedometerStartLinkWrap");
  const link = $("speedometerStartLink");
  if(!wrap || !link) return;
-
- const hasHistory = Array.isArray(state.history) && state.history.length > 0;
- const hasCurrentResult = !!currentResult();
- const hasData = hasHistory || hasCurrentResult;
-
- wrap.style.display = hasData ? "block" : "none";
-
- if(!hasData){
+ const hasData = Array.isArray(state.history) && state.history.length > 0;
+ wrap.style.display = hasData ? "" : "none";
+ if(!hasData) return;
+ // Prefer a real speedometer page/button if present.
+ if($("resultsOverlay")){
+  link.onclick = (e)=>{
+   e.preventDefault();
+   const last = state.history[state.history.length-1];
+   if(!last) return;
+   // Reuse existing results page flow if available.
+   if(typeof buildSummary === "function") buildSummary(last);
+   if(typeof drawModeResultChart === "function") drawModeResultChart($("summaryModeChart"), last);
+   showOnly("summaryOverlay");
+  };
+ } else {
   link.onclick = null;
-  return;
  }
-
- link.onclick = (e)=>{
-  e.preventDefault();
-  openSpeedometerPage();
- };
 }
 
 function isTestSuccess(r){ return (r||"").toLowerCase().startsWith("convergent"); }
@@ -3720,9 +3682,9 @@ if ("serviceWorker" in navigator) {
    for(const r of regs) await r.unregister();
    const keys = await caches.keys();
    for(const k of keys) await caches.delete(k);
-   console.log("V246 recovery build: old service workers unregistered and caches cleared.");
+   console.log("V244 recovery build: old service workers unregistered and caches cleared.");
   }catch(err){
-   console.warn("V246 recovery cleanup failed:", err);
+   console.warn("V244 recovery cleanup failed:", err);
   }
  });
 }
