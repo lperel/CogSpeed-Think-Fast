@@ -1,8 +1,8 @@
 // ═══════════════════════════════════════════════════
-// CogSpeed V261
+// CogSpeed V262
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V261";
+const APP_VERSION = "V262";
 const RELEASE = APP_VERSION.replace(/^V/i, "");
 const STORAGE_PREFIX = `cogspeed_v${RELEASE}`;
 
@@ -859,6 +859,7 @@ const modeMetricMs = isMode2() ? (state.selfPacedRTs.length?mean(state.selfPaced
  state.history.push(result);
  updateStartPageLinks();
  localStorage.setItem(`${STORAGE_PREFIX}_history`,JSON.stringify(state.history));
+ updateStartPageLinks();
  updateCPIDisplay(avg2); setProbeIdle();
  // Build the display text (also used for email)
  buildSummary(result);
@@ -2335,33 +2336,29 @@ function updateStartPageLinks(){
  const link = $("speedometerStartLink");
  if(!wrap || !link) return;
 
- let hasHistory = false;
+ let hasData = false;
  try{
-  hasHistory = Array.isArray(state.history) && state.history.length > 0;
+  hasData = Array.isArray(state.history) && state.history.length > 0;
  }catch(e){}
 
- let hasStoredHistory = false;
- try{
-  const raw = localStorage.getItem(`${STORAGE_PREFIX}_history`) || "[]";
-  const parsed = JSON.parse(raw);
-  hasStoredHistory = Array.isArray(parsed) && parsed.length > 0;
- }catch(e){}
-
- let hasCurrentResult = false;
- try{ hasCurrentResult = !!(state.history && state.history.length > 0 && state.history[state.history.length-1]); }catch(e){}
- const hasData = hasHistory || hasStoredHistory || hasCurrentResult;
+ if(!hasData){
+  try{
+   const raw = localStorage.getItem(`${STORAGE_PREFIX}_history`) || "[]";
+   const parsed = JSON.parse(raw);
+   hasData = Array.isArray(parsed) && parsed.length > 0;
+  }catch(e){}
+ }
 
  wrap.style.display = hasData ? "block" : "none";
 
- if(!hasData){
+ if(hasData){
+  link.onclick = (e)=>{
+   e.preventDefault();
+   openSpeedometerPage();
+  };
+ }else{
   link.onclick = null;
-  return;
  }
-
- link.onclick = (e)=>{
-  e.preventDefault();
-  openSpeedometerPage();
- };
 }
 
 function isTestSuccess(r){ return (r||"").toLowerCase().startsWith("convergent"); }
@@ -3830,3 +3827,5 @@ const _edata=$("emailDataSelect"); if(_edata) _edata.onchange=()=>{
  };
  info.textContent = map[_edata.value] || "Data selection ready. Use ← Speedometer to return.";
 };
+
+window.addEventListener("load",()=>{ try{ updateStartPageLinks(); }catch(e){}; });
