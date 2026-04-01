@@ -2,7 +2,7 @@
 // CogSpeed V173
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V253";
+const APP_VERSION = "V255";
 const RELEASE = APP_VERSION.replace(/^V/i, "");
 const STORAGE_PREFIX = `cogspeed_v${RELEASE}`;
 
@@ -2328,10 +2328,10 @@ function resetProfile(){
 // _adminReturnTo: tracks which page opened admin so Close returns there.
 // ──────────────────────────────────────────────────────────────
 function hideAllOverlays(){
- ["subjectOverlay","profileOverlay","refresherOverlay","fatigueOverlay","tutorialOverlay","adminOverlay","resultsOverlay","summaryOverlay","rankedOverlay","trialLogOverlay","historyOverlay","rateRtOverlay","perfTimeOverlay","thinkingOverlay","outcomeOverlay"].forEach(id=>{ const el=$(id); if(el) el.classList.add("hidden"); });
+ ["subjectOverlay","profileOverlay","refresherOverlay","fatigueOverlay","tutorialOverlay","adminOverlay","resultsOverlay","summaryOverlay","rankedOverlay","trialLogOverlay","historyOverlay","rateRtOverlay","perfTimeOverlay","emailOverlay","thinkingOverlay","outcomeOverlay"].forEach(id=>{ const el=$(id); if(el) el.classList.add("hidden"); });
 }
 function showOnly(id){
- ["subjectOverlay","profileOverlay","refresherOverlay","fatigueOverlay","adminOverlay","resultsOverlay","summaryOverlay","rankedOverlay","trialLogOverlay","historyOverlay","rateRtOverlay","perfTimeOverlay","tutorialOverlay"].forEach(oid=>{ const el=$(oid); if(el) el.classList[oid===id?"remove":"add"]("hidden"); });
+ ["subjectOverlay","profileOverlay","refresherOverlay","fatigueOverlay","adminOverlay","resultsOverlay","summaryOverlay","rankedOverlay","trialLogOverlay","historyOverlay","rateRtOverlay","perfTimeOverlay","emailOverlay","tutorialOverlay"].forEach(oid=>{ const el=$(oid); if(el) el.classList[oid===id?"remove":"add"]("hidden"); });
 }
 
 function updateStartPageLinks(){
@@ -3699,9 +3699,9 @@ if ("serviceWorker" in navigator) {
    for(const r of regs) await r.unregister();
    const keys = await caches.keys();
    for(const k of keys) await caches.delete(k);
-   console.log("V253 recovery build: old service workers unregistered and caches cleared.");
+   console.log("V255 recovery build: old service workers unregistered and caches cleared.");
   }catch(err){
-   console.warn("V253 recovery cleanup failed:", err);
+   console.warn("V255 recovery cleanup failed:", err);
   }
  });
 }
@@ -3788,3 +3788,32 @@ const _srr=$("speedRateRtBtn"); if(_srr) _srr.onclick=()=>{ $("outcomeOverlay").
 const _tla=$("trialLogAdminBtn"); if(_tla) _tla.onclick=()=>{ $("trialLogOverlay").classList.add("hidden"); $("adminOverlay").classList.remove("hidden"); if(_adminUnlocked){ $("adminGate").classList.add("hidden"); $("adminBody").classList.remove("hidden"); renderAdmin(); } else { $("adminGate").classList.remove("hidden"); $("adminBody").classList.add("hidden"); $("adminPass").value=""; } };
 
 const _ssp=$("speedStartPageBtn"); if(_ssp) _ssp.onclick=()=>{ $("outcomeOverlay").classList.add("hidden"); goToStartPage(); try{ updateStartPageLinks(); }catch(e){} };
+
+function openEmailSelectPage(){
+ hideAllOverlays();
+ const ov = $("emailOverlay");
+ if(ov) ov.classList.remove("hidden");
+ const info = $("emailSelectInfo");
+ if(info){
+  info.textContent = "Use the links above to choose who receives the e-mail and which results data should be included.";
+ }
+}
+
+const _ses=$("speedEmailSelectBtn"); if(_ses) _ses.onclick=()=>{ $("outcomeOverlay").classList.add("hidden"); openEmailSelectPage(); };
+const _esb=$("emailSpeedometerBtn"); if(_esb) _esb.onclick=()=>{ $("emailOverlay").classList.add("hidden"); openSpeedometerPage(); };
+const _est=$("emailStartBtn"); if(_est) _est.onclick=()=>{ $("emailOverlay").classList.add("hidden"); goToStartPage(); try{ updateStartPageLinks(); }catch(e){} };
+const _esr=$("emailSelectRecipientBtn"); if(_esr) _esr.onclick=()=>{ const info=$("emailSelectInfo"); if(info) info.textContent="Recipient selection link ready. Use ← Speedometer to return."; };
+
+const _edata=$("emailDataSelect"); if(_edata) _edata.onchange=()=>{
+ const info=$("emailSelectInfo");
+ if(!info) return;
+ const map = {
+  summary:"Results Summary selected.",
+  trial_log:"Trial Detail Log selected.",
+  ranked:"Ranked Target / Position Averages selected.",
+  perf_time:"Performance over Date and Time selected.",
+  rate_rt:"Presentation Rate vs Response Time selected.",
+  all:"All available data selected."
+ };
+ info.textContent = map[_edata.value] || "Data selection ready. Use ← Speedometer to return.";
+};
