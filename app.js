@@ -2,7 +2,7 @@
 // CogSpeed V173
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V252";
+const APP_VERSION = "V253";
 const RELEASE = APP_VERSION.replace(/^V/i, "");
 const STORAGE_PREFIX = `cogspeed_v${RELEASE}`;
 
@@ -906,6 +906,7 @@ function openTrial(kind){
 
  // IMPORTANT:
  // Do not start timing until the display has actually rendered.
+ // If a tap arrives before trialOpenedAt is set, RT is clamped safely to 0 instead of producing a huge bogus value.
  state.trialOpenedAt=null;
 
  renderTrial(state.current);
@@ -1015,13 +1016,23 @@ if(state.phase==="paced_fixed"){
 //  (hadResponse=false). 2 consecutive misses → block recorded.
 //  Recovery after block is SELF-PACED.
 // ──────────────────────────────────────────────────────────────
+
+function getSafeTrialRtMs(){
+ const now = performance.now();
+ if(state.trialOpenedAt==null || !Number.isFinite(state.trialOpenedAt)){
+  state.trialOpenedAt = now;
+  return 0;
+ }
+ return Math.max(0, now - state.trialOpenedAt);
+}
+
 function handleTap(index){
  if(!["calibration","paced","paced_fixed","recovery","terminal_recovery"].includes(state.phase)) return;
  noteAnyResponse();
 
  // Calibration
  if(state.phase==="calibration"){
-  const rt=performance.now()-state.trialOpenedAt, ok=trialMatches(state.current,index);
+  const rt=getSafeTrialRtMs(), ok=trialMatches(state.current,index);
   flashBtn(index,ok); state.totalResponses+=1;
   // Warm-up exclusion applies across all modes:
   // initialUnusedCalibrationTrials never contribute to averages/calculations.
@@ -1064,7 +1075,7 @@ function handleTap(index){
  // Recovery (SP Restart)
  if(state.phase==="recovery"){
   clearTimer();
-  const rt=performance.now()-state.trialOpenedAt, ok=trialMatches(state.current,index);
+  const rt=getSafeTrialRtMs(), ok=trialMatches(state.current,index);
   flashBtn(index,ok); state.totalResponses+=1;
   if(ok) state.totalCorrect+=1; else state.totalIncorrect+=1;
   logTrial({phase:"recovery",rt,outcome:ok?"correct":"wrong",responseIndex:index});
@@ -1100,7 +1111,7 @@ function handleTap(index){
  // Terminal recovery
  if(state.phase==="terminal_recovery"){
   clearTimer();
-  const rt=performance.now()-state.trialOpenedAt, ok=trialMatches(state.current,index);
+  const rt=getSafeTrialRtMs(), ok=trialMatches(state.current,index);
   flashBtn(index,ok); state.totalResponses+=1;
   if(ok) state.totalCorrect+=1; else state.totalIncorrect+=1;
   logTrial({phase:"terminal_recovery",rt,outcome:ok?"correct":"wrong",responseIndex:index});
@@ -1116,7 +1127,7 @@ function handleTap(index){
 
  // Mode 3 fixed machine-paced
  if(state.phase==="paced_fixed"){
-  const rt=performance.now()-state.trialOpenedAt;
+  const rt=getSafeTrialRtMs();
   if(state.current&&!state.current.resolved&&trialMatches(state.current,index)){
    state.current.resolved=true; state.totalResponses+=1; state.totalCorrect+=1; state.fixedPacedCorrect+=1; state.pacedRTs.push(rt);
    logTrial({phase:"paced_fixed",rt,outcome:"correct",responseIndex:index}); flashBtn(index,true);
@@ -1126,14 +1137,14 @@ function handleTap(index){
   state.hadResponse=true;
   state.totalResponses+=1; state.totalIncorrect+=1; state.pacedErrors+=1; state.fixedPacedWrong+=1;
   if(checkMaxPacedWrong()) return;
-  logTrial({phase:"paced_fixed_wrong",rt:performance.now()-state.trialOpenedAt,outcome:"wrong",responseIndex:index});
+  logTrial({phase:"paced_fixed_wrong",rt:getSafeTrialRtMs(),outcome:"wrong",responseIndex:index});
   flashBtn(index,false);
   if(state.fixedPacedPresented >= (Number(settings.mode3PacedTrialLimit)||140)){ state.endReason="Required responses reached"; finish(); return; }
   openTrial("paced_fixed"); return;
  }
 
  // Paced
- const rt=performance.now()-state.trialOpenedAt;
+ const rt=getSafeTrialRtMs();
  if(state.previousMissed&&rt<(Number(settings.lateResponseThresholdMs)||600)){
   const correctForLast=state.previous&&!state.previous.resolved&&trialMatches(state.previous,index);
   state.totalResponses+=1;
@@ -1180,7 +1191,7 @@ function handleTap(index){
  state.totalResponses+=1; state.totalIncorrect+=1; state.pacedErrors+=1;
  if(checkMaxPacedWrong()) return;
  applyPacing(null,false);
- logTrial({phase:"paced_wrong",rt:performance.now()-state.trialOpenedAt,outcome:"wrong",responseIndex:index});
+ logTrial({phase:"paced_wrong",rt:getSafeTrialRtMs(),outcome:"wrong",responseIndex:index});
  flashBtn(index,false); recordAnswer(false);
 }
 
@@ -3688,9 +3699,9 @@ if ("serviceWorker" in navigator) {
    for(const r of regs) await r.unregister();
    const keys = await caches.keys();
    for(const k of keys) await caches.delete(k);
-   console.log("V252 recovery build: old service workers unregistered and caches cleared.");
+   console.log("V253 recovery build: old service workers unregistered and caches cleared.");
   }catch(err){
-   console.warn("V252 recovery cleanup failed:", err);
+   console.warn("V253 recovery cleanup failed:", err);
   }
  });
 }
