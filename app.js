@@ -1,8 +1,8 @@
 // ═══════════════════════════════════════════════════
-// CogSpeed V262
+// CogSpeed V263
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V262";
+const APP_VERSION = "V263";
 const RELEASE = APP_VERSION.replace(/^V/i, "");
 const STORAGE_PREFIX = `cogspeed_v${RELEASE}`;
 
@@ -2349,14 +2349,18 @@ function updateStartPageLinks(){
   }catch(e){}
  }
 
- wrap.style.display = hasData ? "block" : "none";
+ wrap.style.display = "block";
 
  if(hasData){
+  link.style.color = "var(--accent)";
+  link.style.pointerEvents = "auto";
   link.onclick = (e)=>{
    e.preventDefault();
    openSpeedometerPage();
   };
  }else{
+  link.style.color = "rgba(127,215,255,0.38)";
+  link.style.pointerEvents = "none";
   link.onclick = null;
  }
 }
