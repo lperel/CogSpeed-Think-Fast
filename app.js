@@ -1,8 +1,8 @@
 // ═══════════════════════════════════════════════════
-// CogSpeed V173
+// CogSpeed V258
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V257";
+const APP_VERSION = "V258";
 const RELEASE = APP_VERSION.replace(/^V/i, "");
 const STORAGE_PREFIX = `cogspeed_v${RELEASE}`;
 
@@ -51,7 +51,7 @@ const DEFAULTS={
  qualifyingBlockGapMs:250,
  rollMeanWindow:8,
  rollMeanThreshold:0.50,
- machinePacedNoResponseMs:6000,
+ machinePacedNoResponseMs:15000,
  recoveryNoResponseMs:10000,
  calibrationFirstNoResponseMs:10000,
  calibrationNoResponseMs:6000,
@@ -60,15 +60,15 @@ const DEFAULTS={
  maxTrialCount:180,
  maxPacedWrong:20,
  maxTestDurationMs:150000,
- minDurationMs:700,
- maxDurationMs:3000,
+ minDurationMs:600,
+ maxDurationMs:3500,
  initialUnusedCalibrationTrials:2,
  initialMeasuredCalibrationTrials:10,
  initialPacedPercent:1.3,
  calibrationStopErrors:4,
  calibrationStopSlowMs:6000,
- cpiBestMs:800,
- cpiWorstMs:3000,
+ cpiBestMs:900,
+ cpiWorstMs:3400,
  deviceBenchmarkEnabled:0,
  lateResponseThresholdMs:600
 };
@@ -89,9 +89,9 @@ const ADMIN_FIELDS=[
  ["calibrationNoResponseMs","5. Calibration later-trial no-response (ms, default 6000)","number"],
  ["calibrationStopErrors","6. Calibration stop after N wrong (default 4)","number"],
  ["calibrationStopSlowMs","7. Calibration avg RT limit (ms, default 6000)","number"],
- ["minDurationMs","8. MP frame minimum duration (ms, default 700)","number"],
- ["maxDurationMs","9. MP frame maximum duration (ms, default 6000)","number"],
- ["machinePacedNoResponseMs","10. MP no-response timeout (ms, default 6000)","number"],
+ ["minDurationMs","8. MP frame minimum duration (ms, default 600)","number"],
+ ["maxDurationMs","9. MP frame maximum duration (ms, default 3500)","number"],
+ ["machinePacedNoResponseMs","10. MP no-response timeout (ms, default 15000)","number"],
  ["maxTestDurationMs","11. Max total test time (ms, default 150000)","number"],
  ["wrongWindowSize","12. Anti-spoof wrong window size (default 5)","number"],
  ["wrongThresholdStop","13. Anti-spoof max wrong in window (default 4)","number"],
@@ -113,8 +113,8 @@ const ADMIN_FIELDS=[
  ["qualifyingBlockGapMs","25. Mode 1 convergent block max gap (ms, default 250)","number"],
  ["maxTrialCount","26. Mode 1 max paced trials (default 180)","number"],
  ["maxPacedWrong","27. Mode 1 max paced wrong before fail (default 20)","number"],
- ["cpiBestMs","28. Mode 1 CPI best ms anchor (default 800)","number"],
- ["cpiWorstMs","29. Mode 1 CPI worst ms anchor (default 6000)","number"],
+ ["cpiBestMs","28. Mode 1 CPI best ms anchor (default 900)","number"],
+ ["cpiWorstMs","29. Mode 1 CPI worst ms anchor (default 3400)","number"],
 
  // 30-31. Mode 2 settings, ordered by use
  ["mode2TrialLimit","30. Mode 2 SPC trial limit (default 150)","number"],
@@ -707,13 +707,13 @@ function maybeTriggerTerminalRule(){
 }
 function failCalibration(reason){ state.endReason=reason; finish(); }
 // ─── CALIBRATION — SELF-PACED ─────────────────────────────────
-// 1 unused + 10 measured self-paced trials.
+// 2 unused + 10 measured self-paced trials.
 // CHECK ADEQUATELY TRAINED: >4 errors → "TOO MANY WRONG RESPONSES"
 // CHECK RESPONSE SPEED: single RT >6000ms → "NOT RESPONDING IN TIME — Practice!"
 // DETERMINE BASELINE RT: avg of 10 measured RTs → paced start duration
-//  (initialPacedPercent=0.70 × avg, clamped to 800ms-maxDurationMs).
+//  (initialPacedPercent=1.3 × avg, clamped to minDurationMs-maxDurationMs).
 // CONDITION 4: avg RT >6000ms → "NEED MORE PRACTICE!"
-// NO-RESPONSE TIMEOUTS: first trial=20s, subsequent=10s
+// NO-RESPONSE TIMEOUTS: first trial=10s, subsequent=6s
 // ──────────────────────────────────────────────────────────────
 // finishCalibration() now branches by selected mode:
 // mode1 -> original adaptive machine-paced CogSpeed phase
@@ -1183,7 +1183,14 @@ function handleTap(index){
   state.current.resolved=true; state.totalResponses+=1; state.totalCorrect+=1;
   applyPacing(rt,true); state.pacedRTs.push(rt);
   logTrial({phase:"paced",rt,outcome:"correct",responseIndex:index}); flashBtn(index,true);
-  recordAnswer(true); return;
+  if(recordAnswer(true)) return;
+  // Immediately advance: clear old frame timer, count trial, open next
+  clearTimer();
+  state.unresolvedStreak=0;
+  state.totalTrials+=1;
+  if(state.totalTrials>=settings.maxTrialCount){ state.endReason="ERRATIC RESPONSES — Retest"; finish(); }
+  else openTrial("paced");
+  return;
  }
  state.hadResponse=true;
  // PACED wrongs do NOT count toward "Cal stop after N wrong".
@@ -1494,7 +1501,7 @@ function drawPerformanceOverTimeChart(canvas,hist){
  const slice = (filtered.length ? filtered : hist).slice(-18);
  const n = slice.length;
 
- const bestMs = 800, worstMs = 3000;
+ const bestMs = Number(settings.cpiBestMs)||900, worstMs = Number(settings.cpiWorstMs)||3400;
  const PAD = {top:72,right:76,bottom:n===1?64:92,left:126};
  const cW = W - PAD.left - PAD.right;
  const cH = H - PAD.top - PAD.bottom;
@@ -1521,7 +1528,7 @@ function drawPerformanceOverTimeChart(canvas,hist){
 
  // left dual axis tick marks and labels: outer=MBS, inner=CPI
  const cpiTicks = [100,75,50,25,0];
- const mbsTicks = [800,1240,1900,2450,3000];
+ const mbsTicks = cpiTicks.map(cpi => Math.round(bestMs + ((100-cpi)/100)*(worstMs-bestMs)));
  ctx.font="11px sans-serif";
  ctx.textAlign="right";
 
@@ -2038,9 +2045,6 @@ function computeCombinationRankAveragesForMode(mode){
  }
  return {correct: buildRows("correct"), wrong: buildRows("wrong"), all: buildRows("all")};
 }
-function formatRankRows(rows){
- return rows.length ? rows.map(r=>` ${r.label}: ${r.avg.toFixed(1)} ms (n=${r.count})`).join("\n") : " none";
-}
 function formatModePooledRankSection(mode){
  const rs = computeRankAveragesForMode(mode);
  const cs = computeCombinationRankAveragesForMode(mode);
@@ -2079,7 +2083,7 @@ function exportCSV(){
   r.pacedResponseSdMs!=null?r.pacedResponseSdMs.toFixed(1):"",
   r.testDurationMs!=null?Math.round(r.testDurationMs):"",
   `"${(r.endReason||"").replace(/"/g,'""')}"`,
-  `"${(r.location||"").replace(/"/g,'""')}"`
+  `"${((r.geo&&r.geo.address)||"").replace(/"/g,'""')}"`
  ].map(v=>v==null?"":v).join(","));
  const csv=[cols.join(","), ...rows].join("\n");
  const blob=new Blob([csv],{type:"text/csv"});
@@ -2351,7 +2355,8 @@ function updateStartPageLinks(){
   hasStoredHistory = Array.isArray(parsed) && parsed.length > 0;
  }catch(e){}
 
- const hasCurrentResult = !!currentResult();
+ let hasCurrentResult = false;
+ try{ hasCurrentResult = !!(state.history && state.history.length > 0 && state.history[state.history.length-1]); }catch(e){}
  const hasData = hasHistory || hasStoredHistory || hasCurrentResult;
 
  wrap.style.display = hasData ? "block" : "none";
@@ -2388,14 +2393,18 @@ function isTestSuccess(r){ return (r||"").toLowerCase().startsWith("convergent")
 function getCognitivePerformanceTableText(result){
  if((result.testMode||"mode1")!=="mode1") return "Not used in this mode.";
  const cpi = result.cognitivePerformanceIndex!=null ? Number(result.cognitivePerformanceIndex) : null;
+ const best = Number(settings.cpiBestMs)||900;
+ const worst = Number(settings.cpiWorstMs)||3400;
+ const span = worst - best;
+ const cpiToMs = c => Math.round(best + ((100-c)/100)*span);
  const rows = [
-  {band:7,cpi:100,ms:800},
-  {band:6,cpi:80,ms:1240},
-  {band:5,cpi:75,ms:1350},
-  {band:4,cpi:50,ms:1900},
-  {band:3,cpi:25,ms:2450},
-  {band:2,cpi:11,ms:2758},
-  {band:1,cpi:0,ms:3000},
+  {band:7,cpi:100,ms:cpiToMs(100)},
+  {band:6,cpi:80,ms:cpiToMs(80)},
+  {band:5,cpi:75,ms:cpiToMs(75)},
+  {band:4,cpi:50,ms:cpiToMs(50)},
+  {band:3,cpi:25,ms:cpiToMs(25)},
+  {band:2,cpi:11,ms:cpiToMs(11)},
+  {band:1,cpi:0,ms:cpiToMs(0)},
  ];
  return rows.map(r=>{
    const mark = (cpi!=null && Math.abs(cpi-r.cpi)===Math.min(...rows.map(x=>Math.abs(cpi-x.cpi))) && Math.abs(cpi-r.cpi)<=(rows.length?100:0)) ? "  ← YOUR SCORE" : "";
@@ -3706,13 +3715,10 @@ updateMetrics();
 if ("serviceWorker" in navigator) {
  window.addEventListener("load", async () => {
   try{
-   const regs = await navigator.serviceWorker.getRegistrations();
-   for(const r of regs) await r.unregister();
-   const keys = await caches.keys();
-   for(const k of keys) await caches.delete(k);
-   console.log("V257 recovery build: old service workers unregistered and caches cleared.");
+   await navigator.serviceWorker.register(`./sw.js?v=${RELEASE}`);
+   console.log(`V${RELEASE} service worker registered.`);
   }catch(err){
-   console.warn("V257 recovery cleanup failed:", err);
+   console.warn("Service worker registration failed:", err);
   }
  });
 }
