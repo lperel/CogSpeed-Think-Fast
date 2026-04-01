@@ -1,8 +1,8 @@
 // ═══════════════════════════════════════════════════
-// CogSpeed V278
+// CogSpeed V279
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V278";
+const APP_VERSION = "V279";
 const RELEASE = APP_VERSION.replace(/^V/i, "");
 const STORAGE_PREFIX = `cogspeed_v${RELEASE}`;
 
@@ -3856,6 +3856,7 @@ function syncOutcomeStatusText(result){
 }
 
 function openSpeedometerPage(){
+ try{ wireEmailSelectControls(); }catch(err){}
  const last = state.history && state.history.length ? state.history[state.history.length-1] : null;
  if(last){
   hideAllOverlays();
@@ -3919,29 +3920,11 @@ function openEmailSelectPage(){
  }
 }
 
-const _ses=$("speedEmailSelectBtn"); if(_ses) _ses.onclick=()=>{ $("outcomeOverlay").classList.add("hidden"); openEmailSelectPage(); };
-const _esb=$("emailSpeedometerBtn"); if(_esb) _esb.onclick=()=>{ $("emailOverlay").classList.add("hidden"); openSpeedometerPage(); };
-const _est=$("emailStartBtn"); if(_est) _est.onclick=()=>{ $("emailOverlay").classList.add("hidden"); goToStartPage(); try{ updateStartPageLinks(); }catch(e){} };
-const _esr=$("emailSelectRecipientBtn"); if(_esr) _esr.onclick=()=>{ const info=$("emailSelectInfo"); if(info) info.textContent="Recipient selection link ready. Use ← Speedometer to return."; };
-
-const _edata=$("emailDataSelect"); if(_edata) _edata.onchange=()=>{
- const info=$("emailSelectInfo");
- if(!info) return;
- const map = {
-  summary:"Results Summary selected.",
-  trial_log:"Trial Detail Log selected.",
-  ranked:"Ranked Target / Position Averages selected.",
-  perf_time:"Performance over Date and Time selected.",
-  rate_rt:"Presentation Rate vs Response Time selected.",
-  all:"All available data selected."
- };
- info.textContent = map[_edata.value] || "Data selection ready. Use ← Speedometer to return.";
-};
 
 window.addEventListener("load",()=>{ try{ updateStartPageLinks(); }catch(e){}; });
 
 
-/* ===== Performance vs Time graph override (V278) ===== */
+/* ===== Performance vs Time graph override (V279) ===== */
 const perfGraphState = {
   preset: "last14",
   fromDate: "",
@@ -4309,4 +4292,83 @@ function openPerformanceOverTimePage(){
   wirePerfGraphControls();
   drawPerformanceOverTimeChart($("perfTimeGraph"), state.history||[]);
 }
-/* ===== end Performance vs Time graph override (V278) ===== */
+/* ===== end Performance vs Time graph override (V279) ===== */
+
+
+/* ===== E-mail Select wiring override (V279) ===== */
+function openEmailSelectPage(){
+  hideAllOverlays();
+  const ov = $("emailOverlay");
+  if(ov) ov.classList.remove("hidden");
+  const info = $("emailSelectInfo");
+  if(info){
+    info.textContent = "Use the controls below to choose recipient and which results data to include.";
+  }
+}
+
+function wireEmailSelectControls(){
+  const speedBtn = $("speedEmailSelectBtn");
+  const backSpeed = $("emailSpeedometerBtn");
+  const backStart = $("emailStartBtn");
+  const recipBtn = $("emailSelectRecipientBtn");
+  const dataSel = $("emailDataSelect");
+  const info = $("emailSelectInfo");
+
+  if(speedBtn && speedBtn.dataset.emailWired !== "1"){
+    speedBtn.dataset.emailWired = "1";
+    speedBtn.onclick = (e)=>{
+      if(e) e.preventDefault();
+      openEmailSelectPage();
+    };
+  }
+
+  if(backSpeed && backSpeed.dataset.emailWired !== "1"){
+    backSpeed.dataset.emailWired = "1";
+    backSpeed.onclick = (e)=>{
+      if(e) e.preventDefault();
+      const ov = $("emailOverlay");
+      if(ov) ov.classList.add("hidden");
+      openSpeedometerPage();
+    };
+  }
+
+  if(backStart && backStart.dataset.emailWired !== "1"){
+    backStart.dataset.emailWired = "1";
+    backStart.onclick = (e)=>{
+      if(e) e.preventDefault();
+      const ov = $("emailOverlay");
+      if(ov) ov.classList.add("hidden");
+      goToStartPage();
+      try{ updateStartPageLinks(); }catch(err){}
+    };
+  }
+
+  if(recipBtn && recipBtn.dataset.emailWired !== "1"){
+    recipBtn.dataset.emailWired = "1";
+    recipBtn.onclick = (e)=>{
+      if(e) e.preventDefault();
+      if(info) info.textContent = "Recipient selection ready.";
+    };
+  }
+
+  if(dataSel && dataSel.dataset.emailWired !== "1"){
+    dataSel.dataset.emailWired = "1";
+    dataSel.onchange = ()=>{
+      if(!info) return;
+      const labels = {
+        summary: "Results Summary selected.",
+        trial_log: "Trial Detail Log selected.",
+        ranked: "Ranked Target / Position Averages selected.",
+        perf_time: "Performance over Date and Time selected.",
+        rate_rt: "Presentation Rate vs Response Time selected.",
+        all: "All available data selected."
+      };
+      info.textContent = labels[dataSel.value] || "Data selection ready.";
+    };
+  }
+}
+
+window.addEventListener("load", ()=>{
+  try{ wireEmailSelectControls(); }catch(err){}
+});
+/* ===== end E-mail Select wiring override (V279) ===== */
