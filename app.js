@@ -1,8 +1,8 @@
 // ═══════════════════════════════════════════════════
-// CogSpeed V275
+// CogSpeed V277
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V275";
+const APP_VERSION = "V277";
 const RELEASE = APP_VERSION.replace(/^V/i, "");
 const STORAGE_PREFIX = `cogspeed_v${RELEASE}`;
 
@@ -3941,7 +3941,7 @@ const _edata=$("emailDataSelect"); if(_edata) _edata.onchange=()=>{
 window.addEventListener("load",()=>{ try{ updateStartPageLinks(); }catch(e){}; });
 
 
-/* ===== Performance vs Time graph override (V275) ===== */
+/* ===== Performance vs Time graph override (V277) ===== */
 const perfGraphState = {
   preset: "last14",
   fromDate: "",
@@ -3950,6 +3950,9 @@ const perfGraphState = {
 
 function perfSessionMs(r){
   if(!r) return null;
+  const endReason = String(r.endReason || "");
+  const failed = /^FAILED\b/i.test(endReason) || /^Failed\b/i.test(endReason) || endReason.includes("Retest") || endReason.includes("Practice!");
+  if(failed) return 3000;
   const candidates = [
     r.averageLast2BlockingScoresMs,
     r.pacedResponseMeanMs,
@@ -3966,6 +3969,9 @@ function perfSessionMs(r){
 
 function perfSessionCpi(r){
   if(!r) return null;
+  const endReason = String(r.endReason || "");
+  const failed = /^FAILED\b/i.test(endReason) || /^Failed\b/i.test(endReason) || endReason.includes("Retest") || endReason.includes("Practice!");
+  if(failed) return 0;
   const explicit = Number(r.cognitivePerformanceIndex);
   if(Number.isFinite(explicit)) return explicit;
   const ms = perfSessionMs(r);
@@ -4225,13 +4231,28 @@ function drawPerformanceOverTimeChart(canvas,hist){
       if(v==null) return;
       const x=xOf(i), y=yFunc(v,i);
       ctx.fillStyle=color;
-      if(style==="square"){
-        ctx.fillRect(x-4,y-4,8,8);
-      }else if(style==="diamond"){
+      if(style==="diamond"){
         ctx.save(); ctx.translate(x,y); ctx.rotate(Math.PI/4); ctx.fillRect(-4,-4,8,8); ctx.restore();
       }else{
         ctx.beginPath(); ctx.arc(x,y,4.2,0,Math.PI*2); ctx.fill();
       }
+    });
+  }
+
+  function drawCombinedPerfMarkers(cpiVals, mbsVals){
+    cpiVals.forEach((cpi,i)=>{
+      const mbs = mbsVals[i];
+      if(cpi==null || mbs==null) return;
+      const x = xOf(i), y = yLeftFromCpi(cpi);
+      ctx.beginPath();
+      ctx.arc(x,y,7.2,0,Math.PI*2);
+      ctx.strokeStyle="#ffb357";
+      ctx.lineWidth=3;
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(x,y,3.6,0,Math.PI*2);
+      ctx.fillStyle="#7fd7ff";
+      ctx.fill();
     });
   }
 
@@ -4248,15 +4269,25 @@ function drawPerformanceOverTimeChart(canvas,hist){
     return;
   }
 
-  drawLine(mbsVals, v=>yLeftFromMs(v), "#ffb357", "square");
-  drawLine(cpiVals, v=>yLeftFromCpi(v), "#7fd7ff", "circle");
   drawLine(spfVals, v=>yRightFromSpf(v), "#88ff88", "diamond");
+  drawCombinedPerfMarkers(cpiVals, mbsVals);
 
   ctx.textAlign="left";
   ctx.font="bold 11px sans-serif";
-  ctx.fillStyle="#7fd7ff"; ctx.fillText("● CPI", PAD.left, PAD.top-14);
-  ctx.fillStyle="#ffb357"; ctx.fillText("■ MBS", PAD.left+64, PAD.top-14);
-  ctx.fillStyle="#88ff88"; ctx.fillText("◆ SP-FS", PAD.left+132, PAD.top-14);
+  ctx.beginPath();
+  ctx.arc(PAD.left+7, PAD.top-18, 7.2, 0, Math.PI*2);
+  ctx.strokeStyle="#ffb357";
+  ctx.lineWidth=3;
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.arc(PAD.left+7, PAD.top-18, 3.6, 0, Math.PI*2);
+  ctx.fillStyle="#7fd7ff";
+  ctx.fill();
+  ctx.fillStyle="#7fd7ff";
+  ctx.fillText("Blue dot = CPI", PAD.left+20, PAD.top-14);
+  ctx.fillStyle="#ffb357";
+  ctx.fillText("Orange circle = MBS", PAD.left+118, PAD.top-14);
+  ctx.fillStyle="#88ff88"; ctx.fillText("◆ SP-FS", PAD.left+278, PAD.top-14);
 }
 
 function openPerformanceOverTimePage(){
@@ -4266,4 +4297,4 @@ function openPerformanceOverTimePage(){
   wirePerfGraphControls();
   drawPerformanceOverTimeChart($("perfTimeGraph"), state.history||[]);
 }
-/* ===== end Performance vs Time graph override (V275) ===== */
+/* ===== end Performance vs Time graph override (V277) ===== */
