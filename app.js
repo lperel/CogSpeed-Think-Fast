@@ -1,8 +1,8 @@
 // ═══════════════════════════════════════════════════
-// CogSpeed V260
+// CogSpeed V261
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V260";
+const APP_VERSION = "V261";
 const RELEASE = APP_VERSION.replace(/^V/i, "");
 const STORAGE_PREFIX = `cogspeed_v${RELEASE}`;
 
@@ -247,6 +247,44 @@ function updateCPIDisplay(avg){
   return;
  }
  cpiOut.textContent=avg!=null?computeCPI(avg).toFixed(0):"—";
+ }
+
+// ─── Timers ───
+function clearTimer(){ if(state.trialTimer) clearTimeout(state.trialTimer); state.trialTimer=null; }
+function clearNoResponseTimer(){ if(state.absoluteNoResponseTimer) clearTimeout(state.absoluteNoResponseTimer); state.absoluteNoResponseTimer=null; }
+function clearMaxTestTimer(){ if(state.maxTestTimer) clearTimeout(state.maxTestTimer); state.maxTestTimer=null; }
+// Absolute "not responding" timer — keeps tests from hanging forever.
+// Calibration trial 1 uses calibrationFirstNoResponseMs (default 10s).
+// Later calibration trials use calibrationNoResponseMs (default 6s).
+// Machine-paced uses machinePacedNoResponseMs (default 15s).
+// Recovery uses recoveryNoResponseMs (default 10s).
+// Fires finish() with a no-response end reason if nothing is tapped in time.
+function armNoResponseTimer(){
+ clearNoResponseTimer();
+ let ms;
+ switch(state.phase){
+  case "recovery":
+  case "terminal_recovery":
+   ms = Number(settings.recoveryNoResponseMs)||10000;
+   break;
+  case "calibration":
+   ms = state.calibrationTrialIndex===0
+    ? (Number(settings.calibrationFirstNoResponseMs)||10000)
+    : (Number(settings.calibrationNoResponseMs)||6000);
+   break;
+  case "paced":
+  case "mode3_paced":
+   // Machine-paced trials are governed by frame timers and block logic, not by absolute no-response timeout.
+   return;
+  default:
+   ms = 10000;
+ }
+ state.absoluteNoResponseTimer=setTimeout(()=>{
+  state.endReason = state.phase==="calibration"
+   ? "NO RESPONSE — Retest"
+   : "NOT RESPONDING IN TIME — Retest";
+  finish();
+ }, ms);
 }
 function armMaxTestTimer(){
  clearMaxTestTimer();
@@ -847,6 +885,7 @@ const modeMetricMs = isMode2() ? (state.selfPacedRTs.length?mean(state.selfPaced
 //  wrong). Increments miss streak → triggers block if ≥2 true misses.
 // ──────────────────────────────────────────────────────────────
 
+
 function openTrial(kind){
  clearTimer();
  clearNoResponseTimer();
@@ -1200,7 +1239,7 @@ function renderFatigueChecklist(){
 // Password-protected (default: 4822). Stays unlocked per session.
 // TRIAL DETAIL: per-trial table with session selector + CSV download.
 // LAST RESULTS: shows summary overlay for most recent test.
-// // BENCHMARK: device timing calibration test.
+// BENCHMARK: device timing calibration test.
 // ──────────────────────────────────────────────────────────────
 function renderAdmin(){
  const w=$("adminSettings"); w.innerHTML="";
@@ -3130,7 +3169,7 @@ function buildHistoryOverlay(sessionIndex){
 buildHistoryOverlay._openSelectedTrial=function(){
  const idx = buildHistoryOverlay._selectedIndex;
  if(idx==null) return;
- null.classList.add("hidden");
+ const _hov=$("historyOverlay"); if(_hov) _hov.classList.add("hidden");
  buildTrialLog(idx);
  $("trialLogOverlay").classList.remove("hidden");
 };
@@ -3676,9 +3715,13 @@ if ("serviceWorker" in navigator) {
  });
 }
 
+
+
 $("summaryRankedBtn").onclick=()=>{ const last=state.history[state.history.length-1]; if(!last) return; buildRankedSummary(last); $("summaryOverlay").classList.add("hidden"); $("rankedOverlay").classList.remove("hidden"); };
 
 try{ updateStartPageLinks(); }catch(e){}
+
+
 
 function renderSpeedometerOutcome(result){
  const outcome = $("outcomeOverlay");
