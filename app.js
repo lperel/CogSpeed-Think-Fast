@@ -2,7 +2,7 @@
 // CogSpeed V173
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V250";
+const APP_VERSION = "V251";
 const RELEASE = APP_VERSION.replace(/^V/i, "");
 const STORAGE_PREFIX = `cogspeed_v${RELEASE}`;
 
@@ -66,7 +66,7 @@ const DEFAULTS={
  initialMeasuredCalibrationTrials:10,
  initialPacedPercent:1.3,
  calibrationStopErrors:4,
- calibrationStopSlowMs:3000,
+ calibrationStopSlowMs:6000,
  cpiBestMs:800,
  cpiWorstMs:3000,
  deviceBenchmarkEnabled:0,
@@ -709,10 +709,10 @@ function failCalibration(reason){ state.endReason=reason; finish(); }
 // ─── CALIBRATION — SELF-PACED ─────────────────────────────────
 // 1 unused + 10 measured self-paced trials.
 // CHECK ADEQUATELY TRAINED: >4 errors → "TOO MANY WRONG RESPONSES"
-// CHECK RESPONSE SPEED: single RT >3000ms → "NOT RESPONDING IN TIME — Practice!"
+// CHECK RESPONSE SPEED: single RT >6000ms → "NOT RESPONDING IN TIME — Practice!"
 // DETERMINE BASELINE RT: avg of 10 measured RTs → paced start duration
 //  (initialPacedPercent=0.70 × avg, clamped to 800ms-maxDurationMs).
-// CONDITION 4: avg RT >3000ms → "NEED MORE PRACTICE!"
+// CONDITION 4: avg RT >6000ms → "NEED MORE PRACTICE!"
 // NO-RESPONSE TIMEOUTS: first trial=20s, subsequent=10s
 // ──────────────────────────────────────────────────────────────
 // finishCalibration() now branches by selected mode:
@@ -3688,9 +3688,9 @@ if ("serviceWorker" in navigator) {
    for(const r of regs) await r.unregister();
    const keys = await caches.keys();
    for(const k of keys) await caches.delete(k);
-   console.log("V250 recovery build: old service workers unregistered and caches cleared.");
+   console.log("V251 recovery build: old service workers unregistered and caches cleared.");
   }catch(err){
-   console.warn("V250 recovery cleanup failed:", err);
+   console.warn("V251 recovery cleanup failed:", err);
   }
  });
 }
