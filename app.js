@@ -1,8 +1,8 @@
 // ═══════════════════════════════════════════════════
-// CogSpeed V281
+// CogSpeed V287
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V281";
+const APP_VERSION = "V287";
 const RELEASE = APP_VERSION.replace(/^V/i, "");
 const STORAGE_PREFIX = `cogspeed_v${RELEASE}`;
 
@@ -732,6 +732,8 @@ function failCalibration(reason){ state.endReason=reason; finish(); }
 // mode2 -> finish after self-paced-only session
 // mode3 -> begin fixed-baseline machine-paced phase using
 //          calibration average × mode3BaselineFactor
+//          IMPORTANT: mode3CalibrationTrials means MEASURED trials;
+//          initialUnusedCalibrationTrials warmups are added on top.
 function finishCalibration(){
  const avg=mean(state.calibrationRTs.length?state.calibrationRTs:state.selfPacedRTs);
  if(isMode2()){
@@ -882,24 +884,30 @@ const modeMetricMs = isMode2() ? (state.selfPacedRTs.length?mean(state.selfPaced
   time:new Date().toISOString(), geo:state.geo
  };
  state.history.push(result);
+localStorage.setItem(`${STORAGE_PREFIX}_history`,JSON.stringify(state.history));
  updateStartPageLinks();
- localStorage.setItem(`${STORAGE_PREFIX}_history`,JSON.stringify(state.history));
- updateStartPageLinks();
- updateCPIDisplay(avg2); setProbeIdle();
+updateCPIDisplay(avg2); setProbeIdle();
  // Build the display text (also used for email)
  buildSummary(result);
  drawModeResultChart($("summaryModeChart"), result);
  const fgBtn=$("summaryFullGraphBtn");
+ const hasGraphableModeData = !!(
+  result &&
+  (
+   Array.isArray(result.mode1Trials) && result.mode1Trials.length ||
+   Array.isArray(result.rtLog) && result.rtLog.length ||
+   result.testMode==="mode1" || result.testMode==="mode2" || result.testMode==="mode3"
+  )
+ );
  if(fgBtn){
-  fgBtn.style.display = (result.testMode==="mode2" || result.testMode==="mode3") ? "" : "none";
+  fgBtn.classList.toggle("hidden", !hasGraphableModeData);
  }
  const fullCanvas=$("fullModeGraph");
- if(fullCanvas && (result.testMode==="mode2" || result.testMode==="mode3")){
+ if(fullCanvas && hasGraphableModeData){
   drawModeResultChart(fullCanvas, result);
  }
  state.lastResultText = $("summaryText") ? $("summaryText").textContent : "";
  showResultsPage();
- updateStartPageLinks();
 }
 
 // ─── Open trial ───
@@ -937,7 +945,7 @@ function openTrial(kind){
  updateMetrics();
 
  if(kind==="calibration"){
-  const total=isMode2()?(Number(settings.mode2TrialLimit)||150):isMode3()?(Number(settings.mode3CalibrationTrials)||10):(settings.initialUnusedCalibrationTrials+settings.initialMeasuredCalibrationTrials), idx=state.calibrationTrialIndex+1;
+  const total=isMode2()?(Number(settings.mode2TrialLimit)||150):isMode3()?((Number(settings.initialUnusedCalibrationTrials)||2)+(Number(settings.mode3CalibrationTrials)||10)):(settings.initialUnusedCalibrationTrials+settings.initialMeasuredCalibrationTrials), idx=state.calibrationTrialIndex+1;
   phaseLabel.textContent=`Cal ${idx}/${total}`;
   setStatus(isMode1()?(idx<=settings.initialUnusedCalibrationTrials?"Self-paced (unused)":"Self-paced (measured)"):"Self-paced");
  }else if(kind==="paced"){
@@ -1090,7 +1098,8 @@ function handleTap(index){
    return;
   }
   if(isMode3()){
-   if(state.calibrationTrialIndex >= (Number(settings.mode3CalibrationTrials)||10)){ state.endReason="Required responses reached"; finishCalibration(); }
+   const mode3TotalCal = (Number(settings.initialUnusedCalibrationTrials)||2) + (Number(settings.mode3CalibrationTrials)||10);
+   if(state.calibrationTrialIndex >= mode3TotalCal){ state.endReason="Required responses reached"; finishCalibration(); }
    else openTrial("calibration");
    return;
   }
@@ -1529,226 +1538,6 @@ function getSessionUtcMs(r){
  return 0;
 }
 
-function drawPerformanceOverTimeChart(canvas,hist){
- if(!canvas) return;
- const dpr = window.devicePixelRatio || 1;
- const cssW = Math.max(320, Math.round(canvas.clientWidth || canvas.offsetWidth || 900));
- const cssH = Math.max(320, Math.round(canvas.clientHeight || 520));
- canvas.width = Math.round(cssW * dpr);
- canvas.height = Math.round(cssH * dpr);
- const ctx = canvas.getContext("2d");
- ctx.setTransform(dpr,0,0,dpr,0,0);
-
- const W = cssW, H = cssH;
- ctx.clearRect(0,0,W,H);
- ctx.fillStyle="#081321";
- ctx.fillRect(0,0,W,H);
-
- if(!hist || !hist.length){
-  ctx.fillStyle="#d7e7f8";
-  ctx.font="bold 16px sans-serif";
-  ctx.textAlign="center";
-  ctx.fillText("No session history yet", W/2, H/2);
-  return;
- }
-
- const last = hist[hist.length-1] || {};
- const lastMode = last.testMode || "mode1";
- const lastSubject = last.subjectId || "";
- const baseSeries = (hist||[]).slice().sort((a,b)=>getSessionUtcMs(a)-getSessionUtcMs(b));
- const slice = baseSeries;
- const n = slice.length;
-
- const bestMs = Number(settings.cpiBestMs)||900, worstMs = Number(settings.cpiWorstMs)||3400;
- const PAD = {top:72,right:76,bottom:n===1?64:92,left:126};
- const cW = W - PAD.left - PAD.right;
- const cH = H - PAD.top - PAD.bottom;
-
- function xOf(i){
-  if(n<=1) return PAD.left + cW/2;
-  return PAD.left + (i/(n-1))*cW;
- }
- function yLeftFromCpi(v){ return PAD.top + cH - ((v-0)/100)*cH; }
- function cpiFromMs(ms){
-  const span=(worstMs-bestMs)||1;
-  return Math.max(0, Math.min(100, 100*(worstMs-ms)/span));
- }
- function yLeftFromMs(ms){ return yLeftFromCpi(cpiFromMs(ms)); }
- function yRightFromSpf(v){ return PAD.top + cH - (((v-1)/6))*cH; }
-
- // grid lines follow CPI positions on shared plot area
- ctx.strokeStyle="rgba(127,215,255,0.16)";
- ctx.lineWidth=1;
- [0,25,50,75,100].forEach(v=>{
-  const y=yLeftFromCpi(v);
-  ctx.beginPath(); ctx.moveTo(PAD.left,y); ctx.lineTo(PAD.left+cW,y); ctx.stroke();
- });
-
- // left dual axis tick marks and labels: outer=MBS, inner=CPI
- const cpiTicks = [100,75,50,25,0];
- const mbsTicks = cpiTicks.map(cpi => Math.round(bestMs + ((100-cpi)/100)*(worstMs-bestMs)));
- ctx.font="11px sans-serif";
- ctx.textAlign="right";
-
- cpiTicks.forEach((cpi, i)=>{
-  const y = yLeftFromCpi(cpi);
-
-  // outer MBS tick/label
-  ctx.strokeStyle="#ffb357";
-  ctx.beginPath();
-  ctx.moveTo(PAD.left-46, y);
-  ctx.lineTo(PAD.left-36, y);
-  ctx.stroke();
-  ctx.fillStyle="#ffb357";
-  ctx.fillText(String(mbsTicks[i]), PAD.left-52, y+4);
-
-  // inner CPI tick/label
-  ctx.strokeStyle="#7fd7ff";
-  ctx.beginPath();
-  ctx.moveTo(PAD.left-16, y);
-  ctx.lineTo(PAD.left-6, y);
-  ctx.stroke();
-  ctx.fillStyle="#7fd7ff";
-  ctx.fillText(String(cpi), PAD.left-22, y+4);
- });
-
- // right axis SP-FS
- ctx.textAlign="left";
- ctx.fillStyle="#88ff88";
- [7,6,5,4,3,2,1].forEach(v=>{
-  const y=yRightFromSpf(v);
-  ctx.strokeStyle="#88ff88";
-  ctx.beginPath();
-  ctx.moveTo(PAD.left+cW+6, y);
-  ctx.lineTo(PAD.left+cW+16, y);
-  ctx.stroke();
-  ctx.fillText(String(v), PAD.left+cW+22, y+4);
- });
-
- // title/meta
- ctx.fillStyle="#b7d9ef";
- ctx.textAlign="left";
- ctx.font="bold 16px sans-serif";
- ctx.fillText("Performance over Date and Time", PAD.left, 24);
-
- ctx.font="12px sans-serif";
- ctx.fillStyle="#d7e7f8";
- const subjectCount = new Set(slice.map(r => (r.subjectId||"—"))).size;
- ctx.fillText(`All sessions sequentially    Subjects: ${subjectCount}    Sessions: ${n}    Chronology: UTC`, PAD.left, 46);
-
- // axis titles
- ctx.save();
- ctx.translate(18, PAD.top + cH/2);
- ctx.rotate(-Math.PI/2);
- ctx.fillStyle="#ffb357";
- ctx.textAlign="center";
- ctx.font="bold 11px sans-serif";
- ctx.fillText("MBS ms", 0, 0);
- ctx.restore();
-
- ctx.save();
- ctx.translate(42, PAD.top + cH/2);
- ctx.rotate(-Math.PI/2);
- ctx.fillStyle="#7fd7ff";
- ctx.textAlign="center";
- ctx.font="bold 11px sans-serif";
- ctx.fillText("CPI", 0, 0);
- ctx.restore();
-
- ctx.save();
- ctx.translate(W-20, PAD.top + cH/2);
- ctx.rotate(Math.PI/2);
- ctx.fillStyle="#88ff88";
- ctx.textAlign="center";
- ctx.font="bold 12px sans-serif";
- ctx.fillText("SP-FS 1–7 (up is better)", 0, 0);
- ctx.restore();
-
- // x-axis baseline
- ctx.strokeStyle="rgba(79,111,153,0.35)";
- ctx.beginPath();
- ctx.moveTo(PAD.left, PAD.top+cH);
- ctx.lineTo(PAD.left+cW, PAD.top+cH);
- ctx.stroke();
-
- // x labels
- ctx.font="10px sans-serif";
- ctx.fillStyle="#9ab6d3";
- if(n===1){
-  const d=new Date(slice[0].time);
-  const label=`${d.toLocaleDateString("en-US",{month:"numeric",day:"numeric",year:"2-digit"})} ${d.toLocaleTimeString("en-US",{hour:"2-digit",minute:"2-digit"})}`;
-  ctx.textAlign="center";
-  ctx.fillText(label, xOf(0), PAD.top+cH+26);
- }else{
-  ctx.textAlign="right";
-  const labelStep = Math.max(1, Math.ceil(n/12));
-  slice.forEach((r,i)=>{
-   if(i % labelStep !== 0 && i !== n-1) return;
-   const x=xOf(i), y=PAD.top+cH+8;
-   const d=new Date(r.time);
-   const label=`${d.toLocaleDateString("en-US",{month:"numeric",day:"numeric"})} ${d.toLocaleTimeString("en-US",{hour:"2-digit",minute:"2-digit"})}`;
-   ctx.save(); ctx.translate(x,y); ctx.rotate(-Math.PI/4); ctx.fillText(label,0,0); ctx.restore();
-  });
- }
-
- function drawLine(vals, yFunc, color, style){
-  ctx.strokeStyle=color;
-  ctx.lineWidth=2.5;
-  ctx.beginPath();
-  let started=false;
-  vals.forEach((v,i)=>{
-   if(v==null){ started=false; return; }
-   const x=xOf(i), y=yFunc(v,i);
-   if(!started){ ctx.moveTo(x,y); started=true; } else { ctx.lineTo(x,y); }
-  });
-  if(vals.filter(v=>v!=null).length>1) ctx.stroke();
-
-  vals.forEach((v,i)=>{
-   if(v==null) return;
-   const x=xOf(i), y=yFunc(v,i);
-   ctx.fillStyle=color;
-   if(style==="square"){
-    ctx.fillRect(x-4,y-4,8,8);
-   }else if(style==="diamond"){
-    ctx.save(); ctx.translate(x,y); ctx.rotate(Math.PI/4); ctx.fillRect(-4,-4,8,8); ctx.restore();
-   }else{
-    ctx.beginPath(); ctx.arc(x,y,4.2,0,Math.PI*2); ctx.fill();
-   }
-  });
- }
-
- const cpiVals = slice.map(r=>graphCpiForSession(r));
- const mbsVals = slice.map(r=>graphMetricMsForSession(r));
- const spfVals = slice.map(r=>r && r.samnPerelli && r.samnPerelli.score!=null ? Number(r.samnPerelli.score) : null);
-
- const hasAnyMetric = cpiVals.some(v=>v!=null) || mbsVals.some(v=>v!=null) || spfVals.some(v=>v!=null);
- if(!hasAnyMetric){
-  ctx.fillStyle="#d7e7f8";
-  ctx.font="bold 15px sans-serif";
-  ctx.textAlign="center";
-  ctx.fillText("No graphable session values yet", PAD.left + cW/2, PAD.top + cH/2);
-  return;
- }
-
- function yLeftFromCpiVisible(v,i){
-  const base = yLeftFromCpi(v);
-  const m = mbsVals[i];
-  if(m==null) return base;
-  const delta = Math.abs(base - yLeftFromMs(m));
-  return delta < 6 ? base - 6 : base;
- }
-
- drawLine(mbsVals, v=>yLeftFromMs(v), "#ffb357", "square");
- drawLine(cpiVals, (v,i)=>yLeftFromCpiVisible(v,i), "#7fd7ff", "circle");
- drawLine(spfVals, v=>yRightFromSpf(v), "#88ff88", "diamond");
-
- // legend
- ctx.textAlign="left";
- ctx.font="bold 11px sans-serif";
- ctx.fillStyle="#7fd7ff"; ctx.fillText("● CPI", PAD.left, PAD.top-14);
- ctx.fillStyle="#ffb357"; ctx.fillText("■ MBS", PAD.left+64, PAD.top-14);
- ctx.fillStyle="#88ff88"; ctx.fillText("◆ SP-FS", PAD.left+132, PAD.top-14);
-}
 
 // ─── RT scatter chart ───
 function drawRTScatterChart(canvas,rtLog,blocks,meanRT,sdRT){
@@ -3356,19 +3145,6 @@ function buildTutProbe(pulsing){
  </div>`;
 }
 
-function buildTutRespGrid(flashPos){
- let html = '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;width:100%;max-width:380px">';
- for(let i=0;i<6;i++){
-  const isFL = flashPos===i;
-  const glow  = isFL ? "drop-shadow(0 0 8px rgba(0,255,136,0.9))" : "none";
-  const border = isFL ? "2px solid #00ff88" : "2px solid transparent";
-  html += `<div style="aspect-ratio:1;border-radius:10px;border:${border};filter:${glow};position:relative;min-height:104px">
-   ${buildGearSVG(i+1, null, "large", "")}
-  </div>`;
- }
- html += '</div>';
- return html;
-}
 
 function buildTutGearGridAnimated(showPatterns){
  let html = `<style>
@@ -3823,11 +3599,9 @@ if ("serviceWorker" in navigator) {
 }
 
 
-
 $("summaryRankedBtn").onclick=()=>{ const last=state.history[state.history.length-1]; if(!last) return; buildRankedSummary(last); $("summaryOverlay").classList.add("hidden"); $("rankedOverlay").classList.remove("hidden"); };
 
 try{ updateStartPageLinks(); }catch(e){}
-
 
 
 function renderSpeedometerOutcome(result){
@@ -3883,12 +3657,6 @@ $("trialLogCloseBtn").onclick=()=>{ $("trialLogOverlay").classList.add("hidden")
 
 const _rrab=$("rateRtAdminBtn"); if(_rrab) _rrab.onclick=()=>{ $("rateRtOverlay").classList.add("hidden"); $("adminOverlay").classList.remove("hidden"); if(_adminUnlocked){ $("adminGate").classList.add("hidden"); $("adminBody").classList.remove("hidden"); renderAdmin(); } else { $("adminGate").classList.remove("hidden"); $("adminBody").classList.add("hidden"); $("adminPass").value=""; } };
 
-function openPerformanceOverTimePage(){
- hideAllOverlays();
- const ov=$("perfTimeOverlay");
- if(ov) ov.classList.remove("hidden");
- drawPerformanceOverTimeChart($("perfTimeGraph"), state.history||[]);
-}
 
 const _apt=$("adminPerfTimeBtn"); if(_apt) _apt.onclick=()=>{ $("adminOverlay").classList.add("hidden"); openPerformanceOverTimePage(); };
 const _spt=$("speedPerfTimeBtn"); if(_spt) _spt.onclick=()=>{ $("outcomeOverlay").classList.add("hidden"); openPerformanceOverTimePage(); };
@@ -3911,21 +3679,12 @@ const _ssp=$("speedStartPageBtn"); if(_ssp) _ssp.onclick=()=>{ $("outcomeOverlay
 // Opens from Speedometer. Provides recipient selection and a
 // dropdown for which results data to include in the email.
 // Includes links back to Speedometer and Start.
-function openEmailSelectPage(){
- hideAllOverlays();
- const ov = $("emailOverlay");
- if(ov) ov.classList.remove("hidden");
- const info = $("emailSelectInfo");
- if(info){
-  info.textContent = "Use the links above to choose who receives the e-mail and which results data should be included.";
- }
-}
 
 
 window.addEventListener("load",()=>{ try{ updateStartPageLinks(); }catch(e){}; });
 
 
-/* ===== Performance vs Time graph override (V281) ===== */
+/* ===== Performance vs Time graph override (V287) ===== */
 const perfGraphState = {
   preset: "last14",
   fromDate: "",
@@ -4293,10 +4052,10 @@ function openPerformanceOverTimePage(){
   wirePerfGraphControls();
   drawPerformanceOverTimeChart($("perfTimeGraph"), state.history||[]);
 }
-/* ===== end Performance vs Time graph override (V281) ===== */
+/* ===== end Performance vs Time graph override (V287) ===== */
 
 
-/* ===== E-mail Select wiring override (V281) ===== */
+/* ===== E-mail Select wiring override (V287) ===== */
 function openEmailSelectPage(){
   hideAllOverlays();
   const ov = $("emailOverlay");
@@ -4375,10 +4134,10 @@ window.addEventListener("load", ()=>{
   try{ wireEmailSelectControls(); }catch(err){}
  try{ wireEmailDraftAction(); }catch(err){}
 });
-/* ===== end E-mail Select wiring override (V281) ===== */
+/* ===== end E-mail Select wiring override (V287) ===== */
 
 
-/* ===== E-mail draft action override (V281) ===== */
+/* ===== E-mail draft action override (V287) ===== */
 function getEmailRecipient(){
   const fromProfile = (state.profile && state.profile.email) ? String(state.profile.email).trim() : "";
   const fromInput = ($("subjectIdInput") && $("subjectIdInput").value) ? String($("subjectIdInput").value).trim() : "";
@@ -4457,57 +4216,15 @@ function buildEmailBodyFromSelection(){
   return state.lastResultText || JSON.stringify(last||{}, null, 2);
 }
 
-function openSelectedEmailDraft(){
-  const to = getEmailRecipient();
-  const info = $("emailSelectInfo");
-  const recipInfo = $("emailRecipientInfo");
-  if(recipInfo){
-    recipInfo.textContent = to ? `Recipient: ${to}` : "Recipient: none selected";
-  }
-  if(!to){
-    if(info) info.textContent = "No recipient email found. Enter an email on the Start/Profile page first.";
-    return;
-  }
-  const body = buildEmailBodyFromSelection().replace(/\n/g,"\r\n");
-  const subject = `CogSpeed® ${APP_VERSION} Results`;
-  window.location.href = `mailto:${encodeURIComponent(to)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-}
-
-function wireEmailDraftAction(){
-  const openBtn = $("emailOpenDraftBtn");
-  const recipBtn = $("emailSelectRecipientBtn");
-  const recipInfo = $("emailRecipientInfo");
-  const info = $("emailSelectInfo");
-  if(recipInfo){
-    const to = getEmailRecipient();
-    recipInfo.textContent = to ? `Recipient: ${to}` : "Recipient: none selected";
-  }
-  if(recipBtn && recipBtn.dataset.recipientWired !== "1"){
-    recipBtn.dataset.recipientWired = "1";
-    recipBtn.onclick = (e)=>{
-      if(e) e.preventDefault();
-      const to = getEmailRecipient();
-      if(recipInfo) recipInfo.textContent = to ? `Recipient: ${to}` : "Recipient: none selected";
-      if(info) info.textContent = to ? "Recipient ready." : "No recipient email found yet.";
-    };
-  }
-  if(openBtn && openBtn.dataset.emailDraftWired !== "1"){
-    openBtn.dataset.emailDraftWired = "1";
-    openBtn.onclick = (e)=>{
-      if(e) e.preventDefault();
-      openSelectedEmailDraft();
-    };
-  }
-}
 
 window.addEventListener("load", ()=>{
   try{ wireEmailDraftAction(); }catch(err){}
   try{ syncEditableEmailRecipient(); }catch(err){}
 });
-/* ===== end E-mail draft action override (V281) ===== */
+/* ===== end E-mail draft action override (V287) ===== */
 
 
-/* ===== Editable recipient field override (V281) ===== */
+/* ===== Editable recipient field override (V287) ===== */
 function getEditableEmailRecipient(){
   const input = $("emailRecipientInput");
   const typed = input && input.value ? String(input.value).trim() : "";
@@ -4572,4 +4289,4 @@ function wireEmailDraftAction(){
   }
 }
 window.addEventListener("load", ()=>{ try{ syncEditableEmailRecipient(); }catch(err){}; });
-/* ===== end Editable recipient field override (V281) ===== */
+/* ===== end Editable recipient field override (V287) ===== */
