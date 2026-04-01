@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
   <meta name="theme-color" content="#0b1830"/>
   <link rel="manifest" href="manifest.json"/>
-  <title>CogSpeed® V280</title>
+  <title>CogSpeed® V281</title>
     <style>
 
     :root{--bg:#091426;--bg2:#132746;--panel:#0d1b33;--panel2:#10213e;--text:#f5fbff;--muted:#d7e7f8;--edge:#4f6f99;--accent:#7fd7ff;--probe:#00f0ff}
@@ -636,7 +636,10 @@
   <div class="modal" style="max-width:min(94vw,760px)">
     <div style="text-align:center;margin-bottom:10px"><span class="badge">E-mail Select</span></div>
     <div style="display:grid;gap:10px">
-      <button class="ctrl-btn" id="emailSelectRecipientBtn" style="width:100%">1. Select recipient</button>
+      <div style="display:grid;gap:6px">
+      <label for="emailRecipientInput" style="font-size:15px;color:var(--text);font-weight:700">1. Recipient e-mail</label>
+      <input id="emailRecipientInput" type="email" placeholder="name@example.com" style="width:100%;padding:12px 14px;border-radius:12px;border:1px solid var(--edge);background:#081321;color:var(--text);font-size:15px"/>
+    </div>
       <div style="display:grid;gap:6px">
       <label for="emailDataSelect" style="font-size:15px;color:var(--text);font-weight:700">2. Select which data to include</label>
       <select id="emailDataSelect" style="width:100%;padding:12px 14px;border-radius:12px;border:1px solid var(--edge);background:#081321;color:var(--text);font-size:15px">
@@ -761,7 +764,7 @@
     <span id="fatigueOut">—</span>
     <span id="modeLabel">Subject mode</span>
     <span id="phaseLabel">Ready</span>
-    <span id="statusLine">CogSpeed V280</span>
+    <span id="statusLine">CogSpeed V281</span>
     <span id="rateOut">—</span>
     <span id="blocksOut">0</span>
     <span id="recoveryOut">0</span>

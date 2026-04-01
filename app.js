@@ -1,8 +1,8 @@
 // ═══════════════════════════════════════════════════
-// CogSpeed V280
+// CogSpeed V281
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V280";
+const APP_VERSION = "V281";
 const RELEASE = APP_VERSION.replace(/^V/i, "");
 const STORAGE_PREFIX = `cogspeed_v${RELEASE}`;
 
@@ -3925,7 +3925,7 @@ function openEmailSelectPage(){
 window.addEventListener("load",()=>{ try{ updateStartPageLinks(); }catch(e){}; });
 
 
-/* ===== Performance vs Time graph override (V280) ===== */
+/* ===== Performance vs Time graph override (V281) ===== */
 const perfGraphState = {
   preset: "last14",
   fromDate: "",
@@ -4293,10 +4293,10 @@ function openPerformanceOverTimePage(){
   wirePerfGraphControls();
   drawPerformanceOverTimeChart($("perfTimeGraph"), state.history||[]);
 }
-/* ===== end Performance vs Time graph override (V280) ===== */
+/* ===== end Performance vs Time graph override (V281) ===== */
 
 
-/* ===== E-mail Select wiring override (V280) ===== */
+/* ===== E-mail Select wiring override (V281) ===== */
 function openEmailSelectPage(){
   hideAllOverlays();
   const ov = $("emailOverlay");
@@ -4306,6 +4306,7 @@ function openEmailSelectPage(){
     info.textContent = "Use the controls below to choose recipient and which results data to include.";
   }
   try{ wireEmailDraftAction(); }catch(err){}
+  try{ syncEditableEmailRecipient(); }catch(err){}
 }
 
 function wireEmailSelectControls(){
@@ -4374,10 +4375,10 @@ window.addEventListener("load", ()=>{
   try{ wireEmailSelectControls(); }catch(err){}
  try{ wireEmailDraftAction(); }catch(err){}
 });
-/* ===== end E-mail Select wiring override (V280) ===== */
+/* ===== end E-mail Select wiring override (V281) ===== */
 
 
-/* ===== E-mail draft action override (V280) ===== */
+/* ===== E-mail draft action override (V281) ===== */
 function getEmailRecipient(){
   const fromProfile = (state.profile && state.profile.email) ? String(state.profile.email).trim() : "";
   const fromInput = ($("subjectIdInput") && $("subjectIdInput").value) ? String($("subjectIdInput").value).trim() : "";
@@ -4501,5 +4502,74 @@ function wireEmailDraftAction(){
 
 window.addEventListener("load", ()=>{
   try{ wireEmailDraftAction(); }catch(err){}
+  try{ syncEditableEmailRecipient(); }catch(err){}
 });
-/* ===== end E-mail draft action override (V280) ===== */
+/* ===== end E-mail draft action override (V281) ===== */
+
+
+/* ===== Editable recipient field override (V281) ===== */
+function getEditableEmailRecipient(){
+  const input = $("emailRecipientInput");
+  const typed = input && input.value ? String(input.value).trim() : "";
+  if(typed) return typed;
+  const fromProfile = (state.profile && state.profile.email) ? String(state.profile.email).trim() : "";
+  const fromInput = ($("subjectIdInput") && $("subjectIdInput").value) ? String($("subjectIdInput").value).trim() : "";
+  return fromProfile || fromInput || "";
+}
+
+function syncEditableEmailRecipient(){
+  const input = $("emailRecipientInput");
+  const recipInfo = $("emailRecipientInfo");
+  if(!input) return;
+  if(!input.value){
+    const seeded = getEditableEmailRecipient();
+    if(seeded) input.value = seeded;
+  }
+  const current = input.value ? String(input.value).trim() : "";
+  if(recipInfo){
+    recipInfo.textContent = current ? `Recipient: ${current}` : "Recipient: none entered";
+  }
+}
+
+function openSelectedEmailDraft(){
+  const to = getEditableEmailRecipient();
+  const info = $("emailSelectInfo");
+  const recipInfo = $("emailRecipientInfo");
+  if(recipInfo){
+    recipInfo.textContent = to ? `Recipient: ${to}` : "Recipient: none entered";
+  }
+  if(!to){
+    if(info) info.textContent = "Enter a recipient email first.";
+    return;
+  }
+  const body = buildEmailBodyFromSelection().replace(/\n/g,"\r\n");
+  const subject = `CogSpeed® ${APP_VERSION} Results`;
+  window.location.href = `mailto:${encodeURIComponent(to)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+}
+
+function wireEmailDraftAction(){
+  const input = $("emailRecipientInput");
+  const openBtn = $("emailOpenDraftBtn");
+  const info = $("emailSelectInfo");
+  if(input && input.dataset.recipientInputWired !== "1"){
+    input.dataset.recipientInputWired = "1";
+    syncEditableEmailRecipient();
+    input.oninput = ()=>{
+      syncEditableEmailRecipient();
+      if(info) info.textContent = input.value.trim() ? "Recipient ready." : "Enter a recipient email first.";
+    };
+    input.onchange = ()=> syncEditableEmailRecipient();
+  }else{
+    syncEditableEmailRecipient();
+  }
+
+  if(openBtn && openBtn.dataset.emailDraftWired2 !== "1"){
+    openBtn.dataset.emailDraftWired2 = "1";
+    openBtn.onclick = (e)=>{
+      if(e) e.preventDefault();
+      openSelectedEmailDraft();
+    };
+  }
+}
+window.addEventListener("load", ()=>{ try{ syncEditableEmailRecipient(); }catch(err){}; });
+/* ===== end Editable recipient field override (V281) ===== */
