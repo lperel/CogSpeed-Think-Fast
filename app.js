@@ -44,12 +44,12 @@ const DEFAULTS={
  mode3MaxDurationMs:120000,
  mode3BaselineFactor:1.3,
  consecutiveMissesForBlock:2,
-  blockRestartPercent:1.3,
+  blockRestartPercent:1.2,
  spRestartWrongLimit:3,
  spRestartCorrectStreak:2,
  maxBlockCount:6,
  qualifyingBlockGapMs:250,
- rollMeanWindow:8,
+ rollMeanWindow:10,
  rollMeanThreshold:0.50,
  machinePacedNoResponseMs:15000,
  recoveryNoResponseMs:10000,
@@ -63,12 +63,12 @@ const DEFAULTS={
  minDurationMs:600,
  maxDurationMs:3500,
  initialUnusedCalibrationTrials:2,
- initialMeasuredCalibrationTrials:10,
- initialPacedPercent:1.3,
+ initialMeasuredCalibrationTrials:7,
+ initialPacedPercent:1.2,
  calibrationStopErrors:4,
  calibrationStopSlowMs:6000,
- cpiBestMs:900,
- cpiWorstMs:3400,
+ cpiBestMs:800,
+ cpiWorstMs:3000,
  deviceBenchmarkEnabled:0,
  lateResponseThresholdMs:600
 };
@@ -84,7 +84,7 @@ const ADMIN_FIELDS=[
 
  // 2-16. Defaults used across all modes, ordered by use in the test
  ["initialUnusedCalibrationTrials","2. Warm-up calibration trials (default 2)","number"],
- ["initialMeasuredCalibrationTrials","3. Measured calibration trials (default 10)","number"],
+ ["initialMeasuredCalibrationTrials","3. Measured calibration trials (default 7)","number"],
  ["calibrationFirstNoResponseMs","4. Calibration first-trial no-response (ms, default 10000)","number"],
  ["calibrationNoResponseMs","5. Calibration later-trial no-response (ms, default 6000)","number"],
  ["calibrationStopErrors","6. Calibration stop after N wrong (default 4)","number"],
@@ -95,7 +95,7 @@ const ADMIN_FIELDS=[
  ["maxTestDurationMs","11. Max total test time (ms, default 150000)","number"],
  ["wrongWindowSize","12. Anti-spoof wrong window size (default 5)","number"],
  ["wrongThresholdStop","13. Anti-spoof max wrong in window (default 4)","number"],
- ["rollMeanWindow","14. Anti-spoof rolling mean window (default 8)","number"],
+ ["rollMeanWindow","14. Anti-spoof rolling mean window (default 10)","number"],
  ["rollMeanThreshold","15. Anti-spoof rolling mean threshold (default 0.50)","number"],
  ["deviceBenchmarkEnabled","16. Device benchmark (0=off, 1=on)","number"],
 
@@ -103,9 +103,9 @@ const ADMIN_FIELDS=[
  ["testMode","17. Test mode","select:mode1|mode2|mode3"],
 
  // 18-29. Mode 1 settings, ordered by use
- ["initialPacedPercent","18. Mode 1 MP start: % of calibration avg (default 1.3)","number"],
+ ["initialPacedPercent","18. Mode 1 MP start: % of calibration avg (default 1.2)","number"],
  ["consecutiveMissesForBlock","19. Mode 1 misses to trigger block (default 2)","number"],
- ["blockRestartPercent","20. Mode 1 restart: % of block baseline (default 1.3)","number"],
+ ["blockRestartPercent","20. Mode 1 restart: % of block baseline (default 1.2)","number"],
  ["spRestartCorrectStreak","21. Mode 1 recovery correct streak to resume (default 2)","number"],
  ["spRestartWrongLimit","22. Mode 1 recovery max wrong before fail (default 3)","number"],
  ["recoveryNoResponseMs","23. Mode 1 recovery no-response timeout (ms, default 10000)","number"],
@@ -113,8 +113,8 @@ const ADMIN_FIELDS=[
  ["qualifyingBlockGapMs","25. Mode 1 convergent block max gap (ms, default 250)","number"],
  ["maxTrialCount","26. Mode 1 max paced trials (default 180)","number"],
  ["maxPacedWrong","27. Mode 1 max paced wrong before fail (default 20)","number"],
- ["cpiBestMs","28. Mode 1 CPI best ms anchor (default 900)","number"],
- ["cpiWorstMs","29. Mode 1 CPI worst ms anchor (default 3400)","number"],
+ ["cpiBestMs","28. Mode 1 CPI best ms anchor (default 800)","number"],
+ ["cpiWorstMs","29. Mode 1 CPI worst ms anchor (default 3000)","number"],
 
  // 30-31. Mode 2 settings, ordered by use
  ["mode2TrialLimit","30. Mode 2 SPC trial limit (default 150)","number"],
@@ -233,7 +233,7 @@ function getSessionMaxDurationMs(){ return isMode2() ? (Number(settings.mode2Max
 // ─── CPI ───
 // ─── CPI SCORE CALCULATION ────────────────────────────────────
 // Converts avg last 2 block durations (ms) to 0-100 CPI score.
-// Scale: cpiBestMs=900ms → CPI 100, cpiWorstMs=3400ms → CPI 0.
+// Scale: cpiBestMs=800ms → CPI 100, cpiWorstMs=3000ms → CPI 0.
 // Source: Perelli (2026). Formula: (worst-ms)/(worst-best)*100
 // ──────────────────────────────────────────────────────────────
 function computeCPI(avgMs){
@@ -707,11 +707,11 @@ function maybeTriggerTerminalRule(){
 }
 function failCalibration(reason){ state.endReason=reason; finish(); }
 // ─── CALIBRATION — SELF-PACED ─────────────────────────────────
-// 2 unused + 10 measured self-paced trials.
+// 2 unused + 7 measured self-paced trials.
 // CHECK ADEQUATELY TRAINED: >4 errors → "TOO MANY WRONG RESPONSES"
 // CHECK RESPONSE SPEED: single RT >6000ms → "NOT RESPONDING IN TIME — Practice!"
-// DETERMINE BASELINE RT: avg of 10 measured RTs → paced start duration
-//  (initialPacedPercent=1.3 × avg, clamped to minDurationMs-maxDurationMs).
+// DETERMINE BASELINE RT: avg of 7 measured RTs → paced start duration
+//  (initialPacedPercent=1.2 × avg, clamped to minDurationMs-maxDurationMs).
 // CONDITION 4: avg RT >6000ms → "NEED MORE PRACTICE!"
 // NO-RESPONSE TIMEOUTS: first trial=10s, subsequent=6s
 // ──────────────────────────────────────────────────────────────
