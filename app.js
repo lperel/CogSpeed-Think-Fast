@@ -2,7 +2,7 @@
 // CogSpeed V173
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V255";
+const APP_VERSION = "V257";
 const RELEASE = APP_VERSION.replace(/^V/i, "");
 const STORAGE_PREFIX = `cogspeed_v${RELEASE}`;
 
@@ -2338,23 +2338,33 @@ function updateStartPageLinks(){
  const wrap = $("speedometerStartLinkWrap");
  const link = $("speedometerStartLink");
  if(!wrap || !link) return;
- const hasData = Array.isArray(state.history) && state.history.length > 0;
- wrap.style.display = hasData ? "" : "none";
- if(!hasData) return;
- // Prefer a real speedometer page/button if present.
- if($("resultsOverlay")){
-  link.onclick = (e)=>{
-   e.preventDefault();
-   const last = state.history[state.history.length-1];
-   if(!last) return;
-   // Reuse existing results page flow if available.
-   if(typeof buildSummary === "function") buildSummary(last);
-   if(typeof drawModeResultChart === "function") drawModeResultChart($("summaryModeChart"), last);
-   showOnly("summaryOverlay");
-  };
- } else {
+
+ let hasHistory = false;
+ try{
+  hasHistory = Array.isArray(state.history) && state.history.length > 0;
+ }catch(e){}
+
+ let hasStoredHistory = false;
+ try{
+  const raw = localStorage.getItem(`${STORAGE_PREFIX}_history`) || "[]";
+  const parsed = JSON.parse(raw);
+  hasStoredHistory = Array.isArray(parsed) && parsed.length > 0;
+ }catch(e){}
+
+ const hasCurrentResult = !!currentResult();
+ const hasData = hasHistory || hasStoredHistory || hasCurrentResult;
+
+ wrap.style.display = hasData ? "block" : "none";
+
+ if(!hasData){
   link.onclick = null;
+  return;
  }
+
+ link.onclick = (e)=>{
+  e.preventDefault();
+  openSpeedometerPage();
+ };
 }
 
 function isTestSuccess(r){ return (r||"").toLowerCase().startsWith("convergent"); }
@@ -2790,7 +2800,8 @@ function goToStartPage(){
  const curtain=$("curtain"); if(curtain) curtain.classList.remove("open");
  probeCell.classList.remove("gspin-f","gspin-r","gidle-f","gidle-r");
  stopFX(); setStatus("Ready"); showOnly("subjectOverlay");
- updateStartPageLinks(); restoreSubjectFromProfile();
+ try{ updateStartPageLinks(); }catch(e){}
+ restoreSubjectFromProfile();
 }
 function startOverFlow(){
  clearCurrentSession(); state.subjectId=null; state.samnPerelli=null;
@@ -3699,9 +3710,9 @@ if ("serviceWorker" in navigator) {
    for(const r of regs) await r.unregister();
    const keys = await caches.keys();
    for(const k of keys) await caches.delete(k);
-   console.log("V255 recovery build: old service workers unregistered and caches cleared.");
+   console.log("V257 recovery build: old service workers unregistered and caches cleared.");
   }catch(err){
-   console.warn("V255 recovery cleanup failed:", err);
+   console.warn("V257 recovery cleanup failed:", err);
   }
  });
 }
