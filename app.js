@@ -2,7 +2,7 @@
 // CogSpeed V173
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V248";
+const APP_VERSION = "V250";
 const RELEASE = APP_VERSION.replace(/^V/i, "");
 const STORAGE_PREFIX = `cogspeed_v${RELEASE}`;
 
@@ -51,7 +51,7 @@ const DEFAULTS={
  qualifyingBlockGapMs:250,
  rollMeanWindow:8,
  rollMeanThreshold:0.50,
- machinePacedNoResponseMs:3000,
+ machinePacedNoResponseMs:6000,
  recoveryNoResponseMs:10000,
  calibrationFirstNoResponseMs:10000,
  calibrationNoResponseMs:6000,
@@ -88,10 +88,10 @@ const ADMIN_FIELDS=[
  ["calibrationFirstNoResponseMs","4. Calibration first-trial no-response (ms, default 10000)","number"],
  ["calibrationNoResponseMs","5. Calibration later-trial no-response (ms, default 6000)","number"],
  ["calibrationStopErrors","6. Calibration stop after N wrong (default 4)","number"],
- ["calibrationStopSlowMs","7. Calibration avg RT limit (ms, default 3000)","number"],
+ ["calibrationStopSlowMs","7. Calibration avg RT limit (ms, default 6000)","number"],
  ["minDurationMs","8. MP frame minimum duration (ms, default 700)","number"],
- ["maxDurationMs","9. MP frame maximum duration (ms, default 3000)","number"],
- ["machinePacedNoResponseMs","10. MP no-response timeout (ms, default 3000)","number"],
+ ["maxDurationMs","9. MP frame maximum duration (ms, default 6000)","number"],
+ ["machinePacedNoResponseMs","10. MP no-response timeout (ms, default 6000)","number"],
  ["maxTestDurationMs","11. Max total test time (ms, default 150000)","number"],
  ["wrongWindowSize","12. Anti-spoof wrong window size (default 5)","number"],
  ["wrongThresholdStop","13. Anti-spoof max wrong in window (default 4)","number"],
@@ -114,7 +114,7 @@ const ADMIN_FIELDS=[
  ["maxTrialCount","26. Mode 1 max paced trials (default 180)","number"],
  ["maxPacedWrong","27. Mode 1 max paced wrong before fail (default 20)","number"],
  ["cpiBestMs","28. Mode 1 CPI best ms anchor (default 800)","number"],
- ["cpiWorstMs","29. Mode 1 CPI worst ms anchor (default 3000)","number"],
+ ["cpiWorstMs","29. Mode 1 CPI worst ms anchor (default 6000)","number"],
 
  // 30-31. Mode 2 settings, ordered by use
  ["mode2TrialLimit","30. Mode 2 SPC trial limit (default 150)","number"],
@@ -265,10 +265,6 @@ function armNoResponseTimer(){
  clearNoResponseTimer();
  let ms;
  switch(state.phase){
-  case "paced":
-  case "mode3_paced":
-   ms = Number(settings.machinePacedNoResponseMs)||3000;
-   break;
   case "recovery":
   case "terminal_recovery":
    ms = Number(settings.recoveryNoResponseMs)||10000;
@@ -278,6 +274,10 @@ function armNoResponseTimer(){
     ? (Number(settings.calibrationFirstNoResponseMs)||10000)
     : (Number(settings.calibrationNoResponseMs)||6000);
    break;
+  case "paced":
+  case "mode3_paced":
+   // Machine-paced trials are governed by frame timers and block logic, not by absolute no-response timeout.
+   return;
   default:
    ms = 10000;
  }
@@ -293,7 +293,11 @@ function armMaxTestTimer(){
  const ms=getSessionMaxDurationMs();
  state.maxTestTimer=setTimeout(()=>{ state.endReason=(isMode2()||isMode3())?"Required test time reached":"Time limit reached"; finish(); },ms);
 }
-function noteAnyResponse(){ armNoResponseTimer(); }
+function noteAnyResponse(){
+ if(state.phase==="calibration" || state.phase==="recovery" || state.phase==="terminal_recovery"){
+  armNoResponseTimer();
+ }
+}
 
 // ─── Quiet mode ───
 function setTestingQuiet(q){
@@ -3684,9 +3688,9 @@ if ("serviceWorker" in navigator) {
    for(const r of regs) await r.unregister();
    const keys = await caches.keys();
    for(const k of keys) await caches.delete(k);
-   console.log("V248 recovery build: old service workers unregistered and caches cleared.");
+   console.log("V250 recovery build: old service workers unregistered and caches cleared.");
   }catch(err){
-   console.warn("V248 recovery cleanup failed:", err);
+   console.warn("V250 recovery cleanup failed:", err);
   }
  });
 }
