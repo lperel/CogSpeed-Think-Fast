@@ -1,8 +1,8 @@
 // ═══════════════════════════════════════════════════
-// CogSpeed V258
+// CogSpeed V260
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V258";
+const APP_VERSION = "V260";
 const RELEASE = APP_VERSION.replace(/^V/i, "");
 const STORAGE_PREFIX = `cogspeed_v${RELEASE}`;
 
@@ -244,49 +244,9 @@ function computeCPI(avgMs){
 function updateCPIDisplay(avg){
  if(isMode2()||isMode3()){
   cpiOut.textContent=avg!=null?`${Math.round(avg)}ms`:"—";
-  const lab=$("cpiLabel"); if(lab) lab.textContent="Avg RT";
   return;
  }
  cpiOut.textContent=avg!=null?computeCPI(avg).toFixed(0):"—";
- const lab=$("cpiLabel"); if(lab) lab.textContent="CPI";
- }
-
-// ─── Timers ───
-function clearTimer(){ if(state.trialTimer) clearTimeout(state.trialTimer); state.trialTimer=null; }
-function clearNoResponseTimer(){ if(state.absoluteNoResponseTimer) clearTimeout(state.absoluteNoResponseTimer); state.absoluteNoResponseTimer=null; }
-function clearMaxTestTimer(){ if(state.maxTestTimer) clearTimeout(state.maxTestTimer); state.maxTestTimer=null; }
-// Absolute "not responding" timer — keeps tests from hanging forever.
-// Calibration trial 1 uses calibrationFirstNoResponseMs (default 10s).
-// Later calibration trials use calibrationNoResponseMs (default 6s).
-// Machine-paced uses machinePacedNoResponseMs (default 15s).
-// Recovery uses recoveryNoResponseMs (default 10s).
-// Fires finish() with a no-response end reason if nothing is tapped in time.
-function armNoResponseTimer(){
- clearNoResponseTimer();
- let ms;
- switch(state.phase){
-  case "recovery":
-  case "terminal_recovery":
-   ms = Number(settings.recoveryNoResponseMs)||10000;
-   break;
-  case "calibration":
-   ms = state.calibrationTrialIndex===0
-    ? (Number(settings.calibrationFirstNoResponseMs)||10000)
-    : (Number(settings.calibrationNoResponseMs)||6000);
-   break;
-  case "paced":
-  case "mode3_paced":
-   // Machine-paced trials are governed by frame timers and block logic, not by absolute no-response timeout.
-   return;
-  default:
-   ms = 10000;
- }
- state.absoluteNoResponseTimer=setTimeout(()=>{
-  state.endReason = state.phase==="calibration"
-   ? "NO RESPONSE — Retest"
-   : "NOT RESPONDING IN TIME — Retest";
-  finish();
- }, ms);
 }
 function armMaxTestTimer(){
  clearMaxTestTimer();
@@ -887,7 +847,6 @@ const modeMetricMs = isMode2() ? (state.selfPacedRTs.length?mean(state.selfPaced
 //  wrong). Increments miss streak → triggers block if ≥2 true misses.
 // ──────────────────────────────────────────────────────────────
 
-
 function openTrial(kind){
  clearTimer();
  clearNoResponseTimer();
@@ -1239,11 +1198,9 @@ function renderFatigueChecklist(){
 // 1) Admin passcode, 2) shared defaults used across all modes,
 // 3) Test mode, 4) mode-specific groups in test-use order.
 // Password-protected (default: 4822). Stays unlocked per session.
-// HISTORY AND GRAPHS: combined CPI/MBS ms/SP-FS chart (last 20).
 // TRIAL DETAIL: per-trial table with session selector + CSV download.
 // LAST RESULTS: shows summary overlay for most recent test.
-// // EXPORT CSV: history as spreadsheet-ready .csv file.
-// BENCHMARK: device timing calibration test.
+// // BENCHMARK: device timing calibration test.
 // ──────────────────────────────────────────────────────────────
 function renderAdmin(){
  const w=$("adminSettings"); w.innerHTML="";
@@ -2331,6 +2288,9 @@ function showOnly(id){
  ["subjectOverlay","profileOverlay","refresherOverlay","fatigueOverlay","adminOverlay","resultsOverlay","summaryOverlay","rankedOverlay","trialLogOverlay","historyOverlay","rateRtOverlay","perfTimeOverlay","emailOverlay","tutorialOverlay"].forEach(oid=>{ const el=$(oid); if(el) el.classList[oid===id?"remove":"add"]("hidden"); });
 }
 
+// ─── START PAGE SPEEDOMETER LINK ─────────────────────────────
+// Shows Speedometer on the Start page whenever any session data
+// exists in current state or stored history.
 function updateStartPageLinks(){
  const wrap = $("speedometerStartLinkWrap");
  const link = $("speedometerStartLink");
@@ -3136,14 +3096,14 @@ function buildHistoryOverlay(sessionIndex){
  const selectedIdx = sessionIndex!=null ? sessionIndex : (buildHistoryOverlay._selectedIndex!=null ? buildHistoryOverlay._selectedIndex : (hist.length?hist.length-1:null));
  buildHistoryOverlay._selectedIndex = selectedIdx;
  // Draw chart
- drawCombinedChart($("histGraphChart"),state.history, selectedIdx);
- const meta=$("historyMeta");
+ drawCombinedChart(null,state.history, selectedIdx);
+ const meta=null;
  const selected = (selectedIdx!=null && hist[selectedIdx]) ? hist[selectedIdx] : null;
  if(meta){
   meta.textContent = selected ? `Session ${selectedIdx+1} · ${formatModeTag(selected.testMode)} · SP-FS ${selected.samnPerelli?selected.samnPerelli.score:"—"} · ${new Date(selected.time).toLocaleString()}` : "No session selected";
  }
  // Build session table
- const tbody=$("historyTableBody"); if(!tbody) return;
+ const tbody=null; if(!tbody) return;
  tbody.innerHTML="";
  if(!state.history.length){
   tbody.innerHTML='<tr><td colspan="10" style="text-align:center;color:var(--muted);padding:12px">No history yet</td></tr>';
@@ -3170,7 +3130,7 @@ function buildHistoryOverlay(sessionIndex){
 buildHistoryOverlay._openSelectedTrial=function(){
  const idx = buildHistoryOverlay._selectedIndex;
  if(idx==null) return;
- $("historyOverlay").classList.add("hidden");
+ null.classList.add("hidden");
  buildTrialLog(idx);
  $("trialLogOverlay").classList.remove("hidden");
 };
@@ -3180,7 +3140,7 @@ async function runDeviceBenchmark(force){
  const enabled=force||Number(settings.deviceBenchmarkEnabled||0)===1;
  if(!enabled){ state.benchmark=null; return; }
  const BENCH=1000;
- const ov=$("benchmarkOverlay"),bs=$("benchStatusLine"),bst=$("benchStats"),bg=$("benchGrade"),bc=$("benchChart"),bb=$("benchBtns");
+ const ov=$("benchmarkOverlay"),bs=$("benchStatusLine"),bst=$("benchStats"),bg=$("benchGrade"),bc=null,bb=$("benchBtns");
  if(ov) ov.classList.remove("hidden");
  if(bg) bg.style.display="none"; if(bc) bc.style.display="none"; if(bb) bb.style.display="none";
  if(bst) bst.innerHTML="";
@@ -3716,13 +3676,9 @@ if ("serviceWorker" in navigator) {
  });
 }
 
-
-
 $("summaryRankedBtn").onclick=()=>{ const last=state.history[state.history.length-1]; if(!last) return; buildRankedSummary(last); $("summaryOverlay").classList.add("hidden"); $("rankedOverlay").classList.remove("hidden"); };
 
 try{ updateStartPageLinks(); }catch(e){}
-
-
 
 function renderSpeedometerOutcome(result){
  const outcome = $("outcomeOverlay");
@@ -3799,6 +3755,10 @@ const _tla=$("trialLogAdminBtn"); if(_tla) _tla.onclick=()=>{ $("trialLogOverlay
 
 const _ssp=$("speedStartPageBtn"); if(_ssp) _ssp.onclick=()=>{ $("outcomeOverlay").classList.add("hidden"); goToStartPage(); try{ updateStartPageLinks(); }catch(e){} };
 
+// ─── E-MAIL SELECT PAGE ───────────────────────────────────────
+// Opens from Speedometer. Provides recipient selection and a
+// dropdown for which results data to include in the email.
+// Includes links back to Speedometer and Start.
 function openEmailSelectPage(){
  hideAllOverlays();
  const ov = $("emailOverlay");
