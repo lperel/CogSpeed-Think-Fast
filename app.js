@@ -2,7 +2,7 @@
 // CogSpeed V173
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V244";
+const APP_VERSION = "V245";
 const RELEASE = APP_VERSION.replace(/^V/i, "");
 const STORAGE_PREFIX = `cogspeed_v${RELEASE}`;
 
@@ -51,7 +51,7 @@ const DEFAULTS={
  qualifyingBlockGapMs:250,
  rollMeanWindow:8,
  rollMeanThreshold:0.50,
- machinePacedNoResponseMs:15000,
+ machinePacedNoResponseMs:3000,
  recoveryNoResponseMs:10000,
  calibrationFirstNoResponseMs:10000,
  calibrationNoResponseMs:6000,
@@ -91,7 +91,7 @@ const ADMIN_FIELDS=[
  ["calibrationStopSlowMs","7. Calibration avg RT limit (ms, default 3000)","number"],
  ["minDurationMs","8. MP frame minimum duration (ms, default 700)","number"],
  ["maxDurationMs","9. MP frame maximum duration (ms, default 3000)","number"],
- ["machinePacedNoResponseMs","10. MP no-response timeout (ms, default 15000)","number"],
+ ["machinePacedNoResponseMs","10. MP no-response timeout (ms, default 3000)","number"],
  ["maxTestDurationMs","11. Max total test time (ms, default 150000)","number"],
  ["wrongWindowSize","12. Anti-spoof wrong window size (default 5)","number"],
  ["wrongThresholdStop","13. Anti-spoof max wrong in window (default 4)","number"],
@@ -267,21 +267,19 @@ function armNoResponseTimer(){
  switch(state.phase){
   case "paced":
   case "mode3_paced":
-   ms = Number(settings.machinePacedNoResponseMs)||15000;
+   ms = Number(settings.machinePacedNoResponseMs)||3000;
    break;
   case "recovery":
   case "terminal_recovery":
-   // Self-paced recovery after block: more time to stabilize
    ms = Number(settings.recoveryNoResponseMs)||10000;
    break;
   case "calibration":
-   // First calibration response uses its own timeout; later calibration responses use the shorter later-trial timeout.
    ms = state.calibrationResponses===0
     ? (Number(settings.calibrationFirstNoResponseMs)||10000)
     : (Number(settings.calibrationNoResponseMs)||6000);
    break;
   default:
-   ms = 20000;
+   ms = 10000;
  }
  state.absoluteNoResponseTimer=setTimeout(()=>{
   state.endReason = state.phase==="calibration"
@@ -3682,9 +3680,9 @@ if ("serviceWorker" in navigator) {
    for(const r of regs) await r.unregister();
    const keys = await caches.keys();
    for(const k of keys) await caches.delete(k);
-   console.log("V244 recovery build: old service workers unregistered and caches cleared.");
+   console.log("V245 recovery build: old service workers unregistered and caches cleared.");
   }catch(err){
-   console.warn("V244 recovery cleanup failed:", err);
+   console.warn("V245 recovery cleanup failed:", err);
   }
  });
 }
