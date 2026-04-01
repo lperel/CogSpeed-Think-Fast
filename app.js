@@ -1,8 +1,8 @@
 // ═══════════════════════════════════════════════════
-// CogSpeed V266
+// CogSpeed V268
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V266";
+const APP_VERSION = "V268";
 const RELEASE = APP_VERSION.replace(/^V/i, "");
 const STORAGE_PREFIX = `cogspeed_v${RELEASE}`;
 
@@ -45,6 +45,13 @@ const DEFAULTS={
  mode3BaselineFactor:1.3,
  consecutiveMissesForBlock:2,
   blockRestartPercent:1.2,
+ wrongSlowdownMs:50,
+ correctSpeedupFactor:0.20,
+ minSpeedupOnCorrectMs:50,
+ maxSpeedupOnCorrectMs:200,
+ convergenceMinSpeedupOnCorrectMs:25,
+ convergenceMaxSpeedupOnCorrectMs:50,
+ convergenceClampThresholdMs:1400,
  spRestartWrongLimit:3,
  spRestartCorrectStreak:2,
  maxBlockCount:6,
@@ -108,6 +115,13 @@ const ADMIN_FIELDS=[
  ["blockRestartPercent","20. Mode 1 restart: % of block baseline (default 1.2)","number"],
  ["spRestartCorrectStreak","21. Mode 1 recovery correct streak to resume (default 2)","number"],
  ["spRestartWrongLimit","22. Mode 1 recovery max wrong before fail (default 3)","number"],
+["wrongSlowdownMs","22A. Mode 1 MP slowdown on wrong (ms, default 50)","number"],
+["correctSpeedupFactor","22B. Mode 1 MP correct formula factor (default 0.20)","number"],
+["minSpeedupOnCorrectMs","22C. Mode 1 MP minimum speedup on correct (ms, default 50)","number"],
+["maxSpeedupOnCorrectMs","22D. Mode 1 MP maximum speedup on correct (ms, default 200)","number"],
+["convergenceMinSpeedupOnCorrectMs","22E. Mode 1 convergent minimum speedup on correct (ms, default 25)","number"],
+["convergenceMaxSpeedupOnCorrectMs","22F. Mode 1 convergent maximum speedup on correct (ms, default 50)","number"],
+["convergenceClampThresholdMs","22G. Mode 1 convergent clamp threshold (ms, default 1400)","number"],
  ["recoveryNoResponseMs","23. Mode 1 recovery no-response timeout (ms, default 10000)","number"],
  ["maxBlockCount","24. Mode 1 max total blocks before fail (default 6)","number"],
  ["qualifyingBlockGapMs","25. Mode 1 convergent block max gap (ms, default 250)","number"],
@@ -750,18 +764,22 @@ function finishCalibration(){
 //
 // CORRECT RESPONSE:
 //   r = responseTime / roundDuration
-//   deltaMs = (0.15*r - 0.15) * roundDuration
-//           = 0.15 * (responseTime - roundDuration)
+//   deltaMs = (f*r - f) * roundDuration
+//           = f * (responseTime - roundDuration)
+//   where f = correctSpeedupFactor (default 0.20)
 //
 // IMPORTANT:
-//   On CORRECT responses that speed up baseline:
-//     minimum speedup = 50 ms
-//     maximum speedup = 200 ms
+//   On CORRECT responses before convergence:
+//     minimum speedup = minSpeedupOnCorrectMs (default 50 ms)
+//     maximum speedup = maxSpeedupOnCorrectMs (default 200 ms)
+//   After the first block, or near the low-ms floor:
+//     minimum speedup = convergenceMinSpeedupOnCorrectMs (default 25 ms)
+//     maximum speedup = convergenceMaxSpeedupOnCorrectMs (default 50 ms)
 //   On slowdown from the correct-response formula:
 //     maximum slowdown = 100 ms.
 //
 // WRONG RESPONSE:
-//   baseline += 100 ms (flat slowdown penalty)
+//   baseline += wrongSlowdownMs (default 50 ms)
 //
 // NO RESPONSE:
 //   baseline unchanged
@@ -785,24 +803,31 @@ function applyPacing(rt,correct){
   if(rt==null||!isFinite(rt)||!isFinite(state.duration)) return;
   const roundDuration=state.duration;
   const r=rt/roundDuration;
-  let deltaMs=(0.15*r-0.15)*roundDuration;
-  // Correct-response adaptive update:
- // - preserve the existing formula
- // - when deltaMs is negative (speedup), force a minimum 50 ms speedup
- //   and a maximum 200 ms speedup
- // - when deltaMs is positive (slowdown), keep the existing 100 ms max slowdown
- if(deltaMs < 0){
-  // Negative deltaMs means a speedup. Force the speedup magnitude into [50, 200] ms.
-  const speedupMag = Math.min(200, Math.max(50, Math.abs(deltaMs)));
-  deltaMs = -speedupMag;
- }else{
-  // Positive deltaMs means slowdown from the correct-response formula. Cap at +100 ms.
-  deltaMs = Math.min(100, deltaMs);
- }
+  const f = Number(settings.correctSpeedupFactor)||0.20;
+  let deltaMs=(f*r-f)*roundDuration;
+
+  const afterFirstBlock = Array.isArray(state.overloads) && state.overloads.length >= 1;
+  const nearFloor = roundDuration <= (Number(settings.convergenceClampThresholdMs)||1400);
+
+  const minSpeed = afterFirstBlock || nearFloor
+    ? (Number(settings.convergenceMinSpeedupOnCorrectMs)||25)
+    : (Number(settings.minSpeedupOnCorrectMs)||50);
+
+  const maxSpeed = afterFirstBlock || nearFloor
+    ? (Number(settings.convergenceMaxSpeedupOnCorrectMs)||50)
+    : (Number(settings.maxSpeedupOnCorrectMs)||200);
+
+  if(deltaMs < 0){
+    const speedupMag = Math.min(maxSpeed, Math.max(minSpeed, Math.abs(deltaMs)));
+    deltaMs = -speedupMag;
+  }else{
+    deltaMs = Math.min(100, deltaMs);
+  }
+
   state.duration=clamp(state.duration+deltaMs,settings.minDurationMs,settings.maxDurationMs);
  }else{
-  // Wrong response = +100 ms slowdown
-  state.duration=clamp(state.duration+100,settings.minDurationMs,settings.maxDurationMs);
+  const wrongSlow = Number(settings.wrongSlowdownMs)||50;
+  state.duration=clamp(state.duration+wrongSlow,settings.minDurationMs,settings.maxDurationMs);
  }
 }
 
