@@ -1,8 +1,8 @@
 // ═══════════════════════════════════════════════════
-// CogSpeed V274
+// CogSpeed V275
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V274";
+const APP_VERSION = "V275";
 const RELEASE = APP_VERSION.replace(/^V/i, "");
 const STORAGE_PREFIX = `cogspeed_v${RELEASE}`;
 
@@ -1508,6 +1508,25 @@ function graphCpiForSession(r){
  if(isFinite(explicit)) return explicit;
  const ms = graphMetricMsForSession(r);
  return (ms!=null) ? computeCPI(ms) : null;
+}
+
+
+function getSessionUtcMs(r){
+ if(!r) return 0;
+ const candidates = [
+  r.time,
+  r.date_iso,
+  r.utc_time,
+  r.gmt_time,
+  r.geo && r.geo.date_iso,
+  r.geo && r.geo.gmt_time
+ ];
+ for(const v of candidates){
+  if(!v) continue;
+  const ms = Date.parse(v);
+  if(Number.isFinite(ms)) return ms;
+ }
+ return 0;
 }
 
 function drawPerformanceOverTimeChart(canvas,hist){
@@ -3922,7 +3941,7 @@ const _edata=$("emailDataSelect"); if(_edata) _edata.onchange=()=>{
 window.addEventListener("load",()=>{ try{ updateStartPageLinks(); }catch(e){}; });
 
 
-/* ===== Performance vs Time graph override (V274) ===== */
+/* ===== Performance vs Time graph override (V275) ===== */
 const perfGraphState = {
   preset: "last14",
   fromDate: "",
@@ -4247,4 +4266,4 @@ function openPerformanceOverTimePage(){
   wirePerfGraphControls();
   drawPerformanceOverTimeChart($("perfTimeGraph"), state.history||[]);
 }
-/* ===== end Performance vs Time graph override (V274) ===== */
+/* ===== end Performance vs Time graph override (V275) ===== */
