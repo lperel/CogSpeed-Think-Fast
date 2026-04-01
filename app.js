@@ -1,8 +1,8 @@
 // ═══════════════════════════════════════════════════
-// CogSpeed V277
+// CogSpeed V278
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V277";
+const APP_VERSION = "V278";
 const RELEASE = APP_VERSION.replace(/^V/i, "");
 const STORAGE_PREFIX = `cogspeed_v${RELEASE}`;
 
@@ -3941,7 +3941,7 @@ const _edata=$("emailDataSelect"); if(_edata) _edata.onchange=()=>{
 window.addEventListener("load",()=>{ try{ updateStartPageLinks(); }catch(e){}; });
 
 
-/* ===== Performance vs Time graph override (V277) ===== */
+/* ===== Performance vs Time graph override (V278) ===== */
 const perfGraphState = {
   preset: "last14",
   fromDate: "",
@@ -4240,6 +4240,18 @@ function drawPerformanceOverTimeChart(canvas,hist){
   }
 
   function drawCombinedPerfMarkers(cpiVals, mbsVals){
+    ctx.strokeStyle="#7fd7ff";
+    ctx.lineWidth=2.5;
+    ctx.beginPath();
+    let started=false;
+    cpiVals.forEach((cpi,i)=>{
+      const mbs = mbsVals[i];
+      if(cpi==null || mbs==null){ started=false; return; }
+      const x = xOf(i), y = yLeftFromCpi(cpi);
+      if(!started){ ctx.moveTo(x,y); started=true; } else { ctx.lineTo(x,y); }
+    });
+    if(cpiVals.filter((cpi,i)=>cpi!=null && mbsVals[i]!=null).length>1) ctx.stroke();
+
     cpiVals.forEach((cpi,i)=>{
       const mbs = mbsVals[i];
       if(cpi==null || mbs==null) return;
@@ -4297,4 +4309,4 @@ function openPerformanceOverTimePage(){
   wirePerfGraphControls();
   drawPerformanceOverTimeChart($("perfTimeGraph"), state.history||[]);
 }
-/* ===== end Performance vs Time graph override (V277) ===== */
+/* ===== end Performance vs Time graph override (V278) ===== */
