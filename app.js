@@ -2,7 +2,7 @@
 // CogSpeed V173
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V245";
+const APP_VERSION = "V248";
 const RELEASE = APP_VERSION.replace(/^V/i, "");
 const STORAGE_PREFIX = `cogspeed_v${RELEASE}`;
 
@@ -274,7 +274,7 @@ function armNoResponseTimer(){
    ms = Number(settings.recoveryNoResponseMs)||10000;
    break;
   case "calibration":
-   ms = state.calibrationResponses===0
+   ms = state.calibrationTrialIndex===0
     ? (Number(settings.calibrationFirstNoResponseMs)||10000)
     : (Number(settings.calibrationNoResponseMs)||6000);
    break;
@@ -378,7 +378,6 @@ function makeTrial(kind,lastCorrectPos,lastProbe){
  }
  throw new Error("makeTrial: could not generate valid trial after 500 attempts");
 }
-
 
 // ── 7 unique realistic mechanical cog definitions ──
 // 0=probe, 1-6=cell/button pairs. Flat-topped teeth, proper gear geometry.
@@ -883,54 +882,73 @@ const modeMetricMs = isMode2() ? (state.selfPacedRTs.length?mean(state.selfPaced
 // onPacedFrameEnd(): fires when paced frame expires (subject missed or
 //  wrong). Increments miss streak → triggers block if ≥2 true misses.
 // ──────────────────────────────────────────────────────────────
+
+
 function openTrial(kind){
  clearTimer();
+ clearNoResponseTimer();
+
  // Track overall test duration from very first trial
  if(state.testStartTime===null){
   state.testStartTime=performance.now();
-  armMaxTestTimer(); // 150s wall covers entire test including calibration
+  armMaxTestTimer(); // wall clock covers entire test including calibration
  }
+
  state.previous=state.current;
  const lastPos=state.current?state.current.correctPos:null;
  const lastProbe=state.current?{family:state.current.probeFamily,count:state.current.probeCount}:null;
  state.current=makeTrial(kind,lastPos,lastProbe);
  state.hadResponse=false;
- state.trialOpenedAt=performance.now();
+
+ // IMPORTANT:
+ // Do not start timing until the display has actually rendered.
+ state.trialOpenedAt=null;
+
  renderTrial(state.current);
  updateMetrics();
+
  if(kind==="calibration"){
   const total=isMode2()?(Number(settings.mode2TrialLimit)||150):isMode3()?(Number(settings.mode3CalibrationTrials)||10):(settings.initialUnusedCalibrationTrials+settings.initialMeasuredCalibrationTrials), idx=state.calibrationTrialIndex+1;
   phaseLabel.textContent=`Cal ${idx}/${total}`;
   setStatus(isMode1()?(idx<=settings.initialUnusedCalibrationTrials?"Self-paced (unused)":"Self-paced (measured)"):"Self-paced");
-  armNoResponseTimer();
  }else if(kind==="paced"){
   // Store the ACTUAL frame duration shown for this paced round.
-  // Trial logging must use this presented value, not the updated baseline after response processing.
   state.presentedRoundDuration = Math.round(state.duration);
   phaseLabel.textContent=`Paced · ${Math.round(state.duration)}ms`;
   setStatus("Machine-paced");
-  state.trialTimer=setTimeout(onPacedFrameEnd,state.duration);
  }else if(kind==="paced_fixed"){
   state.presentedRoundDuration = Math.round(state.duration);
   state.fixedPacedPresented += 1;
   phaseLabel.textContent=`Fixed MP · ${Math.round(state.duration)}ms`;
   setStatus("Mode 3 fixed machine-paced");
-  state.trialTimer=setTimeout(onPacedFrameEnd,state.duration);
  }else if(kind==="recovery"){
-  // Recovery after block is SELF-PACED. No machine-paced frame timer here.
   clearTimer();
   state.duration=null; state.lastFrameDuration=null; state.presentedRoundDuration=null;
   phaseLabel.textContent=`SP Restart ${state.spCorrectStreak}✓ ${state.spWrongCount}✗`;
   setStatus(`SP Restart — need ${settings.spRestartCorrectStreak} correct in a row`);
-  armNoResponseTimer();
  }else if(kind==="terminal_recovery"){
-  // Final recovery is also SELF-PACED.
   clearTimer();
   state.duration=null; state.lastFrameDuration=null; state.presentedRoundDuration=null;
   phaseLabel.textContent=`Final SP ${state.recoveryCorrectCompleted+1}/${settings.spRestartCorrectStreak}`;
-  setStatus("Final self-paced recovery");
-  armNoResponseTimer();
+  setStatus(`Final SP — complete ${settings.spRestartCorrectStreak} correct to finish`);
  }
+
+ // Arm timers only after the display is fully rendered.
+ requestAnimationFrame(()=>{
+  requestAnimationFrame(()=>{
+   state.trialOpenedAt = performance.now();
+
+   if(kind==="calibration"){
+    armNoResponseTimer();
+   }else if(kind==="paced"){
+    state.trialTimer=setTimeout(onPacedFrameEnd,state.duration);
+   }else if(kind==="paced_fixed"){
+    state.trialTimer=setTimeout(onPacedFrameEnd,state.duration);
+   }else if(kind==="recovery" || kind==="terminal_recovery"){
+    armNoResponseTimer();
+   }
+  });
+ });
 }
 
 // ─── Paced frame end ───
@@ -1256,7 +1274,6 @@ function bindDoubleTapConfirm(btn, action, idleText, confirmText){
  };
 }
 
-
 // ─── Charts ───
 // ─── HISTORY AND GRAPHS ───────────────────────────────────────
 // drawCombinedChart(): 3-series chart — CPI (cyan, left axis 0-100),
@@ -1431,7 +1448,6 @@ function drawCombinedChart(canvas,hist,selectedIdx){
  ctx.fillStyle="#ff9f40"; ctx.fillText("■ MBS", PAD.left+58, PAD.top-10);
  ctx.fillStyle="#88ff88"; ctx.fillText("◆ SP-FS", PAD.left+116, PAD.top-10);
 }
-
 
 function drawPerformanceOverTimeChart(canvas,hist){
  if(!canvas) return;
@@ -1674,7 +1690,6 @@ function drawRTScatterChart(canvas,rtLog,blocks,meanRT,sdRT){
  ctx.fillStyle="#7fa0c0"; ctx.font="9px sans-serif"; ctx.textAlign="center"; ctx.fillText("Trial →",PAD.left+cW/2,H-2);
 }
 
-
 // Mode 2 / Mode 3 result chart:
 // green dots = correct responses
 // red dots   = wrong responses
@@ -1867,7 +1882,6 @@ function drawModeResultChart(canvas,result){
   ctx.fillText(`${sessionTxt} · ${modeTxt} · ${spfsTxt}`, PAD.left, PAD.top+12);
  }
 }
-
 
 function formatModeTag(mode){
  return (mode||"mode1").replace("mode","Test Mode ");
@@ -2067,7 +2081,6 @@ function emailResults(){
  window.location.href=`mailto:${to}?subject=CogSpeed® ${APP_VERSION} Results&body=${encodeURIComponent(bodyText)}`;
 }
 
-
 // ─── FX (steam + sparks from each gear corner) ───
 let _fxRaf=null, _fxParticles=[];
 function startFX(){
@@ -2173,7 +2186,6 @@ function restoreSubjectFromProfile(){
   if(we) we.textContent = "";
  }
 }
-
 
 // Compute age from birth month (1-12) and year
 function computeAge(bMonth, bYear){
@@ -2295,7 +2307,6 @@ function resetProfile(){
  setStatus("Profile reset");
 }
 
-
 // ─── OVERLAY / NAVIGATION UTILITIES ──────────────────────────
 // hideAllOverlays(): hides every overlay (used at test start).
 // showOnly(id): shows one overlay, hides all others.
@@ -2307,7 +2318,6 @@ function hideAllOverlays(){
 function showOnly(id){
  ["subjectOverlay","profileOverlay","refresherOverlay","fatigueOverlay","adminOverlay","resultsOverlay","summaryOverlay","rankedOverlay","trialLogOverlay","historyOverlay","rateRtOverlay","perfTimeOverlay","tutorialOverlay"].forEach(oid=>{ const el=$(oid); if(el) el.classList[oid===id?"remove":"add"]("hidden"); });
 }
-
 
 function updateStartPageLinks(){
  const wrap = $("speedometerStartLinkWrap");
@@ -2908,7 +2918,6 @@ function downloadTrialLogCSV(){
  const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=`${STORAGE_PREFIX}_trials_${subj}.csv`; a.click();
 }
 
-
 // Presentation Rate vs Response Time (all sessions)
 // - all sessions plotted on one graph
 // - selected session highlighted with Prev/Next buttons
@@ -3088,7 +3097,6 @@ function buildRateRtOverlay(sessionIndex){
  drawRateRtChart($("rateRtChart"), sessionsForChart, idx);
 }
 
-
 // ─── History & Graphs overlay ───
 // ─── HISTORY OVERLAY ──────────────────────────────────────────
 // Table of all sessions (newest first) with CPI, blocks, duration.
@@ -3171,7 +3179,6 @@ async function runDeviceBenchmark(force){
  if(bb) bb.style.display="grid";
 }
 
-
 // ═══════════════════════════════════════════════════
 // TUTORIAL
 // ═══════════════════════════════════════════════════
@@ -3233,7 +3240,6 @@ function buildTutRespGrid(flashPos){
  return html;
 }
 
-
 function buildTutGearGridAnimated(showPatterns){
  let html = `<style>
   @keyframes tutPairFlash {
@@ -3268,7 +3274,6 @@ function buildTutRespGridAnimated(){
  html += '</div>';
  return html;
 }
-
 
 // ─── Mini trial screen for tutorial background ───
 // Returns HTML showing a tiny test screen with different parts highlighted
@@ -3672,7 +3677,6 @@ renderFatigueChecklist();
 renderRefresher();
 updateMetrics();
 
-
 if ("serviceWorker" in navigator) {
  window.addEventListener("load", async () => {
   try{
@@ -3680,20 +3684,18 @@ if ("serviceWorker" in navigator) {
    for(const r of regs) await r.unregister();
    const keys = await caches.keys();
    for(const k of keys) await caches.delete(k);
-   console.log("V245 recovery build: old service workers unregistered and caches cleared.");
+   console.log("V248 recovery build: old service workers unregistered and caches cleared.");
   }catch(err){
-   console.warn("V245 recovery cleanup failed:", err);
+   console.warn("V248 recovery cleanup failed:", err);
   }
  });
 }
 
 
 
-
 $("summaryRankedBtn").onclick=()=>{ const last=state.history[state.history.length-1]; if(!last) return; buildRankedSummary(last); $("summaryOverlay").classList.add("hidden"); $("rankedOverlay").classList.remove("hidden"); };
 
 try{ updateStartPageLinks(); }catch(e){}
-
 
 
 
@@ -3722,7 +3724,6 @@ function syncOutcomeStatusText(result){
  if(orr) orr.textContent = (result && result.endReason) ? result.endReason : "Run complete";
 }
 
-
 function openSpeedometerPage(){
  const last = state.history && state.history.length ? state.history[state.history.length-1] : null;
  if(last){
@@ -3745,7 +3746,6 @@ function openSpeedometerFromAdmin(){
  }
 }
 
-
 $("trialLogCloseBtn").onclick=()=>{ $("trialLogOverlay").classList.add("hidden"); openSpeedometerFromAdmin(); };
 
 const _rrab=$("rateRtAdminBtn"); if(_rrab) _rrab.onclick=()=>{ $("rateRtOverlay").classList.add("hidden"); $("adminOverlay").classList.remove("hidden"); if(_adminUnlocked){ $("adminGate").classList.add("hidden"); $("adminBody").classList.remove("hidden"); renderAdmin(); } else { $("adminGate").classList.remove("hidden"); $("adminBody").classList.add("hidden"); $("adminPass").value=""; } };
@@ -3757,12 +3757,10 @@ function openPerformanceOverTimePage(){
  drawPerformanceOverTimeChart($("perfTimeGraph"), state.history||[]);
 }
 
-
 const _apt=$("adminPerfTimeBtn"); if(_apt) _apt.onclick=()=>{ $("adminOverlay").classList.add("hidden"); openPerformanceOverTimePage(); };
 const _spt=$("speedPerfTimeBtn"); if(_spt) _spt.onclick=()=>{ $("outcomeOverlay").classList.add("hidden"); openPerformanceOverTimePage(); };
 const _ptb=$("perfTimeBackBtn"); if(_ptb) _ptb.onclick=()=>{ $("perfTimeOverlay").classList.add("hidden"); openSpeedometerPage(); };
 const _pta=$("perfTimeAdminBtn"); if(_pta) _pta.onclick=()=>{ $("perfTimeOverlay").classList.add("hidden"); $("adminOverlay").classList.remove("hidden"); if(_adminUnlocked){ $("adminGate").classList.add("hidden"); $("adminBody").classList.remove("hidden"); renderAdmin(); } else { $("adminGate").classList.remove("hidden"); $("adminBody").classList.add("hidden"); $("adminPass").value=""; } };
-
 
 const _rsp=$("rankedSpeedometerBtn"); if(_rsp) _rsp.onclick=()=>{ $("rankedOverlay").classList.add("hidden"); openSpeedometerPage(); };
 const _rrs=$("rankedRestartBtn"); if(_rrs) _rrs.onclick=()=>{ $("rankedOverlay").classList.add("hidden"); goToStartPage(); };
