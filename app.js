@@ -1,8 +1,8 @@
 // ═══════════════════════════════════════════════════
-// CogSpeed V279
+// CogSpeed V280
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V279";
+const APP_VERSION = "V280";
 const RELEASE = APP_VERSION.replace(/^V/i, "");
 const STORAGE_PREFIX = `cogspeed_v${RELEASE}`;
 
@@ -3857,6 +3857,7 @@ function syncOutcomeStatusText(result){
 
 function openSpeedometerPage(){
  try{ wireEmailSelectControls(); }catch(err){}
+ try{ wireEmailDraftAction(); }catch(err){}
  const last = state.history && state.history.length ? state.history[state.history.length-1] : null;
  if(last){
   hideAllOverlays();
@@ -3924,7 +3925,7 @@ function openEmailSelectPage(){
 window.addEventListener("load",()=>{ try{ updateStartPageLinks(); }catch(e){}; });
 
 
-/* ===== Performance vs Time graph override (V279) ===== */
+/* ===== Performance vs Time graph override (V280) ===== */
 const perfGraphState = {
   preset: "last14",
   fromDate: "",
@@ -4292,10 +4293,10 @@ function openPerformanceOverTimePage(){
   wirePerfGraphControls();
   drawPerformanceOverTimeChart($("perfTimeGraph"), state.history||[]);
 }
-/* ===== end Performance vs Time graph override (V279) ===== */
+/* ===== end Performance vs Time graph override (V280) ===== */
 
 
-/* ===== E-mail Select wiring override (V279) ===== */
+/* ===== E-mail Select wiring override (V280) ===== */
 function openEmailSelectPage(){
   hideAllOverlays();
   const ov = $("emailOverlay");
@@ -4304,6 +4305,7 @@ function openEmailSelectPage(){
   if(info){
     info.textContent = "Use the controls below to choose recipient and which results data to include.";
   }
+  try{ wireEmailDraftAction(); }catch(err){}
 }
 
 function wireEmailSelectControls(){
@@ -4370,5 +4372,134 @@ function wireEmailSelectControls(){
 
 window.addEventListener("load", ()=>{
   try{ wireEmailSelectControls(); }catch(err){}
+ try{ wireEmailDraftAction(); }catch(err){}
 });
-/* ===== end E-mail Select wiring override (V279) ===== */
+/* ===== end E-mail Select wiring override (V280) ===== */
+
+
+/* ===== E-mail draft action override (V280) ===== */
+function getEmailRecipient(){
+  const fromProfile = (state.profile && state.profile.email) ? String(state.profile.email).trim() : "";
+  const fromInput = ($("subjectIdInput") && $("subjectIdInput").value) ? String($("subjectIdInput").value).trim() : "";
+  return fromProfile || fromInput || "";
+}
+
+function formatLastTrialLogText(last){
+  if(!last || !Array.isArray(last.rtLog) || !last.rtLog.length) return "No trial detail log available.";
+  const lines = last.rtLog.map(r=>{
+    return [
+      `#${r.seq||""}`,
+      `Phase: ${r.phase||"—"}`,
+      `RT: ${r.rt!=null ? r.rt : "—"}`,
+      `Outcome: ${r.outcome||"—"}`,
+      `Probe: ${r.probe||"—"}`,
+      `Correct: ${r.correctCell||"—"}`,
+      `Response: ${r.response||"—"}`
+    ].join(" | ");
+  });
+  return "Trial Detail Log\n\n" + lines.join("\n");
+}
+
+function formatLastRankedText(last){
+  if(!last) return "No ranked averages available.";
+  const mode = (last.testMode||settings.testMode||"mode1");
+  try{
+    return formatModePooledRankSection(mode);
+  }catch(err){
+    return "Ranked Target / Position Averages are not available.";
+  }
+}
+
+function formatLastPerfTimeText(){
+  const h = state.history || [];
+  if(!h.length) return "No performance-over-time history available.";
+  const rows = h.map((r,i)=>{
+    const when = r.time ? new Date(r.time).toLocaleString() : `Session ${i+1}`;
+    const cpi = r.cognitivePerformanceIndex!=null ? Math.round(Number(r.cognitivePerformanceIndex)) : "—";
+    const mbs = r.averageLast2BlockingScoresMs!=null ? Math.round(Number(r.averageLast2BlockingScoresMs)) : "—";
+    const spf = r.samnPerelli && r.samnPerelli.score!=null ? r.samnPerelli.score : "—";
+    return `${i+1}. ${when} | CPI ${cpi} | MBS ${mbs} | SP-FS ${spf}`;
+  });
+  return "Performance over Date and Time\n\n" + rows.join("\n");
+}
+
+function formatLastRateRtText(last){
+  if(!last) return "No Presentation Rate vs Response Time data available.";
+  const rows = (last.rtLog||[]).map((r,i)=>{
+    const dur = r.durationMs!=null ? r.durationMs : "—";
+    const rt = r.rt!=null ? r.rt : "—";
+    return `${i+1}. Phase ${r.phase||"—"} | Presentation ${dur} ms | Response ${rt} ms | Outcome ${r.outcome||"—"}`;
+  });
+  return rows.length ? ("Presentation Rate vs Response Time\n\n" + rows.join("\n")) : "No Presentation Rate vs Response Time data available.";
+}
+
+function buildEmailBodyFromSelection(){
+  const last = state.history && state.history.length ? state.history[state.history.length-1] : null;
+  const choice = $("emailDataSelect") ? $("emailDataSelect").value : "summary";
+  if(choice === "trial_log") return formatLastTrialLogText(last);
+  if(choice === "ranked") return formatLastRankedText(last);
+  if(choice === "perf_time") return formatLastPerfTimeText();
+  if(choice === "rate_rt") return formatLastRateRtText(last);
+  if(choice === "all"){
+    return [
+      state.lastResultText || "No results summary available.",
+      "",
+      formatLastTrialLogText(last),
+      "",
+      formatLastRankedText(last),
+      "",
+      formatLastPerfTimeText(),
+      "",
+      formatLastRateRtText(last)
+    ].join("\n");
+  }
+  return state.lastResultText || JSON.stringify(last||{}, null, 2);
+}
+
+function openSelectedEmailDraft(){
+  const to = getEmailRecipient();
+  const info = $("emailSelectInfo");
+  const recipInfo = $("emailRecipientInfo");
+  if(recipInfo){
+    recipInfo.textContent = to ? `Recipient: ${to}` : "Recipient: none selected";
+  }
+  if(!to){
+    if(info) info.textContent = "No recipient email found. Enter an email on the Start/Profile page first.";
+    return;
+  }
+  const body = buildEmailBodyFromSelection().replace(/\n/g,"\r\n");
+  const subject = `CogSpeed® ${APP_VERSION} Results`;
+  window.location.href = `mailto:${encodeURIComponent(to)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+}
+
+function wireEmailDraftAction(){
+  const openBtn = $("emailOpenDraftBtn");
+  const recipBtn = $("emailSelectRecipientBtn");
+  const recipInfo = $("emailRecipientInfo");
+  const info = $("emailSelectInfo");
+  if(recipInfo){
+    const to = getEmailRecipient();
+    recipInfo.textContent = to ? `Recipient: ${to}` : "Recipient: none selected";
+  }
+  if(recipBtn && recipBtn.dataset.recipientWired !== "1"){
+    recipBtn.dataset.recipientWired = "1";
+    recipBtn.onclick = (e)=>{
+      if(e) e.preventDefault();
+      const to = getEmailRecipient();
+      if(recipInfo) recipInfo.textContent = to ? `Recipient: ${to}` : "Recipient: none selected";
+      if(info) info.textContent = to ? "Recipient ready." : "No recipient email found yet.";
+    };
+  }
+  if(openBtn && openBtn.dataset.emailDraftWired !== "1"){
+    openBtn.dataset.emailDraftWired = "1";
+    openBtn.onclick = (e)=>{
+      if(e) e.preventDefault();
+      openSelectedEmailDraft();
+    };
+  }
+}
+
+window.addEventListener("load", ()=>{
+  try{ wireEmailDraftAction(); }catch(err){}
+});
+/* ===== end E-mail draft action override (V280) ===== */
