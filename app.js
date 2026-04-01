@@ -1183,14 +1183,7 @@ function handleTap(index){
   state.current.resolved=true; state.totalResponses+=1; state.totalCorrect+=1;
   applyPacing(rt,true); state.pacedRTs.push(rt);
   logTrial({phase:"paced",rt,outcome:"correct",responseIndex:index}); flashBtn(index,true);
-  if(recordAnswer(true)) return;
-  // Immediately advance: clear old frame timer, count trial, open next
-  clearTimer();
-  state.unresolvedStreak=0;
-  state.totalTrials+=1;
-  if(state.totalTrials>=settings.maxTrialCount){ state.endReason="ERRATIC RESPONSES — Retest"; finish(); }
-  else openTrial("paced");
-  return;
+  recordAnswer(true); return;
  }
  state.hadResponse=true;
  // PACED wrongs do NOT count toward "Cal stop after N wrong".
