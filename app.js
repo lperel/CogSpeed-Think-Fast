@@ -1,8 +1,8 @@
 // ═══════════════════════════════════════════════════
-// CogSpeed V268
+// CogSpeed V269
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V268";
+const APP_VERSION = "V269";
 const RELEASE = APP_VERSION.replace(/^V/i, "");
 const STORAGE_PREFIX = `cogspeed_v${RELEASE}`;
 
@@ -1512,8 +1512,8 @@ function drawPerformanceOverTimeChart(canvas,hist){
  const last = hist[hist.length-1] || {};
  const lastMode = last.testMode || "mode1";
  const lastSubject = last.subjectId || "";
- const filtered = hist.filter(r => (r.testMode||"mode1")===lastMode && (r.subjectId||"")==lastSubject);
- const slice = (filtered.length ? filtered : hist).slice(-18);
+ const baseSeries = (hist||[]).slice().sort((a,b)=>getSessionUtcMs(a)-getSessionUtcMs(b));
+ const slice = baseSeries;
  const n = slice.length;
 
  const bestMs = Number(settings.cpiBestMs)||900, worstMs = Number(settings.cpiWorstMs)||3400;
@@ -1590,7 +1590,8 @@ function drawPerformanceOverTimeChart(canvas,hist){
 
  ctx.font="12px sans-serif";
  ctx.fillStyle="#d7e7f8";
- ctx.fillText(`Subject ID: ${lastSubject||"—"}    Test Mode: ${formatModeTag(lastMode)}`, PAD.left, 46);
+ const subjectCount = new Set(slice.map(r => (r.subjectId||"—"))).size;
+ ctx.fillText(`All sessions sequentially    Subjects: ${subjectCount}    Sessions: ${n}    Chronology: UTC`, PAD.left, 46);
 
  // axis titles
  ctx.save();
