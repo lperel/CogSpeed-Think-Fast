@@ -1,8 +1,8 @@
 // ═══════════════════════════════════════════════════
-// CogSpeed V263
+// CogSpeed V265
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V263";
+const APP_VERSION = "V265";
 const RELEASE = APP_VERSION.replace(/^V/i, "");
 const STORAGE_PREFIX = `cogspeed_v${RELEASE}`;
 
@@ -2743,6 +2743,7 @@ function stopSpeedometer(){ if(_speedoRaf){ cancelAnimationFrame(_speedoRaf); _s
 // E-MAIL: emailResults() opens mailto: with full result text body.
 // ──────────────────────────────────────────────────────────────
 function showResultsPage(){
+ beginCurtainTransition();
  const last=state.history[state.history.length-1];
  const success=last?isTestSuccess(last.endReason):false;
  // 1. Spin all gears fast for 1.5s
@@ -2757,6 +2758,7 @@ function showResultsPage(){
  probeCell.classList.remove("gidle-f"); probeCell.classList.add("gspin-f");
  // 2. Close curtain
  const curtain=$("curtain"); if(curtain) curtain.classList.remove("open");
+ endCurtainTransition();
  setTimeout(()=>{
   // 3. Show thinking box
   const ts=$("testScreen"); if(ts) ts.classList.add("hidden");
@@ -2765,6 +2767,7 @@ function showResultsPage(){
   setTimeout(()=>{
    stopFX(); if(thinking) thinking.classList.add("hidden");
    renderSpeedometerOutcome(last);
+   endCurtainTransition();
  try{ updateStartPageLinks(); }catch(e){}
   },2000);
  },500);
@@ -2814,6 +2817,7 @@ function startOverFlow(){
  const we=$("welcomeEmail"); if(we) we.textContent="";
  const hint=$("subjectHint"); if(hint) hint.textContent="Enter your email to begin.";
  setStatus("Reset. Enter Subject ID."); showOnly("subjectOverlay");
+ endCurtainTransition();
 }
 
 // ─── Gear spin intro then start ───
@@ -2823,8 +2827,25 @@ function startOverFlow(){
 // Outro spin triggered in showResultsPage() after test ends.
 // CURTAIN TRANSITION: left/right panels slide apart on open,
 //  slide closed on test end (CSS transform translateX).
+// During curtain motion, overlays/text are force-hidden to prevent
+// leaked text fragments from flashing on screen.
 // ──────────────────────────────────────────────────────────────
+
+function beginCurtainTransition(){
+ document.body.classList.add("curtain-active");
+ hideAllOverlays();
+ const rb=$("resultBox"); if(rb){ rb.textContent=""; rb.classList.add("hidden"); }
+ const pl=$("phaseLabel"); if(pl) pl.textContent="";
+ const sl=$("statusLine"); if(sl) sl.textContent="";
+ const probeLbl=document.querySelector("#testScreen .probe-label");
+ if(probeLbl) probeLbl.textContent="";
+}
+function endCurtainTransition(){
+ document.body.classList.remove("curtain-active");
+}
+
 function runGearSpinThenStart(callback) {
+ beginCurtainTransition();
  // Show test screen with gears, no pattern, spin fast for 2s, then callback
  const ts = $("testScreen"); if(ts) ts.classList.remove("hidden");
  // Render blank gears for the spin
@@ -2848,6 +2869,7 @@ function runGearSpinThenStart(callback) {
   const curtain = $("curtain"); if(curtain) curtain.classList.add("open");
   setTimeout(()=>{
    callback();
+   endCurtainTransition();
   }, 750);
  }, 1800);
 }
@@ -3577,9 +3599,13 @@ $("skipRefresherBtn").onclick=()=>{
 };
 $("refBackBtn").onclick=()=>goToStartPage();
  try{ updateStartPageLinks(); }catch(e){}
-$("refStartOverBtn").onclick=()=>startOverFlow();
+
 $("fatigueBackBtn").onclick=()=>goToStartPage();
-$("fatigueStartOverBtn").onclick=()=>startOverFlow();
+
+bindDoubleTapConfirm($("refStartOverBtn"), ()=>startOverFlow(), "Reset", "Tap again to reset");
+bindDoubleTapConfirm($("fatigueStartOverBtn"), ()=>startOverFlow(), "Reset", "Tap again to reset");
+
+
 const _fsb=$("fatigueStartBtn");
 if(_fsb) _fsb.onclick=startTest;
 let _adminUnlocked = false;
