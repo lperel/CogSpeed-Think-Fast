@@ -1,8 +1,8 @@
 // ═══════════════════════════════════════════════════
-// CogSpeed V269
+// CogSpeed V273
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V269";
+const APP_VERSION = "V273";
 const RELEASE = APP_VERSION.replace(/^V/i, "");
 const STORAGE_PREFIX = `cogspeed_v${RELEASE}`;
 
@@ -1486,6 +1486,137 @@ function drawCombinedChart(canvas,hist,selectedIdx){
  ctx.fillStyle="#88ff88"; ctx.fillText("◆ SP-FS", PAD.left+116, PAD.top-10);
 }
 
+
+function graphMetricMsForSession(r){
+ if(!r) return null;
+ const candidates = [
+  r.averageLast2BlockingScoresMs,
+  r.pacedResponseMeanMs,
+  r.selfPacedResponseMeanMs,
+  r.calibrationAverageMs,
+  r.fixedPacedBaselineMs
+ ];
+ for(const v of candidates){
+  const n = Number(v);
+  if(isFinite(n) && n > 0) return n;
+ }
+ return null;
+}
+function graphCpiForSession(r){
+ if(!r) return null;
+ const explicit = Number(r.cognitivePerformanceIndex);
+ if(isFinite(explicit)) return explicit;
+ const ms = graphMetricMsForSession(r);
+ return (ms!=null) ? computeCPI(ms) : null;
+}
+
+
+const perfGraphState = {
+ preset: "last14",
+ fromDate: "",
+ toDate: ""
+};
+
+function sessionIsoDate(r){
+ const ms = getSessionUtcMs(r);
+ if(!isFinite(ms)) return "";
+ return new Date(ms).toISOString().slice(0,10);
+}
+
+function filterSessionsForPerfGraph(hist){
+ const base = (hist||[]).slice().sort((a,b)=>getSessionUtcMs(a)-getSessionUtcMs(b));
+ if(perfGraphState.preset === "all") return base;
+ if(perfGraphState.preset === "last14") return base.slice(-14);
+ const from = perfGraphState.fromDate || "";
+ const to = perfGraphState.toDate || "";
+ return base.filter(r=>{
+  const d = sessionIsoDate(r);
+  if(!d) return false;
+  if(from && d < from) return false;
+  if(to && d > to) return false;
+  return true;
+ });
+}
+
+function syncPerfGraphControls(hist){
+ const preset = $("perfRangePreset");
+ const fromEl = $("perfDateFrom");
+ const toEl = $("perfDateTo");
+ const info = $("perfRangeInfo");
+ if(!preset || !fromEl || !toEl) return;
+
+ const base = (hist||[]).slice().sort((a,b)=>getSessionUtcMs(a)-getSessionUtcMs(b));
+ const firstDate = base.length ? sessionIsoDate(base[0]) : "";
+ const lastDate = base.length ? sessionIsoDate(base[base.length-1]) : "";
+
+ fromEl.min = firstDate || "";
+ fromEl.max = lastDate || "";
+ toEl.min = firstDate || "";
+ toEl.max = lastDate || "";
+
+ if(!perfGraphState.fromDate && firstDate) perfGraphState.fromDate = firstDate;
+ if(!perfGraphState.toDate && lastDate) perfGraphState.toDate = lastDate;
+
+ preset.value = perfGraphState.preset;
+ fromEl.value = perfGraphState.fromDate || "";
+ toEl.value = perfGraphState.toDate || "";
+
+ const custom = perfGraphState.preset === "custom";
+ fromEl.disabled = !custom;
+ toEl.disabled = !custom;
+ fromEl.style.opacity = custom ? "1" : "0.55";
+ toEl.style.opacity = custom ? "1" : "0.55";
+
+ const filtered = filterSessionsForPerfGraph(base);
+ if(info){
+  if(!base.length){
+   info.textContent = "No saved sessions yet.";
+  }else if(custom){
+   info.textContent = `Showing ${filtered.length} session${filtered.length===1?"":"s"} from ${perfGraphState.fromDate||firstDate} to ${perfGraphState.toDate||lastDate}.`;
+  }else if(perfGraphState.preset === "last14"){
+   info.textContent = `Showing the last ${filtered.length} saved session${filtered.length===1?"":"s"}.`;
+  }else{
+   info.textContent = `Showing all ${base.length} saved sessions from ${firstDate} to ${lastDate}.`;
+  }
+ }
+}
+
+function wirePerfGraphControls(){
+ const preset = $("perfRangePreset");
+ const fromEl = $("perfDateFrom");
+ const toEl = $("perfDateTo");
+ if(!preset || !fromEl || !toEl || preset.dataset.wired==="1") return;
+ preset.dataset.wired = "1";
+
+ const rerender = ()=>{
+  try{
+   syncPerfGraphControls(state.history||[]);
+   drawPerformanceOverTimeChart(document.querySelector("#perfTimeOverlay canvas"), state.history||[]);
+  }catch(e){}
+ };
+
+ preset.onchange = ()=>{
+  perfGraphState.preset = preset.value || "all";
+  rerender();
+ };
+ fromEl.onchange = ()=>{
+  perfGraphState.fromDate = fromEl.value || "";
+  if(perfGraphState.toDate && perfGraphState.fromDate && perfGraphState.toDate < perfGraphState.fromDate){
+   perfGraphState.toDate = perfGraphState.fromDate;
+   toEl.value = perfGraphState.toDate;
+  }
+  rerender();
+ };
+ toEl.onchange = ()=>{
+  perfGraphState.toDate = toEl.value || "";
+  if(perfGraphState.fromDate && perfGraphState.toDate && perfGraphState.toDate < perfGraphState.fromDate){
+   perfGraphState.fromDate = perfGraphState.toDate;
+   fromEl.value = perfGraphState.fromDate;
+  }
+  rerender();
+ };
+}
+
 function drawPerformanceOverTimeChart(canvas,hist){
  if(!canvas) return;
  const dpr = window.devicePixelRatio || 1;
@@ -1509,12 +1640,11 @@ function drawPerformanceOverTimeChart(canvas,hist){
   return;
  }
 
- const last = hist[hist.length-1] || {};
- const lastMode = last.testMode || "mode1";
- const lastSubject = last.subjectId || "";
- const baseSeries = (hist||[]).slice().sort((a,b)=>getSessionUtcMs(a)-getSessionUtcMs(b));
+ const baseSeries = filterSessionsForPerfGraph(hist||[]);
+ syncPerfGraphControls(hist||[]);
  const slice = baseSeries;
  const n = slice.length;
+ const last = slice[n-1] || {};
 
  const bestMs = Number(settings.cpiBestMs)||900, worstMs = Number(settings.cpiWorstMs)||3400;
  const PAD = {top:72,right:76,bottom:n===1?64:92,left:126};
@@ -1591,7 +1721,8 @@ function drawPerformanceOverTimeChart(canvas,hist){
  ctx.font="12px sans-serif";
  ctx.fillStyle="#d7e7f8";
  const subjectCount = new Set(slice.map(r => (r.subjectId||"—"))).size;
- ctx.fillText(`All sessions sequentially    Subjects: ${subjectCount}    Sessions: ${n}    Chronology: UTC`, PAD.left, 46);
+ const rangeLabel = perfGraphState.preset === "custom" ? `    Range: ${perfGraphState.fromDate||"start"} → ${perfGraphState.toDate||"end"}` : (perfGraphState.preset === "last14" ? "    Range: Last 14 sessions" : "");
+ ctx.fillText(`All sessions sequentially    Subjects: ${subjectCount}    Sessions: ${n}    Chronology: UTC${rangeLabel}`, PAD.left, 46);
 
  // axis titles
  ctx.save();
@@ -1638,10 +1769,12 @@ function drawPerformanceOverTimeChart(canvas,hist){
   ctx.fillText(label, xOf(0), PAD.top+cH+26);
  }else{
   ctx.textAlign="right";
+  const labelStep = Math.max(1, Math.ceil(n/12));
   slice.forEach((r,i)=>{
+   if(i % labelStep !== 0 && i !== n-1) return;
    const x=xOf(i), y=PAD.top+cH+8;
-   const d=new Date(r.time);
-   const label=`${d.toLocaleDateString("en-US",{month:"numeric",day:"numeric"})} ${d.toLocaleTimeString("en-US",{hour:"2-digit",minute:"2-digit"})}`;
+   const raw = typeof formatSessionAxisLabel==="function" ? formatSessionAxisLabel(r) : `${new Date(r.time).toLocaleDateString("en-US",{month:"numeric",day:"numeric"})} ${new Date(r.time).toLocaleTimeString("en-US",{hour:"2-digit",minute:"2-digit"})}`;
+   const label = raw.length>22 ? raw.slice(0,22) : raw;
    ctx.save(); ctx.translate(x,y); ctx.rotate(-Math.PI/4); ctx.fillText(label,0,0); ctx.restore();
   });
  }
@@ -1672,9 +1805,18 @@ function drawPerformanceOverTimeChart(canvas,hist){
   });
  }
 
- const cpiVals = slice.map(r=>r.cognitivePerformanceIndex!=null?Number(r.cognitivePerformanceIndex):null);
- const mbsVals = slice.map(r=>r.averageLast2BlockingScoresMs!=null?Number(r.averageLast2BlockingScoresMs):null);
- const spfVals = slice.map(r=>r.samnPerelli&&r.samnPerelli.score!=null?Number(r.samnPerelli.score):null);
+ const cpiVals = slice.map(r=>graphCpiForSession(r));
+ const mbsVals = slice.map(r=>graphMetricMsForSession(r));
+ const spfVals = slice.map(r=>r && r.samnPerelli && r.samnPerelli.score!=null ? Number(r.samnPerelli.score) : null);
+
+ const hasAnyMetric = cpiVals.some(v=>v!=null) || mbsVals.some(v=>v!=null) || spfVals.some(v=>v!=null);
+ if(!hasAnyMetric){
+  ctx.fillStyle="#d7e7f8";
+  ctx.font="bold 15px sans-serif";
+  ctx.textAlign="center";
+  ctx.fillText("No graphable session values yet", PAD.left + cW/2, PAD.top + cH/2);
+  return;
+ }
 
  function yLeftFromCpiVisible(v,i){
   const base = yLeftFromCpi(v);
