@@ -1,8 +1,8 @@
 // ═══════════════════════════════════════════════════
-// CogSpeed V303
+// CogSpeed V307
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V303";
+const APP_VERSION = "V307";
 const RELEASE = APP_VERSION.replace(/^V/i, "");
 const STORAGE_PREFIX = `cogspeed_v${RELEASE}`;
 
@@ -1714,15 +1714,6 @@ function graphMetricMsForSession(r){
  }
  return null;
 }
-function graphCpiForSession(r){
- if(!r) return null;
- const explicit = Number(r.cognitivePerformanceIndex);
- if(isFinite(explicit)) return explicit;
- const ms = graphMetricMsForSession(r);
- return (ms!=null) ? computeCPI(ms) : null;
-}
-
-
 function getSessionUtcMs(r){
  if(!r) return 0;
  const candidates = [
@@ -2070,10 +2061,6 @@ function computeRankAverages(rtLog){
 function formatRankRows(rows){
  return rows.length ? rows.map(r=>` ${r.label}: ${r.avg.toFixed(1)} ms (n=${r.count})`).join("\n") : " none";
 }
-function formatRankSection(rankSet){
- return `Correct responses:\nDots:\n${formatRankRows(rankSet.correct.dotRows)}\nLines:\n${formatRankRows(rankSet.correct.lineRows)}\nPositions:\n${formatRankRows(rankSet.correct.posRows)}\n\nWrong responses:\nDots:\n${formatRankRows(rankSet.wrong.dotRows)}\nLines:\n${formatRankRows(rankSet.wrong.lineRows)}\nPositions:\n${formatRankRows(rankSet.wrong.posRows)}`;
-}
-
 function getModePooledSessionRecords(mode){
  const warmupCount = Math.max(0, Number(settings.initialUnusedCalibrationTrials)||0);
  const sessions = (state.history||[]).filter(s => (s.testMode||"mode1") === (mode||"mode1"));
@@ -2504,7 +2491,7 @@ function getCognitivePerformanceTableText(result){
  const leftHeader = "Cognitive Performance Table";
  const rightHeader = "Cognitive Performance Capability *";
  const leftRows = rows.map((r,i)=>{
-   const spfsLabel = (actualSpfs!=null && r.spfs===actualSpfs) ? `**SP-FS ${r.spfs}**` : `SP-FS ${r.spfs}`;
+   const spfsLabel = (actualSpfs!=null && r.spfs===actualSpfs) ? `[SP-FS ${r.spfs}]` : `SP-FS ${r.spfs}`;
    const mark = i===nearestIdx ? "  ← CPI" : "";
    return `${spfsLabel}: CPI ${r.cpi.toString().padStart(3," ")} | ${r.ms} ms${mark}`;
  });
@@ -2647,7 +2634,7 @@ RESPONSE STATISTICS
  Mean paced RT: ${result.pacedResponseMeanMs!=null?result.pacedResponseMeanMs.toFixed(1)+" ms":"—"}
  Paced RT SD: ${sd!=null?sd.toFixed(1)+" ms":"—"}
 ${hr}
-COGNITIVE PERFORMANCE TABLE\n Bold row = actual SP-FS score. Arrow = nearest CPI reference. Capability text is shown at right.\n${getCognitivePerformanceTableText(result)}`;
+COGNITIVE PERFORMANCE TABLE\n [SP-FS x] = actual SP-FS score. Arrow = nearest CPI reference. Capability text is shown at right.\n${getCognitivePerformanceTableText(result)}`;
 }
 
 // ─── SPEEDOMETER V2 — Vintage Auto Meter style ────────────────
@@ -4051,7 +4038,7 @@ const _fga=$("fullGraphAdminBtn"); if(_fga) _fga.onclick=()=>{ $("fullGraphOverl
 
 const _tla=$("trialLogAdminBtn"); if(_tla) _tla.onclick=()=>{ $("trialLogOverlay").classList.add("hidden"); $("adminOverlay").classList.remove("hidden"); if(_adminUnlocked){ $("adminGate").classList.add("hidden"); $("adminBody").classList.remove("hidden"); renderAdmin(); } else { $("adminGate").classList.remove("hidden"); $("adminBody").classList.add("hidden"); $("adminPass").value=""; } };
 
-const _ssp=$("speedStartPageBtn"); if(_ssp) _ssp.onclick=()=>{ $("outcomeOverlay").classList.add("hidden"); goToStartPage(); try{ updateStartPageLinks(); }catch(e){} };
+const _ssp=$("speedStartPageBtn"); if(_ssp) _ssp.onclick=()=>{ hideAllOverlays(); goToStartPage(); };
 
 // ─── E-MAIL SELECT PAGE ───────────────────────────────────────
 // Opens from Speedometer. Provides recipient selection and a
@@ -4062,7 +4049,7 @@ const _ssp=$("speedStartPageBtn"); if(_ssp) _ssp.onclick=()=>{ $("outcomeOverlay
 window.addEventListener("load",()=>{ try{ updateStartPageLinks(); }catch(e){}; });
 
 
-/* ===== Performance vs Time graph override (V303) ===== */
+/* ===== Performance vs Time graph override (V307) ===== */
 const perfGraphState = {
   preset: "last14",
   fromDate: "",
@@ -4466,10 +4453,10 @@ function openPerformanceOverTimePage(){
   wirePerfGraphControls();
   drawPerformanceOverTimeChart($("perfTimeGraph"), state.history||[]);
 }
-/* ===== end Performance vs Time graph override (V303) ===== */
+/* ===== end Performance vs Time graph override (V307) ===== */
 
 
-/* ===== E-mail Select wiring override (V303) ===== */
+/* ===== E-mail Select wiring override (V307) ===== */
 function openEmailSelectPage(){
   hideAllOverlays();
   const ov = $("emailOverlay");
@@ -4549,16 +4536,10 @@ window.addEventListener("load", ()=>{
   try{ wireEmailSelectControls(); }catch(err){}
  try{ wireEmailDraftAction(); }catch(err){}
 });
-/* ===== end E-mail Select wiring override (V303) ===== */
+/* ===== end E-mail Select wiring override (V307) ===== */
 
 
-/* ===== E-mail draft action override (V303) ===== */
-function getEmailRecipient(){
-  const fromProfile = (state.profile && state.profile.email) ? String(state.profile.email).trim() : "";
-  const fromInput = ($("subjectIdInput") && $("subjectIdInput").value) ? String($("subjectIdInput").value).trim() : "";
-  return fromProfile || fromInput || "";
-}
-
+/* ===== E-mail draft action override (V307) ===== */
 function formatLastTrialLogText(last){
   if(!last || !Array.isArray(last.rtLog) || !last.rtLog.length) return "No trial detail log available.";
   const lines = last.rtLog.map(r=>{
@@ -4650,10 +4631,10 @@ window.addEventListener("load", ()=>{
   try{ wireEmailDraftAction(); }catch(err){}
   try{ syncEditableEmailRecipient(); }catch(err){}
 });
-/* ===== end E-mail draft action override (V303) ===== */
+/* ===== end E-mail draft action override (V307) ===== */
 
 
-/* ===== Editable recipient field override (V303) ===== */
+/* ===== Editable recipient field override (V307) ===== */
 function getEditableEmailRecipient(){
   const input = $("emailRecipientInput");
   const typed = input && input.value ? String(input.value).trim() : "";
@@ -4718,7 +4699,7 @@ function wireEmailDraftAction(){
   }
 }
 window.addEventListener("load", ()=>{ try{ syncEditableEmailRecipient(); }catch(err){}; });
-/* ===== end Editable recipient field override (V303) ===== */
+/* ===== end Editable recipient field override (V307) ===== */
 
 
 window.addEventListener("resize", ()=>{
