@@ -1,8 +1,8 @@
 // ═══════════════════════════════════════════════════
-// CogSpeed V317
+// CogSpeed V318
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V317";
+const APP_VERSION = "V318";
 const RELEASE = APP_VERSION.replace(/^V/i, "");
 const STORAGE_PREFIX = `cogspeed_v${RELEASE}`;
 
@@ -209,7 +209,6 @@ const state={
  fixedPacedBaseline:null, fixedPacedPresented:0, fixedPacedCorrect:0, fixedPacedWrong:0,
  hadResponse:false, endReason:"", blockRestartBaseline:null,
  trialOpenedAt:null, geo:null, benchmark:null, lastResultText:null,
- _prevTrialOpenedAt:null, _prevPresentedDurationMs:null,
  pendingPriorMiss:null, pendingLatePacing:null
  // pendingPriorMiss:
  //   stores the immediately previous paced frame when it LOOKED like a miss at frame end,
@@ -275,14 +274,7 @@ function updateCPIDisplay(avg){
  }
 
 // ─── Timers ───
-function clearTimer(){
- if(state.trialTimer){
-  if(state._trialTimerIsRaf) cancelAnimationFrame(state.trialTimer);
-  else clearTimeout(state.trialTimer);
- }
- state.trialTimer=null;
- state._trialTimerIsRaf=false;
-}
+function clearTimer(){ if(state.trialTimer) clearTimeout(state.trialTimer); state.trialTimer=null; }
 function clearNoResponseTimer(){ if(state.absoluteNoResponseTimer) clearTimeout(state.absoluteNoResponseTimer); state.absoluteNoResponseTimer=null; }
 function clearMaxTestTimer(){ if(state.maxTestTimer) clearTimeout(state.maxTestTimer); state.maxTestTimer=null; }
 // Absolute "not responding" timer — keeps tests from hanging forever.
@@ -550,7 +542,7 @@ function renderTrial(trial){
   btn.appendChild(pos);
   btn.innerHTML+=buildGearSVG(i+1,null,"large",""); // no rotation during test
   const idx=i;
-  // Pass event.timeStamp for tighter RT timing.
+  // Use event.timeStamp for tighter RT capture.
   btn.addEventListener("pointerdown",(e)=>handleTap(idx,e.timeStamp));
   respGrid.appendChild(btn);
  }
@@ -593,13 +585,6 @@ function logTrial({phase,rt,outcome,responseIndex,counted}){
   phase==="paced" || phase==="paced_wrong" || phase==="paced_late_correct" || phase==="paced_late_wrong" || phase==="missed" || phase==="paced_fixed" || phase==="paced_fixed_wrong" || phase==="paced_fixed_missed"
  ) ? (state.presentedRoundDuration!=null ? state.presentedRoundDuration : (state.duration?Math.round(state.duration):null))
    : (state.duration?Math.round(state.duration):null);
-
- let interTrialGapMs = null;
- if(state._prevTrialOpenedAt!=null && state.trialOpenedAt!=null && state._prevPresentedDurationMs!=null){
-  interTrialGapMs = Math.round(state.trialOpenedAt - state._prevTrialOpenedAt - state._prevPresentedDurationMs);
-  if(interTrialGapMs < 0) interTrialGapMs = 0;
- }
-
  state.rtLog.push({
   seq:state.rtLog.length+1, phase, clockTime:new Date().toISOString(),
   durationMs:loggedDurationMs,
@@ -608,8 +593,7 @@ function logTrial({phase,rt,outcome,responseIndex,counted}){
   correctCell:ci?`${ci.family}:${ci.count} @${trial.correctPos+1}`:"—",
   response:ri?`${ri.family}:${ri.count} @${responseIndex+1}`:(responseIndex!=null?`pos${responseIndex+1}`:"no_response"),
   warmup: counted===false,
-  counted,
-  interTrialGapMs
+  counted
  });
 }
 
@@ -924,10 +908,6 @@ function openTrial(kind){
  state.current=makeTrial(kind,lastPos,lastProbe);
  state.hadResponse=false;
 
- // Save previous trial timing for inter-trial gap calculation.
- state._prevTrialOpenedAt = state.trialOpenedAt;
- state._prevPresentedDurationMs = state.presentedRoundDuration;
-
  // IMPORTANT:
  // Do not start timing until the display has actually rendered.
  // If a tap arrives before trialOpenedAt is set, RT is clamped safely to 0 instead of producing a huge bogus value.
@@ -962,30 +942,20 @@ function openTrial(kind){
   setStatus(`Final SP — complete ${settings.spRestartCorrectStreak} correct to finish`);
  }
 
- // Arm timers only after the display has been fully painted.
+ // Arm timers only after the display is fully rendered.
  requestAnimationFrame(()=>{
   requestAnimationFrame(()=>{
-   requestAnimationFrame(()=>{
-    state.trialOpenedAt = performance.now();
+   state.trialOpenedAt = performance.now();
 
-    if(kind==="calibration"){
-     armNoResponseTimer();
-    }else if(kind==="paced" || kind==="paced_fixed"){
-     const targetMs = state.duration;
-     const frameStart = state.trialOpenedAt;
-     function checkFrame(){
-      if(performance.now() - frameStart >= targetMs){
-       onPacedFrameEnd();
-       return;
-      }
-      state.trialTimer = requestAnimationFrame(checkFrame);
-     }
-     state._trialTimerIsRaf = true;
-     state.trialTimer = requestAnimationFrame(checkFrame);
-    }else if(kind==="recovery" || kind==="terminal_recovery"){
-     armNoResponseTimer();
-    }
-   });
+   if(kind==="calibration"){
+    armNoResponseTimer();
+   }else if(kind==="paced"){
+    state.trialTimer=setTimeout(onPacedFrameEnd,state.duration);
+   }else if(kind==="paced_fixed"){
+    state.trialTimer=setTimeout(onPacedFrameEnd,state.duration);
+   }else if(kind==="recovery" || kind==="terminal_recovery"){
+    armNoResponseTimer();
+   }
   });
  });
 }
@@ -1057,11 +1027,6 @@ function applyPendingLatePacingIfAny(){
 }
 
 function onPacedFrameEnd(){
- const actualFrameMs = (state.trialOpenedAt!=null)
-  ? Math.round(performance.now() - state.trialOpenedAt)
-  : (state.presentedRoundDuration || (state.duration ? Math.round(state.duration) : null));
- if(actualFrameMs!=null) state.presentedRoundDuration = actualFrameMs;
-
  // Mode 3 fixed machine-paced handler:
 // every trial uses one fixed baseline duration,
 // no adaptive speedup/slowdown within the fixed MP phase.
@@ -2675,7 +2640,6 @@ function clearCurrentSession(){
  state.activeMode=settings.testMode||"mode1"; state.selfPacedRTs=[]; state.selfPacedCorrect=0; state.selfPacedWrong=0;
  state.fixedPacedBaseline=null; state.fixedPacedPresented=0; state.fixedPacedCorrect=0; state.fixedPacedWrong=0;
  state.hadResponse=false; state.blockRestartBaseline=null; state.pendingPriorMiss=null; state.pendingLatePacing=null;
- state._prevTrialOpenedAt=null; state._prevPresentedDurationMs=null;
  state.geo=null; state.benchmark=null; state.lastResultText=null;
  updateCPIDisplay(null); updateMetrics(); setProbeIdle(); setTestingQuiet(false);
 }
@@ -3786,7 +3750,7 @@ const _ssp=$("speedStartPageBtn"); if(_ssp) _ssp.onclick=()=>{ hideAllOverlays()
 window.addEventListener("load",()=>{ try{ updateStartPageLinks(); }catch(e){}; });
 
 
-/* ===== Performance vs Time graph override (V317) ===== */
+/* ===== Performance vs Time graph override (V318) ===== */
 const perfGraphState = {
   preset: "last14",
   fromDate: "",
@@ -4190,10 +4154,10 @@ function openPerformanceOverTimePage(){
   wirePerfGraphControls();
   drawPerformanceOverTimeChart($("perfTimeGraph"), state.history||[]);
 }
-/* ===== end Performance vs Time graph override (V317) ===== */
+/* ===== end Performance vs Time graph override (V318) ===== */
 
 
-/* ===== E-mail Select wiring override (V317) ===== */
+/* ===== E-mail Select wiring override (V318) ===== */
 function openEmailSelectPage(){
   hideAllOverlays();
   const ov = $("emailOverlay");
@@ -4272,10 +4236,10 @@ window.addEventListener("load", ()=>{
   try{ wireEmailSelectControls(); }catch(err){}
  try{ wireEmailDraftAction(); }catch(err){}
 });
-/* ===== end E-mail Select wiring override (V317) ===== */
+/* ===== end E-mail Select wiring override (V318) ===== */
 
 
-/* ===== E-mail draft action override (V317) ===== */
+/* ===== E-mail draft action override (V318) ===== */
 function formatLastTrialLogText(last){
   if(!last || !Array.isArray(last.rtLog) || !last.rtLog.length) return "No trial detail log available.";
   const lines = last.rtLog.map(r=>{
@@ -4367,10 +4331,10 @@ window.addEventListener("load", ()=>{
   try{ wireEmailDraftAction(); }catch(err){}
   try{ syncEditableEmailRecipient(); }catch(err){}
 });
-/* ===== end E-mail draft action override (V317) ===== */
+/* ===== end E-mail draft action override (V318) ===== */
 
 
-/* ===== Editable recipient field override (V317) ===== */
+/* ===== Editable recipient field override (V318) ===== */
 function getEditableEmailRecipient(){
   const input = $("emailRecipientInput");
   const typed = input && input.value ? String(input.value).trim() : "";
@@ -4435,7 +4399,7 @@ function wireEmailDraftAction(){
   }
 }
 window.addEventListener("load", ()=>{ try{ syncEditableEmailRecipient(); }catch(err){}; });
-/* ===== end Editable recipient field override (V317) ===== */
+/* ===== end Editable recipient field override (V318) ===== */
 
 
 window.addEventListener("resize", ()=>{
