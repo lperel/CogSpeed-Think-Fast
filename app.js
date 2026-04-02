@@ -1,8 +1,8 @@
 // ═══════════════════════════════════════════════════
-// CogSpeed V298
+// CogSpeed V299
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V298";
+const APP_VERSION = "V299";
 const RELEASE = APP_VERSION.replace(/^V/i, "");
 const STORAGE_PREFIX = `cogspeed_v${RELEASE}`;
 
@@ -733,12 +733,35 @@ function maybeTriggerTerminalRule(){
 }
 function failCalibration(reason){ state.endReason=reason; finish(); }
 // ─── CALIBRATION — SELF-PACED ─────────────────────────────────
-// 2 unused + 7 measured self-paced trials.
-// CHECK ADEQUATELY TRAINED: >4 errors → "TOO MANY WRONG RESPONSES"
-// CHECK RESPONSE SPEED: single RT >6000ms → "NOT RESPONDING IN TIME — Practice!"
-// DETERMINE BASELINE RT: avg of 7 measured RTs → paced start duration
-//  (initialPacedPercent=1.2 × avg, clamped to minDurationMs-maxDurationMs).
-// CONDITION 4: avg RT >6000ms → "NEED MORE PRACTICE!"
+// Warm-up trials:
+//   initialUnusedCalibrationTrials (default 2) are shown first and never used
+//   in averaging or measured-calibration counts.
+//
+// Measured calibration phase:
+//   After warmups, keep presenting self-paced trials until the number of
+//   CORRECT measured responses reaches initialMeasuredCalibrationTrials
+//   (default 7).
+//
+// IMPORTANT:
+//   Wrong-response RTs are NEVER included in calibration averaging.
+//   Only correct measured calibration RTs are averaged.
+//
+// CHECK ADEQUATELY TRAINED:
+//   calibrationErrors >= calibrationStopErrors (default 4)
+//   → fail with "TOO MANY WRONG RESPONSES — Practice!"
+//
+// CHECK RESPONSE SPEED:
+//   any correct measured calibration RT > calibrationStopSlowMs (default 6000)
+//   → fail with "NOT RESPONDING IN TIME — Practice!"
+//
+// DETERMINE BASELINE RT FOR MODE 1 AND MODE 3:
+//   avg of the required number of CORRECT measured calibration RTs
+//   → paced start / fixed baseline derivation
+//
+// CONDITION 4:
+//   avg correct measured calibration RT > calibrationStopSlowMs
+//   → "NEED MORE PRACTICE!"
+//
 // NO-RESPONSE TIMEOUTS: first trial=10s, subsequent=6s
 // ──────────────────────────────────────────────────────────────
 // finishCalibration() now branches by selected mode:
@@ -746,8 +769,9 @@ function failCalibration(reason){ state.endReason=reason; finish(); }
 // mode2 -> finish after self-paced-only session
 // mode3 -> begin fixed-baseline machine-paced phase using
 //          calibration average × mode3BaselineFactor
-//          IMPORTANT: mode3CalibrationTrials means MEASURED trials;
-//          initialUnusedCalibrationTrials warmups are added on top.
+//          IMPORTANT: mode3CalibrationTrials means CORRECT MEASURED trials;
+//          initialUnusedCalibrationTrials warmups are added on top and
+//          wrong measured trials do not count toward the target or the average.
 function finishCalibration(){
  const avg=mean(state.calibrationRTs.length?state.calibrationRTs:state.selfPacedRTs);
  if(isMode2()){
@@ -1163,41 +1187,83 @@ function handleTap(index){
  if(state.phase==="calibration"){
   const rt=getSafeTrialRtMs(), ok=trialMatches(state.current,index);
   flashBtn(index,ok); state.totalResponses+=1;
+
+  const warmups = Number(settings.initialUnusedCalibrationTrials)||2;
+  const measuredTargetMode1 = Number(settings.initialMeasuredCalibrationTrials)||7;
+  const includeInAverages = state.calibrationTrialIndex>=warmups;
+
   // Warm-up exclusion applies across all modes:
-  // initialUnusedCalibrationTrials never contribute to averages/calculations.
-  const includeInAverages = state.calibrationTrialIndex>=settings.initialUnusedCalibrationTrials;
+  // warmups never contribute to averages/calculations.
   if(includeInAverages) state.selfPacedRTs.push(rt);
   if(ok){ state.totalCorrect+=1; if(includeInAverages) state.selfPacedCorrect+=1; } else { state.totalIncorrect+=1; if(includeInAverages) state.selfPacedWrong+=1; }
+
   logTrial({phase:"calibration",rt,outcome:includeInAverages?(ok?"correct":"wrong"):"Warmup",responseIndex:index,counted:includeInAverages});
+
   if(isMode1()){
    if(!ok){
     state.calibrationErrors+=1; updateMetrics();
     const calWrongLimit=Math.max(1,Number(settings.calibrationStopErrors)||4);
-    if(state.calibrationErrors>=calWrongLimit){ failCalibration(`TOO MANY WRONG RESPONSES — Practice! (${state.calibrationErrors}/${calWrongLimit})`); return; }
-   }else{
-    if(rt>settings.calibrationStopSlowMs){ failCalibration("NOT RESPONDING IN TIME — Practice!"); return; }
-    if(state.calibrationTrialIndex>=settings.initialUnusedCalibrationTrials) state.calibrationRTs.push(rt);
+    if(state.calibrationErrors>=calWrongLimit){
+      failCalibration(`TOO MANY WRONG RESPONSES — Practice! (${state.calibrationErrors}/${calWrongLimit})`);
+      return;
+    }
+   }else if(includeInAverages){
+    // Only CORRECT measured trials count toward calibration average and target count.
+    if(rt>settings.calibrationStopSlowMs){
+      failCalibration("NOT RESPONDING IN TIME — Practice!");
+      return;
+    }
+    state.calibrationRTs.push(rt);
    }
+
    state.calibrationTrialIndex+=1;
-   if(state.calibrationTrialIndex>=settings.initialUnusedCalibrationTrials+settings.initialMeasuredCalibrationTrials) finishCalibration();
-   else openTrial("calibration");
+
+   // End only after warmups are done AND we have the required number of CORRECT measured trials.
+   if(state.calibrationRTs.length >= measuredTargetMode1){
+     finishCalibration();
+   }else{
+     openTrial("calibration");
+   }
    return;
   }
-  // Mode 2 + Mode 3: all self-paced trials are scored for outcome,
-  // but initialUnusedCalibrationTrials are excluded from averages/calculations.
-  // There is no calibration fail-stop here; the phase ends only by
-  // the selected trial-count limit or the session time limit.
-  if(includeInAverages) state.calibrationRTs.push(rt);
+
+  // Mode 2 + Mode 3:
+  // warmups are excluded from averages. After warmups, all self-paced trials are counted
+  // toward the fixed trial-count phase, but only correct RTs are included in calibrationRTs.
+  if(includeInAverages && ok) state.calibrationRTs.push(rt);
   state.calibrationTrialIndex+=1;
+
   if(isMode2()){
-   if(state.calibrationTrialIndex >= (Number(settings.mode2TrialLimit)||150)){ state.endReason="Required responses reached"; finishCalibration(); }
-   else openTrial("calibration");
+   if(state.calibrationTrialIndex >= (Number(settings.mode2TrialLimit)||150)){
+     state.endReason="Required responses reached";
+     finishCalibration();
+   }else{
+     openTrial("calibration");
+   }
    return;
   }
+
   if(isMode3()){
-   const mode3TotalCal = (Number(settings.initialUnusedCalibrationTrials)||2) + (Number(settings.mode3CalibrationTrials)||10);
-   if(state.calibrationTrialIndex >= mode3TotalCal){ state.endReason="Required responses reached"; finishCalibration(); }
-   else openTrial("calibration");
+   const mode3MeasuredTarget = Number(settings.mode3CalibrationTrials)||10;
+   if(!ok && includeInAverages){
+     state.calibrationErrors += 1;
+     const calWrongLimit=Math.max(1,Number(settings.calibrationStopErrors)||4);
+     if(state.calibrationErrors>=calWrongLimit){
+       failCalibration(`TOO MANY WRONG RESPONSES — Practice! (${state.calibrationErrors}/${calWrongLimit})`);
+       return;
+     }
+   }
+   if(ok && includeInAverages && rt>settings.calibrationStopSlowMs){
+     failCalibration("NOT RESPONDING IN TIME — Practice!");
+     return;
+   }
+   // End only after warmups are done AND we have the required number of CORRECT measured trials.
+   if(state.calibrationRTs.length >= mode3MeasuredTarget){
+     state.endReason="Required responses reached";
+     finishCalibration();
+   }else{
+     openTrial("calibration");
+   }
    return;
   }
  }
@@ -3945,7 +4011,7 @@ const _ssp=$("speedStartPageBtn"); if(_ssp) _ssp.onclick=()=>{ $("outcomeOverlay
 window.addEventListener("load",()=>{ try{ updateStartPageLinks(); }catch(e){}; });
 
 
-/* ===== Performance vs Time graph override (V298) ===== */
+/* ===== Performance vs Time graph override (V299) ===== */
 const perfGraphState = {
   preset: "last14",
   fromDate: "",
@@ -4349,10 +4415,10 @@ function openPerformanceOverTimePage(){
   wirePerfGraphControls();
   drawPerformanceOverTimeChart($("perfTimeGraph"), state.history||[]);
 }
-/* ===== end Performance vs Time graph override (V298) ===== */
+/* ===== end Performance vs Time graph override (V299) ===== */
 
 
-/* ===== E-mail Select wiring override (V298) ===== */
+/* ===== E-mail Select wiring override (V299) ===== */
 function openEmailSelectPage(){
   hideAllOverlays();
   const ov = $("emailOverlay");
@@ -4432,10 +4498,10 @@ window.addEventListener("load", ()=>{
   try{ wireEmailSelectControls(); }catch(err){}
  try{ wireEmailDraftAction(); }catch(err){}
 });
-/* ===== end E-mail Select wiring override (V298) ===== */
+/* ===== end E-mail Select wiring override (V299) ===== */
 
 
-/* ===== E-mail draft action override (V298) ===== */
+/* ===== E-mail draft action override (V299) ===== */
 function getEmailRecipient(){
   const fromProfile = (state.profile && state.profile.email) ? String(state.profile.email).trim() : "";
   const fromInput = ($("subjectIdInput") && $("subjectIdInput").value) ? String($("subjectIdInput").value).trim() : "";
@@ -4533,10 +4599,10 @@ window.addEventListener("load", ()=>{
   try{ wireEmailDraftAction(); }catch(err){}
   try{ syncEditableEmailRecipient(); }catch(err){}
 });
-/* ===== end E-mail draft action override (V298) ===== */
+/* ===== end E-mail draft action override (V299) ===== */
 
 
-/* ===== Editable recipient field override (V298) ===== */
+/* ===== Editable recipient field override (V299) ===== */
 function getEditableEmailRecipient(){
   const input = $("emailRecipientInput");
   const typed = input && input.value ? String(input.value).trim() : "";
@@ -4601,7 +4667,7 @@ function wireEmailDraftAction(){
   }
 }
 window.addEventListener("load", ()=>{ try{ syncEditableEmailRecipient(); }catch(err){}; });
-/* ===== end Editable recipient field override (V298) ===== */
+/* ===== end Editable recipient field override (V299) ===== */
 
 
 window.addEventListener("resize", ()=>{
