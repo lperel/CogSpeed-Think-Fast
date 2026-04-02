@@ -1,8 +1,8 @@
 // ═══════════════════════════════════════════════════
-// CogSpeed V319
+// CogSpeed V320
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V319";
+const APP_VERSION = "V320";
 const RELEASE = APP_VERSION.replace(/^V/i, "");
 const STORAGE_PREFIX = `cogspeed_v${RELEASE}`;
 
@@ -542,8 +542,7 @@ function renderTrial(trial){
   btn.appendChild(pos);
   btn.innerHTML+=buildGearSVG(i+1,null,"large",""); // no rotation during test
   const idx=i;
-  // Use event.timeStamp for tighter RT capture.
-  btn.addEventListener("pointerdown",(e)=>handleTap(idx,e.timeStamp));
+  btn.addEventListener("pointerdown",()=>handleTap(idx));
   respGrid.appendChild(btn);
  }
 }
@@ -1097,13 +1096,8 @@ if(state.phase==="paced_fixed"){
 //  Recovery after block is SELF-PACED.
 // ──────────────────────────────────────────────────────────────
 
-function getSafeTrialRtMs(eventTimeStamp){
- let now;
- if(eventTimeStamp!=null && Number.isFinite(eventTimeStamp) && eventTimeStamp < 1e12){
-  now = eventTimeStamp;
- }else{
-  now = performance.now();
- }
+function getSafeTrialRtMs(){
+ const now = performance.now();
  if(state.trialOpenedAt==null || !Number.isFinite(state.trialOpenedAt)){
   state.trialOpenedAt = now;
   return 0;
@@ -1111,13 +1105,13 @@ function getSafeTrialRtMs(eventTimeStamp){
  return Math.max(0, now - state.trialOpenedAt);
 }
 
-function handleTap(index,eventTimeStamp){
+function handleTap(index){
  if(!["calibration","paced","paced_fixed","recovery","terminal_recovery"].includes(state.phase)) return;
  noteAnyResponse();
 
  // Calibration
  if(state.phase==="calibration"){
-  const rt=getSafeTrialRtMs(eventTimeStamp), ok=trialMatches(state.current,index);
+  const rt=getSafeTrialRtMs(), ok=trialMatches(state.current,index);
   flashBtn(index,ok); state.totalResponses+=1;
 
   const warmups = Number(settings.initialUnusedCalibrationTrials)||2;
@@ -1203,7 +1197,7 @@ function handleTap(index,eventTimeStamp){
  // Recovery (SP Restart)
  if(state.phase==="recovery"){
   clearTimer();
-  const rt=getSafeTrialRtMs(eventTimeStamp), ok=trialMatches(state.current,index);
+  const rt=getSafeTrialRtMs(), ok=trialMatches(state.current,index);
   flashBtn(index,ok); state.totalResponses+=1;
   if(ok) state.totalCorrect+=1; else state.totalIncorrect+=1;
   logTrial({phase:"recovery",rt,outcome:ok?"correct":"wrong",responseIndex:index});
@@ -1239,7 +1233,7 @@ function handleTap(index,eventTimeStamp){
  // Terminal recovery
  if(state.phase==="terminal_recovery"){
   clearTimer();
-  const rt=getSafeTrialRtMs(eventTimeStamp), ok=trialMatches(state.current,index);
+  const rt=getSafeTrialRtMs(), ok=trialMatches(state.current,index);
   flashBtn(index,ok); state.totalResponses+=1;
   if(ok) state.totalCorrect+=1; else state.totalIncorrect+=1;
   logTrial({phase:"terminal_recovery",rt,outcome:ok?"correct":"wrong",responseIndex:index});
@@ -1256,7 +1250,7 @@ function handleTap(index,eventTimeStamp){
  // Mode 3 fixed machine-paced
  if(state.phase==="paced_fixed"){
   state.totalTrials += 1;
-  const rt=getSafeTrialRtMs(eventTimeStamp);
+  const rt=getSafeTrialRtMs();
   if(state.current&&!state.current.resolved&&trialMatches(state.current,index)){
    state.current.resolved=true; state.totalResponses+=1; state.totalCorrect+=1; state.fixedPacedCorrect+=1; state.pacedRTs.push(rt);
    logTrial({phase:"paced_fixed",rt,outcome:"correct",responseIndex:index}); flashBtn(index,true);
@@ -1273,7 +1267,7 @@ function handleTap(index,eventTimeStamp){
  }
 
  // Paced
- const rt=getSafeTrialRtMs(eventTimeStamp);
+ const rt=getSafeTrialRtMs();
  const lateThreshold = Number(settings.lateResponseThresholdMs)||600;
 
  // Case A: previous frame looked like a miss, but the FIRST response on this frame
@@ -3747,10 +3741,21 @@ const _ssp=$("speedStartPageBtn"); if(_ssp) _ssp.onclick=()=>{ hideAllOverlays()
 // Includes links back to Speedometer and Start.
 
 
+
+document.addEventListener("visibilitychange", ()=>{
+ if(document.hidden && ["paced","paced_fixed","recovery","terminal_recovery","calibration"].includes(state.phase)){
+  clearTimer();
+  clearNoResponseTimer();
+  clearMaxTestTimer();
+  state.endReason = "APP OR TAB HIDDEN — Retest";
+  finish();
+ }
+});
+
 window.addEventListener("load",()=>{ try{ updateStartPageLinks(); }catch(e){}; });
 
 
-/* ===== Performance vs Time graph override (V319) ===== */
+/* ===== Performance vs Time graph override (V320) ===== */
 const perfGraphState = {
   preset: "last14",
   fromDate: "",
@@ -4154,10 +4159,10 @@ function openPerformanceOverTimePage(){
   wirePerfGraphControls();
   drawPerformanceOverTimeChart($("perfTimeGraph"), state.history||[]);
 }
-/* ===== end Performance vs Time graph override (V319) ===== */
+/* ===== end Performance vs Time graph override (V320) ===== */
 
 
-/* ===== E-mail Select wiring override (V319) ===== */
+/* ===== E-mail Select wiring override (V320) ===== */
 function openEmailSelectPage(){
   hideAllOverlays();
   const ov = $("emailOverlay");
@@ -4236,10 +4241,10 @@ window.addEventListener("load", ()=>{
   try{ wireEmailSelectControls(); }catch(err){}
  try{ wireEmailDraftAction(); }catch(err){}
 });
-/* ===== end E-mail Select wiring override (V319) ===== */
+/* ===== end E-mail Select wiring override (V320) ===== */
 
 
-/* ===== E-mail draft action override (V319) ===== */
+/* ===== E-mail draft action override (V320) ===== */
 function formatLastTrialLogText(last){
   if(!last || !Array.isArray(last.rtLog) || !last.rtLog.length) return "No trial detail log available.";
   const lines = last.rtLog.map(r=>{
@@ -4331,10 +4336,10 @@ window.addEventListener("load", ()=>{
   try{ wireEmailDraftAction(); }catch(err){}
   try{ syncEditableEmailRecipient(); }catch(err){}
 });
-/* ===== end E-mail draft action override (V319) ===== */
+/* ===== end E-mail draft action override (V320) ===== */
 
 
-/* ===== Editable recipient field override (V319) ===== */
+/* ===== Editable recipient field override (V320) ===== */
 function getEditableEmailRecipient(){
   const input = $("emailRecipientInput");
   const typed = input && input.value ? String(input.value).trim() : "";
@@ -4399,19 +4404,8 @@ function wireEmailDraftAction(){
   }
 }
 window.addEventListener("load", ()=>{ try{ syncEditableEmailRecipient(); }catch(err){}; });
-/* ===== end Editable recipient field override (V319) ===== */
+/* ===== end Editable recipient field override (V320) ===== */
 
-
-
-document.addEventListener("visibilitychange", ()=>{
- if(document.hidden && ["paced","paced_fixed","recovery","terminal_recovery","calibration"].includes(state.phase)){
-  clearTimer();
-  clearNoResponseTimer();
-  clearMaxTestTimer();
-  state.endReason = "APP OR TAB HIDDEN — Retest";
-  finish();
- }
-});
 
 window.addEventListener("resize", ()=>{
  const last = state.history && state.history.length ? state.history[state.history.length-1] : null;
