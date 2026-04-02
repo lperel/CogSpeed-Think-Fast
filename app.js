@@ -1,8 +1,8 @@
 // ═══════════════════════════════════════════════════
-// CogSpeed V303
+// CogSpeed V302
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V303";
+const APP_VERSION = "V302";
 const RELEASE = APP_VERSION.replace(/^V/i, "");
 const STORAGE_PREFIX = `cogspeed_v${RELEASE}`;
 
@@ -933,6 +933,7 @@ const modeMetricMs = isMode2() ? (state.selfPacedRTs.length?mean(state.selfPaced
   cognitivePerformanceIndex:modeCPI, totalResponses:state.totalResponses,
   totalTrials:state.totalTrials, totalCorrect:state.totalCorrect,
   totalIncorrect:state.totalIncorrect, missedTrials:state.missedTrials,
+  calibrationErrors:state.calibrationErrors,
   pacedErrors:state.pacedErrors, recoveryErrors:state.recoveryErrors, pacedResponseCount:state.pacedRTs.length,
   pacedResponseMeanMs:state.pacedRTs.length?mean(state.pacedRTs):null,
   pacedResponseSdMs:pacedSd, testDurationMs:testDurMs,
@@ -1782,6 +1783,21 @@ function drawRTScatterChart(canvas,rtLog,blocks,meanRT,sdRT){
 // - full graph shows session number once in subtitle
 // - smaller ms = better performance and graphs higher
 // - avoid duplicate mode / SP-FS labels on full graph
+
+function getResponseGraphPhaseLegendText(result){
+ if(!result) return "Includes phases: none";
+ if(result.testMode==="mode1"){
+  return "Includes phases: paced, paced_wrong, paced_late_correct, paced_late_wrong, missed.";
+ }
+ if(result.testMode==="mode2"){
+  return "Includes phases: calibration only.";
+ }
+ if(result.testMode==="mode3"){
+  return "Includes phases: calibration, paced_fixed, paced_fixed_wrong, paced_fixed_missed.";
+ }
+ return "Includes phases: unknown.";
+}
+
 function drawModeResultChart(canvas,result){
  if(!canvas){ return; }
  const log=(result&&result.rtLog)||[];
@@ -1789,7 +1805,7 @@ function drawModeResultChart(canvas,result){
  ctx.clearRect(0,0,W,H); ctx.fillStyle="#081321"; ctx.fillRect(0,0,W,H);
 
  const isFull = canvas.id==="fullModeGraph";
- const PAD=isFull ? {top:36,right:28,bottom:48,left:64} : {top:18,right:20,bottom:28,left:48};
+ const PAD=isFull ? {top:70,right:28,bottom:48,left:64} : {top:18,right:20,bottom:28,left:48};
  const cW=W-PAD.left-PAD.right,cH=H-PAD.top-PAD.bottom;
 
  const mode1Trials = result.testMode==="mode1"
@@ -1853,6 +1869,9 @@ function drawModeResultChart(canvas,result){
   const modeTxt = result.testMode ? `${formatModeTag(result.testMode)}` : "";
   const sessionTxt = result.sessionNumber!=null ? `Session ${result.sessionNumber}` : "Latest Session";
   ctx.fillText(`${sessionTxt} · ${modeTxt} · ${spfs}`, W/2, 42);
+  ctx.font="11px sans-serif";
+  ctx.fillStyle="#9fc7de";
+  ctx.fillText(getResponseGraphPhaseLegendText(result), W/2, 57);
  }
 
  ctx.strokeStyle="rgba(79,111,153,0.2)"; ctx.lineWidth=1;
@@ -2457,23 +2476,47 @@ function isTestSuccess(r){ return (r||"").toLowerCase().startsWith("convergent")
 function getCognitivePerformanceTableText(result){
  if((result.testMode||"mode1")!=="mode1") return "Not used in this mode.";
  const cpi = result.cognitivePerformanceIndex!=null ? Number(result.cognitivePerformanceIndex) : null;
+ const actualSpfs = result.samnPerelli && result.samnPerelli.score!=null ? Number(result.samnPerelli.score) : null;
  const best = Number(settings.cpiBestMs)||900;
  const worst = Number(settings.cpiWorstMs)||3400;
  const span = worst - best;
  const cpiToMs = c => Math.round(best + ((100-c)/100)*span);
  const rows = [
-  {band:7,cpi:100,ms:cpiToMs(100)},
-  {band:6,cpi:80,ms:cpiToMs(80)},
-  {band:5,cpi:75,ms:cpiToMs(75)},
-  {band:4,cpi:50,ms:cpiToMs(50)},
-  {band:3,cpi:25,ms:cpiToMs(25)},
-  {band:2,cpi:11,ms:cpiToMs(11)},
-  {band:1,cpi:0,ms:cpiToMs(0)},
+  {spfs:7,cpi:100,ms:cpiToMs(100),cap:"FUNCTIONING EXCEPTIONALLY WELL"},
+  {spfs:6,cpi:80,ms:cpiToMs(80),cap:"FUNCTIONING VERY WELL"},
+  {spfs:5,cpi:75,ms:cpiToMs(75),cap:"FUNCTIONING NORMALLY"},
+  {spfs:4,cpi:50,ms:cpiToMs(50),cap:"FUNCTIONING SLIGHTLY LESS THAN NORMAL"},
+  {spfs:3,cpi:25,ms:cpiToMs(25),cap:"FUNCTIONING STARTING TO SLOW"},
+  {spfs:2,cpi:11,ms:cpiToMs(11),cap:"DIFFICULT TO FUNCTION / BECOMING UNSAFE"},
+  {spfs:1,cpi:0,ms:cpiToMs(0),cap:"UNABLE TO FUNCTION / DEFINITELY UNSAFE"},
  ];
- return rows.map(r=>{
-   const mark = (cpi!=null && Math.abs(cpi-r.cpi)===Math.min(...rows.map(x=>Math.abs(cpi-x.cpi))) && Math.abs(cpi-r.cpi)<=(rows.length?100:0)) ? "  ← YOUR SCORE" : "";
-   return ` SP-FS ${r.band}: CPI ${r.cpi.toString().padStart(3," ")} | ${r.ms} ms${mark}`;
- }).join("\n");
+ let nearestIdx = -1;
+ if(cpi!=null){
+  let bestDiff = Infinity;
+  rows.forEach((r,i)=>{
+   const d = Math.abs(cpi-r.cpi);
+   if(d < bestDiff){
+    bestDiff = d;
+    nearestIdx = i;
+   }
+  });
+ }
+ const leftHeader = "Cognitive Performance Table";
+ const rightHeader = "Cognitive Performance Capability *";
+ const leftRows = rows.map((r,i)=>{
+   const spfsLabel = (actualSpfs!=null && r.spfs===actualSpfs) ? `**SP-FS ${r.spfs}**` : `SP-FS ${r.spfs}`;
+   const mark = i===nearestIdx ? "  ← CPI" : "";
+   return `${spfsLabel}: CPI ${r.cpi.toString().padStart(3," ")} | ${r.ms} ms${mark}`;
+ });
+ const rightRows = rows.map(r=>r.cap);
+ const leftWidth = Math.max(leftHeader.length, ...leftRows.map(s=>s.length));
+ const gap = "   ";
+ const lines = [];
+ lines.push(leftHeader.padEnd(leftWidth, " ") + gap + rightHeader);
+ for(let i=0;i<rows.length;i++){
+   lines.push(leftRows[i].padEnd(leftWidth, " ") + gap + rightRows[i]);
+ }
+ return lines.join("\n");
 }
 function buildRankedSummary(result){
  const el=$("rankedText"); if(!el) return;
@@ -2515,7 +2558,10 @@ SELF-PACED CALIBRATION (SPC)
  Total response avg: ${result.allResponseMeanMs!=null?result.allResponseMeanMs.toFixed(1)+" ms":"—"}
  Total response SD:  ${result.allResponseSdMs!=null?result.allResponseSdMs.toFixed(1)+" ms":"—"}
  Correct self-paced: ${result.selfPacedCorrect}
- Wrong self-paced:   ${result.selfPacedWrong}
+ Calibration wrong: ${result.calibrationErrors!=null?result.calibrationErrors:result.selfPacedWrong}
+ Paced wrong:       ${result.pacedErrors!=null?result.pacedErrors:0}
+ Recovery wrong:    ${result.recoveryErrors!=null?result.recoveryErrors:0}
+ Total wrong:       ${result.totalIncorrect}
 ${hr}
 COGNITIVE PERFORMANCE TABLE
  ${getCognitivePerformanceTableText(result)}
@@ -2539,7 +2585,10 @@ ${hr}
 SELF-PACED CALIBRATION
  Total self-paced responses: ${result.selfPacedResponseCount}
  Self-paced correct: ${result.selfPacedCorrect}
- Self-paced wrong:   ${result.selfPacedWrong}
+ Calibration wrong: ${result.calibrationErrors!=null?result.calibrationErrors:result.selfPacedWrong}
+ Paced wrong:       ${result.fixedPacedWrong!=null?result.fixedPacedWrong:(result.pacedErrors||0)}
+ Recovery wrong:    ${result.recoveryErrors!=null?result.recoveryErrors:0}
+ Total wrong:       ${result.totalIncorrect}
  Average calibration RT: ${result.calibrationAverageMs!=null?result.calibrationAverageMs.toFixed(1)+" ms":"—"}\nSelf-paced RT SD: ${result.selfPacedResponseSdMs!=null?result.selfPacedResponseSdMs.toFixed(1)+" ms":"—"}
 ${hr}
 FIXED MACHINE-PACED PHASE (SPCMP)
@@ -2589,14 +2638,16 @@ ${hr}
 RESPONSE STATISTICS
  Total taps: ${result.totalResponses}
  Correct: ${result.totalCorrect}
- Wrong: ${result.totalIncorrect}
+ Calibration wrong: ${result.calibrationErrors!=null?result.calibrationErrors:0}
+ Paced wrong: ${result.pacedErrors!=null?result.pacedErrors:0}
+ Recovery wrong: ${result.recoveryErrors!=null?result.recoveryErrors:0}
+ Total wrong: ${result.totalIncorrect}
  Missed: ${result.missedTrials}
  END REASON: ${result.endReason||"Run complete"}
  Mean paced RT: ${result.pacedResponseMeanMs!=null?result.pacedResponseMeanMs.toFixed(1)+" ms":"—"}
  Paced RT SD: ${sd!=null?sd.toFixed(1)+" ms":"—"}
 ${hr}
-COGNITIVE PERFORMANCE TABLE
-${getCognitivePerformanceTableText(result)}`;
+COGNITIVE PERFORMANCE TABLE\n Bold row = actual SP-FS score. Arrow = nearest CPI reference. Capability text is shown at right.\n${getCognitivePerformanceTableText(result)}`;
 }
 
 // ─── SPEEDOMETER V2 — Vintage Auto Meter style ────────────────
@@ -4011,7 +4062,7 @@ const _ssp=$("speedStartPageBtn"); if(_ssp) _ssp.onclick=()=>{ $("outcomeOverlay
 window.addEventListener("load",()=>{ try{ updateStartPageLinks(); }catch(e){}; });
 
 
-/* ===== Performance vs Time graph override (V303) ===== */
+/* ===== Performance vs Time graph override (V302) ===== */
 const perfGraphState = {
   preset: "last14",
   fromDate: "",
@@ -4399,7 +4450,7 @@ function openResponseGraphPage(fromAdmin){
   drawModeResultChart(canvas, last);
   if(info){
    const when = last.time ? new Date(last.time).toLocaleString() : "most recent session";
-   info.textContent = `Response time by trial for ${when}. Higher on the graph = faster (smaller ms).`;
+   info.textContent = `Response time by trial for ${when}. Higher on the graph = faster (smaller ms). ${getResponseGraphPhaseLegendText(last)}`;
   }
  }else if(info){
   info.textContent = "No graphable session data available.";
@@ -4415,10 +4466,10 @@ function openPerformanceOverTimePage(){
   wirePerfGraphControls();
   drawPerformanceOverTimeChart($("perfTimeGraph"), state.history||[]);
 }
-/* ===== end Performance vs Time graph override (V303) ===== */
+/* ===== end Performance vs Time graph override (V302) ===== */
 
 
-/* ===== E-mail Select wiring override (V303) ===== */
+/* ===== E-mail Select wiring override (V302) ===== */
 function openEmailSelectPage(){
   hideAllOverlays();
   const ov = $("emailOverlay");
@@ -4498,10 +4549,10 @@ window.addEventListener("load", ()=>{
   try{ wireEmailSelectControls(); }catch(err){}
  try{ wireEmailDraftAction(); }catch(err){}
 });
-/* ===== end E-mail Select wiring override (V303) ===== */
+/* ===== end E-mail Select wiring override (V302) ===== */
 
 
-/* ===== E-mail draft action override (V303) ===== */
+/* ===== E-mail draft action override (V302) ===== */
 function getEmailRecipient(){
   const fromProfile = (state.profile && state.profile.email) ? String(state.profile.email).trim() : "";
   const fromInput = ($("subjectIdInput") && $("subjectIdInput").value) ? String($("subjectIdInput").value).trim() : "";
@@ -4599,10 +4650,10 @@ window.addEventListener("load", ()=>{
   try{ wireEmailDraftAction(); }catch(err){}
   try{ syncEditableEmailRecipient(); }catch(err){}
 });
-/* ===== end E-mail draft action override (V303) ===== */
+/* ===== end E-mail draft action override (V302) ===== */
 
 
-/* ===== Editable recipient field override (V303) ===== */
+/* ===== Editable recipient field override (V302) ===== */
 function getEditableEmailRecipient(){
   const input = $("emailRecipientInput");
   const typed = input && input.value ? String(input.value).trim() : "";
@@ -4667,7 +4718,7 @@ function wireEmailDraftAction(){
   }
 }
 window.addEventListener("load", ()=>{ try{ syncEditableEmailRecipient(); }catch(err){}; });
-/* ===== end Editable recipient field override (V303) ===== */
+/* ===== end Editable recipient field override (V302) ===== */
 
 
 window.addEventListener("resize", ()=>{
