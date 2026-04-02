@@ -1,8 +1,8 @@
 // ═══════════════════════════════════════════════════
-// CogSpeed V312
+// CogSpeed V316
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V312";
+const APP_VERSION = "V316";
 const RELEASE = APP_VERSION.replace(/^V/i, "");
 const STORAGE_PREFIX = `cogspeed_v${RELEASE}`;
 
@@ -108,7 +108,7 @@ const ADMIN_FIELDS=[
  // 16. Test mode
  ["testMode","16. Test mode","select:mode1|mode2|mode3"],
 
- // 18-29. Mode 1 settings, ordered by use
+ // 17-35. Mode 1 settings, ordered by use
  ["initialPacedPercent","17. Mode 1 MP start: % of calibration avg (default 1.2)","number"],
  ["consecutiveMissesForBlock","18. Mode 1 misses to trigger block (default 2)","number"],
  ["blockRestartPercent","19. Mode 1 restart: % of block baseline (default 1.2)","number"],
@@ -133,7 +133,7 @@ const ADMIN_FIELDS=[
  ["mode2TrialLimit","30. Mode 2 SPC trial limit (default 150)","number"],
  ["mode2MaxDurationMs","31. Mode 2 total duration ms (default 120000)","number"],
 
- // 32-35. Mode 3 settings, ordered by use
+ // 32-36. Mode 3 settings, ordered by use
  ["mode3CalibrationTrials","32. Mode 3 self-paced calibration trials (default 10)","number"],
  ["mode3BaselineFactor","33. Mode 3 MP baseline factor from cal avg (default 1.3)","number"],
  ["mode3PacedTrialLimit","34. Mode 3 fixed machine-paced trial limit (default 140)","number"],
@@ -207,7 +207,9 @@ const state={
  presentedRoundDuration:null,
  activeMode:"mode1", selfPacedRTs:[], selfPacedCorrect:0, selfPacedWrong:0,
  fixedPacedBaseline:null, fixedPacedPresented:0, fixedPacedCorrect:0, fixedPacedWrong:0,
+ hadResponse:false, endReason:"", blockRestartBaseline:null,
  trialOpenedAt:null, geo:null, benchmark:null, lastResultText:null,
+ _prevTrialOpenedAt:null, _prevPresentedDurationMs:null,
  pendingPriorMiss:null, pendingLatePacing:null
  // pendingPriorMiss:
  //   stores the immediately previous paced frame when it LOOKED like a miss at frame end,
@@ -273,41 +275,13 @@ function updateCPIDisplay(avg){
  }
 
 // ─── Timers ───
-function clearTimer(){ if(state.trialTimer) clearTimeout(state.trialTimer); state.trialTimer=null; }
-function clearNoResponseTimer(){ if(state.absoluteNoResponseTimer) clearTimeout(state.absoluteNoResponseTimer); state.absoluteNoResponseTimer=null; }
-function clearMaxTestTimer(){ if(state.maxTestTimer) clearTimeout(state.maxTestTimer); state.maxTestTimer=null; }
-// Absolute "not responding" timer — keeps tests from hanging forever.
-// Calibration trial 1 uses calibrationFirstNoResponseMs (default 10s).
-// Later calibration trials use calibrationNoResponseMs (default 6s).
-// Machine-paced uses machinePacedNoResponseMs (default 15s).
-// Recovery uses recoveryNoResponseMs (default 10s).
-// Fires finish() with a no-response end reason if nothing is tapped in time.
-function armNoResponseTimer(){
- clearNoResponseTimer();
- let ms;
- switch(state.phase){
-  case "recovery":
-  case "terminal_recovery":
-   ms = Number(settings.recoveryNoResponseMs)||10000;
-   break;
-  case "calibration":
-   ms = state.calibrationTrialIndex===0
-    ? (Number(settings.calibrationFirstNoResponseMs)||10000)
-    : (Number(settings.calibrationNoResponseMs)||6000);
-   break;
-  case "paced":
-  case "mode3_paced":
-   // Machine-paced trials are governed by frame timers and block logic, not by absolute no-response timeout.
-   return;
-  default:
-   ms = 10000;
+function clearTimer(){
+ if(state.trialTimer){
+  if(state._trialTimerIsRaf) cancelAnimationFrame(state.trialTimer);
+  else clearTimeout(state.trialTimer);
  }
- state.absoluteNoResponseTimer=setTimeout(()=>{
-  state.endReason = state.phase==="calibration"
-   ? "NO RESPONSE — Retest"
-   : "NOT RESPONDING IN TIME — Retest";
-  finish();
- }, ms);
+ state.trialTimer=null;
+ state._trialTimerIsRaf=false;
 }
 function armMaxTestTimer(){
  clearMaxTestTimer();
@@ -414,22 +388,6 @@ function makeTrial(kind,lastCorrectPos,lastProbe){
 // Range: #4a4a4a (darkest) to #8c8c8c (lightest gray).
 // Probe (0): dark navy + blue glow for clear visual distinction.
 // ═══════════════════════════════════════════════════════════════
-const GEARS=[
- // 0: PROBE — dark navy-steel, blue glow rim
- {n:20,rP:36,add:7,ded:5,tf:0.44,body:"#1a2a3c",stroke:"#5ab0e0",rim:"#7fd7ff",hub:9,hFill:"#0e1824",hStroke:"#9ae0ff",spokes:5},
- // 1: darkest charcoal — clearly visible on dark bg
- {n:10,rP:37,add:8,ded:6,tf:0.46,body:"#4a4a4a",stroke:"#757575",rim:"#808080",hub:8,hFill:"#383838",hStroke:"#808080",spokes:0},
- // 2: dark charcoal, 3 spokes
- {n:14,rP:36,add:7,ded:5,tf:0.45,body:"#565656",stroke:"#828282",rim:"#8c8c8c",hub:7,hFill:"#424242",hStroke:"#8c8c8c",spokes:3},
- // 3: medium-dark
- {n:12,rP:37,add:7,ded:5,tf:0.46,body:"#626262",stroke:"#8e8e8e",rim:"#989898",hub:8,hFill:"#4e4e4e",hStroke:"#989898",spokes:0},
- // 4: medium gray, 4 spokes
- {n:16,rP:36,add:6,ded:5,tf:0.44,body:"#6e6e6e",stroke:"#9a9a9a",rim:"#a4a4a4",hub:7,hFill:"#5a5a5a",hStroke:"#a4a4a4",spokes:4},
- // 5: medium-light
- {n:11,rP:37,add:8,ded:5,tf:0.46,body:"#7c7c7c",stroke:"#a8a8a8",rim:"#b0b0b0",hub:8,hFill:"#686868",hStroke:"#b0b0b0",spokes:0},
- // 6: light gray, 3 spokes
- {n:18,rP:36,add:6,ded:5,tf:0.44,body:"#8c8c8c",stroke:"#b8b8b8",rim:"#c0c0c0",hub:7,hFill:"#787878",hStroke:"#c0c0c0",spokes:3},
-];
 
 const GEAR_IMAGE_SRCS = {
  0: "./gear0.png",
@@ -506,90 +464,30 @@ function ensureGearImageStyles(){
 // and dot/line pattern marks rendered inside the gear body.
 // spinClass: "gspin-f"|"gspin-r"|"" (no spin during test)
 // ──────────────────────────────────────────────────────────────
-function gearPath(cx,cy,nT,rP,add,ded,tf){
- const Ra=rP+add, Rd=rP-ded;
- const ap=(2*Math.PI)/nT, ta=ap*(tf||0.46), ga=ap-ta, ch=ap*0.028;
- const parts=[];
- for(let i=0;i<nT;i++){
-  const base=i*ap-Math.PI/2;
-  const gS=base, gE=base+ga, tE=gE+ta;
-  const c=Math.cos, s=Math.sin;
-  const rx0=(cx+Rd*c(gS)).toFixed(2), ry0=(cy+Rd*s(gS)).toFixed(2);
-  if(i===0) parts.push(`M${rx0},${ry0}`); else parts.push(`L${rx0},${ry0}`);
-  parts.push(`A${Rd.toFixed(2)},${Rd.toFixed(2)} 0 0,1 ${(cx+Rd*c(gE)).toFixed(2)},${(cy+Rd*s(gE)).toFixed(2)}`);
-  parts.push(`L${(cx+Ra*c(gE+ch)).toFixed(2)},${(cy+Ra*s(gE+ch)).toFixed(2)}`);
-  parts.push(`A${Ra.toFixed(2)},${Ra.toFixed(2)} 0 0,1 ${(cx+Ra*c(tE-ch)).toFixed(2)},${(cy+Ra*s(tE-ch)).toFixed(2)}`);
-  parts.push(`L${(cx+Rd*c(tE)).toFixed(2)},${(cy+Rd*s(tE)).toFixed(2)}`);
- }
- parts.push("Z");
- return parts.join(" ");
-}
-
 function buildGearSVG(si,pattern,size,spinClass){
  ensureGearImageStyles();
- if(GEAR_IMAGE_SRCS[si]){
-  const marks = [];
-  if(pattern){
-   const scale = size==="probe" ? 0.64 : 0.60;
-   const dotR = size==="probe" ? 13 : 11;
-   const lw  = size==="probe" ? 15 : 13;
-   const lh  = size==="probe" ? 38 : 30;
-   pattern.forEach(([k,px,py], idx)=>{
-    const left = 50 + ((px/100)-0.5) * scale * 100;
-    const top = 50 + ((py/100)-0.5) * scale * 100;
-    if(k==="dot"){
-     marks.push(`<div class="gear-mark dot" style="left:${left.toFixed(1)}%;top:${top.toFixed(1)}%;width:${dotR*2}px;height:${dotR*2}px"></div>`);
-    } else {
-     marks.push(`<div class="gear-mark line" style="left:${left.toFixed(1)}%;top:${top.toFixed(1)}%;width:${lw}px;height:${lh}px"></div>`);
-    }
-   });
-  }
-  return `<div class="gear-img-wrap ${spinClass||""}">
-   <img src="${GEAR_IMAGE_SRCS[si]}" alt="gear ${si}" draggable="false"/>
+ const marks = [];
+ if(pattern){
+  const scale = size==="probe" ? 0.64 : 0.60;
+  const dotR = size==="probe" ? 13 : 11;
+  const lw  = size==="probe" ? 15 : 13;
+  const lh  = size==="probe" ? 38 : 30;
+  pattern.forEach(([k,px,py])=>{
+   const left = 50 + ((px/100)-0.5) * scale * 100;
+   const top = 50 + ((py/100)-0.5) * scale * 100;
+   if(k==="dot"){
+    marks.push(`<div class="gear-mark dot" style="left:${left.toFixed(1)}%;top:${top.toFixed(1)}%;width:${dotR*2}px;height:${dotR*2}px"></div>`);
+   } else {
+    marks.push(`<div class="gear-mark line" style="left:${left.toFixed(1)}%;top:${top.toFixed(1)}%;width:${lw}px;height:${lh}px"></div>`);
+   }
+  });
+ }
+ const src = GEAR_IMAGE_SRCS[si] || GEAR_IMAGE_SRCS[0];
+ return `<div class="gear-img-wrap ${spinClass||""}">
+   <img src="${src}" alt="gear ${si}" draggable="false"/>
    ${marks.join("")}
   </div>`;
- }
-
- const g=GEARS[si];
- const uid=si+"_"+(Math.random()*9999|0).toString(36);
- const cx=50,cy=50;
- const path=gearPath(cx,cy,g.n,g.rP,g.add,g.ded,g.tf);
- const lgt=lighten(g.body,30), drk=darken(g.body,10);
- let spokes="";
- if(g.spokes>0){
-  const rI=g.hub+2, rO=g.rP-g.ded-5;
-  for(let i=0;i<g.spokes;i++){
-   const a=(i/g.spokes)*Math.PI*2-Math.PI/2;
-   spokes+=`<line x1="${(cx+rI*Math.cos(a)).toFixed(1)}" y1="${(cy+rI*Math.sin(a)).toFixed(1)}" x2="${(cx+rO*Math.cos(a)).toFixed(1)}" y2="${(cy+rO*Math.sin(a)).toFixed(1)}" stroke="${g.stroke}" stroke-width="3" stroke-linecap="round"/>`;
-  }
- }
- let marks="";
- if(pattern){
-  const iR=(g.rP-g.ded-4)*0.72;
-  const dotR=size==="probe"?8:7, lw=size==="probe"?11:9, lh=size==="probe"?18:14;
-  marks=pattern.map(([k,px,py])=>{
-   const ix=cx+(px/100-0.5)*iR*2.20, iy=cy+(py/100-0.5)*iR*2.20;
-   if(k==="dot") return `<circle cx="${ix.toFixed(1)}" cy="${iy.toFixed(1)}" r="${dotR}" fill="white" stroke="black" stroke-width="3" opacity="0.95"/>`;
-   return `<rect x="${(ix-lw/2).toFixed(1)}" y="${(iy-lh/2).toFixed(1)}" width="${lw}" height="${lh}" rx="2.5" fill="white" stroke="black" stroke-width="3" opacity="0.95"/>`;
-  }).join("");
- }
- const sc=spinClass||"";
- return `<svg class="${sc}" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" style="overflow:visible;width:100%;height:100%">
- <defs>
-  <radialGradient id="rg${uid}" cx="38%" cy="32%" r="65%">
-   <stop offset="0%" stop-color="${lgt}"/>
-   <stop offset="100%" stop-color="${drk}"/>
-  </radialGradient>
- </defs>
- <g class="g-rot" style="transform-origin:50px 50px">
-  <path d="${path}" fill="url(#rg${uid})" stroke="${g.stroke}" stroke-width="0.8"/>
-  ${spokes}
- </g>
- <g class="g-pat">${marks}</g>
-</svg>`;
 }
-function lighten(hex,amt){ const n=parseInt(hex.slice(1),16),r=Math.min(255,(n>>16)+amt),g=Math.min(255,((n>>8)&0xff)+amt),b=Math.min(255,(n&0xff)+amt); return `rgb(${r},${g},${b})`; }
-function darken(hex,amt){ const n=parseInt(hex.slice(1),16),r=Math.max(0,(n>>16)-amt),g=Math.max(0,((n>>8)&0xff)-amt),b=Math.max(0,(n&0xff)-amt); return `rgb(${r},${g},${b})`; }
 // ─── Render trial (gear version) ───
 // ─── TRIAL RENDERING ──────────────────────────────────────────
 // Renders probe gear + 6 stimulus gears + 6 response buttons.
@@ -617,7 +515,8 @@ function renderTrial(trial){
   btn.appendChild(pos);
   btn.innerHTML+=buildGearSVG(i+1,null,"large",""); // no rotation during test
   const idx=i;
-  btn.addEventListener("pointerdown",()=>handleTap(idx));
+  // Pass event.timeStamp for tighter RT timing: it records when the OS registered the touch.
+  btn.addEventListener("pointerdown",(e)=>handleTap(idx,e.timeStamp));
   respGrid.appendChild(btn);
  }
 }
@@ -659,6 +558,13 @@ function logTrial({phase,rt,outcome,responseIndex,counted}){
   phase==="paced" || phase==="paced_wrong" || phase==="paced_late_correct" || phase==="paced_late_wrong" || phase==="missed" || phase==="paced_fixed" || phase==="paced_fixed_wrong" || phase==="paced_fixed_missed"
  ) ? (state.presentedRoundDuration!=null ? state.presentedRoundDuration : (state.duration?Math.round(state.duration):null))
    : (state.duration?Math.round(state.duration):null);
+
+ let interTrialGapMs = null;
+ if(state._prevTrialOpenedAt!=null && state.trialOpenedAt!=null && state._prevPresentedDurationMs!=null){
+  interTrialGapMs = Math.round(state.trialOpenedAt - state._prevTrialOpenedAt - state._prevPresentedDurationMs);
+  if(interTrialGapMs < 0) interTrialGapMs = 0;
+ }
+
  state.rtLog.push({
   seq:state.rtLog.length+1, phase, clockTime:new Date().toISOString(),
   durationMs:loggedDurationMs,
@@ -667,7 +573,8 @@ function logTrial({phase,rt,outcome,responseIndex,counted}){
   correctCell:ci?`${ci.family}:${ci.count} @${trial.correctPos+1}`:"—",
   response:ri?`${ri.family}:${ri.count} @${responseIndex+1}`:(responseIndex!=null?`pos${responseIndex+1}`:"no_response"),
   warmup: counted===false,
-  counted
+  counted,
+  interTrialGapMs
  });
 }
 
@@ -982,6 +889,10 @@ function openTrial(kind){
  state.current=makeTrial(kind,lastPos,lastProbe);
  state.hadResponse=false;
 
+ // Save previous trial timing for inter-trial gap calculation.
+ state._prevTrialOpenedAt = state.trialOpenedAt;
+ state._prevPresentedDurationMs = state.presentedRoundDuration;
+
  // IMPORTANT:
  // Do not start timing until the display has actually rendered.
  // If a tap arrives before trialOpenedAt is set, RT is clamped safely to 0 instead of producing a huge bogus value.
@@ -1016,20 +927,31 @@ function openTrial(kind){
   setStatus(`Final SP — complete ${settings.spRestartCorrectStreak} correct to finish`);
  }
 
- // Arm timers only after the display is fully rendered.
+ // Arm timers only after the display has been fully painted.
+ // Triple-rAF reduces the chance that timing starts before composite finishes.
  requestAnimationFrame(()=>{
   requestAnimationFrame(()=>{
-   state.trialOpenedAt = performance.now();
+   requestAnimationFrame(()=>{
+    state.trialOpenedAt = performance.now();
 
-   if(kind==="calibration"){
-    armNoResponseTimer();
-   }else if(kind==="paced"){
-    state.trialTimer=setTimeout(onPacedFrameEnd,state.duration);
-   }else if(kind==="paced_fixed"){
-    state.trialTimer=setTimeout(onPacedFrameEnd,state.duration);
-   }else if(kind==="recovery" || kind==="terminal_recovery"){
-    armNoResponseTimer();
-   }
+    if(kind==="calibration"){
+     armNoResponseTimer();
+    }else if(kind==="paced" || kind==="paced_fixed"){
+     const targetMs = state.duration;
+     const frameStart = state.trialOpenedAt;
+     function checkFrame(){
+      if(performance.now() - frameStart >= targetMs){
+       onPacedFrameEnd();
+       return;
+      }
+      state.trialTimer = requestAnimationFrame(checkFrame);
+     }
+     state._trialTimerIsRaf = true;
+     state.trialTimer = requestAnimationFrame(checkFrame);
+    }else if(kind==="recovery" || kind==="terminal_recovery"){
+     armNoResponseTimer();
+    }
+   });
   });
  });
 }
@@ -1101,6 +1023,11 @@ function applyPendingLatePacingIfAny(){
 }
 
 function onPacedFrameEnd(){
+ const actualFrameMs = (state.trialOpenedAt!=null)
+  ? Math.round(performance.now() - state.trialOpenedAt)
+  : (state.presentedRoundDuration || (state.duration ? Math.round(state.duration) : null));
+ if(actualFrameMs!=null) state.presentedRoundDuration = actualFrameMs;
+
  // Mode 3 fixed machine-paced handler:
 // every trial uses one fixed baseline duration,
 // no adaptive speedup/slowdown within the fixed MP phase.
@@ -1171,8 +1098,13 @@ if(state.phase==="paced_fixed"){
 //  Recovery after block is SELF-PACED.
 // ──────────────────────────────────────────────────────────────
 
-function getSafeTrialRtMs(){
- const now = performance.now();
+function getSafeTrialRtMs(eventTimeStamp){
+ let now;
+ if(eventTimeStamp!=null && Number.isFinite(eventTimeStamp) && eventTimeStamp < 1e12){
+  now = eventTimeStamp;
+ }else{
+  now = performance.now();
+ }
  if(state.trialOpenedAt==null || !Number.isFinite(state.trialOpenedAt)){
   state.trialOpenedAt = now;
   return 0;
@@ -1180,13 +1112,13 @@ function getSafeTrialRtMs(){
  return Math.max(0, now - state.trialOpenedAt);
 }
 
-function handleTap(index){
+function handleTap(index,eventTimeStamp){
  if(!["calibration","paced","paced_fixed","recovery","terminal_recovery"].includes(state.phase)) return;
  noteAnyResponse();
 
  // Calibration
  if(state.phase==="calibration"){
-  const rt=getSafeTrialRtMs(), ok=trialMatches(state.current,index);
+  const rt=getSafeTrialRtMs(eventTimeStamp), ok=trialMatches(state.current,index);
   flashBtn(index,ok); state.totalResponses+=1;
 
   const warmups = Number(settings.initialUnusedCalibrationTrials)||2;
@@ -1272,7 +1204,7 @@ function handleTap(index){
  // Recovery (SP Restart)
  if(state.phase==="recovery"){
   clearTimer();
-  const rt=getSafeTrialRtMs(), ok=trialMatches(state.current,index);
+  const rt=getSafeTrialRtMs(eventTimeStamp), ok=trialMatches(state.current,index);
   flashBtn(index,ok); state.totalResponses+=1;
   if(ok) state.totalCorrect+=1; else state.totalIncorrect+=1;
   logTrial({phase:"recovery",rt,outcome:ok?"correct":"wrong",responseIndex:index});
@@ -1283,9 +1215,9 @@ function handleTap(index){
     // REQUIRED RESTART RULE:
     //   restartMs = blockBaselineMs × blockRestartPercent
     // blockBaselineMs is the paced baseline at the block point.
-    // blockRestartPercent defaults to 1.3, so restart is 30% slower than block baseline.
+    // blockRestartPercent defaults to 1.2, so restart is 20% slower than block baseline.
     const restartBaseMs=Number(state.blockRestartBaseline)||Number(state.blockDuration)||0;
-    const restartFactor=Number(settings.blockRestartPercent)||1.3;
+    const restartFactor=Number(settings.blockRestartPercent)||1.2;
     const slower=clamp(Math.round(restartBaseMs*restartFactor),settings.minDurationMs,settings.maxDurationMs);
     state.recoveries.push(slower); state.phase="paced"; state.duration=slower;
     state.spCorrectStreak=0; state.spWrongCount=0;
@@ -1308,7 +1240,7 @@ function handleTap(index){
  // Terminal recovery
  if(state.phase==="terminal_recovery"){
   clearTimer();
-  const rt=getSafeTrialRtMs(), ok=trialMatches(state.current,index);
+  const rt=getSafeTrialRtMs(eventTimeStamp), ok=trialMatches(state.current,index);
   flashBtn(index,ok); state.totalResponses+=1;
   if(ok) state.totalCorrect+=1; else state.totalIncorrect+=1;
   logTrial({phase:"terminal_recovery",rt,outcome:ok?"correct":"wrong",responseIndex:index});
@@ -1324,7 +1256,8 @@ function handleTap(index){
 
  // Mode 3 fixed machine-paced
  if(state.phase==="paced_fixed"){
-  const rt=getSafeTrialRtMs();
+  state.totalTrials += 1;
+  const rt=getSafeTrialRtMs(eventTimeStamp);
   if(state.current&&!state.current.resolved&&trialMatches(state.current,index)){
    state.current.resolved=true; state.totalResponses+=1; state.totalCorrect+=1; state.fixedPacedCorrect+=1; state.pacedRTs.push(rt);
    logTrial({phase:"paced_fixed",rt,outcome:"correct",responseIndex:index}); flashBtn(index,true);
@@ -1334,14 +1267,14 @@ function handleTap(index){
   state.hadResponse=true;
   state.totalResponses+=1; state.totalIncorrect+=1; state.pacedErrors+=1; state.fixedPacedWrong+=1;
   if(checkMaxPacedWrong()) return;
-  logTrial({phase:"paced_fixed_wrong",rt:getSafeTrialRtMs(),outcome:"wrong",responseIndex:index});
+  logTrial({phase:"paced_fixed_wrong",rt:rt,outcome:"wrong",responseIndex:index});
   flashBtn(index,false);
   if(state.fixedPacedPresented >= (Number(settings.mode3PacedTrialLimit)||140)){ state.endReason="Required responses reached"; finish(); return; }
   openTrial("paced_fixed"); return;
  }
 
  // Paced
- const rt=getSafeTrialRtMs();
+ const rt=getSafeTrialRtMs(eventTimeStamp);
  const lateThreshold = Number(settings.lateResponseThresholdMs)||600;
 
  // Case A: previous frame looked like a miss, but the FIRST response on this frame
@@ -1427,7 +1360,7 @@ function handleTap(index){
  state.totalResponses+=1; state.totalIncorrect+=1; state.pacedErrors+=1;
  if(checkMaxPacedWrong()) return;
  applyPacing(null,false);
- logTrial({phase:"paced_wrong",rt:getSafeTrialRtMs(),outcome:"wrong",responseIndex:index});
+ logTrial({phase:"paced_wrong",rt:getSafeTrialRtMs(eventTimeStamp),outcome:"wrong",responseIndex:index});
  flashBtn(index,false); recordAnswer(false);
 }
 
@@ -1531,174 +1464,6 @@ function bindDoubleTapConfirm(btn, action, idleText, confirmText){
 //  "↑ better" label on right axis. Each series rises with improvement.
 // drawRTScatterChart(): per-trial RT scatter (reversed Y: fast=top).
 // ──────────────────────────────────────────────────────────────
-function drawCombinedChart(canvas,hist,selectedIdx){
- if(!canvas) return;
- const ctx=canvas.getContext("2d"),W=canvas.width,H=canvas.height;
- ctx.clearRect(0,0,W,H);
- ctx.fillStyle="#081321";
- ctx.fillRect(0,0,W,H);
-
- const PAD={top:62,right:56,bottom:82,left:76}, cW=W-PAD.left-PAD.right, cH=H-PAD.top-PAD.bottom;
- if(!hist.length){
-  ctx.fillStyle="#d7e7f8";
-  ctx.font="bold 13px sans-serif";
-  ctx.textAlign="center";
-  ctx.fillText("No data yet",W/2,H/2);
-  return;
- }
-
- const slice=hist.slice(-20);
- const n=slice.length;
- const selected = (selectedIdx!=null && hist[selectedIdx]) ? hist[selectedIdx] : slice[slice.length-1] || null;
-
- const bestMs = Number(settings.cpiBestMs)||800;
- const worstMs = Number(settings.cpiWorstMs)||3000;
-
- function xO(i){ return PAD.left + (n>1 ? (i/(n-1))*cW : cW/2); }
- function yLeftFromCpi(v){ return PAD.top + cH - ((v-0)/100)*cH; }
- function cpiFromMs(ms){
-  const span = (worstMs-bestMs)||1;
-  return Math.max(0,Math.min(100,100*(worstMs-ms)/span));
- }
- function msFromCpi(cpi){
-  const span = (worstMs-bestMs)||1;
-  return Math.round(bestMs + ((100-cpi)/100)*span);
- }
- function yLeftFromMs(ms){ return yLeftFromCpi(cpiFromMs(ms)); }
- function yRightFromSpf(v){ return PAD.top + cH - (((v-1)/6))*cH; }
-
- // Gridlines
- ctx.strokeStyle="rgba(79,111,153,0.26)";
- ctx.lineWidth=1;
- [0,25,50,75,100].forEach(v=>{
-  const y=yLeftFromCpi(v);
-  ctx.beginPath();
-  ctx.moveTo(PAD.left,y);
-  ctx.lineTo(PAD.left+cW,y);
-  ctx.stroke();
- });
-
- // Left axis labels: CPI and matching MBS ms
- ctx.font="10px sans-serif";
- ctx.textAlign="right";
- ctx.fillStyle="#d7e7f8";
- [100,75,50,25,0].forEach(cpi=>{
-  const y=yLeftFromCpi(cpi);
-  const ms=msFromCpi(cpi);
-  ctx.fillText(`${cpi} | ${ms}ms`, PAD.left-8, y+3);
- });
-
- // Right axis labels: SP-FS
- ctx.textAlign="left";
- ctx.fillStyle="#88ff88";
- [7,6,5,4,3,2,1].forEach(v=>{
-  const y=yRightFromSpf(v);
-  ctx.fillText(String(v), PAD.left+cW+8, y+3);
- });
-
- // Axes titles
- ctx.save();
- ctx.translate(22, PAD.top + cH/2);
- ctx.rotate(-Math.PI/2);
- ctx.fillStyle="#d7e7f8";
- ctx.font="bold 11px sans-serif";
- ctx.textAlign="center";
- ctx.fillText("CPI | MBS (up is better)", 0, 0);
- ctx.restore();
-
- ctx.save();
- ctx.translate(W-18, PAD.top + cH/2);
- ctx.rotate(Math.PI/2);
- ctx.fillStyle="#88ff88";
- ctx.font="bold 11px sans-serif";
- ctx.textAlign="center";
- ctx.fillText("SP-FS (up is better)", 0, 0);
- ctx.restore();
-
- // Title and selected-session metadata
- ctx.fillStyle="#b7d9ef";
- ctx.textAlign="left";
- ctx.font="bold 12px sans-serif";
- ctx.fillText("CPI, MBS, and SP-FS by Test Date/Time", PAD.left, 22);
-
- if(selected){
-  ctx.font="11px sans-serif";
-  ctx.fillStyle="#d7e7f8";
-  const sid = selected.subjectId || "—";
-  const mode = formatModeTag(selected.testMode);
-  ctx.fillText(`Subject ID: ${sid}    Test Mode: ${mode}`, PAD.left, 40);
- }
-
- // X-axis labels by date/time of test
- ctx.strokeStyle="rgba(79,111,153,0.35)";
- ctx.beginPath();
- ctx.moveTo(PAD.left, PAD.top+cH);
- ctx.lineTo(PAD.left+cW, PAD.top+cH);
- ctx.stroke();
-
- ctx.font="9px sans-serif";
- ctx.fillStyle="#7fa0c0";
- ctx.textAlign="right";
- slice.forEach((r,i)=>{
-  const x=xO(i), y=PAD.top+cH+8;
-  const d=new Date(r.time);
-  const label=`${d.toLocaleDateString("en-US",{month:"numeric",day:"numeric"})} ${d.toLocaleTimeString("en-US",{hour:"2-digit",minute:"2-digit"})}`;
-  ctx.save();
-  ctx.translate(x, y);
-  ctx.rotate(-Math.PI/4);
-  ctx.fillText(label, 0, 0);
-  ctx.restore();
- });
-
- function drawLine(vals, yFunc, color, pointStyle){
-  ctx.strokeStyle=color;
-  ctx.lineWidth=2.2;
-  ctx.beginPath();
-  let started=false;
-  vals.forEach((v,i)=>{
-   if(v==null){ started=false; return; }
-   const x=xO(i), y=yFunc(v);
-   if(!started){ ctx.moveTo(x,y); started=true; } else { ctx.lineTo(x,y); }
-  });
-  ctx.stroke();
-
-  vals.forEach((v,i)=>{
-   if(v==null) return;
-   const x=xO(i), y=yFunc(v);
-   ctx.fillStyle=color;
-   if(pointStyle==="square"){
-    ctx.fillRect(x-3.5,y-3.5,7,7);
-   }else if(pointStyle==="diamond"){
-    ctx.save();
-    ctx.translate(x,y);
-    ctx.rotate(Math.PI/4);
-    ctx.fillRect(-3.5,-3.5,7,7);
-    ctx.restore();
-   }else{
-    ctx.beginPath();
-    ctx.arc(x,y,3.7,0,Math.PI*2);
-    ctx.fill();
-   }
-  });
- }
-
- const cpsVals=slice.map(r=>r.cognitivePerformanceIndex!=null?Number(r.cognitivePerformanceIndex):null);
- const mbsVals=slice.map(r=>r.averageLast2BlockingScoresMs!=null?Number(r.averageLast2BlockingScoresMs):null);
- const spfVals=slice.map(r=>r.samnPerelli&&r.samnPerelli.score!=null?Number(r.samnPerelli.score):null);
-
- drawLine(cpsVals, v=>yLeftFromCpi(v), "#7fd7ff", "circle");
- drawLine(mbsVals, v=>yLeftFromMs(v), "#ff9f40", "square");
- drawLine(spfVals, v=>yRightFromSpf(v), "#88ff88", "diamond");
-
- // Legend
- ctx.textAlign="left";
- ctx.font="bold 10px sans-serif";
- ctx.fillStyle="#7fd7ff"; ctx.fillText("● CPI", PAD.left, PAD.top-10);
- ctx.fillStyle="#ff9f40"; ctx.fillText("■ MBS", PAD.left+58, PAD.top-10);
- ctx.fillStyle="#88ff88"; ctx.fillText("◆ SP-FS", PAD.left+116, PAD.top-10);
-}
-
-
 function getSessionUtcMs(r){
  if(!r) return 0;
  const candidates = [
@@ -1719,37 +1484,6 @@ function getSessionUtcMs(r){
 
 
 // ─── RT scatter chart ───
-function drawRTScatterChart(canvas,rtLog,blocks,meanRT,sdRT){
- if(!canvas||!rtLog.length) return;
- const ctx=canvas.getContext("2d"),W=canvas.width,H=canvas.height;
- ctx.clearRect(0,0,W,H); ctx.fillStyle="#081321"; ctx.fillRect(0,0,W,H);
- const PAD={top:20,right:20,bottom:30,left:48},cW=W-PAD.left-PAD.right,cH=H-PAD.top-PAD.bottom;
- const rts=rtLog.filter(e=>e.rt!=null).map(e=>e.rt);
- if(!rts.length) return;
- const maxRT=Math.ceil(Math.max(...rts,1000)/500)*500;
- const minRT=Math.max(0,Math.floor(Math.min(...rts)/500)*500);
- const n=rtLog.length;
- function xO(i){ return PAD.left+(i/(n-1||1))*cW; }
- // REVERSED: smaller RT → smaller y → higher on chart
- function yO(v){ return PAD.top+((v-minRT)/((maxRT-minRT)||1))*cH; }
- ctx.strokeStyle="rgba(79,111,153,0.2)"; ctx.lineWidth=1;
- // Gridlines and labels — larger ms at bottom, smaller at top
- [250,500,750,1000,1500,2000,2500,3000].filter(v=>v>=minRT&&v<=maxRT+100).forEach(v=>{
-  const y=yO(v);
-  ctx.beginPath(); ctx.moveTo(PAD.left,y); ctx.lineTo(PAD.left+cW,y); ctx.stroke();
-  ctx.fillStyle="#7fa0c0"; ctx.font="9px sans-serif"; ctx.textAlign="right";
-  ctx.fillText(`${v}ms`,PAD.left-3,y+3);
- });
- const colorMap={correct:"#00ff88",wrong:"#ff4466",missed:"#888",paced:"#00ff88",paced_wrong:"#ff4466","paced_late_correct":"#ffff00","paced_late_wrong":"#ff8800",calibration:"#88aaff",recovery:"#ffaa00",terminal_recovery:"#ff88ff"};
- rtLog.forEach((e,i)=>{
-  if(e.rt==null) return;
-  ctx.fillStyle=colorMap[e.phase]||colorMap[e.outcome]||"#aaa";
-  ctx.beginPath(); ctx.arc(xO(i),yO(e.rt),3,0,Math.PI*2); ctx.fill();
- });
- if(meanRT){ ctx.strokeStyle="rgba(127,215,255,0.6)"; ctx.lineWidth=1.5; ctx.setLineDash([4,3]); ctx.beginPath(); ctx.moveTo(PAD.left,yO(meanRT)); ctx.lineTo(PAD.left+cW,yO(meanRT)); ctx.stroke(); ctx.setLineDash([]); }
- ctx.fillStyle="#7fa0c0"; ctx.font="9px sans-serif"; ctx.textAlign="center"; ctx.fillText("Trial →",PAD.left+cW/2,H-2);
-}
-
 // Mode 2 / Mode 3 result chart:
 // green dots = correct responses
 // red dots   = wrong responses
@@ -2267,7 +2001,6 @@ function computeAge(bMonth, bYear){
 }
 
 // Current profile being edited
-let _profileData = {email:"", birthMonth:0, birthYear:0, gender:"", emailResults:false};
 let _profileGenderSelected = "";
 
 function profileSelectGender(g){
@@ -2384,8 +2117,18 @@ function resetProfile(){
 // _adminReturnTo: tracks which page opened admin so Close returns there.
 // ──────────────────────────────────────────────────────────────
 function hideAllOverlays(){
+ const ids=["subjectOverlay","fatigueOverlay","profileOverlay","refresherOverlay","tutorialOverlay","thinkingOverlay","outcomeOverlay","summaryOverlay","rankedOverlay","adminOverlay","trialLogOverlay","rateRtOverlay","perfTimeOverlay","fullGraphOverlay","emailOverlay","benchmarkOverlay"];
+ ids.forEach(id=>{
+  const el=$(id);
+  if(el) el.classList.add("hidden");
+ });
+ const ts=$("testScreen");
+ if(ts) ts.classList.add("hidden");
 }
 function showOnly(id){
+ hideAllOverlays();
+ const el=$(id);
+ if(el) el.classList.remove("hidden");
 }
 
 // ─── START PAGE SPEEDOMETER LINK ─────────────────────────────
@@ -2447,8 +2190,8 @@ function getCognitivePerformanceTableText(result){
  if((result.testMode||"mode1")!=="mode1") return "Not used in this mode.";
  const cpi = result.cognitivePerformanceIndex!=null ? Number(result.cognitivePerformanceIndex) : null;
  const actualSpfs = result.samnPerelli && result.samnPerelli.score!=null ? Number(result.samnPerelli.score) : null;
- const best = Number(settings.cpiBestMs)||900;
- const worst = Number(settings.cpiWorstMs)||3400;
+ const best = Number(settings.cpiBestMs)||800;
+ const worst = Number(settings.cpiWorstMs)||2400;
  const span = worst - best;
  const cpiToMs = c => Math.round(best + ((100-c)/100)*span);
  const rows = [
@@ -2897,6 +2640,8 @@ function clearCurrentSession(){
  state.pacedRTs=[]; state.rtLog=[]; state.previousMissed=false; state.lastFrameDuration=null; state.presentedRoundDuration=null;
  state.activeMode=settings.testMode||"mode1"; state.selfPacedRTs=[]; state.selfPacedCorrect=0; state.selfPacedWrong=0;
  state.fixedPacedBaseline=null; state.fixedPacedPresented=0; state.fixedPacedCorrect=0; state.fixedPacedWrong=0;
+ state.hadResponse=false; state.blockRestartBaseline=null; state.pendingPriorMiss=null; state.pendingLatePacing=null;
+ state._prevTrialOpenedAt=null; state._prevPresentedDurationMs=null;
  state.geo=null; state.benchmark=null; state.lastResultText=null;
  updateCPIDisplay(null); updateMetrics(); setProbeIdle(); setTestingQuiet(false);
 }
@@ -3268,42 +3013,6 @@ function buildRateRtOverlay(sessionIndex){
 // Clickable rows show that session's full summary.
 // Rendered inside admin → 📈 History & Graphs button.
 // ──────────────────────────────────────────────────────────────
-function buildHistoryOverlay(sessionIndex){
- const hist = state.history||[];
- const selectedIdx = sessionIndex!=null ? sessionIndex : (buildHistoryOverlay._selectedIndex!=null ? buildHistoryOverlay._selectedIndex : (hist.length?hist.length-1:null));
- buildHistoryOverlay._selectedIndex = selectedIdx;
- // Draw chart
- drawCombinedChart(null,state.history, selectedIdx);
- const meta=null;
- const selected = (selectedIdx!=null && hist[selectedIdx]) ? hist[selectedIdx] : null;
- if(meta){
-  meta.textContent = selected ? `Session ${selectedIdx+1} · ${formatModeTag(selected.testMode)} · SP-FS ${selected.samnPerelli?selected.samnPerelli.score:"—"} · ${new Date(selected.time).toLocaleString()}` : "No session selected";
- }
- // Build session table
- const tbody=null; if(!tbody) return;
- tbody.innerHTML="";
- if(!state.history.length){
-  tbody.innerHTML='<tr><td colspan="10" style="text-align:center;color:var(--muted);padding:12px">No history yet</td></tr>';
-  return;
- }
- [...state.history].reverse().forEach((r,ri)=>{
-  const idx=state.history.length-1-ri;
-  const tr=document.createElement("tr");
-  const date=new Date(r.time).toLocaleString("en-US",{month:"short",day:"numeric",hour:"2-digit",minute:"2-digit"});
-  const spf=r.samnPerelli?r.samnPerelli.score:"—";
-  const calRT=r.calibrationAverageMs!=null?r.calibrationAverageMs.toFixed(0)+"ms":"—";
-  const avgBlk=r.averageLast2BlockingScoresMs!=null?r.averageLast2BlockingScoresMs.toFixed(0)+"ms":"—";
-  const cps=r.cognitivePerformanceIndex!=null?r.cognitivePerformanceIndex.toFixed(1):"—";
-  const dur=formatDuration(r.testDurationMs);
-  const endShort=(r.endReason||"").substring(0,30)+((r.endReason||"").length>30?"…":"");
-  tr.style.cursor="pointer";
-  tr.title="Click to view trial detail";
-  if(idx===selectedIdx) tr.style.background="rgba(127,215,255,0.10)";
-  tr.onclick=()=>{ buildHistoryOverlay(idx); };
-  tr.innerHTML=`<td style="font-weight:700;color:var(--accent)">${idx+1}</td><td style="font-size:11px">${date}</td><td>${formatModeTag(r.testMode)} · ${r.subjectId}</td><td style="color:#88ff88">${spf}</td><td>${calRT}</td><td>${r.blockCount||0}</td><td style="color:#ff9f40">${avgBlk}</td><td style="color:var(--accent);font-weight:800">${cps}</td><td>${dur}</td><td style="font-size:10px;color:var(--muted)">${endShort}</td>`;
-  tbody.appendChild(tr);
- });
-}
 buildHistoryOverlay._openSelectedTrial=function(){
  const idx = buildHistoryOverlay._selectedIndex;
  if(idx==null) return;
@@ -3791,7 +3500,6 @@ $("adminLastResultBtn").onclick=()=>{
  buildSummary(last);
  $("summaryOverlay").classList.remove("hidden");
 };
-$("trialLogCloseBtn").onclick=()=>$("trialLogOverlay").classList.add("hidden");
 $("trialLogCsvBtn").onclick=()=>downloadTrialLogCSV();
 const _rrsel=$("rateRtSessionSelect"); if(_rrsel) _rrsel.onchange=()=>buildRateRtOverlay();
 const _tsel=$("trialLogSessionSelect");
@@ -4044,7 +3752,7 @@ const _ssp=$("speedStartPageBtn"); if(_ssp) _ssp.onclick=()=>{ hideAllOverlays()
 window.addEventListener("load",()=>{ try{ updateStartPageLinks(); }catch(e){}; });
 
 
-/* ===== Performance vs Time graph override (V312) ===== */
+/* ===== Performance vs Time graph override (V316) ===== */
 const perfGraphState = {
   preset: "last14",
   fromDate: "",
@@ -4220,7 +3928,7 @@ function drawPerformanceOverTimeChart(canvas,hist){
   }
 
   const bestMs = Number(settings.cpiBestMs)||800;
-  const worstMs = Number(settings.cpiWorstMs)||3000;
+  const worstMs = Number(settings.cpiWorstMs)||2400;
   const PAD = {top:72,right:76,bottom:n===1?64:92,left:126};
   const cW = W - PAD.left - PAD.right;
   const cH = H - PAD.top - PAD.bottom;
@@ -4448,10 +4156,10 @@ function openPerformanceOverTimePage(){
   wirePerfGraphControls();
   drawPerformanceOverTimeChart($("perfTimeGraph"), state.history||[]);
 }
-/* ===== end Performance vs Time graph override (V312) ===== */
+/* ===== end Performance vs Time graph override (V316) ===== */
 
 
-/* ===== E-mail Select wiring override (V312) ===== */
+/* ===== E-mail Select wiring override (V316) ===== */
 function openEmailSelectPage(){
   hideAllOverlays();
   const ov = $("emailOverlay");
@@ -4530,10 +4238,10 @@ window.addEventListener("load", ()=>{
   try{ wireEmailSelectControls(); }catch(err){}
  try{ wireEmailDraftAction(); }catch(err){}
 });
-/* ===== end E-mail Select wiring override (V312) ===== */
+/* ===== end E-mail Select wiring override (V316) ===== */
 
 
-/* ===== E-mail draft action override (V312) ===== */
+/* ===== E-mail draft action override (V316) ===== */
 function formatLastTrialLogText(last){
   if(!last || !Array.isArray(last.rtLog) || !last.rtLog.length) return "No trial detail log available.";
   const lines = last.rtLog.map(r=>{
@@ -4625,10 +4333,10 @@ window.addEventListener("load", ()=>{
   try{ wireEmailDraftAction(); }catch(err){}
   try{ syncEditableEmailRecipient(); }catch(err){}
 });
-/* ===== end E-mail draft action override (V312) ===== */
+/* ===== end E-mail draft action override (V316) ===== */
 
 
-/* ===== Editable recipient field override (V312) ===== */
+/* ===== Editable recipient field override (V316) ===== */
 function getEditableEmailRecipient(){
   const input = $("emailRecipientInput");
   const typed = input && input.value ? String(input.value).trim() : "";
@@ -4693,7 +4401,7 @@ function wireEmailDraftAction(){
   }
 }
 window.addEventListener("load", ()=>{ try{ syncEditableEmailRecipient(); }catch(err){}; });
-/* ===== end Editable recipient field override (V312) ===== */
+/* ===== end Editable recipient field override (V316) ===== */
 
 
 window.addEventListener("resize", ()=>{
