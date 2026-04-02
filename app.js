@@ -1,8 +1,8 @@
 // ═══════════════════════════════════════════════════
-// CogSpeed V292
+// CogSpeed V294
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V292";
+const APP_VERSION = "V294";
 const RELEASE = APP_VERSION.replace(/^V/i, "");
 const STORAGE_PREFIX = `cogspeed_v${RELEASE}`;
 
@@ -3811,7 +3811,7 @@ const _ssp=$("speedStartPageBtn"); if(_ssp) _ssp.onclick=()=>{ $("outcomeOverlay
 window.addEventListener("load",()=>{ try{ updateStartPageLinks(); }catch(e){}; });
 
 
-/* ===== Performance vs Time graph override (V292) ===== */
+/* ===== Performance vs Time graph override (V294) ===== */
 const perfGraphState = {
   preset: "last14",
   fromDate: "",
@@ -4179,10 +4179,10 @@ function openPerformanceOverTimePage(){
   wirePerfGraphControls();
   drawPerformanceOverTimeChart($("perfTimeGraph"), state.history||[]);
 }
-/* ===== end Performance vs Time graph override (V292) ===== */
+/* ===== end Performance vs Time graph override (V294) ===== */
 
 
-/* ===== E-mail Select wiring override (V292) ===== */
+/* ===== E-mail Select wiring override (V294) ===== */
 function openEmailSelectPage(){
   hideAllOverlays();
   const ov = $("emailOverlay");
@@ -4261,10 +4261,10 @@ window.addEventListener("load", ()=>{
   try{ wireEmailSelectControls(); }catch(err){}
  try{ wireEmailDraftAction(); }catch(err){}
 });
-/* ===== end E-mail Select wiring override (V292) ===== */
+/* ===== end E-mail Select wiring override (V294) ===== */
 
 
-/* ===== E-mail draft action override (V292) ===== */
+/* ===== E-mail draft action override (V294) ===== */
 function getEmailRecipient(){
   const fromProfile = (state.profile && state.profile.email) ? String(state.profile.email).trim() : "";
   const fromInput = ($("subjectIdInput") && $("subjectIdInput").value) ? String($("subjectIdInput").value).trim() : "";
@@ -4348,10 +4348,10 @@ window.addEventListener("load", ()=>{
   try{ wireEmailDraftAction(); }catch(err){}
   try{ syncEditableEmailRecipient(); }catch(err){}
 });
-/* ===== end E-mail draft action override (V292) ===== */
+/* ===== end E-mail draft action override (V294) ===== */
 
 
-/* ===== Editable recipient field override (V292) ===== */
+/* ===== Editable recipient field override (V294) ===== */
 function getEditableEmailRecipient(){
   const input = $("emailRecipientInput");
   const typed = input && input.value ? String(input.value).trim() : "";
@@ -4416,7 +4416,7 @@ function wireEmailDraftAction(){
   }
 }
 window.addEventListener("load", ()=>{ try{ syncEditableEmailRecipient(); }catch(err){}; });
-/* ===== end Editable recipient field override (V292) ===== */
+/* ===== end Editable recipient field override (V294) ===== */
 
 
 window.addEventListener("resize", ()=>{
