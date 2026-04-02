@@ -1,8 +1,8 @@
 // ═══════════════════════════════════════════════════
-// CogSpeed V316
+// CogSpeed V317
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V316";
+const APP_VERSION = "V317";
 const RELEASE = APP_VERSION.replace(/^V/i, "");
 const STORAGE_PREFIX = `cogspeed_v${RELEASE}`;
 
@@ -283,6 +283,41 @@ function clearTimer(){
  state.trialTimer=null;
  state._trialTimerIsRaf=false;
 }
+function clearNoResponseTimer(){ if(state.absoluteNoResponseTimer) clearTimeout(state.absoluteNoResponseTimer); state.absoluteNoResponseTimer=null; }
+function clearMaxTestTimer(){ if(state.maxTestTimer) clearTimeout(state.maxTestTimer); state.maxTestTimer=null; }
+// Absolute "not responding" timer — keeps tests from hanging forever.
+// Calibration trial 1 uses calibrationFirstNoResponseMs (default 10s).
+// Later calibration trials use calibrationNoResponseMs (default 6s).
+// Machine-paced uses machinePacedNoResponseMs (default 15s).
+// Recovery uses recoveryNoResponseMs (default 10s).
+// Fires finish() with a no-response end reason if nothing is tapped in time.
+function armNoResponseTimer(){
+ clearNoResponseTimer();
+ let ms;
+ switch(state.phase){
+  case "recovery":
+  case "terminal_recovery":
+   ms = Number(settings.recoveryNoResponseMs)||10000;
+   break;
+  case "calibration":
+   ms = state.calibrationTrialIndex===0
+    ? (Number(settings.calibrationFirstNoResponseMs)||10000)
+    : (Number(settings.calibrationNoResponseMs)||6000);
+   break;
+  case "paced":
+  case "mode3_paced":
+   // Machine-paced trials are governed by frame timers and block logic, not by absolute no-response timeout.
+   return;
+  default:
+   ms = 10000;
+ }
+ state.absoluteNoResponseTimer=setTimeout(()=>{
+  state.endReason = state.phase==="calibration"
+   ? "NO RESPONSE — Retest"
+   : "NOT RESPONDING IN TIME — Retest";
+  finish();
+ }, ms);
+}
 function armMaxTestTimer(){
  clearMaxTestTimer();
  const ms=getSessionMaxDurationMs();
@@ -515,7 +550,7 @@ function renderTrial(trial){
   btn.appendChild(pos);
   btn.innerHTML+=buildGearSVG(i+1,null,"large",""); // no rotation during test
   const idx=i;
-  // Pass event.timeStamp for tighter RT timing: it records when the OS registered the touch.
+  // Pass event.timeStamp for tighter RT timing.
   btn.addEventListener("pointerdown",(e)=>handleTap(idx,e.timeStamp));
   respGrid.appendChild(btn);
  }
@@ -928,7 +963,6 @@ function openTrial(kind){
  }
 
  // Arm timers only after the display has been fully painted.
- // Triple-rAF reduces the chance that timing starts before composite finishes.
  requestAnimationFrame(()=>{
   requestAnimationFrame(()=>{
    requestAnimationFrame(()=>{
@@ -3752,7 +3786,7 @@ const _ssp=$("speedStartPageBtn"); if(_ssp) _ssp.onclick=()=>{ hideAllOverlays()
 window.addEventListener("load",()=>{ try{ updateStartPageLinks(); }catch(e){}; });
 
 
-/* ===== Performance vs Time graph override (V316) ===== */
+/* ===== Performance vs Time graph override (V317) ===== */
 const perfGraphState = {
   preset: "last14",
   fromDate: "",
@@ -4156,10 +4190,10 @@ function openPerformanceOverTimePage(){
   wirePerfGraphControls();
   drawPerformanceOverTimeChart($("perfTimeGraph"), state.history||[]);
 }
-/* ===== end Performance vs Time graph override (V316) ===== */
+/* ===== end Performance vs Time graph override (V317) ===== */
 
 
-/* ===== E-mail Select wiring override (V316) ===== */
+/* ===== E-mail Select wiring override (V317) ===== */
 function openEmailSelectPage(){
   hideAllOverlays();
   const ov = $("emailOverlay");
@@ -4238,10 +4272,10 @@ window.addEventListener("load", ()=>{
   try{ wireEmailSelectControls(); }catch(err){}
  try{ wireEmailDraftAction(); }catch(err){}
 });
-/* ===== end E-mail Select wiring override (V316) ===== */
+/* ===== end E-mail Select wiring override (V317) ===== */
 
 
-/* ===== E-mail draft action override (V316) ===== */
+/* ===== E-mail draft action override (V317) ===== */
 function formatLastTrialLogText(last){
   if(!last || !Array.isArray(last.rtLog) || !last.rtLog.length) return "No trial detail log available.";
   const lines = last.rtLog.map(r=>{
@@ -4333,10 +4367,10 @@ window.addEventListener("load", ()=>{
   try{ wireEmailDraftAction(); }catch(err){}
   try{ syncEditableEmailRecipient(); }catch(err){}
 });
-/* ===== end E-mail draft action override (V316) ===== */
+/* ===== end E-mail draft action override (V317) ===== */
 
 
-/* ===== Editable recipient field override (V316) ===== */
+/* ===== Editable recipient field override (V317) ===== */
 function getEditableEmailRecipient(){
   const input = $("emailRecipientInput");
   const typed = input && input.value ? String(input.value).trim() : "";
@@ -4401,7 +4435,7 @@ function wireEmailDraftAction(){
   }
 }
 window.addEventListener("load", ()=>{ try{ syncEditableEmailRecipient(); }catch(err){}; });
-/* ===== end Editable recipient field override (V316) ===== */
+/* ===== end Editable recipient field override (V317) ===== */
 
 
 window.addEventListener("resize", ()=>{
