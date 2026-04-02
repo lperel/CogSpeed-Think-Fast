@@ -1,8 +1,8 @@
 // ═══════════════════════════════════════════════════
-// CogSpeed V307
+// CogSpeed V310
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V307";
+const APP_VERSION = "V310";
 const RELEASE = APP_VERSION.replace(/^V/i, "");
 const STORAGE_PREFIX = `cogspeed_v${RELEASE}`;
 
@@ -3799,7 +3799,6 @@ $("adminLastResultBtn").onclick=()=>{
 $("trialLogCloseBtn").onclick=()=>$("trialLogOverlay").classList.add("hidden");
 $("trialLogCsvBtn").onclick=()=>downloadTrialLogCSV();
 const _rrsel=$("rateRtSessionSelect"); if(_rrsel) _rrsel.onchange=()=>buildRateRtOverlay();
-const _rrcb=$("rateRtCloseBtn"); if(_rrcb) _rrcb.onclick=()=>{ $("rateRtOverlay").classList.add("hidden"); openSpeedometerPage(); };
 const _tsel=$("trialLogSessionSelect");
 if(_tsel) _tsel.onchange=()=>buildTrialLog();
 const _tlp=$("trialLogPrevBtn"); if(_tlp) _tlp.onclick=()=>{ const s=$("trialLogSessionSelect"); if(!s) return; s.selectedIndex=Math.max(0,s.selectedIndex-1); if(s.onchange) s.onchange(); };
@@ -4030,6 +4029,7 @@ const _rra=$("rankedAdminBtn"); if(_rra) _rra.onclick=()=>{ $("rankedOverlay").c
 const _stl=$("speedTrialLogBtn"); if(_stl) _stl.onclick=()=>{ $("outcomeOverlay").classList.add("hidden"); buildTrialLog(); $("trialLogOverlay").classList.remove("hidden"); };
 
 const _srr=$("speedRateRtBtn"); if(_srr) _srr.onclick=()=>{ $("outcomeOverlay").classList.add("hidden"); buildRateRtOverlay(); $("rateRtOverlay").classList.remove("hidden"); };
+const _rateRtCloseBtn=$("rateRtCloseBtn"); if(_rateRtCloseBtn) _rateRtCloseBtn.onclick=()=>{ $("rateRtOverlay").classList.add("hidden"); openSpeedometerPage(); };
 
 const _srg=$("speedResponseGraphBtn"); if(_srg) _srg.onclick=()=>{ openResponseGraphPage(false); };
 const _arg=$("adminResponseGraphBtn"); if(_arg) _arg.onclick=()=>{ openResponseGraphPage(true); };
@@ -4049,7 +4049,7 @@ const _ssp=$("speedStartPageBtn"); if(_ssp) _ssp.onclick=()=>{ hideAllOverlays()
 window.addEventListener("load",()=>{ try{ updateStartPageLinks(); }catch(e){}; });
 
 
-/* ===== Performance vs Time graph override (V307) ===== */
+/* ===== Performance vs Time graph override (V310) ===== */
 const perfGraphState = {
   preset: "last14",
   fromDate: "",
@@ -4453,10 +4453,10 @@ function openPerformanceOverTimePage(){
   wirePerfGraphControls();
   drawPerformanceOverTimeChart($("perfTimeGraph"), state.history||[]);
 }
-/* ===== end Performance vs Time graph override (V307) ===== */
+/* ===== end Performance vs Time graph override (V310) ===== */
 
 
-/* ===== E-mail Select wiring override (V307) ===== */
+/* ===== E-mail Select wiring override (V310) ===== */
 function openEmailSelectPage(){
   hideAllOverlays();
   const ov = $("emailOverlay");
@@ -4536,10 +4536,10 @@ window.addEventListener("load", ()=>{
   try{ wireEmailSelectControls(); }catch(err){}
  try{ wireEmailDraftAction(); }catch(err){}
 });
-/* ===== end E-mail Select wiring override (V307) ===== */
+/* ===== end E-mail Select wiring override (V310) ===== */
 
 
-/* ===== E-mail draft action override (V307) ===== */
+/* ===== E-mail draft action override (V310) ===== */
 function formatLastTrialLogText(last){
   if(!last || !Array.isArray(last.rtLog) || !last.rtLog.length) return "No trial detail log available.";
   const lines = last.rtLog.map(r=>{
@@ -4631,10 +4631,10 @@ window.addEventListener("load", ()=>{
   try{ wireEmailDraftAction(); }catch(err){}
   try{ syncEditableEmailRecipient(); }catch(err){}
 });
-/* ===== end E-mail draft action override (V307) ===== */
+/* ===== end E-mail draft action override (V310) ===== */
 
 
-/* ===== Editable recipient field override (V307) ===== */
+/* ===== Editable recipient field override (V310) ===== */
 function getEditableEmailRecipient(){
   const input = $("emailRecipientInput");
   const typed = input && input.value ? String(input.value).trim() : "";
@@ -4699,7 +4699,7 @@ function wireEmailDraftAction(){
   }
 }
 window.addEventListener("load", ()=>{ try{ syncEditableEmailRecipient(); }catch(err){}; });
-/* ===== end Editable recipient field override (V307) ===== */
+/* ===== end Editable recipient field override (V310) ===== */
 
 
 window.addEventListener("resize", ()=>{
