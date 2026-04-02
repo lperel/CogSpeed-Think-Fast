@@ -1,8 +1,8 @@
 // ═══════════════════════════════════════════════════
-// CogSpeed V288
+// CogSpeed V289
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V288";
+const APP_VERSION = "V289";
 const RELEASE = APP_VERSION.replace(/^V/i, "");
 const STORAGE_PREFIX = `cogspeed_v${RELEASE}`;
 
@@ -2691,8 +2691,8 @@ function startOverFlow(){
 
 // ─── Gear spin intro then start ───
 // ─── GEAR SPIN INTRO / OUTRO ──────────────────────────────────
-// runGearSpinThenStart(): shows all gears spinning fast (1.8s),
-//  then opens curtain (0.75s transition), then fires callback.
+// runGearSpinThenStart(): opens the curtain first (0.75s transition),
+//  then keeps all gears visibly spinning for 2.0s before firing callback.
 // Outro spin triggered in showResultsPage() after test ends.
 // CURTAIN TRANSITION: left/right panels slide apart on open,
 //  slide closed on test end (CSS transform translateX).
@@ -2715,9 +2715,10 @@ function endCurtainTransition(){
 
 function runGearSpinThenStart(callback) {
  beginCurtainTransition();
- // Show test screen with gears, no pattern, spin fast for 2s, then callback
+ // Show test screen with blank gears, open curtain, then keep all gears spinning
+ // visibly for 2 seconds AFTER the curtain is open before the first trial begins.
  const ts = $("testScreen"); if(ts) ts.classList.remove("hidden");
- // Render blank gears for the spin
+
  stimGrid.innerHTML = "";
  for(let i=0;i<6;i++){
   const cell = document.createElement("div");
@@ -2725,22 +2726,27 @@ function runGearSpinThenStart(callback) {
   cell.innerHTML = buildGearSVG(i+1, null, "large", i%2===0?"gspin-f":"gspin-r");
   stimGrid.appendChild(cell);
  }
+
  probeCell.classList.remove("idle");
  probeInner.innerHTML = buildGearSVG(0, null, "probe", "gspin-f");
+
  respGrid.innerHTML = "";
  for(let i=0;i<6;i++){
-  const btn = document.createElement("div"); btn.className = "resp-btn";
+  const btn = document.createElement("div");
+  btn.className = "resp-btn";
   btn.innerHTML = buildGearSVG(i+1, null, "large", i%2===0?"gspin-f":"gspin-r");
   respGrid.appendChild(btn);
  }
+
+ // Open curtain immediately; when fully open, leave gears spinning for 2 seconds.
+ const curtain = $("curtain");
+ if(curtain) curtain.classList.add("open");
  setTimeout(()=>{
-  // Open curtain
-  const curtain = $("curtain"); if(curtain) curtain.classList.add("open");
   setTimeout(()=>{
    callback();
    endCurtainTransition();
-  }, 750);
- }, 1800);
+  }, 2000);
+ }, 750);
 }
 
 // ─── START TEST ───
@@ -3684,7 +3690,7 @@ const _ssp=$("speedStartPageBtn"); if(_ssp) _ssp.onclick=()=>{ $("outcomeOverlay
 window.addEventListener("load",()=>{ try{ updateStartPageLinks(); }catch(e){}; });
 
 
-/* ===== Performance vs Time graph override (V288) ===== */
+/* ===== Performance vs Time graph override (V289) ===== */
 const perfGraphState = {
   preset: "last14",
   fromDate: "",
@@ -4052,10 +4058,10 @@ function openPerformanceOverTimePage(){
   wirePerfGraphControls();
   drawPerformanceOverTimeChart($("perfTimeGraph"), state.history||[]);
 }
-/* ===== end Performance vs Time graph override (V288) ===== */
+/* ===== end Performance vs Time graph override (V289) ===== */
 
 
-/* ===== E-mail Select wiring override (V288) ===== */
+/* ===== E-mail Select wiring override (V289) ===== */
 function openEmailSelectPage(){
   hideAllOverlays();
   const ov = $("emailOverlay");
@@ -4134,10 +4140,10 @@ window.addEventListener("load", ()=>{
   try{ wireEmailSelectControls(); }catch(err){}
  try{ wireEmailDraftAction(); }catch(err){}
 });
-/* ===== end E-mail Select wiring override (V288) ===== */
+/* ===== end E-mail Select wiring override (V289) ===== */
 
 
-/* ===== E-mail draft action override (V288) ===== */
+/* ===== E-mail draft action override (V289) ===== */
 function getEmailRecipient(){
   const fromProfile = (state.profile && state.profile.email) ? String(state.profile.email).trim() : "";
   const fromInput = ($("subjectIdInput") && $("subjectIdInput").value) ? String($("subjectIdInput").value).trim() : "";
@@ -4221,10 +4227,10 @@ window.addEventListener("load", ()=>{
   try{ wireEmailDraftAction(); }catch(err){}
   try{ syncEditableEmailRecipient(); }catch(err){}
 });
-/* ===== end E-mail draft action override (V288) ===== */
+/* ===== end E-mail draft action override (V289) ===== */
 
 
-/* ===== Editable recipient field override (V288) ===== */
+/* ===== Editable recipient field override (V289) ===== */
 function getEditableEmailRecipient(){
   const input = $("emailRecipientInput");
   const typed = input && input.value ? String(input.value).trim() : "";
@@ -4289,4 +4295,4 @@ function wireEmailDraftAction(){
   }
 }
 window.addEventListener("load", ()=>{ try{ syncEditableEmailRecipient(); }catch(err){}; });
-/* ===== end Editable recipient field override (V288) ===== */
+/* ===== end Editable recipient field override (V289) ===== */
