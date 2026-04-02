@@ -1,8 +1,8 @@
 // ═══════════════════════════════════════════════════
-// CogSpeed V289
+// CogSpeed V292
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V289";
+const APP_VERSION = "V292";
 const RELEASE = APP_VERSION.replace(/^V/i, "");
 const STORAGE_PREFIX = `cogspeed_v${RELEASE}`;
 
@@ -455,7 +455,12 @@ function ensureGearImageStyles(){
    object-fit:contain;
    display:block;
    filter:contrast(1.14) saturate(0.95) brightness(1.02);
+   transform-origin:50% 50%;
   }
+  .gear-img-wrap.gspin-f img{ animation:gSpinF 1.0s linear infinite; }
+  .gear-img-wrap.gspin-r img{ animation:gSpinR 1.0s linear infinite; }
+  .gear-img-wrap.gidle-f img{ animation:gSpinF 9s linear infinite; }
+  .gear-img-wrap.gidle-r img{ animation:gSpinR 9s linear infinite; }
   .gear-mark{
    position:absolute;
    z-index:2;
@@ -2691,7 +2696,7 @@ function startOverFlow(){
 
 // ─── Gear spin intro then start ───
 // ─── GEAR SPIN INTRO / OUTRO ──────────────────────────────────
-// runGearSpinThenStart(): opens the curtain first (0.75s transition),
+// runGearSpinThenStart(): closes curtain, reopens it visibly (0.75s),
 //  then keeps all gears visibly spinning for 2.0s before firing callback.
 // Outro spin triggered in showResultsPage() after test ends.
 // CURTAIN TRANSITION: left/right panels slide apart on open,
@@ -2715,8 +2720,6 @@ function endCurtainTransition(){
 
 function runGearSpinThenStart(callback) {
  beginCurtainTransition();
- // Show test screen with blank gears, open curtain, then keep all gears spinning
- // visibly for 2 seconds AFTER the curtain is open before the first trial begins.
  const ts = $("testScreen"); if(ts) ts.classList.remove("hidden");
 
  stimGrid.innerHTML = "";
@@ -2738,15 +2741,21 @@ function runGearSpinThenStart(callback) {
   respGrid.appendChild(btn);
  }
 
- // Open curtain immediately; when fully open, leave gears spinning for 2 seconds.
  const curtain = $("curtain");
- if(curtain) curtain.classList.add("open");
+ if(curtain){
+  curtain.classList.remove("open");
+  void curtain.offsetWidth;
+ }
+
  setTimeout(()=>{
+  if(curtain) curtain.classList.add("open");
   setTimeout(()=>{
-   callback();
-   endCurtainTransition();
-  }, 2000);
- }, 750);
+   setTimeout(()=>{
+    callback();
+    endCurtainTransition();
+   }, 2000);
+  }, 750);
+ }, 40);
 }
 
 // ─── START TEST ───
@@ -3610,6 +3619,117 @@ $("summaryRankedBtn").onclick=()=>{ const last=state.history[state.history.lengt
 try{ updateStartPageLinks(); }catch(e){}
 
 
+
+function drawSpfGauge(canvas, spf){
+ if(!canvas) return;
+ const rect = canvas.getBoundingClientRect();
+ const dpr = Math.max(1, window.devicePixelRatio || 1);
+ const cssW = Math.max(320, Math.round(rect.width || 900));
+ const cssH = Math.max(90, Math.round(cssW * 0.20));
+ canvas.width = Math.round(cssW * dpr);
+ canvas.height = Math.round(cssH * dpr);
+ const ctx = canvas.getContext("2d");
+ ctx.setTransform(dpr,0,0,dpr,0,0);
+ const W = cssW, H = cssH;
+
+ ctx.clearRect(0,0,W,H);
+
+ const padX = Math.round(W * 0.035);
+ const topY = Math.round(H * 0.26);
+ const barY = Math.round(H * 0.46);
+ const barH = Math.round(H * 0.26);
+ const barW = W - padX*2;
+
+ // top labels
+ ctx.fillStyle = "#6f7b87";
+ ctx.font = `700 ${Math.max(12, Math.round(H*0.18))}px -apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif`;
+ ctx.textAlign = "center";
+ ctx.textBaseline = "middle";
+ for(let i=1;i<=7;i++){
+  const x = padX + ((i-1)/6)*barW;
+  ctx.fillText(String(i), x, Math.round(H*0.11));
+ }
+
+ // metallic thin border
+ const borderGrad = ctx.createLinearGradient(0, barY, 0, barY+barH);
+ borderGrad.addColorStop(0.00, "#d7dde3");
+ borderGrad.addColorStop(0.22, "#8f99a4");
+ borderGrad.addColorStop(0.50, "#eef2f5");
+ borderGrad.addColorStop(0.78, "#8b949d");
+ borderGrad.addColorStop(1.00, "#d7dde3");
+
+ // gradient bar
+ const grad = ctx.createLinearGradient(padX, 0, padX+barW, 0);
+ grad.addColorStop(0.00, "#7a0000"); // 1 dark red
+ grad.addColorStop(0.18, "#d02020"); // 2 red
+ grad.addColorStop(0.34, "#f08a00"); // 3 orange
+ grad.addColorStop(0.50, "#8fcb5a"); // 4 light green
+ grad.addColorStop(0.66, "#6fbe4a"); // 5 light green
+ grad.addColorStop(0.83, "#228b22"); // 6 dark green
+ grad.addColorStop(1.00, "#0b5f16"); // 7 dark green
+
+ const radius = Math.max(8, Math.round(barH*0.18));
+ ctx.beginPath();
+ ctx.moveTo(padX+radius, barY);
+ ctx.lineTo(padX+barW-radius, barY);
+ ctx.quadraticCurveTo(padX+barW, barY, padX+barW, barY+radius);
+ ctx.lineTo(padX+barW, barY+barH-radius);
+ ctx.quadraticCurveTo(padX+barW, barY+barH, padX+barW-radius, barY+barH);
+ ctx.lineTo(padX+radius, barY+barH);
+ ctx.quadraticCurveTo(padX, barY+barH, padX, barY+barH-radius);
+ ctx.lineTo(padX, barY+radius);
+ ctx.quadraticCurveTo(padX, barY, padX+radius, barY);
+ ctx.closePath();
+ ctx.fillStyle = grad;
+ ctx.fill();
+ ctx.lineWidth = 1.5;
+ ctx.strokeStyle = borderGrad;
+ ctx.stroke();
+
+ // subtle top ticks
+ ctx.strokeStyle = "#b9bfc6";
+ ctx.lineWidth = 1;
+ for(let i=1;i<=7;i++){
+  const x = padX + ((i-1)/6)*barW;
+  ctx.beginPath();
+  ctx.moveTo(x, Math.round(H*0.19));
+  ctx.lineTo(x, Math.round(H*0.24));
+  ctx.stroke();
+ }
+
+ // pointer
+ const value = spf!=null && isFinite(Number(spf)) ? Math.max(1, Math.min(7, Number(spf))) : null;
+ if(value!=null){
+  const x = padX + ((value-1)/6)*barW;
+  const triTop = barY - Math.round(H*0.01);
+  const triH = Math.round(H*0.22);
+  const triHalf = Math.round(H*0.10);
+  ctx.beginPath();
+  ctx.moveTo(x, triTop);
+  ctx.lineTo(x-triHalf, triTop+triH);
+  ctx.lineTo(x+triHalf, triTop+triH);
+  ctx.closePath();
+  ctx.fillStyle = "#5eb0f3";
+  ctx.fill();
+  ctx.lineWidth = 1;
+  ctx.strokeStyle = "rgba(255,255,255,0.45)";
+  ctx.stroke();
+ }
+
+ // title
+ ctx.fillStyle = "#7fd7ff";
+ ctx.font = `800 ${Math.max(12, Math.round(H*0.14))}px -apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif`;
+ ctx.textAlign = "center";
+ ctx.fillText(`SP-FS ${value!=null ? value : "—"}`, W/2, Math.round(H*0.90));
+}
+
+function renderSpfGaugeForResult(result){
+ const canvas = $("spfGaugeCanvas");
+ if(!canvas) return;
+ const spf = result && result.samnPerelli && result.samnPerelli.score!=null ? Number(result.samnPerelli.score) : null;
+ drawSpfGauge(canvas, spf);
+}
+
 function renderSpeedometerOutcome(result){
  const outcome = $("outcomeOverlay");
  const canvas = $("speedometerCanvas");
@@ -3623,6 +3743,7 @@ function renderSpeedometerOutcome(result){
  if(wrap) canvas.style.width = wrap.offsetWidth + "px";
  stopSpeedometer();
  setTimeout(()=>animateSpeedometer(canvas, cps, mbs, success), 80);
+ renderSpfGaugeForResult(result);
  setTestingQuiet(false);
 }
 
@@ -3690,7 +3811,7 @@ const _ssp=$("speedStartPageBtn"); if(_ssp) _ssp.onclick=()=>{ $("outcomeOverlay
 window.addEventListener("load",()=>{ try{ updateStartPageLinks(); }catch(e){}; });
 
 
-/* ===== Performance vs Time graph override (V289) ===== */
+/* ===== Performance vs Time graph override (V292) ===== */
 const perfGraphState = {
   preset: "last14",
   fromDate: "",
@@ -4058,10 +4179,10 @@ function openPerformanceOverTimePage(){
   wirePerfGraphControls();
   drawPerformanceOverTimeChart($("perfTimeGraph"), state.history||[]);
 }
-/* ===== end Performance vs Time graph override (V289) ===== */
+/* ===== end Performance vs Time graph override (V292) ===== */
 
 
-/* ===== E-mail Select wiring override (V289) ===== */
+/* ===== E-mail Select wiring override (V292) ===== */
 function openEmailSelectPage(){
   hideAllOverlays();
   const ov = $("emailOverlay");
@@ -4140,10 +4261,10 @@ window.addEventListener("load", ()=>{
   try{ wireEmailSelectControls(); }catch(err){}
  try{ wireEmailDraftAction(); }catch(err){}
 });
-/* ===== end E-mail Select wiring override (V289) ===== */
+/* ===== end E-mail Select wiring override (V292) ===== */
 
 
-/* ===== E-mail draft action override (V289) ===== */
+/* ===== E-mail draft action override (V292) ===== */
 function getEmailRecipient(){
   const fromProfile = (state.profile && state.profile.email) ? String(state.profile.email).trim() : "";
   const fromInput = ($("subjectIdInput") && $("subjectIdInput").value) ? String($("subjectIdInput").value).trim() : "";
@@ -4227,10 +4348,10 @@ window.addEventListener("load", ()=>{
   try{ wireEmailDraftAction(); }catch(err){}
   try{ syncEditableEmailRecipient(); }catch(err){}
 });
-/* ===== end E-mail draft action override (V289) ===== */
+/* ===== end E-mail draft action override (V292) ===== */
 
 
-/* ===== Editable recipient field override (V289) ===== */
+/* ===== Editable recipient field override (V292) ===== */
 function getEditableEmailRecipient(){
   const input = $("emailRecipientInput");
   const typed = input && input.value ? String(input.value).trim() : "";
@@ -4295,4 +4416,12 @@ function wireEmailDraftAction(){
   }
 }
 window.addEventListener("load", ()=>{ try{ syncEditableEmailRecipient(); }catch(err){}; });
-/* ===== end Editable recipient field override (V289) ===== */
+/* ===== end Editable recipient field override (V292) ===== */
+
+
+window.addEventListener("resize", ()=>{
+ const last = state.history && state.history.length ? state.history[state.history.length-1] : null;
+ if(last && !$("outcomeOverlay").classList.contains("hidden")){
+  try{ renderSpfGaugeForResult(last); }catch(e){}
+ }
+});

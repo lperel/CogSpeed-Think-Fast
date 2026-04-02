@@ -1,4 +1,4 @@
-const RELEASE = "289";
+const RELEASE = "292";
 const CACHE_NAME = `cogspeed-v${RELEASE}-shell-v${RELEASE}`;
 const APP_SHELL = [
   "./",
