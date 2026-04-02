@@ -1,8 +1,8 @@
 // ═══════════════════════════════════════════════════
-// CogSpeed V311
+// CogSpeed V312
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V311";
+const APP_VERSION = "V312";
 const RELEASE = APP_VERSION.replace(/^V/i, "");
 const STORAGE_PREFIX = `cogspeed_v${RELEASE}`;
 
@@ -1699,21 +1699,6 @@ function drawCombinedChart(canvas,hist,selectedIdx){
 }
 
 
-function graphMetricMsForSession(r){
- if(!r) return null;
- const candidates = [
-  r.averageLast2BlockingScoresMs,
-  r.pacedResponseMeanMs,
-  r.selfPacedResponseMeanMs,
-  r.calibrationAverageMs,
-  r.fixedPacedBaselineMs
- ];
- for(const v of candidates){
-  const n = Number(v);
-  if(isFinite(n) && n > 0) return n;
- }
- return null;
-}
 function getSessionUtcMs(r){
  if(!r) return 0;
  const candidates = [
@@ -2399,10 +2384,8 @@ function resetProfile(){
 // _adminReturnTo: tracks which page opened admin so Close returns there.
 // ──────────────────────────────────────────────────────────────
 function hideAllOverlays(){
- ["subjectOverlay","profileOverlay","refresherOverlay","fatigueOverlay","tutorialOverlay","adminOverlay","resultsOverlay","summaryOverlay","rankedOverlay","trialLogOverlay","historyOverlay","rateRtOverlay","perfTimeOverlay","emailOverlay","thinkingOverlay","outcomeOverlay"].forEach(id=>{ const el=$(id); if(el) el.classList.add("hidden"); });
 }
 function showOnly(id){
- ["subjectOverlay","profileOverlay","refresherOverlay","fatigueOverlay","adminOverlay","resultsOverlay","summaryOverlay","rankedOverlay","trialLogOverlay","historyOverlay","rateRtOverlay","perfTimeOverlay","emailOverlay","tutorialOverlay"].forEach(oid=>{ const el=$(oid); if(el) el.classList[oid===id?"remove":"add"]("hidden"); });
 }
 
 // ─── START PAGE SPEEDOMETER LINK ─────────────────────────────
@@ -2488,22 +2471,23 @@ function getCognitivePerformanceTableText(result){
    }
   });
  }
- const leftHeader = "Cognitive Performance Table";
- const rightHeader = "Cognitive Performance Capability *";
- const leftRows = rows.map((r,i)=>{
-   const spfsLabel = (actualSpfs!=null && r.spfs===actualSpfs) ? `[SP-FS ${r.spfs}]` : `SP-FS ${r.spfs}`;
-   const mark = i===nearestIdx ? "  ← CPI" : "";
-   return `${spfsLabel}: CPI ${r.cpi.toString().padStart(3," ")} | ${r.ms} ms${mark}`;
+ const esc = s => String(s)
+   .replace(/&/g,"&amp;")
+   .replace(/</g,"&lt;")
+   .replace(/>/g,"&gt;");
+ let html = '<div class="cogperf-table-wrap">';
+ html += '<div class="cogperf-head left">Cognitive Performance Table</div>';
+ html += '<div class="cogperf-head right">Cognitive Performance Capability *</div>';
+ rows.forEach((r,i)=>{
+   const isActual = actualSpfs!=null && r.spfs===actualSpfs;
+   const leftCls = isActual ? 'cogperf-row left actual' : 'cogperf-row left';
+   const rightCls = isActual ? 'cogperf-row right actual' : 'cogperf-row right';
+   const arrow = i===nearestIdx ? ' <span class="cogperf-arrow">← CPI</span>' : '';
+   html += `<div class="${leftCls}">${isActual ? '<strong>' : ''}SP-FS ${r.spfs}${isActual ? '</strong>' : ''}: CPI ${String(r.cpi).padStart(3,' ')} | ${r.ms} ms${arrow}</div>`;
+   html += `<div class="${rightCls}">${isActual ? '<strong>' : ''}${esc(r.cap)}${isActual ? '</strong>' : ''}</div>`;
  });
- const rightRows = rows.map(r=>r.cap);
- const leftWidth = Math.max(leftHeader.length, ...leftRows.map(s=>s.length));
- const gap = "   ";
- const lines = [];
- lines.push(leftHeader.padEnd(leftWidth, " ") + gap + rightHeader);
- for(let i=0;i<rows.length;i++){
-   lines.push(leftRows[i].padEnd(leftWidth, " ") + gap + rightRows[i]);
- }
- return lines.join("\n");
+ html += '</div>';
+ return html;
 }
 function buildRankedSummary(result){
  const el=$("rankedText"); if(!el) return;
@@ -2515,6 +2499,17 @@ ${hr}
 RANKED TARGET / POSITION AVERAGES — POOLED SAME-MODE SESSIONS
 ${formatModePooledRankSection(result.testMode)}`;
 }
+
+function escapeHtmlSummary(s){
+ return String(s)
+  .replace(/&/g,"&amp;")
+  .replace(/</g,"&lt;")
+  .replace(/>/g,"&gt;");
+}
+function summaryBlockWithTable(prefix, tableHtml){
+ return `<pre style="white-space:pre-wrap;word-break:break-word;margin:0;font:500 15px/1.55 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:var(--text)">${escapeHtmlSummary(prefix)}</pre>${tableHtml}`;
+}
+
 function buildSummary(result){
  const el=$("summaryText"); if(!el) return;
  const hr="─────────────────────────";
@@ -2634,7 +2629,8 @@ RESPONSE STATISTICS
  Mean paced RT: ${result.pacedResponseMeanMs!=null?result.pacedResponseMeanMs.toFixed(1)+" ms":"—"}
  Paced RT SD: ${sd!=null?sd.toFixed(1)+" ms":"—"}
 ${hr}
-COGNITIVE PERFORMANCE TABLE\n [SP-FS x] = actual SP-FS score. Arrow = nearest CPI reference. Capability text is shown at right.\n${getCognitivePerformanceTableText(result)}`;
+COGNITIVE PERFORMANCE TABLE\n Bold SP-FS row = actual SP-FS score. Arrow = nearest CPI reference. Capability text is shown at right.\n`;
+el.innerHTML=summaryBlockWithTable(el.textContent + ``, getCognitivePerformanceTableText(result));
 }
 
 // ─── SPEEDOMETER V2 — Vintage Auto Meter style ────────────────
@@ -3311,7 +3307,6 @@ function buildHistoryOverlay(sessionIndex){
 buildHistoryOverlay._openSelectedTrial=function(){
  const idx = buildHistoryOverlay._selectedIndex;
  if(idx==null) return;
- const _hov=$("historyOverlay"); if(_hov) _hov.classList.add("hidden");
  buildTrialLog(idx);
  $("trialLogOverlay").classList.remove("hidden");
 };
@@ -4049,7 +4044,7 @@ const _ssp=$("speedStartPageBtn"); if(_ssp) _ssp.onclick=()=>{ hideAllOverlays()
 window.addEventListener("load",()=>{ try{ updateStartPageLinks(); }catch(e){}; });
 
 
-/* ===== Performance vs Time graph override (V311) ===== */
+/* ===== Performance vs Time graph override (V312) ===== */
 const perfGraphState = {
   preset: "last14",
   fromDate: "",
@@ -4453,10 +4448,10 @@ function openPerformanceOverTimePage(){
   wirePerfGraphControls();
   drawPerformanceOverTimeChart($("perfTimeGraph"), state.history||[]);
 }
-/* ===== end Performance vs Time graph override (V311) ===== */
+/* ===== end Performance vs Time graph override (V312) ===== */
 
 
-/* ===== E-mail Select wiring override (V311) ===== */
+/* ===== E-mail Select wiring override (V312) ===== */
 function openEmailSelectPage(){
   hideAllOverlays();
   const ov = $("emailOverlay");
@@ -4473,7 +4468,6 @@ function wireEmailSelectControls(){
   const speedBtn = $("speedEmailSelectBtn");
   const backSpeed = $("emailSpeedometerBtn");
   const backStart = $("emailStartBtn");
-  const recipBtn = $("emailSelectRecipientBtn");
   const dataSel = $("emailDataSelect");
   const info = $("emailSelectInfo");
 
@@ -4536,10 +4530,10 @@ window.addEventListener("load", ()=>{
   try{ wireEmailSelectControls(); }catch(err){}
  try{ wireEmailDraftAction(); }catch(err){}
 });
-/* ===== end E-mail Select wiring override (V311) ===== */
+/* ===== end E-mail Select wiring override (V312) ===== */
 
 
-/* ===== E-mail draft action override (V311) ===== */
+/* ===== E-mail draft action override (V312) ===== */
 function formatLastTrialLogText(last){
   if(!last || !Array.isArray(last.rtLog) || !last.rtLog.length) return "No trial detail log available.";
   const lines = last.rtLog.map(r=>{
@@ -4631,10 +4625,10 @@ window.addEventListener("load", ()=>{
   try{ wireEmailDraftAction(); }catch(err){}
   try{ syncEditableEmailRecipient(); }catch(err){}
 });
-/* ===== end E-mail draft action override (V311) ===== */
+/* ===== end E-mail draft action override (V312) ===== */
 
 
-/* ===== Editable recipient field override (V311) ===== */
+/* ===== Editable recipient field override (V312) ===== */
 function getEditableEmailRecipient(){
   const input = $("emailRecipientInput");
   const typed = input && input.value ? String(input.value).trim() : "";
@@ -4699,7 +4693,7 @@ function wireEmailDraftAction(){
   }
 }
 window.addEventListener("load", ()=>{ try{ syncEditableEmailRecipient(); }catch(err){}; });
-/* ===== end Editable recipient field override (V311) ===== */
+/* ===== end Editable recipient field override (V312) ===== */
 
 
 window.addEventListener("resize", ()=>{
