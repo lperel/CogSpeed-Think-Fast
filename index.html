@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
   <meta name="theme-color" content="#0b1830"/>
   <link rel="manifest" href="manifest.json"/>
-  <title>CogSpeed® V295</title>
+  <title>CogSpeed® V296</title>
     <style>
 
     :root{--bg:#091426;--bg2:#132746;--panel:#0d1b33;--panel2:#10213e;--text:#f5fbff;--muted:#d7e7f8;--edge:#4f6f99;--accent:#7fd7ff;--probe:#00f0ff}
@@ -513,11 +513,11 @@
       <div style="max-height:55vh;overflow-y:auto;margin-bottom:12px" id="adminSettings"></div>
       
       
-      <div class="controls" style="margin-bottom:6px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px">
+      <div class="controls" style="margin-bottom:6px;display:grid;grid-template-columns:1fr 1fr;gap:6px">
         <button class="ctrl-btn" id="adminTrialLogBtn" style="width:100%;background:linear-gradient(180deg,#1a3355,#0d1b33);border-color:#4f8fcc">📋 Trial Detail</button>
         <button class="ctrl-btn" id="adminPerfTimeBtn" style="width:100%;background:linear-gradient(180deg,#1a3355,#0d1b33);border-color:#4f8fcc">📈 Performance vs Time</button>
-        
         <button class="ctrl-btn" id="adminRateRtBtn" style="width:100%;background:linear-gradient(180deg,#1a3355,#0d1b33);border-color:#4f8fcc">📉 Rates + RT</button>
+        <button class="ctrl-btn" id="adminResponseGraphBtn" style="width:100%;background:linear-gradient(180deg,#1a3355,#0d1b33);border-color:#4f8fcc">📊 Response-Time Graph</button>
       </div>
       <div class="controls" style="margin-bottom:8px;display:grid;grid-template-columns:1fr 1fr;gap:6px">
         <button class="ctrl-btn" id="adminLastResultBtn" style="width:100%;background:linear-gradient(180deg,#1a3355,#0d1b33);border-color:#4f8fcc">📄 Last Results</button>
@@ -595,6 +595,7 @@
   <div id="speedometerBtnGrid" style="width:min(92vw,700px);display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;align-items:stretch">
     <button class="ctrl-btn" id="outcomeResultsBtn" style="width:100%;font-size:16px;padding:15px 24px;background:linear-gradient(180deg,#1a3a5a,#0d1e30);border-color:#4f6f99;color:#d9fbff;letter-spacing:.06em">View Results →</button>
     <button class="ctrl-btn" id="speedPerfTimeBtn" style="width:100%;font-size:15px;padding:12px 20px;margin-top:8px">Performance vs Time</button>
+    <button class="ctrl-btn" id="speedResponseGraphBtn" style="width:100%;font-size:15px;padding:12px 20px;margin-top:8px">Response-Time Graph</button>
     <button class="ctrl-btn" id="speedTrialLogBtn" style="width:100%;font-size:15px;padding:12px 20px;margin-top:8px">Trial Detail Log</button>
     <button class="ctrl-btn" id="speedRateRtBtn" style="width:100%;font-size:15px;padding:12px 20px;margin-top:8px">Presentation Rate vs Response Time</button>
     <button id="speedAdminBtn" style="width:100%;justify-self:stretch;background:none;border:none;color:rgba(127,215,255,0.38);font-size:12px;padding:8px 10px;cursor:pointer;font-family:inherit;letter-spacing:.05em">Admin</button>
@@ -608,12 +609,10 @@
   <div class="modal">
     <div style="text-align:center;margin-bottom:10px"><span class="badge">Results</span></div>
     <div id="summaryText" style="font-family:monospace;font-size:15px;color:var(--muted);white-space:pre;overflow-x:auto;max-height:46vh;overflow-y:auto;background:#060e1a;border:1px solid var(--edge);border-radius:10px;padding:14px;line-height:1.75"></div>
-    <canvas id="summaryModeChart" width="760" height="260" style="display:block;width:100%;margin-top:10px;border-radius:10px;border:1px solid var(--edge);background:#081321"></canvas>
     <div style="display:flex;align-items:center;gap:8px;margin-top:10px;flex-wrap:wrap">
       <button class="ctrl-btn" id="summaryRestartBtn" style="flex:1">New Test</button>
       <button class="ctrl-btn" id="summarySpeedometerBtn" style="flex:1">Speedometer</button>
             <button class="ctrl-btn" id="summaryRankedBtn" style="flex:1">Ranked Averages</button>
-      <button class="ctrl-btn" id="summaryFullGraphBtn" style="flex:1;display:none">Full Graph</button>
       <button id="summaryProfileBtn" style="background:none;border:none;color:rgba(127,215,255,0.5);font-size:18px;padding:4px 10px;cursor:pointer">⚙</button>
       <button id="summaryAdminBtn" style="background:none;border:none;color:rgba(127,215,255,0.3);font-size:11px;padding:4px 10px;cursor:pointer;font-family:inherit;letter-spacing:.05em">Admin →</button>
     </div>
@@ -652,6 +651,7 @@
         <option value="trial_log">Trial Detail Log</option>
         <option value="ranked">Ranked Target / Position Averages</option>
         <option value="perf_time">Performance over Date and Time</option>
+        <option value="response_graph">Response-Time Graph Data</option>
         <option value="rate_rt">Presentation Rate vs Response Time</option>
         <option value="all">All available data</option>
       </select>
@@ -705,10 +705,12 @@
 <!-- ═══ FULL GRAPH OVERLAY ═══ -->
 <div id="fullGraphOverlay" class="overlay hidden">
   <div class="modal" style="max-width:min(98vw,1100px);padding:16px">
-    <div style="text-align:center;margin-bottom:10px"><span class="badge">Full Response-Time Graph</span></div>
+    <div style="text-align:center;margin-bottom:10px"><span class="badge">Response-Time Graph</span></div>
     <canvas id="fullModeGraph" width="1100" height="620" style="display:block;width:100%;border-radius:12px;border:1px solid var(--edge);background:#081321"></canvas>
+    <div id="responseGraphInfo" style="font-size:12px;color:var(--muted);text-align:center;margin-top:8px">Response time by trial for the most recent session. Higher on the graph = faster (smaller ms).</div>
     <div class="controls" style="margin-top:12px">
-      <button class="ctrl-btn" id="fullGraphBackBtn" style="flex:1">Back to Results</button>
+      <button class="ctrl-btn" id="fullGraphSpeedometerBtn" style="flex:1">← Speedometer</button>
+      <button id="fullGraphAdminBtn" style="background:none;border:none;color:rgba(127,215,255,0.38);font-size:12px;padding:6px 10px;cursor:pointer;font-family:inherit;letter-spacing:.05em">Admin</button>
     </div>
   </div>
 </div>
@@ -769,7 +771,7 @@
     <span id="fatigueOut">—</span>
     <span id="modeLabel">Subject mode</span>
     <span id="phaseLabel">Ready</span>
-    <span id="statusLine">CogSpeed V295</span>
+    <span id="statusLine">CogSpeed V296</span>
     <span id="rateOut">—</span>
     <span id="blocksOut">0</span>
     <span id="recoveryOut">0</span>

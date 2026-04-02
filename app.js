@@ -1,8 +1,8 @@
 // ═══════════════════════════════════════════════════
-// CogSpeed V295
+// CogSpeed V296
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V295";
+const APP_VERSION = "V296";
 const RELEASE = APP_VERSION.replace(/^V/i, "");
 const STORAGE_PREFIX = `cogspeed_v${RELEASE}`;
 
@@ -894,23 +894,6 @@ localStorage.setItem(`${STORAGE_PREFIX}_history`,JSON.stringify(state.history));
 updateCPIDisplay(avg2); setProbeIdle();
  // Build the display text (also used for email)
  buildSummary(result);
- drawModeResultChart($("summaryModeChart"), result);
- const fgBtn=$("summaryFullGraphBtn");
- const hasGraphableModeData = !!(
-  result &&
-  (
-   Array.isArray(result.mode1Trials) && result.mode1Trials.length ||
-   Array.isArray(result.rtLog) && result.rtLog.length ||
-   result.testMode==="mode1" || result.testMode==="mode2" || result.testMode==="mode3"
-  )
- );
- if(fgBtn){
-  fgBtn.classList.toggle("hidden", !hasGraphableModeData);
- }
- const fullCanvas=$("fullModeGraph");
- if(fullCanvas && hasGraphableModeData){
-  drawModeResultChart(fullCanvas, result);
- }
  state.lastResultText = $("summaryText") ? $("summaryText").textContent : "";
  showResultsPage();
 }
@@ -3582,8 +3565,6 @@ $("backToStartBtn").onclick=goToStartPage;
 $("startOverBtn").onclick=startOverFlow;
 $("summaryRestartBtn").onclick=()=>{ $("summaryOverlay").classList.add("hidden"); const fg=$("fullGraphOverlay"); if(fg) fg.classList.add("hidden"); goToStartPage(); };
 const _sspeed=$("summarySpeedometerBtn"); if(_sspeed) _sspeed.onclick=()=>{ $("summaryOverlay").classList.add("hidden"); openSpeedometerPage(); };
-const _fgb=$("summaryFullGraphBtn"); if(_fgb) _fgb.onclick=()=>{ $("summaryOverlay").classList.add("hidden"); $("fullGraphOverlay").classList.remove("hidden"); };
-const _fgbb=$("fullGraphBackBtn"); if(_fgbb) _fgbb.onclick=()=>{ $("fullGraphOverlay").classList.add("hidden"); $("summaryOverlay").classList.remove("hidden"); };
 const _orb=$("outcomeResultsBtn"); if(_orb) _orb.onclick=()=>{ $("outcomeOverlay").classList.add("hidden"); stopSpeedometer(); $("summaryOverlay").classList.remove("hidden"); setTestingQuiet(false); };
 const _sadmin=$("speedAdminBtn"); if(_sadmin) _sadmin.onclick=()=>{ _adminReturnTo = "outcomeOverlay"; $("outcomeOverlay").classList.add("hidden"); $("adminOverlay").classList.remove("hidden"); if(_adminUnlocked){ $("adminGate").classList.add("hidden"); $("adminBody").classList.remove("hidden"); renderAdmin(); } else { $("adminGate").classList.remove("hidden"); $("adminBody").classList.add("hidden"); $("adminPass").value=""; } };
 $("summaryAdminBtn").onclick=()=>{
@@ -3798,6 +3779,11 @@ const _stl=$("speedTrialLogBtn"); if(_stl) _stl.onclick=()=>{ $("outcomeOverlay"
 
 const _srr=$("speedRateRtBtn"); if(_srr) _srr.onclick=()=>{ $("outcomeOverlay").classList.add("hidden"); buildRateRtOverlay(); $("rateRtOverlay").classList.remove("hidden"); };
 
+const _srg=$("speedResponseGraphBtn"); if(_srg) _srg.onclick=()=>{ openResponseGraphPage(false); };
+const _arg=$("adminResponseGraphBtn"); if(_arg) _arg.onclick=()=>{ openResponseGraphPage(true); };
+const _fgs=$("fullGraphSpeedometerBtn"); if(_fgs) _fgs.onclick=()=>{ $("fullGraphOverlay").classList.add("hidden"); openSpeedometerPage(); };
+const _fga=$("fullGraphAdminBtn"); if(_fga) _fga.onclick=()=>{ $("fullGraphOverlay").classList.add("hidden"); $("adminOverlay").classList.remove("hidden"); if(_adminUnlocked){ $("adminGate").classList.add("hidden"); $("adminBody").classList.remove("hidden"); renderAdmin(); } else { $("adminGate").classList.remove("hidden"); $("adminBody").classList.add("hidden"); $("adminPass").value=""; } };
+
 const _tla=$("trialLogAdminBtn"); if(_tla) _tla.onclick=()=>{ $("trialLogOverlay").classList.add("hidden"); $("adminOverlay").classList.remove("hidden"); if(_adminUnlocked){ $("adminGate").classList.add("hidden"); $("adminBody").classList.remove("hidden"); renderAdmin(); } else { $("adminGate").classList.remove("hidden"); $("adminBody").classList.add("hidden"); $("adminPass").value=""; } };
 
 const _ssp=$("speedStartPageBtn"); if(_ssp) _ssp.onclick=()=>{ $("outcomeOverlay").classList.add("hidden"); goToStartPage(); try{ updateStartPageLinks(); }catch(e){} };
@@ -3811,7 +3797,7 @@ const _ssp=$("speedStartPageBtn"); if(_ssp) _ssp.onclick=()=>{ $("outcomeOverlay
 window.addEventListener("load",()=>{ try{ updateStartPageLinks(); }catch(e){}; });
 
 
-/* ===== Performance vs Time graph override (V295) ===== */
+/* ===== Performance vs Time graph override (V296) ===== */
 const perfGraphState = {
   preset: "last14",
   fromDate: "",
@@ -4172,6 +4158,42 @@ function drawPerformanceOverTimeChart(canvas,hist){
   ctx.fillStyle="#88ff88"; ctx.fillText("◆ SP-FS", PAD.left+278, PAD.top-14);
 }
 
+
+function getLastGraphableResult(){
+ const h = state.history || [];
+ for(let i=h.length-1;i>=0;i--){
+  const r = h[i];
+  if(r && (
+    (Array.isArray(r.mode1Trials) && r.mode1Trials.length) ||
+    (Array.isArray(r.rtLog) && r.rtLog.length) ||
+    r.testMode==="mode1" || r.testMode==="mode2" || r.testMode==="mode3"
+  )){
+   return r;
+  }
+ }
+ return null;
+}
+
+function openResponseGraphPage(fromAdmin){
+ hideAllOverlays();
+ const ov = $("fullGraphOverlay");
+ if(ov) ov.classList.remove("hidden");
+ const last = getLastGraphableResult();
+ const canvas = $("fullModeGraph");
+ const info = $("responseGraphInfo");
+ if(last && canvas){
+  drawModeResultChart(canvas, last);
+  if(info){
+   const when = last.time ? new Date(last.time).toLocaleString() : "most recent session";
+   info.textContent = `Response time by trial for ${when}. Higher on the graph = faster (smaller ms).`;
+  }
+ }else if(info){
+  info.textContent = "No graphable session data available.";
+ }
+ const adminBtn = $("fullGraphAdminBtn");
+ if(adminBtn) adminBtn.style.display = fromAdmin ? "none" : "";
+}
+
 function openPerformanceOverTimePage(){
   hideAllOverlays();
   const ov=$("perfTimeOverlay");
@@ -4179,10 +4201,10 @@ function openPerformanceOverTimePage(){
   wirePerfGraphControls();
   drawPerformanceOverTimeChart($("perfTimeGraph"), state.history||[]);
 }
-/* ===== end Performance vs Time graph override (V295) ===== */
+/* ===== end Performance vs Time graph override (V296) ===== */
 
 
-/* ===== E-mail Select wiring override (V295) ===== */
+/* ===== E-mail Select wiring override (V296) ===== */
 function openEmailSelectPage(){
   hideAllOverlays();
   const ov = $("emailOverlay");
@@ -4249,6 +4271,7 @@ function wireEmailSelectControls(){
         trial_log: "Trial Detail Log selected.",
         ranked: "Ranked Target / Position Averages selected.",
         perf_time: "Performance over Date and Time selected.",
+        response_graph: "Response-Time Graph Data selected.",
         rate_rt: "Presentation Rate vs Response Time selected.",
         all: "All available data selected."
       };
@@ -4261,10 +4284,10 @@ window.addEventListener("load", ()=>{
   try{ wireEmailSelectControls(); }catch(err){}
  try{ wireEmailDraftAction(); }catch(err){}
 });
-/* ===== end E-mail Select wiring override (V295) ===== */
+/* ===== end E-mail Select wiring override (V296) ===== */
 
 
-/* ===== E-mail draft action override (V295) ===== */
+/* ===== E-mail draft action override (V296) ===== */
 function getEmailRecipient(){
   const fromProfile = (state.profile && state.profile.email) ? String(state.profile.email).trim() : "";
   const fromInput = ($("subjectIdInput") && $("subjectIdInput").value) ? String($("subjectIdInput").value).trim() : "";
@@ -4297,6 +4320,17 @@ function formatLastRankedText(last){
   }
 }
 
+
+function formatLastResponseGraphText(last){
+  if(!last || !Array.isArray(last.rtLog) || !last.rtLog.length) return "No response-time graph data available.";
+  const rows = last.rtLog.map((r,i)=>{
+    const dur = r.durationMs!=null ? r.durationMs : "—";
+    const rt = r.rt!=null ? r.rt : "—";
+    return `${i+1}. Trial ${r.seq||i+1} | Phase ${r.phase||"—"} | Presentation ${dur} ms | Response ${rt} ms | Outcome ${r.outcome||"—"}`;
+  });
+  return "Response-Time Graph Data\n\n" + rows.join("\n");
+}
+
 function formatLastPerfTimeText(){
   const h = state.history || [];
   if(!h.length) return "No performance-over-time history available.";
@@ -4326,6 +4360,7 @@ function buildEmailBodyFromSelection(){
   if(choice === "trial_log") return formatLastTrialLogText(last);
   if(choice === "ranked") return formatLastRankedText(last);
   if(choice === "perf_time") return formatLastPerfTimeText();
+  if(choice === "response_graph") return formatLastResponseGraphText(last);
   if(choice === "rate_rt") return formatLastRateRtText(last);
   if(choice === "all"){
     return [
@@ -4336,6 +4371,8 @@ function buildEmailBodyFromSelection(){
       formatLastRankedText(last),
       "",
       formatLastPerfTimeText(),
+      "",
+      formatLastResponseGraphText(last),
       "",
       formatLastRateRtText(last)
     ].join("\n");
@@ -4348,10 +4385,10 @@ window.addEventListener("load", ()=>{
   try{ wireEmailDraftAction(); }catch(err){}
   try{ syncEditableEmailRecipient(); }catch(err){}
 });
-/* ===== end E-mail draft action override (V295) ===== */
+/* ===== end E-mail draft action override (V296) ===== */
 
 
-/* ===== Editable recipient field override (V295) ===== */
+/* ===== Editable recipient field override (V296) ===== */
 function getEditableEmailRecipient(){
   const input = $("emailRecipientInput");
   const typed = input && input.value ? String(input.value).trim() : "";
@@ -4416,7 +4453,7 @@ function wireEmailDraftAction(){
   }
 }
 window.addEventListener("load", ()=>{ try{ syncEditableEmailRecipient(); }catch(err){}; });
-/* ===== end Editable recipient field override (V295) ===== */
+/* ===== end Editable recipient field override (V296) ===== */
 
 
 window.addEventListener("resize", ()=>{
