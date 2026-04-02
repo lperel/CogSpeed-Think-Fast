@@ -1,8 +1,8 @@
 // ═══════════════════════════════════════════════════
-// CogSpeed V296
+// CogSpeed V298
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V296";
+const APP_VERSION = "V298";
 const RELEASE = APP_VERSION.replace(/^V/i, "");
 const STORAGE_PREFIX = `cogspeed_v${RELEASE}`;
 
@@ -77,7 +77,7 @@ const DEFAULTS={
  cpiBestMs:800,
  cpiWorstMs:2400,
  deviceBenchmarkEnabled:0,
- lateResponseThresholdMs:600
+ lateResponseThresholdMs:600 // first response <600ms on next frame may belong to prior frame; a second >=600ms response belongs to current frame
 };
 
 // ═══════════════════════════════════════════════════════════════
@@ -207,7 +207,16 @@ const state={
  presentedRoundDuration:null,
  activeMode:"mode1", selfPacedRTs:[], selfPacedCorrect:0, selfPacedWrong:0,
  fixedPacedBaseline:null, fixedPacedPresented:0, fixedPacedCorrect:0, fixedPacedWrong:0,
- trialOpenedAt:null, geo:null, benchmark:null, lastResultText:null
+ trialOpenedAt:null, geo:null, benchmark:null, lastResultText:null,
+ pendingPriorMiss:null, pendingLatePacing:null
+ // pendingPriorMiss:
+ //   stores the immediately previous paced frame when it LOOKED like a miss at frame end,
+ //   but is still inside the late-response grace rule window.
+ // pendingLatePacing:
+ //   stores a provisional speedup/slowdown result for frame 1 when a <600 ms tap on frame 2
+ //   is reassigned backward to frame 1. That provisional pacing change is applied only if
+ //   frame 2 ends with no later response of its own. If frame 2 later gets its own response
+ //   (>600 ms after frame 2 appeared), frame 1's provisional pacing change is discarded.
 };
 
 // ─── DOM ───
@@ -769,7 +778,7 @@ function finishCalibration(){
 // ─── PACED BASELINE UPDATE ALGORITHM ─────────────────────────
 // PACED MODE ONLY. Self-paced calibration is NOT changed.
 //
-// CORRECT RESPONSE:
+// CORRECT RESPONSE ON ITS OWN FRAME:
 //   r = responseTime / roundDuration
 //   deltaMs = (f*r - f) * roundDuration
 //           = f * (responseTime - roundDuration)
@@ -785,24 +794,48 @@ function finishCalibration(){
 //   On slowdown from the correct-response formula:
 //     maximum slowdown = 100 ms.
 //
-// WRONG RESPONSE:
+// WRONG RESPONSE ON ITS OWN FRAME:
 //   baseline += wrongSlowdownMs (default 50 ms)
 //
-// NO RESPONSE:
+// TRUE NO RESPONSE:
 //   baseline unchanged
 //
-// LATE RESPONSE AFTER PREVIOUS MISS:
-//   If next response occurs in < 600 ms:
-//     - treat it as belonging to PREVIOUS round
-//     - if correct for previous round:
-//         effectiveRT = currentRT + lastRoundDuration
-//         apply correct-response formula to effectiveRT
-//     - if wrong for previous round:
-//         baseline += 100 ms
-//   If next response occurs in >= 600 ms:
-//     - treat it as belonging to CURRENT round
+// LATE-BOUNDARY RULE ACROSS 2 CONSECUTIVE FRAMES:
+//   Frame 1 can LOOK like a miss when it expires.
+//   However, if the FIRST tap on Frame 2 occurs in < lateResponseThresholdMs
+//   (default 600 ms), that first tap is treated as belonging to Frame 1, not Frame 2.
 //
-// After any update, clamp baseline to:
+//   In that case:
+//
+//   FRAME 1:
+//     - is NOT counted as a miss
+//     - gets response time:
+//         frame1PresentationDuration + firstTapRTonFrame2
+//     - if the reassigned response is correct:
+//         a provisional correct-response pacing calculation is computed for Frame 1
+//     - if the reassigned response is wrong:
+//         a provisional wrong-response pacing calculation is computed for Frame 1
+//
+//   FRAME 2 IMMEDIATELY AFTER THAT FIRST <600 ms TAP:
+//     - is still treated as having NO response of its own yet
+//     - keeps the same presentation duration that was shown on screen
+//       (because when Frame 2 first appeared, Frame 1 still looked like a no-response)
+//
+//   THEN THERE ARE 2 POSSIBILITIES:
+//
+//   A) NO SECOND RESPONSE OCCURS DURING FRAME 2:
+//      - Frame 2 becomes the true miss
+//      - Frame 1's provisional pacing calculation is applied forward to Frame 3
+//
+//   B) A SECOND RESPONSE OCCURS DURING FRAME 2 AT >= 600 ms:
+//      - that second tap is treated as Frame 2's own response
+//      - Frame 2 is NOT counted as a miss
+//      - Frame 2 gets its own RT measured from Frame 2 onset to that second tap
+//      - Frame 2's own pacing calculation is applied to Frame 3
+//      - the earlier provisional pacing calculation for Frame 1 is IGNORED
+//
+// This rule reduces false misses while preserving the visible frame timing.
+// After any actual applied update, clamp baseline to:
 //   [settings.minDurationMs, settings.maxDurationMs]
 // ──────────────────────────────────────────────────────────────
 function applyPacing(rt,correct){
@@ -977,6 +1010,71 @@ function openTrial(kind){
 }
 
 // ─── Paced frame end ───
+
+// finalizePendingPriorMiss():
+//   Called when the next frame has ended or when a >=600 ms response proves the prior frame
+//   was not rescued by the late-boundary rule. At that point the earlier frame becomes a TRUE miss.
+//   This is the only place a pending prior frame is finally counted as missed.
+function finalizePendingPriorMiss(){
+ if(!state.pendingPriorMiss) return false;
+ const pm = state.pendingPriorMiss;
+ state.pendingPriorMiss = null;
+
+ // finalize the older frame as a real miss only now, after the late-response window has passed
+ const savedCurrent = state.current;
+ const savedPresented = state.presentedRoundDuration;
+ state.current = pm.trial;
+ state.presentedRoundDuration = pm.durationMs;
+
+ logTrial({phase:"missed",rt:null,outcome:"missed",responseIndex:null});
+ state.current = savedCurrent;
+ state.presentedRoundDuration = savedPresented;
+
+ state.missedTrials += 1;
+ state.lastFrameDuration = pm.durationMs;
+ state.unresolvedStreak = (state.unresolvedStreak || 0) + 1;
+
+ if(state.unresolvedStreak >= settings.consecutiveMissesForBlock){
+  state.blockDuration = pm.durationMs;
+  state.blockRestartBaseline = pm.durationMs;
+  state.overloads.push(state.blockDuration);
+  state.unresolvedStreak = 0;
+  state.lastFrameDuration = null;
+  updateCPIDisplay(avgLast2Blocks());
+
+  const maxB = Math.max(2, Number(settings.maxBlockCount) || 6);
+  if(state.overloads.length >= maxB){
+   state.endReason = "ERRATIC RESPONSES — Retest";
+   finish();
+   return true;
+  }
+  if(maybeTriggerTerminalRule()) return true;
+
+  state.phase = "recovery";
+  state.recoveryCorrectCompleted = 0;
+  state.spCorrectStreak = 0;
+  state.spWrongCount = 0;
+  openTrial("recovery");
+  return true;
+ }
+ return false;
+}
+
+// applyPendingLatePacingIfAny():
+//   Applies the provisional pacing result for Frame 1 only if Frame 2 finished with no own response.
+//   If Frame 2 later gets its own >=600 ms response, this provisional pacing result is discarded
+//   and Frame 2's own pacing result replaces it.
+function applyPendingLatePacingIfAny(){
+ if(!state.pendingLatePacing) return;
+ const p = state.pendingLatePacing;
+ state.pendingLatePacing = null;
+ if(p.correct){
+  applyPacing(p.effectiveRt, true);
+ }else{
+  applyPacing(null, false);
+ }
+}
+
 function onPacedFrameEnd(){
  // Mode 3 fixed machine-paced handler:
 // every trial uses one fixed baseline duration,
@@ -996,30 +1094,41 @@ if(state.phase==="paced_fixed"){
  }
  if(state.phase!=="paced") return;
  state.totalTrials+=1;
- // True miss = no tap at all. Wrong tap = had response but unresolved.
- // Only true misses count toward block threshold.
+
+ // First, if the immediately previous frame was still waiting to be finalized as a true miss,
+ // finalize it now because the current frame has now ended without rescuing it.
+ // This means the earlier frame is now confirmed as a TRUE miss, not just an apparent miss.
+ if(state.pendingPriorMiss){
+  if(finalizePendingPriorMiss()) return;
+ }
+
  const truelyMissed=state.current&&!state.current.resolved&&!state.hadResponse;
  if(truelyMissed){
-  // No response: baseline unchanged. Miss counts toward block detection.
-  logTrial({phase:"missed",rt:null,outcome:"missed",responseIndex:null});
-  state.missedTrials+=1; state.previousMissed=true; state.lastFrameDuration=state.duration;
-  if(recordAnswer(false,true)) return;
- }else{ state.previousMissed=false; state.lastFrameDuration=null; }
- // Wrong responses reset the miss streak (subject DID respond, just incorrectly)
- state.unresolvedStreak=truelyMissed?state.unresolvedStreak+1:0;
- if(state.unresolvedStreak>=settings.consecutiveMissesForBlock){
-  state.blockDuration=state.duration; 
-  state.blockRestartBaseline=state.duration; // restart uses block baseline × initialPacedPercent
-  state.overloads.push(state.blockDuration);
-  state.unresolvedStreak=0; state.previousMissed=false; state.lastFrameDuration=null;
-  updateCPIDisplay(avgLast2Blocks());
-  // Check max block count
-  const maxB=Math.max(2,Number(settings.maxBlockCount)||6);
-  if(state.overloads.length>=maxB){ state.endReason="ERRATIC RESPONSES — Retest"; finish(); return; }
-  if(maybeTriggerTerminalRule()) return;
-  state.phase="recovery"; state.recoveryCorrectCompleted=0; state.spCorrectStreak=0; state.spWrongCount=0;
-  openTrial("recovery"); return;
+  // Do NOT count this as a real miss yet.
+  // Keep it pending so the NEXT frame can retroactively claim it if the first tap on the
+  // next frame arrives in < lateResponseThresholdMs (default 600 ms).
+  // Until then, this frame is only an APPARENT miss, not yet a TRUE miss.
+  state.pendingPriorMiss = {
+   trial: state.current,
+   durationMs: state.presentedRoundDuration!=null ? state.presentedRoundDuration : (state.duration?Math.round(state.duration):null)
+  };
+
+  // If the previous frame already got a late-attributed response and this current frame now
+  // truly ends with no own response, then the previous frame's provisional speed change is now
+  // confirmed and is applied forward to Frame 3.
+  applyPendingLatePacingIfAny();
+
+  if(state.totalTrials>=settings.maxTrialCount){ state.endReason="ERRATIC RESPONSES — Retest"; finish(); }
+  else openTrial("paced");
+  return;
  }
+
+ // Any real response on the current frame breaks the consecutive true-miss streak.
+ state.lastFrameDuration = null;
+ state.unresolvedStreak = 0;
+ state.pendingPriorMiss = null;
+ state.pendingLatePacing = null;
+
  if(state.totalTrials>=settings.maxTrialCount){ state.endReason="ERRATIC RESPONSES — Retest"; finish(); }
  else openTrial("paced");
 }
@@ -1166,49 +1275,88 @@ function handleTap(index){
 
  // Paced
  const rt=getSafeTrialRtMs();
- if(state.previousMissed&&rt<(Number(settings.lateResponseThresholdMs)||600)){
-  const correctForLast=state.previous&&!state.previous.resolved&&trialMatches(state.previous,index);
-  state.totalResponses+=1;
-  // Save lastFrameDuration BEFORE clearing it
-  const savedLastDur=state.lastFrameDuration||state.duration;
-  state.previousMissed=false; state.lastFrameDuration=null;
-  // Subject responded during this frame — mark it so the current trial is NOT a true miss
-  state.hadResponse=true;
+ const lateThreshold = Number(settings.lateResponseThresholdMs)||600;
+
+ // Case A: previous frame looked like a miss, but the FIRST response on this frame
+ // arrives under the late threshold.
+ // That first response is reassigned backward to the PREVIOUS frame.
+ // The current frame is still left open waiting for a possible SECOND response of its own.
+ if(state.pendingPriorMiss && rt < lateThreshold){
+  const prior = state.pendingPriorMiss.trial;
+  const priorDur = state.pendingPriorMiss.durationMs!=null ? state.pendingPriorMiss.durationMs : (state.lastFrameDuration||state.duration);
+  const correctForLast = prior && trialMatches(prior,index);
+
+  state.totalResponses += 1;
+
   if(correctForLast){
-   state.previous.resolved=true;
-   const eRT=rt+savedLastDur;
-   applyPacing(eRT,true); state.totalCorrect+=1; state.pacedRTs.push(eRT);
-   // Log against the PREVIOUS trial so probe/cell/response are correct
-   const savedCurrent=state.current;
-   state.current=state.previous;
-   logTrial({phase:"paced_late_correct",rt,outcome:"correct",responseIndex:index});
-   state.current=savedCurrent;
+   const eRT = rt + priorDur;
+   state.totalCorrect += 1;
+   state.pacedRTs.push(eRT);
+
+   const savedCurrent = state.current;
+   const savedPresented = state.presentedRoundDuration;
+   state.current = prior;
+   state.presentedRoundDuration = priorDur;
+   logTrial({phase:"paced_late_correct",rt:eRT,outcome:"correct",responseIndex:index});
+   state.current = savedCurrent;
+   state.presentedRoundDuration = savedPresented;
+
    flashBtn(index,true);
    if(recordAnswer(true)) return;
+   state.pendingLatePacing = {correct:true, effectiveRt:eRT};
   }else{
-   // PACED wrongs do NOT count toward "Cal stop after N wrong".
-   // They count only toward pacedErrors / paced failure logic.
-   applyPacing(null,false); state.totalIncorrect+=1; state.pacedErrors+=1;
+   state.totalIncorrect += 1;
+   state.pacedErrors += 1;
    if(checkMaxPacedWrong()) return;
-   const savedCurrent=state.current;
-   state.current=state.previous;
-   logTrial({phase:"paced_late_wrong",rt,outcome:"wrong",responseIndex:index});
-   state.current=savedCurrent;
+
+   const savedCurrent = state.current;
+   const savedPresented = state.presentedRoundDuration;
+   state.current = prior;
+   state.presentedRoundDuration = priorDur;
+   logTrial({phase:"paced_late_wrong",rt:rt,outcome:"wrong",responseIndex:index});
+   state.current = savedCurrent;
+   state.presentedRoundDuration = savedPresented;
+
    flashBtn(index,false);
    if(recordAnswer(false)) return;
+   state.pendingLatePacing = {correct:false};
   }
+
+  // Frame 1 is NOT a miss anymore because the first <600 ms tap has rescued it.
+  state.pendingPriorMiss = null;
+
+  // IMPORTANT:
+  // this first tap belonged to the previous frame, so the current frame still has no own response yet.
+  // If no second response occurs before this frame ends, the CURRENT frame becomes the miss.
+  // If a second response occurs at >=600 ms, that second response becomes the CURRENT frame's own RT.
+  state.hadResponse = false;
   return;
  }
- state.previousMissed=false; state.lastFrameDuration=null;
+
+ // Case B: if a previous frame was still pending and this response is >=600 ms,
+ // then the earlier frame was not rescued in time and becomes a TRUE miss.
+ // Finalize that earlier miss first, then treat this response as belonging to the CURRENT frame.
+ if(state.pendingPriorMiss){
+  if(finalizePendingPriorMiss()) return;
+ }
+
+ // If we had already captured a late-attributed response for Frame 1 and now we receive
+ // a second, true Frame 2 response (>=600 ms after Frame 2 appeared),
+ // then Frame 2 gets its own RT and its own pacing effect.
+ // The earlier provisional pacing calculation for Frame 1 is ignored.
+ if(state.pendingLatePacing && rt >= lateThreshold){
+  state.pendingLatePacing = null;
+ }
+
  if(state.current&&!state.current.resolved&&trialMatches(state.current,index)){
   state.current.resolved=true; state.totalResponses+=1; state.totalCorrect+=1;
+  state.hadResponse=true;
   applyPacing(rt,true); state.pacedRTs.push(rt);
   logTrial({phase:"paced",rt,outcome:"correct",responseIndex:index}); flashBtn(index,true);
   recordAnswer(true); return;
  }
+
  state.hadResponse=true;
- // PACED wrongs do NOT count toward "Cal stop after N wrong".
- // They count only toward pacedErrors / paced failure logic.
  state.totalResponses+=1; state.totalIncorrect+=1; state.pacedErrors+=1;
  if(checkMaxPacedWrong()) return;
  applyPacing(null,false);
@@ -3797,7 +3945,7 @@ const _ssp=$("speedStartPageBtn"); if(_ssp) _ssp.onclick=()=>{ $("outcomeOverlay
 window.addEventListener("load",()=>{ try{ updateStartPageLinks(); }catch(e){}; });
 
 
-/* ===== Performance vs Time graph override (V296) ===== */
+/* ===== Performance vs Time graph override (V298) ===== */
 const perfGraphState = {
   preset: "last14",
   fromDate: "",
@@ -4201,10 +4349,10 @@ function openPerformanceOverTimePage(){
   wirePerfGraphControls();
   drawPerformanceOverTimeChart($("perfTimeGraph"), state.history||[]);
 }
-/* ===== end Performance vs Time graph override (V296) ===== */
+/* ===== end Performance vs Time graph override (V298) ===== */
 
 
-/* ===== E-mail Select wiring override (V296) ===== */
+/* ===== E-mail Select wiring override (V298) ===== */
 function openEmailSelectPage(){
   hideAllOverlays();
   const ov = $("emailOverlay");
@@ -4284,10 +4432,10 @@ window.addEventListener("load", ()=>{
   try{ wireEmailSelectControls(); }catch(err){}
  try{ wireEmailDraftAction(); }catch(err){}
 });
-/* ===== end E-mail Select wiring override (V296) ===== */
+/* ===== end E-mail Select wiring override (V298) ===== */
 
 
-/* ===== E-mail draft action override (V296) ===== */
+/* ===== E-mail draft action override (V298) ===== */
 function getEmailRecipient(){
   const fromProfile = (state.profile && state.profile.email) ? String(state.profile.email).trim() : "";
   const fromInput = ($("subjectIdInput") && $("subjectIdInput").value) ? String($("subjectIdInput").value).trim() : "";
@@ -4385,10 +4533,10 @@ window.addEventListener("load", ()=>{
   try{ wireEmailDraftAction(); }catch(err){}
   try{ syncEditableEmailRecipient(); }catch(err){}
 });
-/* ===== end E-mail draft action override (V296) ===== */
+/* ===== end E-mail draft action override (V298) ===== */
 
 
-/* ===== Editable recipient field override (V296) ===== */
+/* ===== Editable recipient field override (V298) ===== */
 function getEditableEmailRecipient(){
   const input = $("emailRecipientInput");
   const typed = input && input.value ? String(input.value).trim() : "";
@@ -4453,7 +4601,7 @@ function wireEmailDraftAction(){
   }
 }
 window.addEventListener("load", ()=>{ try{ syncEditableEmailRecipient(); }catch(err){}; });
-/* ===== end Editable recipient field override (V296) ===== */
+/* ===== end Editable recipient field override (V298) ===== */
 
 
 window.addEventListener("resize", ()=>{
