@@ -1,8 +1,8 @@
 // ═══════════════════════════════════════════════════
-// CogSpeed V316
+// CogSpeed V317
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V316";
+const APP_VERSION = "V317";
 const RELEASE = APP_VERSION.replace(/^V/i, "");
 const STORAGE_PREFIX = `cogspeed_v${RELEASE}`;
 
@@ -2535,6 +2535,17 @@ ${hr}
 RANKED TARGET / POSITION AVERAGES — POOLED SAME-MODE SESSIONS
 ${formatModePooledRankSection(result.testMode)}`;
 }
+
+function getTerminalRecoveryWrongCount(result){
+ try{
+  return Array.isArray(result?.rtLog)
+    ? result.rtLog.filter(r => r && r.phase==="terminal_recovery" && r.outcome==="wrong").length
+    : 0;
+ }catch(e){
+  return 0;
+ }
+}
+
 function buildSummary(result){
  const el=$("summaryText"); if(!el) return;
  const hr="─────────────────────────";
@@ -2648,6 +2659,7 @@ RESPONSE STATISTICS
  Calibration wrong: ${result.calibrationErrors!=null?result.calibrationErrors:0}
  Paced wrong: ${result.pacedErrors!=null?result.pacedErrors:0}
  Recovery wrong: ${result.recoveryErrors!=null?result.recoveryErrors:0}
+ Terminal recovery wrong: ${getTerminalRecoveryWrongCount(result)}
  Total wrong: ${result.totalIncorrect}
  Missed: ${result.missedTrials}
  END REASON: ${result.endReason||"Run complete"}
@@ -4069,7 +4081,7 @@ const _ssp=$("speedStartPageBtn"); if(_ssp) _ssp.onclick=()=>{ hideAllOverlays()
 window.addEventListener("load",()=>{ try{ updateStartPageLinks(); }catch(e){}; });
 
 
-/* ===== Performance vs Time graph override (V316) ===== */
+/* ===== Performance vs Time graph override (V317) ===== */
 const perfGraphState = {
   preset: "last14",
   fromDate: "",
@@ -4473,10 +4485,10 @@ function openPerformanceOverTimePage(){
   wirePerfGraphControls();
   drawPerformanceOverTimeChart($("perfTimeGraph"), state.history||[]);
 }
-/* ===== end Performance vs Time graph override (V316) ===== */
+/* ===== end Performance vs Time graph override (V317) ===== */
 
 
-/* ===== E-mail Select wiring override (V316) ===== */
+/* ===== E-mail Select wiring override (V317) ===== */
 function openEmailSelectPage(){
   hideAllOverlays();
   const ov = $("emailOverlay");
@@ -4556,10 +4568,10 @@ window.addEventListener("load", ()=>{
   try{ wireEmailSelectControls(); }catch(err){}
  try{ wireEmailDraftAction(); }catch(err){}
 });
-/* ===== end E-mail Select wiring override (V316) ===== */
+/* ===== end E-mail Select wiring override (V317) ===== */
 
 
-/* ===== E-mail draft action override (V316) ===== */
+/* ===== E-mail draft action override (V317) ===== */
 function formatLastTrialLogText(last){
   if(!last || !Array.isArray(last.rtLog) || !last.rtLog.length) return "No trial detail log available.";
   const lines = last.rtLog.map(r=>{
@@ -4651,10 +4663,10 @@ window.addEventListener("load", ()=>{
   try{ wireEmailDraftAction(); }catch(err){}
   try{ syncEditableEmailRecipient(); }catch(err){}
 });
-/* ===== end E-mail draft action override (V316) ===== */
+/* ===== end E-mail draft action override (V317) ===== */
 
 
-/* ===== Editable recipient field override (V316) ===== */
+/* ===== Editable recipient field override (V317) ===== */
 function getEditableEmailRecipient(){
   const input = $("emailRecipientInput");
   const typed = input && input.value ? String(input.value).trim() : "";
@@ -4719,7 +4731,7 @@ function wireEmailDraftAction(){
   }
 }
 window.addEventListener("load", ()=>{ try{ syncEditableEmailRecipient(); }catch(err){}; });
-/* ===== end Editable recipient field override (V316) ===== */
+/* ===== end Editable recipient field override (V317) ===== */
 
 
 window.addEventListener("resize", ()=>{
