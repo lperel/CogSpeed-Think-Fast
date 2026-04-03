@@ -1,8 +1,8 @@
 // ═══════════════════════════════════════════════════
-// CogSpeed V313
+// CogSpeed V314
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V313";
+const APP_VERSION = "V314";
 const RELEASE = APP_VERSION.replace(/^V/i, "");
 const STORAGE_PREFIX = `cogspeed_v${RELEASE}`;
 
@@ -1185,13 +1185,13 @@ function getSafeTrialRtMs(eventTimeStamp){
  return Math.max(0, now - state.trialOpenedAt);
 }
 
-function handleTap(index){
+function handleTap(index,eventTimeStamp){
  if(!["calibration","paced","paced_fixed","recovery","terminal_recovery"].includes(state.phase)) return;
  noteAnyResponse();
 
  // Calibration
  if(state.phase==="calibration"){
-  const rt=getSafeTrialRtMs(), ok=trialMatches(state.current,index);
+  const rt=getSafeTrialRtMs(eventTimeStamp), ok=trialMatches(state.current,index);
   flashBtn(index,ok); state.totalResponses+=1;
 
   const warmups = Number(settings.initialUnusedCalibrationTrials)||2;
@@ -1277,7 +1277,7 @@ function handleTap(index){
  // Recovery (SP Restart)
  if(state.phase==="recovery"){
   clearTimer();
-  const rt=getSafeTrialRtMs(), ok=trialMatches(state.current,index);
+  const rt=getSafeTrialRtMs(eventTimeStamp), ok=trialMatches(state.current,index);
   flashBtn(index,ok); state.totalResponses+=1;
   if(ok) state.totalCorrect+=1; else state.totalIncorrect+=1;
   logTrial({phase:"recovery",rt,outcome:ok?"correct":"wrong",responseIndex:index});
@@ -1313,7 +1313,7 @@ function handleTap(index){
  // Terminal recovery
  if(state.phase==="terminal_recovery"){
   clearTimer();
-  const rt=getSafeTrialRtMs(), ok=trialMatches(state.current,index);
+  const rt=getSafeTrialRtMs(eventTimeStamp), ok=trialMatches(state.current,index);
   flashBtn(index,ok); state.totalResponses+=1;
   if(ok) state.totalCorrect+=1; else state.totalIncorrect+=1;
   logTrial({phase:"terminal_recovery",rt,outcome:ok?"correct":"wrong",responseIndex:index});
@@ -1329,7 +1329,7 @@ function handleTap(index){
 
  // Mode 3 fixed machine-paced
  if(state.phase==="paced_fixed"){
-  const rt=getSafeTrialRtMs();
+  const rt=getSafeTrialRtMs(eventTimeStamp);
   if(state.current&&!state.current.resolved&&trialMatches(state.current,index)){
    state.current.resolved=true; state.totalResponses+=1; state.totalCorrect+=1; state.fixedPacedCorrect+=1; state.pacedRTs.push(rt);
    logTrial({phase:"paced_fixed",rt,outcome:"correct",responseIndex:index}); flashBtn(index,true);
@@ -1339,14 +1339,14 @@ function handleTap(index){
   state.hadResponse=true;
   state.totalResponses+=1; state.totalIncorrect+=1; state.pacedErrors+=1; state.fixedPacedWrong+=1;
   if(checkMaxPacedWrong()) return;
-  logTrial({phase:"paced_fixed_wrong",rt:getSafeTrialRtMs(),outcome:"wrong",responseIndex:index});
+  logTrial({phase:"paced_fixed_wrong",rt:getSafeTrialRtMs(eventTimeStamp),outcome:"wrong",responseIndex:index});
   flashBtn(index,false);
   if(state.fixedPacedPresented >= (Number(settings.mode3PacedTrialLimit)||140)){ state.endReason="Required responses reached"; finish(); return; }
   openTrial("paced_fixed"); return;
  }
 
  // Paced
- const rt=getSafeTrialRtMs();
+ const rt=getSafeTrialRtMs(eventTimeStamp);
  const lateThreshold = Number(settings.lateResponseThresholdMs)||600;
 
  // Case A: previous frame looked like a miss, but the FIRST response on this frame
@@ -1432,7 +1432,7 @@ function handleTap(index){
  state.totalResponses+=1; state.totalIncorrect+=1; state.pacedErrors+=1;
  if(checkMaxPacedWrong()) return;
  applyPacing(null,false);
- logTrial({phase:"paced_wrong",rt:getSafeTrialRtMs(),outcome:"wrong",responseIndex:index});
+ logTrial({phase:"paced_wrong",rt:getSafeTrialRtMs(eventTimeStamp),outcome:"wrong",responseIndex:index});
  flashBtn(index,false); recordAnswer(false);
 }
 
@@ -4054,7 +4054,7 @@ const _ssp=$("speedStartPageBtn"); if(_ssp) _ssp.onclick=()=>{ hideAllOverlays()
 window.addEventListener("load",()=>{ try{ updateStartPageLinks(); }catch(e){}; });
 
 
-/* ===== Performance vs Time graph override (V313) ===== */
+/* ===== Performance vs Time graph override (V314) ===== */
 const perfGraphState = {
   preset: "last14",
   fromDate: "",
@@ -4458,10 +4458,10 @@ function openPerformanceOverTimePage(){
   wirePerfGraphControls();
   drawPerformanceOverTimeChart($("perfTimeGraph"), state.history||[]);
 }
-/* ===== end Performance vs Time graph override (V313) ===== */
+/* ===== end Performance vs Time graph override (V314) ===== */
 
 
-/* ===== E-mail Select wiring override (V313) ===== */
+/* ===== E-mail Select wiring override (V314) ===== */
 function openEmailSelectPage(){
   hideAllOverlays();
   const ov = $("emailOverlay");
@@ -4541,10 +4541,10 @@ window.addEventListener("load", ()=>{
   try{ wireEmailSelectControls(); }catch(err){}
  try{ wireEmailDraftAction(); }catch(err){}
 });
-/* ===== end E-mail Select wiring override (V313) ===== */
+/* ===== end E-mail Select wiring override (V314) ===== */
 
 
-/* ===== E-mail draft action override (V313) ===== */
+/* ===== E-mail draft action override (V314) ===== */
 function formatLastTrialLogText(last){
   if(!last || !Array.isArray(last.rtLog) || !last.rtLog.length) return "No trial detail log available.";
   const lines = last.rtLog.map(r=>{
@@ -4636,10 +4636,10 @@ window.addEventListener("load", ()=>{
   try{ wireEmailDraftAction(); }catch(err){}
   try{ syncEditableEmailRecipient(); }catch(err){}
 });
-/* ===== end E-mail draft action override (V313) ===== */
+/* ===== end E-mail draft action override (V314) ===== */
 
 
-/* ===== Editable recipient field override (V313) ===== */
+/* ===== Editable recipient field override (V314) ===== */
 function getEditableEmailRecipient(){
   const input = $("emailRecipientInput");
   const typed = input && input.value ? String(input.value).trim() : "";
@@ -4704,7 +4704,7 @@ function wireEmailDraftAction(){
   }
 }
 window.addEventListener("load", ()=>{ try{ syncEditableEmailRecipient(); }catch(err){}; });
-/* ===== end Editable recipient field override (V313) ===== */
+/* ===== end Editable recipient field override (V314) ===== */
 
 
 window.addEventListener("resize", ()=>{
