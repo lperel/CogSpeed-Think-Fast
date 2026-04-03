@@ -1,8 +1,8 @@
 // ═══════════════════════════════════════════════════
-// CogSpeed V323
+// CogSpeed V324
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V323";
+const APP_VERSION = "V324";
 const RELEASE = APP_VERSION.replace(/^V/i, "");
 const STORAGE_PREFIX = `cogspeed_v${RELEASE}`;
 
@@ -2424,7 +2424,7 @@ function hideAllOverlays(){
  ["subjectOverlay","profileOverlay","refresherOverlay","sleepPromptOverlay","fatigueOverlay","tutorialOverlay","adminOverlay","resultsOverlay","summaryOverlay","rankedOverlay","trialLogOverlay","historyOverlay","rateRtOverlay","perfTimeOverlay","emailOverlay","thinkingOverlay","outcomeOverlay"].forEach(id=>{ const el=$(id); if(el) el.classList.add("hidden"); });
 }
 function showOnly(id){
- ["subjectOverlay","profileOverlay","refresherOverlay","sleepPromptOverlay","sleepOverlay","fatigueOverlay","adminOverlay","resultsOverlay","summaryOverlay","rankedOverlay","trialLogOverlay","historyOverlay","rateRtOverlay","perfTimeOverlay","emailOverlay","tutorialOverlay","thinkingOverlay","outcomeOverlay"].forEach(oid=>{ const el=$(oid); if(el) el.classList[oid===id?"remove":"add"]("hidden"); });
+ ["subjectOverlay","profileOverlay","refresherOverlay","tutorialExitOverlay","sleepPromptOverlay","sleepOverlay","fatigueOverlay","adminOverlay","resultsOverlay","summaryOverlay","rankedOverlay","trialLogOverlay","historyOverlay","rateRtOverlay","perfTimeOverlay","emailOverlay","tutorialOverlay","thinkingOverlay","outcomeOverlay"].forEach(oid=>{ const el=$(oid); if(el) el.classList[oid===id?"remove":"add"]("hidden"); });
 }
 
 // ─── START PAGE SPEEDOMETER LINK ─────────────────────────────
@@ -3619,7 +3619,7 @@ const TUT_STEPS = [
       <strong style="color:rgba(255,255,255,0.85)">Just respond as fast as you can.</strong>
      </div>
      <div style="margin-top:10px;padding:8px 12px;background:rgba(127,215,255,0.08);border:1px solid rgba(127,215,255,0.3);border-radius:10px;font-size:13px;color:rgba(200,230,255,0.85);line-height:1.5">
-      <span style="color:#7fd7ff;font-weight:700">Up next:</span> A quick fatigue rating question — then the test begins!
+      <span style="color:#7fd7ff;font-weight:700">Up next:</span> First go to the Sleep Logger path. If you did not sleep since your last test, answer No there. Then rate your fatigue (SP-FS), then the test begins!
      </div>
     </div>
    </div>`;
@@ -3776,12 +3776,12 @@ function tutNext(){
   return;
  }
  $("tutorialOverlay").classList.add("hidden");
- showSleepPrompt();
+ showOnly("tutorialExitOverlay");
 }
 
 function tutSkip(){
  $("tutorialOverlay").classList.add("hidden");
- showSleepPrompt();
+ showOnly("tutorialExitOverlay");
 }
 
 // ─── Event wiring ───
@@ -4188,7 +4188,7 @@ const _ssp=$("speedStartPageBtn"); if(_ssp) _ssp.onclick=()=>{ hideAllOverlays()
 window.addEventListener("load",()=>{ try{ updateStartPageLinks(); }catch(e){}; });
 
 
-/* ===== Performance vs Time graph override (V323) ===== */
+/* ===== Performance vs Time graph override (V324) ===== */
 const perfGraphState = {
   preset: "last14",
   fromDate: "",
@@ -4592,10 +4592,10 @@ function openPerformanceOverTimePage(){
   wirePerfGraphControls();
   drawPerformanceOverTimeChart($("perfTimeGraph"), state.history||[]);
 }
-/* ===== end Performance vs Time graph override (V323) ===== */
+/* ===== end Performance vs Time graph override (V324) ===== */
 
 
-/* ===== E-mail Select wiring override (V323) ===== */
+/* ===== E-mail Select wiring override (V324) ===== */
 function openEmailSelectPage(){
   hideAllOverlays();
   const ov = $("emailOverlay");
@@ -4675,10 +4675,10 @@ window.addEventListener("load", ()=>{
   try{ wireEmailSelectControls(); }catch(err){}
  try{ wireEmailDraftAction(); }catch(err){}
 });
-/* ===== end E-mail Select wiring override (V323) ===== */
+/* ===== end E-mail Select wiring override (V324) ===== */
 
 
-/* ===== E-mail draft action override (V323) ===== */
+/* ===== E-mail draft action override (V324) ===== */
 function formatLastTrialLogText(last){
   if(!last || !Array.isArray(last.rtLog) || !last.rtLog.length) return "No trial detail log available.";
   const lines = last.rtLog.map(r=>{
@@ -4770,10 +4770,10 @@ window.addEventListener("load", ()=>{
   try{ wireEmailDraftAction(); }catch(err){}
   try{ syncEditableEmailRecipient(); }catch(err){}
 });
-/* ===== end E-mail draft action override (V323) ===== */
+/* ===== end E-mail draft action override (V324) ===== */
 
 
-/* ===== Editable recipient field override (V323) ===== */
+/* ===== Editable recipient field override (V324) ===== */
 function getEditableEmailRecipient(){
   const input = $("emailRecipientInput");
   const typed = input && input.value ? String(input.value).trim() : "";
@@ -4838,7 +4838,7 @@ function wireEmailDraftAction(){
   }
 }
 window.addEventListener("load", ()=>{ try{ syncEditableEmailRecipient(); }catch(err){}; });
-/* ===== end Editable recipient field override (V323) ===== */
+/* ===== end Editable recipient field override (V324) ===== */
 
 
 window.addEventListener("resize", ()=>{
@@ -4849,3 +4849,7 @@ window.addEventListener("resize", ()=>{
 });
 
 $("refSleepBtn").onclick=()=>showSleepPrompt();
+
+$("tutorialExitSleepBtn").onclick=()=>showSleepPrompt();
+$("tutorialExitBackBtn").onclick=()=>goToStartPage();
+
