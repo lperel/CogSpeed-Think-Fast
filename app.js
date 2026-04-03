@@ -1,8 +1,8 @@
 // ═══════════════════════════════════════════════════
-// CogSpeed V330
+// CogSpeed V331
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V330";
+const APP_VERSION = "V331";
 const RELEASE = APP_VERSION.replace(/^V/i, "");
 const STORAGE_PREFIX = `cogspeed_v${RELEASE}`;
 
@@ -944,6 +944,8 @@ const modeMetricMs = isMode2() ? (state.selfPacedRTs.length?mean(state.selfPaced
   cognitivePerformanceIndex:modeCPI, totalResponses:state.totalResponses,
   totalTrials:state.totalTrials, totalCorrect:state.totalCorrect,
   totalIncorrect:state.totalIncorrect, missedTrials:state.missedTrials,
+  sleepSinceLastTest: state.sleepSinceLastTest,
+  sleepLog: state.sleepLog ? JSON.parse(JSON.stringify(state.sleepLog)) : null,
   calibrationErrors:state.calibrationErrors,
   pacedErrors:state.pacedErrors, recoveryErrors:state.recoveryErrors, pacedResponseCount:state.pacedRTs.length,
   pacedResponseMeanMs:state.pacedRTs.length?mean(state.pacedRTs):null,
@@ -2156,6 +2158,7 @@ function exportCSV(){
  const h=state.history; if(!h.length){setStatus("No history to export."); return;}
  const cols=["session","subjectId","date","samnPerelli","calibAvgMs","blocks",
   "avgLast2Ms","blockDiffMs","cpi","totalTaps","correct","wrong","missed",
+  "sleepSinceLastTest","sleepBedtime","sleepWakeTime","sleepDurationMinutes","sleepQualityLabel","sleepQualityScore",
   "pacedCorrect","pacedWrong","spRestartWrong","meanPacedRtMs","pacedRtSd",
   "testDurationMs","endReason","location"];
  const rows=h.map((r,i)=>[
@@ -2169,6 +2172,12 @@ function exportCSV(){
   r.blockScoreDifferenceMs!=null?r.blockScoreDifferenceMs.toFixed(1):"",
   r.cognitivePerformanceIndex!=null?r.cognitivePerformanceIndex.toFixed(1):"",
   r.totalResponses||0, r.totalCorrect||0, r.totalIncorrect||0, r.missedTrials||0,
+  r.sleepSinceLastTest||"",
+  r.sleepLog?.bedtime||"",
+  r.sleepLog?.wakeTime||"",
+  r.sleepLog?.durationMinutes!=null?r.sleepLog.durationMinutes:"",
+  r.sleepLog?.qualityLabel||"",
+  r.sleepLog?.qualityScore!=null?r.sleepLog.qualityScore:"",
   r.pacedResponseCount||0, r.pacedErrors||0, r.recoveryErrors||0,
   r.pacedResponseMeanMs!=null?r.pacedResponseMeanMs.toFixed(1):"",
   r.pacedResponseSdMs!=null?r.pacedResponseSdMs.toFixed(1):"",
@@ -2602,6 +2611,7 @@ Location:   ${geoStr}
 ${hr}
 FATIGUE (S-PF)
  Pre-test rating: ${spf}
+${formatSleepLine(result)}
 ${hr}
 SELF-PACED CALIBRATION (SPC)
  Total self-paced responses: ${result.selfPacedResponseCount}
@@ -2633,6 +2643,7 @@ Location:   ${geoStr}
 ${hr}
 FATIGUE (S-PF)
  Pre-test rating: ${spf}
+${formatSleepLine(result)}
 ${hr}
 SELF-PACED CALIBRATION
  Total self-paced responses: ${result.selfPacedResponseCount}
@@ -2676,6 +2687,7 @@ Location:   ${geoStr}
 ${hr}
 FATIGUE (S-PF)
  Pre-test rating: ${spf}
+${formatSleepLine(result)}
 ${hr}
 CALIBRATION
  Average RT: ${result.calibrationAverageMs!=null?result.calibrationAverageMs.toFixed(1)+" ms":"—"}
@@ -3740,6 +3752,38 @@ function computeSleepDurationMinutes(bed,wake){
  if(d < 0) d += 24*60;
  return d;
 }
+
+function formatClockForDisplay(v){
+ if(!v) return "—";
+ try{
+  const [hh,mm] = String(v).split(":").map(Number);
+  if(!Number.isFinite(hh) || !Number.isFinite(mm)) return String(v);
+  const use12 = (settings.timeFormat==="12" || settings.use12HourTime===1 || settings.use12HourTime==="1");
+  if(!use12) return `${String(hh).padStart(2,"0")}:${String(mm).padStart(2,"0")}`;
+  const suffix = hh >= 12 ? "PM" : "AM";
+  const h12 = ((hh + 11) % 12) + 1;
+  return `${h12}:${String(mm).padStart(2,"0")} ${suffix}`;
+ }catch(e){
+  return String(v);
+ }
+}
+function formatSleepLine(result){
+ const slept = result?.sleepSinceLastTest;
+ const sl = result?.sleepLog || null;
+ if(slept==="yes"){
+  const bed = formatClockForDisplay(sl?.bedtime || null);
+  const wake = formatClockForDisplay(sl?.wakeTime || null);
+  const dur = sl?.durationMinutes!=null ? formatSleepDuration(sl.durationMinutes) : "—";
+  const qLabel = sl?.qualityLabel || "—";
+  const qScore = sl?.qualityScore!=null ? `${sl.qualityScore}/3` : "—";
+  return `SLEEP: Yes · Bed ${bed} → Wake ${wake} (${dur}) · Quality: ${qLabel} (${qScore})`;
+ }
+ if(slept==="no"){
+  return "SLEEP: No sleep since last test";
+ }
+ return "SLEEP: Not entered";
+}
+
 function updateSleepLoggerUI(){
  const bed=$("sleepBedtimeInput")?.value || "";
  const wake=$("sleepWakeInput")?.value || "";
@@ -4219,7 +4263,7 @@ const _ssp=$("speedStartPageBtn"); if(_ssp) _ssp.onclick=()=>{ hideAllOverlays()
 window.addEventListener("load",()=>{ try{ updateStartPageLinks(); }catch(e){}; });
 
 
-/* ===== Performance vs Time graph override (V330) ===== */
+/* ===== Performance vs Time graph override (V331) ===== */
 const perfGraphState = {
   preset: "last14",
   fromDate: "",
@@ -4623,10 +4667,10 @@ function openPerformanceOverTimePage(){
   wirePerfGraphControls();
   drawPerformanceOverTimeChart($("perfTimeGraph"), state.history||[]);
 }
-/* ===== end Performance vs Time graph override (V330) ===== */
+/* ===== end Performance vs Time graph override (V331) ===== */
 
 
-/* ===== E-mail Select wiring override (V330) ===== */
+/* ===== E-mail Select wiring override (V331) ===== */
 function openEmailSelectPage(){
   hideAllOverlays();
   const ov = $("emailOverlay");
@@ -4706,10 +4750,10 @@ window.addEventListener("load", ()=>{
   try{ wireEmailSelectControls(); }catch(err){}
  try{ wireEmailDraftAction(); }catch(err){}
 });
-/* ===== end E-mail Select wiring override (V330) ===== */
+/* ===== end E-mail Select wiring override (V331) ===== */
 
 
-/* ===== E-mail draft action override (V330) ===== */
+/* ===== E-mail draft action override (V331) ===== */
 function formatLastTrialLogText(last){
   if(!last || !Array.isArray(last.rtLog) || !last.rtLog.length) return "No trial detail log available.";
   const lines = last.rtLog.map(r=>{
@@ -4801,10 +4845,10 @@ window.addEventListener("load", ()=>{
   try{ wireEmailDraftAction(); }catch(err){}
   try{ syncEditableEmailRecipient(); }catch(err){}
 });
-/* ===== end E-mail draft action override (V330) ===== */
+/* ===== end E-mail draft action override (V331) ===== */
 
 
-/* ===== Editable recipient field override (V330) ===== */
+/* ===== Editable recipient field override (V331) ===== */
 function getEditableEmailRecipient(){
   const input = $("emailRecipientInput");
   const typed = input && input.value ? String(input.value).trim() : "";
@@ -4869,7 +4913,7 @@ function wireEmailDraftAction(){
   }
 }
 window.addEventListener("load", ()=>{ try{ syncEditableEmailRecipient(); }catch(err){}; });
-/* ===== end Editable recipient field override (V330) ===== */
+/* ===== end Editable recipient field override (V331) ===== */
 
 
 window.addEventListener("resize", ()=>{
