@@ -1,8 +1,8 @@
 // ═══════════════════════════════════════════════════
-// CogSpeed V318
+// CogSpeed V319
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V318";
+const APP_VERSION = "V319";
 const RELEASE = APP_VERSION.replace(/^V/i, "");
 const STORAGE_PREFIX = `cogspeed_v${RELEASE}`;
 
@@ -3617,7 +3617,7 @@ const TUT_STEPS = [
       <strong style="color:rgba(255,255,255,0.85)">Just respond as fast as you can.</strong>
      </div>
      <div style="margin-top:10px;padding:8px 12px;background:rgba(127,215,255,0.08);border:1px solid rgba(127,215,255,0.3);border-radius:10px;font-size:13px;color:rgba(200,230,255,0.85);line-height:1.5">
-      <span style="color:#7fd7ff;font-weight:700">Up next:</span> First answer the sleep question, then rate your fatigue (SP-FS), then the test begins!
+      <span style="color:#7fd7ff;font-weight:700">Up next:</span> A quick fatigue rating question — then the test begins!
      </div>
     </div>
    </div>`;
@@ -3702,13 +3702,13 @@ function showTutorial(){
 }
 
 function tutNext(){
- if(_tutStep < 4){
-  tutSetStep(_tutStep + 1);
- } else {
-  // Done — go to sleep prompt
-  $("tutorialOverlay").classList.add("hidden");
-  showSleepPrompt();
+ if(tutStep < 4){
+  tutStep += 1;
+  renderTutorialStep();
+  return;
  }
+ $("tutorialOverlay").classList.add("hidden");
+ showSleepPrompt();
 }
 
 function tutSkip(){
@@ -4109,7 +4109,7 @@ const _ssp=$("speedStartPageBtn"); if(_ssp) _ssp.onclick=()=>{ hideAllOverlays()
 window.addEventListener("load",()=>{ try{ updateStartPageLinks(); }catch(e){}; });
 
 
-/* ===== Performance vs Time graph override (V318) ===== */
+/* ===== Performance vs Time graph override (V319) ===== */
 const perfGraphState = {
   preset: "last14",
   fromDate: "",
@@ -4513,10 +4513,10 @@ function openPerformanceOverTimePage(){
   wirePerfGraphControls();
   drawPerformanceOverTimeChart($("perfTimeGraph"), state.history||[]);
 }
-/* ===== end Performance vs Time graph override (V318) ===== */
+/* ===== end Performance vs Time graph override (V319) ===== */
 
 
-/* ===== E-mail Select wiring override (V318) ===== */
+/* ===== E-mail Select wiring override (V319) ===== */
 function openEmailSelectPage(){
   hideAllOverlays();
   const ov = $("emailOverlay");
@@ -4596,10 +4596,10 @@ window.addEventListener("load", ()=>{
   try{ wireEmailSelectControls(); }catch(err){}
  try{ wireEmailDraftAction(); }catch(err){}
 });
-/* ===== end E-mail Select wiring override (V318) ===== */
+/* ===== end E-mail Select wiring override (V319) ===== */
 
 
-/* ===== E-mail draft action override (V318) ===== */
+/* ===== E-mail draft action override (V319) ===== */
 function formatLastTrialLogText(last){
   if(!last || !Array.isArray(last.rtLog) || !last.rtLog.length) return "No trial detail log available.";
   const lines = last.rtLog.map(r=>{
@@ -4691,10 +4691,10 @@ window.addEventListener("load", ()=>{
   try{ wireEmailDraftAction(); }catch(err){}
   try{ syncEditableEmailRecipient(); }catch(err){}
 });
-/* ===== end E-mail draft action override (V318) ===== */
+/* ===== end E-mail draft action override (V319) ===== */
 
 
-/* ===== Editable recipient field override (V318) ===== */
+/* ===== Editable recipient field override (V319) ===== */
 function getEditableEmailRecipient(){
   const input = $("emailRecipientInput");
   const typed = input && input.value ? String(input.value).trim() : "";
@@ -4759,7 +4759,7 @@ function wireEmailDraftAction(){
   }
 }
 window.addEventListener("load", ()=>{ try{ syncEditableEmailRecipient(); }catch(err){}; });
-/* ===== end Editable recipient field override (V318) ===== */
+/* ===== end Editable recipient field override (V319) ===== */
 
 
 window.addEventListener("resize", ()=>{
