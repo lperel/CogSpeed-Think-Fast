@@ -1,8 +1,8 @@
 // ═══════════════════════════════════════════════════
-// CogSpeed V314
+// CogSpeed V315
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V314";
+const APP_VERSION = "V315";
 const RELEASE = APP_VERSION.replace(/^V/i, "");
 const STORAGE_PREFIX = `cogspeed_v${RELEASE}`;
 
@@ -1339,7 +1339,7 @@ function handleTap(index,eventTimeStamp){
   state.hadResponse=true;
   state.totalResponses+=1; state.totalIncorrect+=1; state.pacedErrors+=1; state.fixedPacedWrong+=1;
   if(checkMaxPacedWrong()) return;
-  logTrial({phase:"paced_fixed_wrong",rt:getSafeTrialRtMs(eventTimeStamp),outcome:"wrong",responseIndex:index});
+  logTrial({phase:"paced_fixed_wrong",rt,outcome:"wrong",responseIndex:index});
   flashBtn(index,false);
   if(state.fixedPacedPresented >= (Number(settings.mode3PacedTrialLimit)||140)){ state.endReason="Required responses reached"; finish(); return; }
   openTrial("paced_fixed"); return;
@@ -1432,7 +1432,7 @@ function handleTap(index,eventTimeStamp){
  state.totalResponses+=1; state.totalIncorrect+=1; state.pacedErrors+=1;
  if(checkMaxPacedWrong()) return;
  applyPacing(null,false);
- logTrial({phase:"paced_wrong",rt:getSafeTrialRtMs(eventTimeStamp),outcome:"wrong",responseIndex:index});
+ logTrial({phase:"paced_wrong",rt,outcome:"wrong",responseIndex:index});
  flashBtn(index,false); recordAnswer(false);
 }
 
@@ -4054,7 +4054,7 @@ const _ssp=$("speedStartPageBtn"); if(_ssp) _ssp.onclick=()=>{ hideAllOverlays()
 window.addEventListener("load",()=>{ try{ updateStartPageLinks(); }catch(e){}; });
 
 
-/* ===== Performance vs Time graph override (V314) ===== */
+/* ===== Performance vs Time graph override (V315) ===== */
 const perfGraphState = {
   preset: "last14",
   fromDate: "",
@@ -4458,10 +4458,10 @@ function openPerformanceOverTimePage(){
   wirePerfGraphControls();
   drawPerformanceOverTimeChart($("perfTimeGraph"), state.history||[]);
 }
-/* ===== end Performance vs Time graph override (V314) ===== */
+/* ===== end Performance vs Time graph override (V315) ===== */
 
 
-/* ===== E-mail Select wiring override (V314) ===== */
+/* ===== E-mail Select wiring override (V315) ===== */
 function openEmailSelectPage(){
   hideAllOverlays();
   const ov = $("emailOverlay");
@@ -4541,10 +4541,10 @@ window.addEventListener("load", ()=>{
   try{ wireEmailSelectControls(); }catch(err){}
  try{ wireEmailDraftAction(); }catch(err){}
 });
-/* ===== end E-mail Select wiring override (V314) ===== */
+/* ===== end E-mail Select wiring override (V315) ===== */
 
 
-/* ===== E-mail draft action override (V314) ===== */
+/* ===== E-mail draft action override (V315) ===== */
 function formatLastTrialLogText(last){
   if(!last || !Array.isArray(last.rtLog) || !last.rtLog.length) return "No trial detail log available.";
   const lines = last.rtLog.map(r=>{
@@ -4636,10 +4636,10 @@ window.addEventListener("load", ()=>{
   try{ wireEmailDraftAction(); }catch(err){}
   try{ syncEditableEmailRecipient(); }catch(err){}
 });
-/* ===== end E-mail draft action override (V314) ===== */
+/* ===== end E-mail draft action override (V315) ===== */
 
 
-/* ===== Editable recipient field override (V314) ===== */
+/* ===== Editable recipient field override (V315) ===== */
 function getEditableEmailRecipient(){
   const input = $("emailRecipientInput");
   const typed = input && input.value ? String(input.value).trim() : "";
@@ -4704,7 +4704,7 @@ function wireEmailDraftAction(){
   }
 }
 window.addEventListener("load", ()=>{ try{ syncEditableEmailRecipient(); }catch(err){}; });
-/* ===== end Editable recipient field override (V314) ===== */
+/* ===== end Editable recipient field override (V315) ===== */
 
 
 window.addEventListener("resize", ()=>{
