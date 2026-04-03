@@ -1,8 +1,8 @@
 // ═══════════════════════════════════════════════════
-// CogSpeed V323
+// CogSpeed V325
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V323";
+const APP_VERSION = "V325";
 const RELEASE = APP_VERSION.replace(/^V/i, "");
 const STORAGE_PREFIX = `cogspeed_v${RELEASE}`;
 
@@ -1523,7 +1523,7 @@ function setSleepQuality(score){
  ["sleepQualityPoorBtn","sleepQualityOkayBtn","sleepQualityGreatBtn"].forEach(id=>{
   const el = $(id); if(el) el.classList.toggle("active", id===map[score]);
  });
- const label = score===1 ? "Poor" : score===2 ? "Okay" : score===3 ? "Great" : null;
+ const label = score===1 ? "Poor" : score===2 ? "Okay" : score===3 ? "Good" : null;
  if(!state.sleepLog) state.sleepLog = {};
  state.sleepLog.sleepQualityScore = score||null;
  state.sleepLog.sleepQualityLabel = label;
@@ -4236,7 +4236,7 @@ const _ssp=$("speedStartPageBtn"); if(_ssp) _ssp.onclick=()=>{ hideAllOverlays()
 window.addEventListener("load",()=>{ try{ updateStartPageLinks(); }catch(e){}; });
 
 
-/* ===== Performance vs Time graph override (V323) ===== */
+/* ===== Performance vs Time graph override (V325) ===== */
 const perfGraphState = {
   preset: "last14",
   fromDate: "",
@@ -4558,7 +4558,7 @@ function drawPerformanceOverTimeChart(canvas,hist){
     ctx.font="10px sans-serif";
     ctx.textAlign="left";
     ctx.fillStyle="#c6d7e8";
-    ctx.fillText("Sleep period (local bed → wake) · red=Poor · yellow=Okay · green=Great", PAD.left, sleepTop-8);
+    ctx.fillText("Sleep period (local bed → wake) · red=Poor · yellow=Okay · green=Good", PAD.left, sleepTop-8);
     ctx.fillStyle="#9ab6d3";
     ctx.fillText("0h", PAD.left+cW-48, sleepTop-8);
     ctx.fillText("24h", PAD.left+cW-20, sleepTop-8);
@@ -4652,7 +4652,7 @@ function drawPerformanceOverTimeChart(canvas,hist){
   ctx.fillStyle="#c6d7e8"; ctx.fillText("Sleep bar = bed→wake", PAD.left+350, PAD.top-14);
   ctx.fillStyle="#ff4d4f"; ctx.fillText("Poor", PAD.left+490, PAD.top-14);
   ctx.fillStyle="#ffd84d"; ctx.fillText("Okay", PAD.left+528, PAD.top-14);
-  ctx.fillStyle="#88ff88"; ctx.fillText("Great", PAD.left+568, PAD.top-14);
+  ctx.fillStyle="#88ff88"; ctx.fillText("Good", PAD.left+568, PAD.top-14);
 }
 
 
@@ -4698,10 +4698,10 @@ function openPerformanceOverTimePage(){
   wirePerfGraphControls();
   drawPerformanceOverTimeChart($("perfTimeGraph"), state.history||[]);
 }
-/* ===== end Performance vs Time graph override (V323) ===== */
+/* ===== end Performance vs Time graph override (V325) ===== */
 
 
-/* ===== E-mail Select wiring override (V323) ===== */
+/* ===== E-mail Select wiring override (V325) ===== */
 function openEmailSelectPage(){
   hideAllOverlays();
   const ov = $("emailOverlay");
@@ -4781,10 +4781,10 @@ window.addEventListener("load", ()=>{
   try{ wireEmailSelectControls(); }catch(err){}
  try{ wireEmailDraftAction(); }catch(err){}
 });
-/* ===== end E-mail Select wiring override (V323) ===== */
+/* ===== end E-mail Select wiring override (V325) ===== */
 
 
-/* ===== E-mail draft action override (V323) ===== */
+/* ===== E-mail draft action override (V325) ===== */
 function formatLastTrialLogText(last){
   if(!last || !Array.isArray(last.rtLog) || !last.rtLog.length) return "No trial detail log available.";
   const lines = last.rtLog.map(r=>{
@@ -4876,10 +4876,10 @@ window.addEventListener("load", ()=>{
   try{ wireEmailDraftAction(); }catch(err){}
   try{ syncEditableEmailRecipient(); }catch(err){}
 });
-/* ===== end E-mail draft action override (V323) ===== */
+/* ===== end E-mail draft action override (V325) ===== */
 
 
-/* ===== Editable recipient field override (V323) ===== */
+/* ===== Editable recipient field override (V325) ===== */
 function getEditableEmailRecipient(){
   const input = $("emailRecipientInput");
   const typed = input && input.value ? String(input.value).trim() : "";
@@ -4944,7 +4944,7 @@ function wireEmailDraftAction(){
   }
 }
 window.addEventListener("load", ()=>{ try{ syncEditableEmailRecipient(); }catch(err){}; });
-/* ===== end Editable recipient field override (V323) ===== */
+/* ===== end Editable recipient field override (V325) ===== */
 
 
 window.addEventListener("resize", ()=>{
