@@ -1,8 +1,8 @@
 // ═══════════════════════════════════════════════════
-// CogSpeed V319
+// CogSpeed V320
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V319";
+const APP_VERSION = "V320";
 const RELEASE = APP_VERSION.replace(/^V/i, "");
 const STORAGE_PREFIX = `cogspeed_v${RELEASE}`;
 
@@ -3702,9 +3702,8 @@ function showTutorial(){
 }
 
 function tutNext(){
- if(tutStep < 4){
-  tutStep += 1;
-  renderTutorialStep();
+ if(_tutStep < 4){
+  tutSetStep(_tutStep + 1);
   return;
  }
  $("tutorialOverlay").classList.add("hidden");
@@ -4109,7 +4108,7 @@ const _ssp=$("speedStartPageBtn"); if(_ssp) _ssp.onclick=()=>{ hideAllOverlays()
 window.addEventListener("load",()=>{ try{ updateStartPageLinks(); }catch(e){}; });
 
 
-/* ===== Performance vs Time graph override (V319) ===== */
+/* ===== Performance vs Time graph override (V320) ===== */
 const perfGraphState = {
   preset: "last14",
   fromDate: "",
@@ -4513,10 +4512,10 @@ function openPerformanceOverTimePage(){
   wirePerfGraphControls();
   drawPerformanceOverTimeChart($("perfTimeGraph"), state.history||[]);
 }
-/* ===== end Performance vs Time graph override (V319) ===== */
+/* ===== end Performance vs Time graph override (V320) ===== */
 
 
-/* ===== E-mail Select wiring override (V319) ===== */
+/* ===== E-mail Select wiring override (V320) ===== */
 function openEmailSelectPage(){
   hideAllOverlays();
   const ov = $("emailOverlay");
@@ -4596,10 +4595,10 @@ window.addEventListener("load", ()=>{
   try{ wireEmailSelectControls(); }catch(err){}
  try{ wireEmailDraftAction(); }catch(err){}
 });
-/* ===== end E-mail Select wiring override (V319) ===== */
+/* ===== end E-mail Select wiring override (V320) ===== */
 
 
-/* ===== E-mail draft action override (V319) ===== */
+/* ===== E-mail draft action override (V320) ===== */
 function formatLastTrialLogText(last){
   if(!last || !Array.isArray(last.rtLog) || !last.rtLog.length) return "No trial detail log available.";
   const lines = last.rtLog.map(r=>{
@@ -4691,10 +4690,10 @@ window.addEventListener("load", ()=>{
   try{ wireEmailDraftAction(); }catch(err){}
   try{ syncEditableEmailRecipient(); }catch(err){}
 });
-/* ===== end E-mail draft action override (V319) ===== */
+/* ===== end E-mail draft action override (V320) ===== */
 
 
-/* ===== Editable recipient field override (V319) ===== */
+/* ===== Editable recipient field override (V320) ===== */
 function getEditableEmailRecipient(){
   const input = $("emailRecipientInput");
   const typed = input && input.value ? String(input.value).trim() : "";
@@ -4759,7 +4758,7 @@ function wireEmailDraftAction(){
   }
 }
 window.addEventListener("load", ()=>{ try{ syncEditableEmailRecipient(); }catch(err){}; });
-/* ===== end Editable recipient field override (V319) ===== */
+/* ===== end Editable recipient field override (V320) ===== */
 
 
 window.addEventListener("resize", ()=>{
