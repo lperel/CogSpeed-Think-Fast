@@ -1,8 +1,8 @@
 // ═══════════════════════════════════════════════════
-// CogSpeed V320
+// CogSpeed V321
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V320";
+const APP_VERSION = "V321";
 const RELEASE = APP_VERSION.replace(/^V/i, "");
 const STORAGE_PREFIX = `cogspeed_v${RELEASE}`;
 
@@ -2423,7 +2423,7 @@ function hideAllOverlays(){
  ["subjectOverlay","profileOverlay","refresherOverlay","sleepPromptOverlay","fatigueOverlay","tutorialOverlay","adminOverlay","resultsOverlay","summaryOverlay","rankedOverlay","trialLogOverlay","historyOverlay","rateRtOverlay","perfTimeOverlay","emailOverlay","thinkingOverlay","outcomeOverlay"].forEach(id=>{ const el=$(id); if(el) el.classList.add("hidden"); });
 }
 function showOnly(id){
- ["subjectOverlay","profileOverlay","refresherOverlay","fatigueOverlay","adminOverlay","resultsOverlay","summaryOverlay","rankedOverlay","trialLogOverlay","historyOverlay","rateRtOverlay","perfTimeOverlay","emailOverlay","tutorialOverlay"].forEach(oid=>{ const el=$(oid); if(el) el.classList[oid===id?"remove":"add"]("hidden"); });
+ ["subjectOverlay","profileOverlay","refresherOverlay","sleepPromptOverlay","fatigueOverlay","adminOverlay","resultsOverlay","summaryOverlay","rankedOverlay","trialLogOverlay","historyOverlay","rateRtOverlay","perfTimeOverlay","emailOverlay","tutorialOverlay","thinkingOverlay","outcomeOverlay"].forEach(oid=>{ const el=$(oid); if(el) el.classList[oid===id?"remove":"add"]("hidden"); });
 }
 
 // ─── START PAGE SPEEDOMETER LINK ─────────────────────────────
@@ -4108,7 +4108,7 @@ const _ssp=$("speedStartPageBtn"); if(_ssp) _ssp.onclick=()=>{ hideAllOverlays()
 window.addEventListener("load",()=>{ try{ updateStartPageLinks(); }catch(e){}; });
 
 
-/* ===== Performance vs Time graph override (V320) ===== */
+/* ===== Performance vs Time graph override (V321) ===== */
 const perfGraphState = {
   preset: "last14",
   fromDate: "",
@@ -4512,10 +4512,10 @@ function openPerformanceOverTimePage(){
   wirePerfGraphControls();
   drawPerformanceOverTimeChart($("perfTimeGraph"), state.history||[]);
 }
-/* ===== end Performance vs Time graph override (V320) ===== */
+/* ===== end Performance vs Time graph override (V321) ===== */
 
 
-/* ===== E-mail Select wiring override (V320) ===== */
+/* ===== E-mail Select wiring override (V321) ===== */
 function openEmailSelectPage(){
   hideAllOverlays();
   const ov = $("emailOverlay");
@@ -4595,10 +4595,10 @@ window.addEventListener("load", ()=>{
   try{ wireEmailSelectControls(); }catch(err){}
  try{ wireEmailDraftAction(); }catch(err){}
 });
-/* ===== end E-mail Select wiring override (V320) ===== */
+/* ===== end E-mail Select wiring override (V321) ===== */
 
 
-/* ===== E-mail draft action override (V320) ===== */
+/* ===== E-mail draft action override (V321) ===== */
 function formatLastTrialLogText(last){
   if(!last || !Array.isArray(last.rtLog) || !last.rtLog.length) return "No trial detail log available.";
   const lines = last.rtLog.map(r=>{
@@ -4690,10 +4690,10 @@ window.addEventListener("load", ()=>{
   try{ wireEmailDraftAction(); }catch(err){}
   try{ syncEditableEmailRecipient(); }catch(err){}
 });
-/* ===== end E-mail draft action override (V320) ===== */
+/* ===== end E-mail draft action override (V321) ===== */
 
 
-/* ===== Editable recipient field override (V320) ===== */
+/* ===== Editable recipient field override (V321) ===== */
 function getEditableEmailRecipient(){
   const input = $("emailRecipientInput");
   const typed = input && input.value ? String(input.value).trim() : "";
@@ -4758,7 +4758,7 @@ function wireEmailDraftAction(){
   }
 }
 window.addEventListener("load", ()=>{ try{ syncEditableEmailRecipient(); }catch(err){}; });
-/* ===== end Editable recipient field override (V320) ===== */
+/* ===== end Editable recipient field override (V321) ===== */
 
 
 window.addEventListener("resize", ()=>{
