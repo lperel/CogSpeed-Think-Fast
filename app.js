@@ -1,8 +1,8 @@
 // ═══════════════════════════════════════════════════
-// CogSpeed V311
+// CogSpeed V312
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V311";
+const APP_VERSION = "V312";
 const RELEASE = APP_VERSION.replace(/^V/i, "");
 const STORAGE_PREFIX = `cogspeed_v${RELEASE}`;
 
@@ -617,7 +617,7 @@ function renderTrial(trial){
   btn.appendChild(pos);
   btn.innerHTML+=buildGearSVG(i+1,null,"large",""); // no rotation during test
   const idx=i;
-  btn.addEventListener("pointerdown",()=>handleTap(idx));
+  btn.addEventListener("pointerdown",(e)=>handleTap(idx,e.timeStamp));
   respGrid.appendChild(btn);
  }
 }
@@ -4049,7 +4049,7 @@ const _ssp=$("speedStartPageBtn"); if(_ssp) _ssp.onclick=()=>{ hideAllOverlays()
 window.addEventListener("load",()=>{ try{ updateStartPageLinks(); }catch(e){}; });
 
 
-/* ===== Performance vs Time graph override (V311) ===== */
+/* ===== Performance vs Time graph override (V312) ===== */
 const perfGraphState = {
   preset: "last14",
   fromDate: "",
@@ -4453,10 +4453,10 @@ function openPerformanceOverTimePage(){
   wirePerfGraphControls();
   drawPerformanceOverTimeChart($("perfTimeGraph"), state.history||[]);
 }
-/* ===== end Performance vs Time graph override (V311) ===== */
+/* ===== end Performance vs Time graph override (V312) ===== */
 
 
-/* ===== E-mail Select wiring override (V311) ===== */
+/* ===== E-mail Select wiring override (V312) ===== */
 function openEmailSelectPage(){
   hideAllOverlays();
   const ov = $("emailOverlay");
@@ -4536,10 +4536,10 @@ window.addEventListener("load", ()=>{
   try{ wireEmailSelectControls(); }catch(err){}
  try{ wireEmailDraftAction(); }catch(err){}
 });
-/* ===== end E-mail Select wiring override (V311) ===== */
+/* ===== end E-mail Select wiring override (V312) ===== */
 
 
-/* ===== E-mail draft action override (V311) ===== */
+/* ===== E-mail draft action override (V312) ===== */
 function formatLastTrialLogText(last){
   if(!last || !Array.isArray(last.rtLog) || !last.rtLog.length) return "No trial detail log available.";
   const lines = last.rtLog.map(r=>{
@@ -4631,10 +4631,10 @@ window.addEventListener("load", ()=>{
   try{ wireEmailDraftAction(); }catch(err){}
   try{ syncEditableEmailRecipient(); }catch(err){}
 });
-/* ===== end E-mail draft action override (V311) ===== */
+/* ===== end E-mail draft action override (V312) ===== */
 
 
-/* ===== Editable recipient field override (V311) ===== */
+/* ===== Editable recipient field override (V312) ===== */
 function getEditableEmailRecipient(){
   const input = $("emailRecipientInput");
   const typed = input && input.value ? String(input.value).trim() : "";
@@ -4699,7 +4699,7 @@ function wireEmailDraftAction(){
   }
 }
 window.addEventListener("load", ()=>{ try{ syncEditableEmailRecipient(); }catch(err){}; });
-/* ===== end Editable recipient field override (V311) ===== */
+/* ===== end Editable recipient field override (V312) ===== */
 
 
 window.addEventListener("resize", ()=>{
