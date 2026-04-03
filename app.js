@@ -1,8 +1,8 @@
 // ═══════════════════════════════════════════════════
-// CogSpeed V329
+// CogSpeed V330
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V329";
+const APP_VERSION = "V330";
 const RELEASE = APP_VERSION.replace(/^V/i, "");
 const STORAGE_PREFIX = `cogspeed_v${RELEASE}`;
 
@@ -77,6 +77,8 @@ const DEFAULTS={
  cpiBestMs:800,
  cpiWorstMs:2400,
  deviceBenchmarkEnabled:0,
+ timeFormat:"12",
+ use12HourTime:1,
  lateResponseThresholdMs:600 // first response <600ms on next frame may belong to prior frame; a second >=600ms response belongs to current frame
 };
 
@@ -2307,6 +2309,21 @@ function computeAge(bMonth, bYear){
 let _profileData = {email:"", birthMonth:0, birthYear:0, gender:"", emailResults:false};
 let _profileGenderSelected = "";
 
+
+let _profileTimeFormat = null;
+
+function profileSelectTimeFormat(fmt){
+ _profileTimeFormat = fmt;
+ ["12","24"].forEach(x=>{
+  const btn = $("profileTime"+x+"Btn");
+  if(!btn) return;
+  const on = x===String(fmt);
+  btn.style.background = on ? "linear-gradient(180deg,#0d2e5a,#081b36)" : "";
+  btn.style.borderColor = on ? "#7fd7ff" : "";
+  btn.style.color = on ? "#7fd7ff" : "";
+ });
+}
+
 function profileSelectGender(g){
  _profileGenderSelected = g;
  ["M","F","O"].forEach(x=>{
@@ -2351,7 +2368,7 @@ function openProfileOverlay(email){
 
  // Show email
  const ed = $("profileEmailDisplay");
- if(ed) ed.textContent = email;
+ if(ed) ed.textContent = email || "No email entered yet";
 
  // Pre-fill if returning
  if(existing){
@@ -2361,6 +2378,7 @@ function openProfileOverlay(email){
   profileToggleEmail(!!existing.emailResults);
   if(existing.gender) profileSelectGender(existing.gender);
   validateProfileAge();
+  profileSelectTimeFormat(existing?.timeFormat || settings.timeFormat || (settings.use12HourTime==1?"12":"24"));
  } else {
   const bm = $("profileBirthMonth"); if(bm) bm.value="";
   const by = $("profileBirthYear"); if(by) by.value="";
@@ -2368,6 +2386,7 @@ function openProfileOverlay(email){
   profileToggleEmail(false);
   profileSelectGender("");
   const msg=$("profileAgeMsg"); if(msg) msg.textContent="";
+  profileSelectTimeFormat(settings.timeFormat || (settings.use12HourTime==1?"12":"24"));
  }
 
  showOnly("profileOverlay");
@@ -2381,22 +2400,34 @@ function saveAndContinueProfile(){
  const bMonth = parseInt($("profileBirthMonth")?.value||"0");
  const bYear = parseInt($("profileBirthYear")?.value||"0");
  const emailResults = !!$("profileEmailResults")?.checked;
+ const timeFormat = _profileTimeFormat || settings.timeFormat || (settings.use12HourTime==1 ? "12" : "24");
 
- // Validate age
+ // Always save time-format settings from this page
+ settings.timeFormat = String(timeFormat)==="24" ? "24" : "12";
+ settings.use12HourTime = settings.timeFormat === "12" ? 1 : 0;
+ saveSettings();
+
+ // If no email is entered yet, allow returning after saving settings only.
+ if(!email){
+  showOnly(_profileReturnTo || "subjectOverlay");
+  _profileReturnTo = "refresherOverlay";
+  setStatus("Settings saved");
+  return;
+ }
+
+ // Validate age for profile save
  if(!validateProfileAge()){ setStatus("Please enter a valid date of birth (14+)."); return; }
  if(!_profileGenderSelected){ setStatus("Please select a gender."); return; }
 
  const profile = {email, birthMonth:bMonth, birthYear:bYear,
-  gender:_profileGenderSelected, emailResults, updatedAt:Date.now()};
+  gender:_profileGenderSelected, emailResults, timeFormat:settings.timeFormat, updatedAt:Date.now()};
  saveProfile(profile);
 
- // Use email as subjectId
  state.subjectId = email;
  state.profile = profile;
 
- // Return to appropriate page
  showOnly(_profileReturnTo);
- _profileReturnTo = "refresherOverlay"; // reset for next time
+ _profileReturnTo = "refresherOverlay";
  setStatus("Profile saved"); restoreSubjectFromProfile();
 }
 
@@ -2412,6 +2443,7 @@ function resetProfile(){
   if(btn){ btn.style.background=""; btn.style.borderColor=""; btn.style.color=""; }
  });
  const msg=$("profileAgeMsg"); if(msg) msg.textContent="";
+ profileSelectTimeFormat(settings.timeFormat || (settings.use12HourTime==1?"12":"24"));
  setStatus("Profile reset");
 }
 
@@ -3873,12 +3905,10 @@ $("tutNextBtn").onclick=()=>tutNext();
 // Profile overlay buttons
 const _psb=$("profileSaveBtn"); if(_psb) _psb.onclick=saveAndContinueProfile;
 
-// Profile edit button — from subject page (email must already be entered)
+// Profile / ASTERISK page button — can open even before email is entered
 const _peb=$("profileEditBtn"); if(_peb) _peb.onclick=()=>{
  const email=($("subjectIdInput")?.value||"").trim().toLowerCase();
- if(!email||!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){
-  setStatus("Enter your email first, then tap ⚙ profile"); return;
- }
+ _profileReturnTo = "subjectOverlay";
  openProfileOverlay(email);
 };
 
@@ -3895,6 +3925,8 @@ const _spb=$("summaryProfileBtn"); if(_spb) _spb.onclick=()=>{
  }
 };
 const _prb=$("profileResetBtn"); if(_prb) _prb.onclick=resetProfile;
+const _pt12=$("profileTime12Btn"); if(_pt12) _pt12.onclick=()=>profileSelectTimeFormat("12");
+const _pt24=$("profileTime24Btn"); if(_pt24) _pt24.onclick=()=>profileSelectTimeFormat("24");
 // Age validation on input change
 const _pbm=$("profileBirthMonth"); if(_pbm) _pbm.onchange=validateProfileAge;
 const _pby=$("profileBirthYear"); if(_pby) _pby.oninput=validateProfileAge;
@@ -4187,7 +4219,7 @@ const _ssp=$("speedStartPageBtn"); if(_ssp) _ssp.onclick=()=>{ hideAllOverlays()
 window.addEventListener("load",()=>{ try{ updateStartPageLinks(); }catch(e){}; });
 
 
-/* ===== Performance vs Time graph override (V329) ===== */
+/* ===== Performance vs Time graph override (V330) ===== */
 const perfGraphState = {
   preset: "last14",
   fromDate: "",
@@ -4591,10 +4623,10 @@ function openPerformanceOverTimePage(){
   wirePerfGraphControls();
   drawPerformanceOverTimeChart($("perfTimeGraph"), state.history||[]);
 }
-/* ===== end Performance vs Time graph override (V329) ===== */
+/* ===== end Performance vs Time graph override (V330) ===== */
 
 
-/* ===== E-mail Select wiring override (V329) ===== */
+/* ===== E-mail Select wiring override (V330) ===== */
 function openEmailSelectPage(){
   hideAllOverlays();
   const ov = $("emailOverlay");
@@ -4674,10 +4706,10 @@ window.addEventListener("load", ()=>{
   try{ wireEmailSelectControls(); }catch(err){}
  try{ wireEmailDraftAction(); }catch(err){}
 });
-/* ===== end E-mail Select wiring override (V329) ===== */
+/* ===== end E-mail Select wiring override (V330) ===== */
 
 
-/* ===== E-mail draft action override (V329) ===== */
+/* ===== E-mail draft action override (V330) ===== */
 function formatLastTrialLogText(last){
   if(!last || !Array.isArray(last.rtLog) || !last.rtLog.length) return "No trial detail log available.";
   const lines = last.rtLog.map(r=>{
@@ -4769,10 +4801,10 @@ window.addEventListener("load", ()=>{
   try{ wireEmailDraftAction(); }catch(err){}
   try{ syncEditableEmailRecipient(); }catch(err){}
 });
-/* ===== end E-mail draft action override (V329) ===== */
+/* ===== end E-mail draft action override (V330) ===== */
 
 
-/* ===== Editable recipient field override (V329) ===== */
+/* ===== Editable recipient field override (V330) ===== */
 function getEditableEmailRecipient(){
   const input = $("emailRecipientInput");
   const typed = input && input.value ? String(input.value).trim() : "";
@@ -4837,7 +4869,7 @@ function wireEmailDraftAction(){
   }
 }
 window.addEventListener("load", ()=>{ try{ syncEditableEmailRecipient(); }catch(err){}; });
-/* ===== end Editable recipient field override (V329) ===== */
+/* ===== end Editable recipient field override (V330) ===== */
 
 
 window.addEventListener("resize", ()=>{
