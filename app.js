@@ -1,8 +1,8 @@
 // ═══════════════════════════════════════════════════
-// CogSpeed V333
+// CogSpeed V335
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V334";
+const APP_VERSION = "V335";
 const RELEASE = APP_VERSION.replace(/^V/i, "");
 const STORAGE_PREFIX = `cogspeed_v${RELEASE}`;
 
@@ -2589,6 +2589,19 @@ function getTerminalRecoveryWrongCount(result){
  }
 }
 
+function formatSummaryLocalTime(result){
+ const v = result && result.geo && result.geo.local_time;
+ if(v) return v;
+ const t = result && result.time;
+ return t ? new Date(t).toLocaleString() : "—";
+}
+function formatSummaryGmtTime(result){
+ const v = result && result.geo && result.geo.gmt_time;
+ if(v) return v;
+ const t = result && result.time;
+ return t ? new Date(t).toUTCString() : "—";
+}
+
 function buildSummary(result){
  const el=$("summaryText"); if(!el) return;
  const hr="─────────────────────────";
@@ -2606,6 +2619,8 @@ function buildSummary(result){
 ${hr}
 Test Mode:  ${formatModeTag(result.testMode)}\nSession:    ${result.sessionNumber!=null?result.sessionNumber:"—"}\nSubject ID:  ${result.subjectId}
 Date / Time:  ${new Date(result.time).toLocaleString()}
+Local time: ${formatSummaryLocalTime(result)}
+GMT time:   ${formatSummaryGmtTime(result)}
 Test duration: ${formatDuration(result.testDurationMs)}
 Location:   ${geoStr}
 ${hr}
@@ -2638,6 +2653,8 @@ END REASON
 ${hr}
 Test Mode:  ${formatModeTag(result.testMode)}\nSession:    ${result.sessionNumber!=null?result.sessionNumber:"—"}\nSubject ID:  ${result.subjectId}
 Date / Time:  ${new Date(result.time).toLocaleString()}
+Local time: ${formatSummaryLocalTime(result)}
+GMT time:   ${formatSummaryGmtTime(result)}
 Test duration: ${formatDuration(result.testDurationMs)}
 Location:   ${geoStr}
 ${hr}
@@ -2682,6 +2699,8 @@ END REASON
 ${hr}
 Test Mode:  ${formatModeTag(result.testMode)}\nSession:    ${result.sessionNumber!=null?result.sessionNumber:"—"}\nSubject ID:  ${result.subjectId}
 Date / Time:  ${new Date(result.time).toLocaleString()}
+Local time: ${formatSummaryLocalTime(result)}
+GMT time:   ${formatSummaryGmtTime(result)}
 Test duration: ${formatDuration(result.testDurationMs)}
 Location:   ${geoStr}
 ${hr}
@@ -3964,6 +3983,7 @@ $("sleepBackBtn").onclick=()=>showOnly("sleepPromptOverlay");
 $("sleepPromptBackBtn").onclick=()=>goToStartPage();
 
 
+bindDoubleTapConfirm($("refStartOverBtn"), ()=>{}, "Reset", "Tap again to reset");
 
 
 const _fsb=$("fatigueStartBtn");
@@ -4065,9 +4085,9 @@ const _asb=$("adminSpeedometerBtn"); if(_asb) _asb.onclick=()=>openSpeedometerFr
 bindDoubleTapConfirm($("adminStartOverBtn"), ()=>startOverFlow(), "Full Reset", "Tap again for full reset");
 $("benchRunBtn").onclick=()=>runDeviceBenchmark(true);
 $("benchMainBtn").onclick=()=>{ $("benchmarkOverlay").classList.add("hidden"); };
-const _startBtn=$("startBtn"); if(_startBtn) _startBtn.onclick=startTest;
-const _backToStartBtn=$("backToStartBtn"); if(_backToStartBtn) _backToStartBtn.onclick=goToStartPage;
-const _startOverBtn=$("startOverBtn"); if(_startOverBtn) _startOverBtn.onclick=startOverFlow;
+$("startBtn").onclick=startTest;
+$("backToStartBtn").onclick=goToStartPage;
+$("startOverBtn").onclick=startOverFlow;
 $("summaryRestartBtn").onclick=()=>{ $("summaryOverlay").classList.add("hidden"); const fg=$("fullGraphOverlay"); if(fg) fg.classList.add("hidden"); goToStartPage(); };
 const _sspeed=$("summarySpeedometerBtn"); if(_sspeed) _sspeed.onclick=()=>{ $("summaryOverlay").classList.add("hidden"); openSpeedometerPage(); };
 const _orb=$("outcomeResultsBtn"); if(_orb) _orb.onclick=()=>{ $("outcomeOverlay").classList.add("hidden"); stopSpeedometer(); $("summaryOverlay").classList.remove("hidden"); setTestingQuiet(false); };
@@ -4480,7 +4500,7 @@ function drawPerformanceOverTimeChart(canvas,hist){
 
   const bestMs = Number(settings.cpiBestMs)||800;
   const worstMs = Number(settings.cpiWorstMs)||3000;
-  const PAD = {top:72,right:76,bottom:n===1?64:92,left:126};
+  const PAD = {top:72,right:76,bottom:n===1?92:118,left:126};
   const cW = W - PAD.left - PAD.right;
   const cH = H - PAD.top - PAD.bottom;
 
@@ -4495,6 +4515,13 @@ function drawPerformanceOverTimeChart(canvas,hist){
   }
   function yLeftFromMs(ms){ return yLeftFromCpi(cpiFromMs(ms)); }
   function yRightFromSpf(v){ return PAD.top + cH - (((v-1)/6))*cH; }
+  function sleepQualityColor(r){
+    const q = String(r && r.sleepLog && r.sleepLog.qualityLabel || "").toLowerCase();
+    if(q === "poor") return "#ff4d4f";
+    if(q === "okay") return "#ffd84d";
+    if(q === "good") return "#4cd964";
+    return null;
+  }
 
   ctx.strokeStyle="rgba(127,215,255,0.16)";
   ctx.lineWidth=1;
@@ -4557,19 +4584,36 @@ function drawPerformanceOverTimeChart(canvas,hist){
   ctx.strokeStyle="rgba(79,111,153,0.35)";
   ctx.beginPath(); ctx.moveTo(PAD.left, PAD.top+cH); ctx.lineTo(PAD.left+cW, PAD.top+cH); ctx.stroke();
 
+  const sleepBarTop = PAD.top + cH + 8;
+  const sleepBarHeight = 10;
+  const sleepBarWidth = Math.max(8, Math.min(18, Math.round(cW / Math.max(n, 18) * 0.55)));
+  ctx.textAlign = "left";
+  ctx.font = "bold 10px sans-serif";
+  ctx.fillStyle = "#d7e7f8";
+  ctx.fillText("Sleep", PAD.left, sleepBarTop + 9);
+  slice.forEach((r,i)=>{
+    const color = sleepQualityColor(r);
+    if(!color) return;
+    const x = xOf(i) - sleepBarWidth/2;
+    ctx.fillStyle = color;
+    ctx.fillRect(x, sleepBarTop, sleepBarWidth, sleepBarHeight);
+    ctx.strokeStyle = "rgba(255,255,255,0.18)";
+    ctx.strokeRect(x, sleepBarTop, sleepBarWidth, sleepBarHeight);
+  });
+
   ctx.font="10px sans-serif";
   ctx.fillStyle="#9ab6d3";
   if(n===1){
     const d=new Date(slice[0].time);
     const label=`${d.toLocaleDateString("en-US",{month:"numeric",day:"numeric",year:"2-digit"})} ${d.toLocaleTimeString("en-US",{hour:"2-digit",minute:"2-digit"})}`;
     ctx.textAlign="center";
-    ctx.fillText(label, xOf(0), PAD.top+cH+26);
+    ctx.fillText(label, xOf(0), sleepBarTop + 30);
   }else{
     ctx.textAlign="right";
     const labelStep = Math.max(1, Math.ceil(n/12));
     slice.forEach((r,i)=>{
       if(i % labelStep !== 0 && i !== n-1) return;
-      const x=xOf(i), y=PAD.top+cH+8;
+      const x=xOf(i), y=sleepBarTop + 28;
       const d = new Date(r.time);
       const raw = `${d.toLocaleDateString("en-US",{month:"numeric",day:"numeric"})} ${d.toLocaleTimeString("en-US",{hour:"2-digit",minute:"2-digit"})}`;
       const label = raw.length>22 ? raw.slice(0,22) : raw;
@@ -4839,7 +4883,8 @@ function formatLastPerfTimeText(){
     const cpi = r.cognitivePerformanceIndex!=null ? Math.round(Number(r.cognitivePerformanceIndex)) : "—";
     const mbs = r.averageLast2BlockingScoresMs!=null ? Math.round(Number(r.averageLast2BlockingScoresMs)) : "—";
     const spf = r.samnPerelli && r.samnPerelli.score!=null ? r.samnPerelli.score : "—";
-    return `${i+1}. ${when} | CPI ${cpi} | MBS ${mbs} | SP-FS ${spf}`;
+    const sleep = r.sleepLog && r.sleepLog.qualityLabel ? ` | Sleep ${r.sleepLog.qualityLabel}` : "";
+    return `${i+1}. ${when} | CPI ${cpi} | MBS ${mbs} | SP-FS ${spf}${sleep}`;
   });
   return "Performance over Date and Time\n\n" + rows.join("\n");
 }
