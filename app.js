@@ -1,8 +1,8 @@
 // ═══════════════════════════════════════════════════
-// CogSpeed V328
+// CogSpeed V329
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V328";
+const APP_VERSION = "V329";
 const RELEASE = APP_VERSION.replace(/^V/i, "");
 const STORAGE_PREFIX = `cogspeed_v${RELEASE}`;
 
@@ -3731,7 +3731,23 @@ function setSleepQuality(score){
   btn.style.borderColor = k===score ? "var(--accent)" : "";
  });
 }
+
+function updateSleepTimeFormatHint(){
+ const el = $("sleepTimeFormatHint");
+ if(!el) return;
+ let txt = "Use the time format shown by your device when entering sleep and wake times.";
+ try{
+  if(settings && (settings.timeFormat === "12" || settings.timeFormat === 12 || settings.use12HourTime === 1 || settings.use12HourTime === "1")){
+   txt = "Enter sleep and wake times using AM/PM.";
+  }else if(settings && (settings.timeFormat === "24" || settings.timeFormat === 24 || settings.use12HourTime === 0 || settings.use12HourTime === "0")){
+   txt = "Enter sleep and wake times using 24-hour time.";
+  }
+ }catch(e){}
+ el.textContent = txt;
+}
+
 function showSleepLogger(){
+ updateSleepTimeFormatHint();
  updateSleepLoggerUI();
  showOnly("sleepOverlay");
 }
@@ -4171,7 +4187,7 @@ const _ssp=$("speedStartPageBtn"); if(_ssp) _ssp.onclick=()=>{ hideAllOverlays()
 window.addEventListener("load",()=>{ try{ updateStartPageLinks(); }catch(e){}; });
 
 
-/* ===== Performance vs Time graph override (V328) ===== */
+/* ===== Performance vs Time graph override (V329) ===== */
 const perfGraphState = {
   preset: "last14",
   fromDate: "",
@@ -4575,10 +4591,10 @@ function openPerformanceOverTimePage(){
   wirePerfGraphControls();
   drawPerformanceOverTimeChart($("perfTimeGraph"), state.history||[]);
 }
-/* ===== end Performance vs Time graph override (V328) ===== */
+/* ===== end Performance vs Time graph override (V329) ===== */
 
 
-/* ===== E-mail Select wiring override (V328) ===== */
+/* ===== E-mail Select wiring override (V329) ===== */
 function openEmailSelectPage(){
   hideAllOverlays();
   const ov = $("emailOverlay");
@@ -4658,10 +4674,10 @@ window.addEventListener("load", ()=>{
   try{ wireEmailSelectControls(); }catch(err){}
  try{ wireEmailDraftAction(); }catch(err){}
 });
-/* ===== end E-mail Select wiring override (V328) ===== */
+/* ===== end E-mail Select wiring override (V329) ===== */
 
 
-/* ===== E-mail draft action override (V328) ===== */
+/* ===== E-mail draft action override (V329) ===== */
 function formatLastTrialLogText(last){
   if(!last || !Array.isArray(last.rtLog) || !last.rtLog.length) return "No trial detail log available.";
   const lines = last.rtLog.map(r=>{
@@ -4753,10 +4769,10 @@ window.addEventListener("load", ()=>{
   try{ wireEmailDraftAction(); }catch(err){}
   try{ syncEditableEmailRecipient(); }catch(err){}
 });
-/* ===== end E-mail draft action override (V328) ===== */
+/* ===== end E-mail draft action override (V329) ===== */
 
 
-/* ===== Editable recipient field override (V328) ===== */
+/* ===== Editable recipient field override (V329) ===== */
 function getEditableEmailRecipient(){
   const input = $("emailRecipientInput");
   const typed = input && input.value ? String(input.value).trim() : "";
@@ -4821,7 +4837,7 @@ function wireEmailDraftAction(){
   }
 }
 window.addEventListener("load", ()=>{ try{ syncEditableEmailRecipient(); }catch(err){}; });
-/* ===== end Editable recipient field override (V328) ===== */
+/* ===== end Editable recipient field override (V329) ===== */
 
 
 window.addEventListener("resize", ()=>{
