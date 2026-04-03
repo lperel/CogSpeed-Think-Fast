@@ -1,8 +1,8 @@
 // ═══════════════════════════════════════════════════
-// CogSpeed V317
+// CogSpeed V318
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V317";
+const APP_VERSION = "V318";
 const RELEASE = APP_VERSION.replace(/^V/i, "");
 const STORAGE_PREFIX = `cogspeed_v${RELEASE}`;
 
@@ -208,6 +208,7 @@ const state={
  activeMode:"mode1", selfPacedRTs:[], selfPacedCorrect:0, selfPacedWrong:0,
  fixedPacedBaseline:null, fixedPacedPresented:0, fixedPacedCorrect:0, fixedPacedWrong:0,
  trialOpenedAt:null, geo:null, benchmark:null, lastResultText:null,
+ sleepSinceLastTest:null,
  pendingPriorMiss:null, pendingLatePacing:null
  // pendingPriorMiss:
  //   stores the immediately previous paced frame when it LOOKED like a miss at frame end,
@@ -2419,7 +2420,7 @@ function resetProfile(){
 // _adminReturnTo: tracks which page opened admin so Close returns there.
 // ──────────────────────────────────────────────────────────────
 function hideAllOverlays(){
- ["subjectOverlay","profileOverlay","refresherOverlay","fatigueOverlay","tutorialOverlay","adminOverlay","resultsOverlay","summaryOverlay","rankedOverlay","trialLogOverlay","historyOverlay","rateRtOverlay","perfTimeOverlay","emailOverlay","thinkingOverlay","outcomeOverlay"].forEach(id=>{ const el=$(id); if(el) el.classList.add("hidden"); });
+ ["subjectOverlay","profileOverlay","refresherOverlay","sleepPromptOverlay","fatigueOverlay","tutorialOverlay","adminOverlay","resultsOverlay","summaryOverlay","rankedOverlay","trialLogOverlay","historyOverlay","rateRtOverlay","perfTimeOverlay","emailOverlay","thinkingOverlay","outcomeOverlay"].forEach(id=>{ const el=$(id); if(el) el.classList.add("hidden"); });
 }
 function showOnly(id){
  ["subjectOverlay","profileOverlay","refresherOverlay","fatigueOverlay","adminOverlay","resultsOverlay","summaryOverlay","rankedOverlay","trialLogOverlay","historyOverlay","rateRtOverlay","perfTimeOverlay","emailOverlay","tutorialOverlay"].forEach(oid=>{ const el=$(oid); if(el) el.classList[oid===id?"remove":"add"]("hidden"); });
@@ -2933,6 +2934,7 @@ function clearCurrentSession(){
  state.pacedRTs=[]; state.rtLog=[]; state.previousMissed=false; state.lastFrameDuration=null; state.presentedRoundDuration=null;
  state.activeMode=settings.testMode||"mode1"; state.selfPacedRTs=[]; state.selfPacedCorrect=0; state.selfPacedWrong=0;
  state.fixedPacedBaseline=null; state.fixedPacedPresented=0; state.fixedPacedCorrect=0; state.fixedPacedWrong=0;
+ state.sleepSinceLastTest=null;
  state.geo=null; state.benchmark=null; state.lastResultText=null;
  updateCPIDisplay(null); updateMetrics(); setProbeIdle(); setTestingQuiet(false);
 }
@@ -3615,7 +3617,7 @@ const TUT_STEPS = [
       <strong style="color:rgba(255,255,255,0.85)">Just respond as fast as you can.</strong>
      </div>
      <div style="margin-top:10px;padding:8px 12px;background:rgba(127,215,255,0.08);border:1px solid rgba(127,215,255,0.3);border-radius:10px;font-size:13px;color:rgba(200,230,255,0.85);line-height:1.5">
-      <span style="color:#7fd7ff;font-weight:700">Up next:</span> A quick fatigue rating question — then the test begins!
+      <span style="color:#7fd7ff;font-weight:700">Up next:</span> First answer the sleep question, then rate your fatigue (SP-FS), then the test begins!
      </div>
     </div>
    </div>`;
@@ -3684,6 +3686,14 @@ function tutSetStep(n){
 // Appears after Pattern Refresher, before SP-FS page.
 // Skip button on every step.
 // ──────────────────────────────────────────────────────────────
+
+function showSleepPrompt(){
+ const sb=$("fatigueStartBtn"); if(sb) sb.classList.add("hidden");
+ const fl=$("fatigueList");
+ if(fl) fl.querySelectorAll(".fatigue-item").forEach(el=>el.style.background="");
+ showOnly("sleepPromptOverlay");
+}
+
 function showTutorial(){
  tutFillPatterns();
  _tutStep = 0;
@@ -3695,19 +3705,15 @@ function tutNext(){
  if(_tutStep < 4){
   tutSetStep(_tutStep + 1);
  } else {
-  // Done — go to fatigue
+  // Done — go to sleep prompt
   $("tutorialOverlay").classList.add("hidden");
-  const sb=$("fatigueStartBtn"); if(sb) sb.classList.add("hidden");
-  $("fatigueList").querySelectorAll(".fatigue-item").forEach(el=>el.style.background="");
-  showOnly("fatigueOverlay");
+  showSleepPrompt();
  }
 }
 
 function tutSkip(){
  $("tutorialOverlay").classList.add("hidden");
- const sb=$("fatigueStartBtn"); if(sb) sb.classList.add("hidden");
- $("fatigueList").querySelectorAll(".fatigue-item").forEach(el=>el.style.background="");
- showOnly("fatigueOverlay");
+ showSleepPrompt();
 }
 
 // ─── Event wiring ───
@@ -3738,7 +3744,29 @@ $("skipRefresherBtn").onclick=()=>{
 $("refBackBtn").onclick=()=>goToStartPage();
  try{ updateStartPageLinks(); }catch(e){}
 
-$("fatigueBackBtn").onclick=()=>goToStartPage();
+$("fatigueBackBtn").onclick=()=>showOnly("sleepPromptOverlay");
+
+$("sleepPromptYesBtn").onclick=()=>{
+ state.sleepSinceLastTest="yes";
+ showOnly("fatigueOverlay");
+ setStatus("Sleep since last test: Yes");
+};
+$("sleepPromptNoBtn").onclick=()=>{
+ state.sleepSinceLastTest="no";
+ showOnly("fatigueOverlay");
+ setStatus("Sleep since last test: No");
+};
+$("sleepPromptSkipBtn").onclick=()=>{
+ state.sleepSinceLastTest=null;
+ showOnly("fatigueOverlay");
+ setStatus("Sleep since last test: skipped");
+};
+$("sleepPromptBackBtn").onclick=()=>{
+ showTutorial();
+ setStatus("Tutorial");
+};
+bindDoubleTapConfirm($("sleepPromptStartOverBtn"), ()=>startOverFlow(), "Reset", "Tap again to reset");
+
 
 bindDoubleTapConfirm($("refStartOverBtn"), ()=>startOverFlow(), "Reset", "Tap again to reset");
 bindDoubleTapConfirm($("fatigueStartOverBtn"), ()=>startOverFlow(), "Reset", "Tap again to reset");
@@ -4081,7 +4109,7 @@ const _ssp=$("speedStartPageBtn"); if(_ssp) _ssp.onclick=()=>{ hideAllOverlays()
 window.addEventListener("load",()=>{ try{ updateStartPageLinks(); }catch(e){}; });
 
 
-/* ===== Performance vs Time graph override (V317) ===== */
+/* ===== Performance vs Time graph override (V318) ===== */
 const perfGraphState = {
   preset: "last14",
   fromDate: "",
@@ -4485,10 +4513,10 @@ function openPerformanceOverTimePage(){
   wirePerfGraphControls();
   drawPerformanceOverTimeChart($("perfTimeGraph"), state.history||[]);
 }
-/* ===== end Performance vs Time graph override (V317) ===== */
+/* ===== end Performance vs Time graph override (V318) ===== */
 
 
-/* ===== E-mail Select wiring override (V317) ===== */
+/* ===== E-mail Select wiring override (V318) ===== */
 function openEmailSelectPage(){
   hideAllOverlays();
   const ov = $("emailOverlay");
@@ -4568,10 +4596,10 @@ window.addEventListener("load", ()=>{
   try{ wireEmailSelectControls(); }catch(err){}
  try{ wireEmailDraftAction(); }catch(err){}
 });
-/* ===== end E-mail Select wiring override (V317) ===== */
+/* ===== end E-mail Select wiring override (V318) ===== */
 
 
-/* ===== E-mail draft action override (V317) ===== */
+/* ===== E-mail draft action override (V318) ===== */
 function formatLastTrialLogText(last){
   if(!last || !Array.isArray(last.rtLog) || !last.rtLog.length) return "No trial detail log available.";
   const lines = last.rtLog.map(r=>{
@@ -4663,10 +4691,10 @@ window.addEventListener("load", ()=>{
   try{ wireEmailDraftAction(); }catch(err){}
   try{ syncEditableEmailRecipient(); }catch(err){}
 });
-/* ===== end E-mail draft action override (V317) ===== */
+/* ===== end E-mail draft action override (V318) ===== */
 
 
-/* ===== Editable recipient field override (V317) ===== */
+/* ===== Editable recipient field override (V318) ===== */
 function getEditableEmailRecipient(){
   const input = $("emailRecipientInput");
   const typed = input && input.value ? String(input.value).trim() : "";
@@ -4731,7 +4759,7 @@ function wireEmailDraftAction(){
   }
 }
 window.addEventListener("load", ()=>{ try{ syncEditableEmailRecipient(); }catch(err){}; });
-/* ===== end Editable recipient field override (V317) ===== */
+/* ===== end Editable recipient field override (V318) ===== */
 
 
 window.addEventListener("resize", ()=>{
