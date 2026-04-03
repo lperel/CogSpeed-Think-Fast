@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
   <meta name="theme-color" content="#0b1830"/>
   <link rel="manifest" href="manifest.json"/>
-  <title>CogSpeed® V317</title>
+  <title>CogSpeed® V319</title>
     <style>
 
     :root{--bg:#091426;--bg2:#132746;--panel:#0d1b33;--panel2:#10213e;--text:#f5fbff;--muted:#d7e7f8;--edge:#4f6f99;--accent:#7fd7ff;--probe:#00f0ff}
@@ -343,6 +343,13 @@
       z-index:1;
     }
 
+
+    .sleep-choice-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:10px}
+    .sleep-choice-btn.active,.sleep-quality-btn.active{background:rgba(0,180,255,0.22)!important;border-color:var(--accent)!important}
+    .sleep-quality-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:8px}
+    .sleep-helper{font-size:14px;color:var(--muted);text-align:center;margin-top:8px;min-height:20px}
+    .sleep-summary-line{font-size:16px;color:var(--text);text-align:center;margin-top:10px;font-weight:700}
+
 </style>
 
   
@@ -356,7 +363,7 @@
       <img src="CogSpeed.jpeg" alt="CogSpeed logo" style="width:min(78vw,420px);max-width:100%;height:auto;display:block;object-fit:contain;border:1px solid #2f5fb8;box-shadow:0 2px 16px rgba(0,0,0,.25)"/>
     </div>
     <div style="flex:1;display:flex;flex-direction:column;justify-content:flex-start;align-items:center;gap:clamp(6px,1.2dvh,14px);padding-top:10px">
-      <div style="text-align:center"><span class="badge" style="font-size:11px;padding:2px 10px" id="versionBadge">V317</span></div>
+      <div style="text-align:center"><span class="badge" style="font-size:11px;padding:2px 10px" id="versionBadge">V319</span></div>
       <div style="text-align:center">
         <span style="font-size:clamp(20px,3.6dvh,34px);font-weight:900;font-style:italic;letter-spacing:.12em;color:var(--accent);text-transform:uppercase;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;text-shadow:0 0 12px rgba(127,215,255,0.6)">Think Fast!</span>
       </div>
@@ -504,6 +511,81 @@
     </div>
   </div>
 </div>
+
+
+<!-- ═══ SLEEP PROMPT OVERLAY ═══ -->
+<div id="sleepPromptOverlay" class="overlay hidden" style="padding:0;align-items:stretch">
+  <div class="modal" style="max-width:100%;width:100%;border-radius:0;min-height:100dvh;display:flex;flex-direction:column;padding:20px 16px max(16px,env(safe-area-inset-bottom,16px))">
+    <div style="text-align:center;margin-bottom:10px">
+      <div style="font-size:clamp(22px,3.8dvh,30px);font-weight:900;color:var(--accent);letter-spacing:.03em;line-height:1.2">Sleep</div>
+      <div style="font-size:clamp(15px,2.2dvh,18px);font-weight:700;color:var(--muted);margin-top:4px">Since your last CogSpeed test</div>
+    </div>
+    <p style="font-size:clamp(16px,2.4dvh,20px);color:var(--text);text-align:center;margin-bottom:10px;font-weight:700">Did you sleep since your last test?</p>
+    <div class="sleep-choice-grid">
+      <button class="ctrl-btn sleep-choice-btn" id="sleepPromptYesBtn">Yes</button>
+      <button class="ctrl-btn sleep-choice-btn" id="sleepPromptNoBtn">No</button>
+      <button class="ctrl-btn sleep-choice-btn" id="sleepPromptSkipBtn">Skip</button>
+    </div>
+    <div style="margin-top:16px">
+      <label style="display:block;font-size:16px;color:var(--text);margin-bottom:8px;font-weight:700">About how long have you been awake before this test?</label>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <input id="sleepPromptAwakeHours" type="number" min="0" max="36" placeholder="Hours" style="width:100%;padding:16px;border:1px solid var(--edge);border-radius:14px;background:#0a1629;color:var(--text);font-size:20px;font-weight:600"/>
+        <input id="sleepPromptAwakeMinutes" type="number" min="0" max="59" placeholder="Minutes" style="width:100%;padding:16px;border:1px solid var(--edge);border-radius:14px;background:#0a1629;color:var(--text);font-size:20px;font-weight:600"/>
+      </div>
+      <div class="sleep-helper" id="sleepPromptAwakeHelper">Enter 0 hours / 0 minutes if unsure or just woke up.</div>
+    </div>
+    <div class="controls" style="margin-top:auto;gap:8px">
+      <button class="ctrl-btn" id="sleepPromptBackBtn" style="font-size:15px">Back</button>
+      <button class="ctrl-btn" id="sleepPromptStartOverBtn" style="font-size:15px">Reset</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ SLEEP LOGGER OVERLAY ═══ -->
+<div id="sleepOverlay" class="overlay hidden" style="padding:0;align-items:stretch">
+  <div class="modal" style="max-width:100%;width:100%;border-radius:0;min-height:100dvh;display:flex;flex-direction:column;padding:20px 16px max(16px,env(safe-area-inset-bottom,16px))">
+    <div style="text-align:center;margin-bottom:8px">
+      <div style="font-size:clamp(22px,3.8dvh,30px);font-weight:900;color:var(--accent);letter-spacing:.03em;line-height:1.2">Sleep Logger</div>
+      <div style="font-size:clamp(15px,2.2dvh,18px);font-weight:700;color:var(--muted);margin-top:4px">For this test session</div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:6px">
+      <div>
+        <label style="display:block;font-size:16px;color:var(--text);margin-bottom:8px;font-weight:700">Bedtime</label>
+        <input id="sleepBedtime" type="time" style="width:100%;padding:16px;border:1px solid var(--edge);border-radius:14px;background:#0a1629;color:var(--text);font-size:20px;font-weight:600"/>
+      </div>
+      <div>
+        <label style="display:block;font-size:16px;color:var(--text);margin-bottom:8px;font-weight:700">Wake time</label>
+        <input id="sleepWakeTime" type="time" style="width:100%;padding:16px;border:1px solid var(--edge);border-radius:14px;background:#0a1629;color:var(--text);font-size:20px;font-weight:600"/>
+      </div>
+    </div>
+    <div class="sleep-summary-line" id="sleepDurationText">Sleep duration: —</div>
+    <div class="sleep-helper" id="sleepWarningText"></div>
+
+    <div style="margin-top:14px">
+      <label style="display:block;font-size:16px;color:var(--text);margin-bottom:8px;font-weight:700">Sleep quality</label>
+      <div class="sleep-quality-grid">
+        <button class="ctrl-btn sleep-quality-btn" id="sleepQualityPoorBtn">Poor</button>
+        <button class="ctrl-btn sleep-quality-btn" id="sleepQualityOkayBtn">Okay</button>
+        <button class="ctrl-btn sleep-quality-btn" id="sleepQualityGreatBtn">Great</button>
+      </div>
+    </div>
+
+    <div style="margin-top:16px">
+      <label style="display:block;font-size:16px;color:var(--text);margin-bottom:8px;font-weight:700">About how long have you been awake before this test?</label>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <input id="sleepAwakeHours" type="number" min="0" max="36" placeholder="Hours" style="width:100%;padding:16px;border:1px solid var(--edge);border-radius:14px;background:#0a1629;color:var(--text);font-size:20px;font-weight:600"/>
+        <input id="sleepAwakeMinutes" type="number" min="0" max="59" placeholder="Minutes" style="width:100%;padding:16px;border:1px solid var(--edge);border-radius:14px;background:#0a1629;color:var(--text);font-size:20px;font-weight:600"/>
+      </div>
+    </div>
+
+    <div class="controls" style="margin-top:auto;gap:8px">
+      <button class="ctrl-btn" id="sleepBackBtn" style="font-size:15px">Back</button>
+      <button class="ctrl-btn" id="sleepStartOverBtn" style="font-size:15px">Reset</button>
+    </div>
+    <button class="ctrl-btn" id="sleepContinueBtn" style="width:100%;margin-top:10px;font-size:24px;font-weight:900;padding:18px;min-height:64px;border-radius:18px">Continue → SP-FS</button>
+  </div>
+</div>
+
 
 <!-- ═══ FATIGUE OVERLAY ═══ -->
 <div id="fatigueOverlay" class="overlay hidden" style="padding:0;align-items:stretch">
@@ -796,7 +878,7 @@
     <span id="fatigueOut">—</span>
     <span id="modeLabel">Subject mode</span>
     <span id="phaseLabel">Ready</span>
-    <span id="statusLine">CogSpeed V317</span>
+    <span id="statusLine">CogSpeed V319</span>
     <span id="rateOut">—</span>
     <span id="blocksOut">0</span>
     <span id="recoveryOut">0</span>
@@ -829,7 +911,7 @@
   <div class="resp-grid" id="respGrid"></div>
 </div>
 
-<script src="app.js?v=317"></script>
+<script src="app.js?v=319"></script>
 
 </body>
 </html>
