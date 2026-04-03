@@ -1,8 +1,8 @@
 // ═══════════════════════════════════════════════════
-// CogSpeed V321
+// CogSpeed V323
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V321";
+const APP_VERSION = "V323";
 const RELEASE = APP_VERSION.replace(/^V/i, "");
 const STORAGE_PREFIX = `cogspeed_v${RELEASE}`;
 
@@ -209,6 +209,7 @@ const state={
  fixedPacedBaseline:null, fixedPacedPresented:0, fixedPacedCorrect:0, fixedPacedWrong:0,
  trialOpenedAt:null, geo:null, benchmark:null, lastResultText:null,
  sleepSinceLastTest:null,
+ sleepLog:null,
  pendingPriorMiss:null, pendingLatePacing:null
  // pendingPriorMiss:
  //   stores the immediately previous paced frame when it LOOKED like a miss at frame end,
@@ -2423,7 +2424,7 @@ function hideAllOverlays(){
  ["subjectOverlay","profileOverlay","refresherOverlay","sleepPromptOverlay","fatigueOverlay","tutorialOverlay","adminOverlay","resultsOverlay","summaryOverlay","rankedOverlay","trialLogOverlay","historyOverlay","rateRtOverlay","perfTimeOverlay","emailOverlay","thinkingOverlay","outcomeOverlay"].forEach(id=>{ const el=$(id); if(el) el.classList.add("hidden"); });
 }
 function showOnly(id){
- ["subjectOverlay","profileOverlay","refresherOverlay","sleepPromptOverlay","fatigueOverlay","adminOverlay","resultsOverlay","summaryOverlay","rankedOverlay","trialLogOverlay","historyOverlay","rateRtOverlay","perfTimeOverlay","emailOverlay","tutorialOverlay","thinkingOverlay","outcomeOverlay"].forEach(oid=>{ const el=$(oid); if(el) el.classList[oid===id?"remove":"add"]("hidden"); });
+ ["subjectOverlay","profileOverlay","refresherOverlay","sleepPromptOverlay","sleepOverlay","fatigueOverlay","adminOverlay","resultsOverlay","summaryOverlay","rankedOverlay","trialLogOverlay","historyOverlay","rateRtOverlay","perfTimeOverlay","emailOverlay","tutorialOverlay","thinkingOverlay","outcomeOverlay"].forEach(oid=>{ const el=$(oid); if(el) el.classList[oid===id?"remove":"add"]("hidden"); });
 }
 
 // ─── START PAGE SPEEDOMETER LINK ─────────────────────────────
@@ -2935,6 +2936,7 @@ function clearCurrentSession(){
  state.activeMode=settings.testMode||"mode1"; state.selfPacedRTs=[]; state.selfPacedCorrect=0; state.selfPacedWrong=0;
  state.fixedPacedBaseline=null; state.fixedPacedPresented=0; state.fixedPacedCorrect=0; state.fixedPacedWrong=0;
  state.sleepSinceLastTest=null;
+ state.sleepLog=null;
  state.geo=null; state.benchmark=null; state.lastResultText=null;
  updateCPIDisplay(null); updateMetrics(); setProbeIdle(); setTestingQuiet(false);
 }
@@ -3687,6 +3689,73 @@ function tutSetStep(n){
 // Skip button on every step.
 // ──────────────────────────────────────────────────────────────
 
+
+function parseSleepTimeToMinutes(v){
+ if(!v || !/^\d{2}:\d{2}$/.test(v)) return null;
+ const [hh,mm]=v.split(":").map(Number);
+ if(!Number.isFinite(hh) || !Number.isFinite(mm)) return null;
+ return hh*60+mm;
+}
+function formatSleepDuration(mins){
+ if(mins==null || !Number.isFinite(mins)) return "—";
+ const h=Math.floor(mins/60), m=mins%60;
+ return `${h}h ${m}m`;
+}
+function computeSleepDurationMinutes(bed,wake){
+ const b=parseSleepTimeToMinutes(bed), w=parseSleepTimeToMinutes(wake);
+ if(b==null || w==null) return null;
+ let d = w - b;
+ if(d < 0) d += 24*60;
+ return d;
+}
+function updateSleepLoggerUI(){
+ const bed=$("sleepBedtimeInput")?.value || "";
+ const wake=$("sleepWakeInput")?.value || "";
+ const d=computeSleepDurationMinutes(bed,wake);
+ const box=$("sleepDurationBox");
+ const warn=$("sleepWarnBox");
+ if(box) box.textContent = `Sleep duration: ${formatSleepDuration(d)}`;
+ if(warn){
+  warn.style.display = (d!=null && (d < 30 || d > 16*60)) ? "block" : "none";
+ }
+}
+function setSleepQuality(score){
+ state.sleepLog = state.sleepLog || {};
+ state.sleepLog.qualityScore = score;
+ state.sleepLog.qualityLabel = score===1 ? "Poor" : score===2 ? "Okay" : score===3 ? "Good" : null;
+ const map = {1:$("sleepQualityPoorBtn"), 2:$("sleepQualityOkayBtn"), 3:$("sleepQualityGoodBtn")};
+ [1,2,3].forEach(k=>{
+  const btn=map[k];
+  if(!btn) return;
+  btn.style.background = k===score ? "#1a3366" : "";
+  btn.style.borderColor = k===score ? "var(--accent)" : "";
+ });
+}
+function showSleepLogger(){
+ updateSleepLoggerUI();
+ showOnly("sleepOverlay");
+}
+function continueFromSleepLogger(){
+ state.sleepSinceLastTest = "yes";
+ state.sleepLog = state.sleepLog || {};
+ const bed=$("sleepBedtimeInput")?.value || "";
+ const wake=$("sleepWakeInput")?.value || "";
+ const awakeH=Math.max(0, Number($("sleepAwakeHoursInput")?.value || 0) || 0);
+ const awakeM=Math.max(0, Number($("sleepAwakeMinutesInput")?.value || 0) || 0);
+ const duration=computeSleepDurationMinutes(bed,wake);
+ state.sleepLog.bedtime = bed || null;
+ state.sleepLog.wakeTime = wake || null;
+ state.sleepLog.durationMinutes = duration;
+ state.sleepLog.awakeHours = awakeH;
+ state.sleepLog.awakeMinutes = awakeM;
+ state.sleepLog.awakeTotalMinutes = awakeH*60 + awakeM;
+ if(state.sleepLog.qualityScore==null){
+  state.sleepLog.qualityScore = 2;
+  state.sleepLog.qualityLabel = "Okay";
+ }
+ showOnly("fatigueOverlay");
+}
+
 function showSleepPrompt(){
  const sb=$("fatigueStartBtn"); if(sb) sb.classList.add("hidden");
  const fl=$("fatigueList");
@@ -3743,11 +3812,11 @@ $("skipRefresherBtn").onclick=()=>{
 $("refBackBtn").onclick=()=>goToStartPage();
  try{ updateStartPageLinks(); }catch(e){}
 
-$("fatigueBackBtn").onclick=()=>showOnly("sleepPromptOverlay");
+$("fatigueBackBtn").onclick=()=>{ if(state.sleepSinceLastTest==="yes") showOnly("sleepOverlay"); else showOnly("sleepPromptOverlay"); };
 
 $("sleepPromptYesBtn").onclick=()=>{
  state.sleepSinceLastTest="yes";
- showOnly("fatigueOverlay");
+ showSleepLogger();
  setStatus("Sleep since last test: Yes");
 };
 $("sleepPromptNoBtn").onclick=()=>{
@@ -3760,6 +3829,17 @@ $("sleepPromptSkipBtn").onclick=()=>{
  showOnly("fatigueOverlay");
  setStatus("Sleep since last test: skipped");
 };
+
+$("sleepBedtimeInput").addEventListener("input", updateSleepLoggerUI);
+$("sleepWakeInput").addEventListener("input", updateSleepLoggerUI);
+$("sleepQualityPoorBtn").onclick=()=>setSleepQuality(1);
+$("sleepQualityOkayBtn").onclick=()=>setSleepQuality(2);
+$("sleepQualityGoodBtn").onclick=()=>setSleepQuality(3);
+$("sleepContinueBtn").onclick=()=>continueFromSleepLogger();
+$("sleepBackBtn").onclick=()=>showOnly("sleepPromptOverlay");
+bindDoubleTapConfirm($("sleepStartOverBtn"), ()=>startOverFlow(), "Reset", "Tap again to reset");
+$("sleepAwakeMinutesInput").addEventListener("keydown",(e)=>{ if(e.key==="Enter"){ e.preventDefault(); continueFromSleepLogger(); }});
+
 $("sleepPromptBackBtn").onclick=()=>{
  showTutorial();
  setStatus("Tutorial");
@@ -3767,7 +3847,7 @@ $("sleepPromptBackBtn").onclick=()=>{
 bindDoubleTapConfirm($("sleepPromptStartOverBtn"), ()=>startOverFlow(), "Reset", "Tap again to reset");
 
 
-bindDoubleTapConfirm($("refStartOverBtn"), ()=>startOverFlow(), "Reset", "Tap again to reset");
+bindDoubleTapConfirm($("refStartOverBtn"), ()=>{}, "Reset", "Tap again to reset");
 bindDoubleTapConfirm($("fatigueStartOverBtn"), ()=>startOverFlow(), "Reset", "Tap again to reset");
 
 
@@ -4108,7 +4188,7 @@ const _ssp=$("speedStartPageBtn"); if(_ssp) _ssp.onclick=()=>{ hideAllOverlays()
 window.addEventListener("load",()=>{ try{ updateStartPageLinks(); }catch(e){}; });
 
 
-/* ===== Performance vs Time graph override (V321) ===== */
+/* ===== Performance vs Time graph override (V323) ===== */
 const perfGraphState = {
   preset: "last14",
   fromDate: "",
@@ -4512,10 +4592,10 @@ function openPerformanceOverTimePage(){
   wirePerfGraphControls();
   drawPerformanceOverTimeChart($("perfTimeGraph"), state.history||[]);
 }
-/* ===== end Performance vs Time graph override (V321) ===== */
+/* ===== end Performance vs Time graph override (V323) ===== */
 
 
-/* ===== E-mail Select wiring override (V321) ===== */
+/* ===== E-mail Select wiring override (V323) ===== */
 function openEmailSelectPage(){
   hideAllOverlays();
   const ov = $("emailOverlay");
@@ -4595,10 +4675,10 @@ window.addEventListener("load", ()=>{
   try{ wireEmailSelectControls(); }catch(err){}
  try{ wireEmailDraftAction(); }catch(err){}
 });
-/* ===== end E-mail Select wiring override (V321) ===== */
+/* ===== end E-mail Select wiring override (V323) ===== */
 
 
-/* ===== E-mail draft action override (V321) ===== */
+/* ===== E-mail draft action override (V323) ===== */
 function formatLastTrialLogText(last){
   if(!last || !Array.isArray(last.rtLog) || !last.rtLog.length) return "No trial detail log available.";
   const lines = last.rtLog.map(r=>{
@@ -4690,10 +4770,10 @@ window.addEventListener("load", ()=>{
   try{ wireEmailDraftAction(); }catch(err){}
   try{ syncEditableEmailRecipient(); }catch(err){}
 });
-/* ===== end E-mail draft action override (V321) ===== */
+/* ===== end E-mail draft action override (V323) ===== */
 
 
-/* ===== Editable recipient field override (V321) ===== */
+/* ===== Editable recipient field override (V323) ===== */
 function getEditableEmailRecipient(){
   const input = $("emailRecipientInput");
   const typed = input && input.value ? String(input.value).trim() : "";
@@ -4758,7 +4838,7 @@ function wireEmailDraftAction(){
   }
 }
 window.addEventListener("load", ()=>{ try{ syncEditableEmailRecipient(); }catch(err){}; });
-/* ===== end Editable recipient field override (V321) ===== */
+/* ===== end Editable recipient field override (V323) ===== */
 
 
 window.addEventListener("resize", ()=>{
@@ -4767,3 +4847,5 @@ window.addEventListener("resize", ()=>{
   try{ renderSpfGaugeForResult(last); }catch(e){}
  }
 });
+
+$("refSleepBtn").onclick=()=>showSleepPrompt();
