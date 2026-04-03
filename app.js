@@ -1,8 +1,8 @@
 // ═══════════════════════════════════════════════════
-// CogSpeed V331
+// CogSpeed V333
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V331";
+const APP_VERSION = "V333";
 const RELEASE = APP_VERSION.replace(/^V/i, "");
 const STORAGE_PREFIX = `cogspeed_v${RELEASE}`;
 
@@ -2962,14 +2962,16 @@ function showResultsPage(){
 
 // ─── Session control ───
 // ─── SESSION STATE MANAGEMENT ─────────────────────────────────
-// clearCurrentSession(): resets all trial/block/calibration state
-//  while preserving subjectId and samnPerelli for retests.
-// saveSettings() / loadSettings(): persist to localStorage.
+// resetTrialStateOnly(): resets active trial / block / result state only.
+// resetPretestEntryState(): resets sleep + SP-FS entry state for a new pretest path.
+// resetSubjectSessionState(): full reset for Start Over while preserving saved profile storage.
+// clearCurrentSession(): compatibility alias that now maps to resetSubjectSessionState().
 // ──────────────────────────────────────────────────────────────
-function clearCurrentSession(){
+function resetTrialStateOnly(){
  clearTimer(); clearNoResponseTimer(); clearMaxTestTimer();
  state.phase="idle"; state.duration=null; state.blockDuration=null;
  state.current=null; state.previous=null; state.unresolvedStreak=0;
+ state.pendingPriorMiss=null; state.pendingLatePacing=null;
  state.overloads=[]; state.recoveries=[]; state.recoveryCorrectCompleted=0;
  state.spCorrectStreak=0; state.spWrongCount=0; state.terminalBlockReason=null;
  state.totalTrials=0; state.endReason=""; state.totalResponses=0; state.pacedErrors=0; state.recoveryErrors=0;
@@ -2979,17 +2981,52 @@ function clearCurrentSession(){
  state.pacedRTs=[]; state.rtLog=[]; state.previousMissed=false; state.lastFrameDuration=null; state.presentedRoundDuration=null;
  state.activeMode=settings.testMode||"mode1"; state.selfPacedRTs=[]; state.selfPacedCorrect=0; state.selfPacedWrong=0;
  state.fixedPacedBaseline=null; state.fixedPacedPresented=0; state.fixedPacedCorrect=0; state.fixedPacedWrong=0;
- state.sleepSinceLastTest=null;
- state.sleepLog=null;
  state.geo=null; state.benchmark=null; state.lastResultText=null;
  updateCPIDisplay(null); updateMetrics(); setProbeIdle(); setTestingQuiet(false);
 }
+
+function resetFatigueSelectionUI(){
+ const sb=$("fatigueStartBtn"); if(sb) sb.classList.add("hidden");
+ const fl=$("fatigueList");
+ if(fl) fl.querySelectorAll(".fatigue-item").forEach(el=>el.style.background="");
+}
+
+function resetSleepLoggerUI(){
+ const bed=$("sleepBedtimeInput"); if(bed) bed.value="";
+ const wake=$("sleepWakeInput"); if(wake) wake.value="";
+ const duration=$("sleepDurationBox"); if(duration) duration.textContent="Sleep duration: —";
+ const warn=$("sleepWarnBox"); if(warn) warn.style.display="none";
+ ["sleepQualityPoorBtn","sleepQualityOkayBtn","sleepQualityGoodBtn"].forEach(id=>{
+  const btn=$(id);
+  if(btn){ btn.style.background=""; btn.style.borderColor=""; }
+ });
+}
+
+function resetPretestEntryState(){
+ state.samnPerelli=null;
+ state.sleepSinceLastTest=null;
+ state.sleepLog=null;
+ resetFatigueSelectionUI();
+ resetSleepLoggerUI();
+ const fo=$("fatigueOut"); if(fo) fo.textContent="—";
+}
+
+function resetSubjectSessionState(){
+ resetTrialStateOnly();
+ resetPretestEntryState();
+ state.subjectId=null;
+}
+
+function clearCurrentSession(){
+ resetSubjectSessionState();
+}
 // ─── PAGE NAVIGATION ──────────────────────────────────────────
-// goToStartPage(): returns to subject ID entry, clears test state.
-// startOverFlow(): full reset including subject ID and SP-FS.
+// goToStartPage(): returns to subject ID entry, clears current trial + pretest state.
+// startOverFlow(): full reset including subject ID, sleep path, and SP-FS.
 // ──────────────────────────────────────────────────────────────
 function goToStartPage(){
- clearCurrentSession();
+ resetTrialStateOnly();
+ resetPretestEntryState();
  ["thinkingOverlay","outcomeOverlay","testScreen"].forEach(id=>{ const el=$(id); if(el) el.classList.add("hidden"); });
  const curtain=$("curtain"); if(curtain) curtain.classList.remove("open");
  probeCell.classList.remove("gspin-f","gspin-r","gidle-f","gidle-r");
@@ -2998,7 +3035,7 @@ function goToStartPage(){
  restoreSubjectFromProfile();
 }
 function startOverFlow(){
- clearCurrentSession(); state.subjectId=null; state.samnPerelli=null;
+ resetSubjectSessionState();
  fatigueOut.textContent="—"; $("subjectIdInput").value="";
  _adminUnlocked=false;
  // Full reset: clear welcome-back display but preserve saved profile in localStorage
@@ -3083,10 +3120,10 @@ function runGearSpinThenStart(callback) {
 function startTest(){
  if(!state.subjectId){ showOnly("subjectOverlay"); setStatus("Enter Subject ID first"); return; }
  if(!state.samnPerelli){ showOnly("fatigueOverlay"); setStatus("Select fatigue rating first"); return; }
- const sid=state.subjectId, spf=state.samnPerelli, mode=settings.testMode||"mode1";
- clearCurrentSession();
- state.subjectId=sid; state.samnPerelli=spf; state.activeMode=mode;
- const fo=$("fatigueOut"); if(fo) fo.textContent=String(spf.score);
+ const mode=settings.testMode||"mode1";
+ resetTrialStateOnly();
+ state.activeMode=mode;
+ const fo=$("fatigueOut"); if(fo) fo.textContent=String(state.samnPerelli.score);
  hideAllOverlays();
  setTestingQuiet(true);
  captureGeo();
@@ -3840,13 +3877,17 @@ function continueFromSleepLogger(){
   state.sleepLog.qualityScore = 2;
   state.sleepLog.qualityLabel = "Okay";
  }
+ showFatigueOverlay();
+}
+
+function showFatigueOverlay(){
+ state.samnPerelli=null;
+ resetFatigueSelectionUI();
  showOnly("fatigueOverlay");
 }
 
 function showSleepPrompt(){
- const sb=$("fatigueStartBtn"); if(sb) sb.classList.add("hidden");
- const fl=$("fatigueList");
- if(fl) fl.querySelectorAll(".fatigue-item").forEach(el=>el.style.background="");
+ resetPretestEntryState();
  showOnly("sleepPromptOverlay");
 }
 
@@ -3902,13 +3943,13 @@ $("refBackBtn").onclick=()=>goToStartPage();
 $("fatigueBackBtn").onclick=()=>{ if(state.sleepSinceLastTest==="yes") showOnly("sleepOverlay"); else showOnly("sleepPromptOverlay"); };
 
 $("sleepPromptYesBtn").onclick=()=>{
- state.sleepSinceLastTest="yes";
  showSleepLogger();
  setStatus("Sleep since last test: Yes");
 };
 $("sleepPromptNoBtn").onclick=()=>{
  state.sleepSinceLastTest="no";
- showOnly("fatigueOverlay");
+ state.sleepLog=null;
+ showFatigueOverlay();
  setStatus("Sleep since last test: No");
 };
 
@@ -4263,7 +4304,7 @@ const _ssp=$("speedStartPageBtn"); if(_ssp) _ssp.onclick=()=>{ hideAllOverlays()
 window.addEventListener("load",()=>{ try{ updateStartPageLinks(); }catch(e){}; });
 
 
-/* ===== Performance vs Time graph override (V331) ===== */
+/* ===== Performance vs Time graph override (V333) ===== */
 const perfGraphState = {
   preset: "last14",
   fromDate: "",
@@ -4667,10 +4708,10 @@ function openPerformanceOverTimePage(){
   wirePerfGraphControls();
   drawPerformanceOverTimeChart($("perfTimeGraph"), state.history||[]);
 }
-/* ===== end Performance vs Time graph override (V331) ===== */
+/* ===== end Performance vs Time graph override (V333) ===== */
 
 
-/* ===== E-mail Select wiring override (V331) ===== */
+/* ===== E-mail Select wiring override (V333) ===== */
 function openEmailSelectPage(){
   hideAllOverlays();
   const ov = $("emailOverlay");
@@ -4750,10 +4791,10 @@ window.addEventListener("load", ()=>{
   try{ wireEmailSelectControls(); }catch(err){}
  try{ wireEmailDraftAction(); }catch(err){}
 });
-/* ===== end E-mail Select wiring override (V331) ===== */
+/* ===== end E-mail Select wiring override (V333) ===== */
 
 
-/* ===== E-mail draft action override (V331) ===== */
+/* ===== E-mail draft action override (V333) ===== */
 function formatLastTrialLogText(last){
   if(!last || !Array.isArray(last.rtLog) || !last.rtLog.length) return "No trial detail log available.";
   const lines = last.rtLog.map(r=>{
@@ -4845,10 +4886,10 @@ window.addEventListener("load", ()=>{
   try{ wireEmailDraftAction(); }catch(err){}
   try{ syncEditableEmailRecipient(); }catch(err){}
 });
-/* ===== end E-mail draft action override (V331) ===== */
+/* ===== end E-mail draft action override (V333) ===== */
 
 
-/* ===== Editable recipient field override (V331) ===== */
+/* ===== Editable recipient field override (V333) ===== */
 function getEditableEmailRecipient(){
   const input = $("emailRecipientInput");
   const typed = input && input.value ? String(input.value).trim() : "";
@@ -4913,7 +4954,7 @@ function wireEmailDraftAction(){
   }
 }
 window.addEventListener("load", ()=>{ try{ syncEditableEmailRecipient(); }catch(err){}; });
-/* ===== end Editable recipient field override (V331) ===== */
+/* ===== end Editable recipient field override (V333) ===== */
 
 
 window.addEventListener("resize", ()=>{
