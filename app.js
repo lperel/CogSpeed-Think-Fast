@@ -1,8 +1,8 @@
 // ═══════════════════════════════════════════════════
-// CogSpeed V315
+// CogSpeed V316
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V315";
+const APP_VERSION = "V316";
 const RELEASE = APP_VERSION.replace(/^V/i, "");
 const STORAGE_PREFIX = `cogspeed_v${RELEASE}`;
 
@@ -273,7 +273,14 @@ function updateCPIDisplay(avg){
  }
 
 // ─── Timers ───
-function clearTimer(){ if(state.trialTimer) clearTimeout(state.trialTimer); state.trialTimer=null; }
+function clearTimer(){
+ if(state.trialTimer){
+  if(state._trialTimerIsRaf) cancelAnimationFrame(state.trialTimer);
+  else clearTimeout(state.trialTimer);
+ }
+ state.trialTimer=null;
+ state._trialTimerIsRaf=false;
+}
 function clearNoResponseTimer(){ if(state.absoluteNoResponseTimer) clearTimeout(state.absoluteNoResponseTimer); state.absoluteNoResponseTimer=null; }
 function clearMaxTestTimer(){ if(state.maxTestTimer) clearTimeout(state.maxTestTimer); state.maxTestTimer=null; }
 // Absolute "not responding" timer — keeps tests from hanging forever.
@@ -1023,10 +1030,18 @@ function openTrial(kind){
 
    if(kind==="calibration"){
     armNoResponseTimer();
-   }else if(kind==="paced"){
-    state.trialTimer=setTimeout(onPacedFrameEnd,state.duration);
-   }else if(kind==="paced_fixed"){
-    state.trialTimer=setTimeout(onPacedFrameEnd,state.duration);
+   }else if(kind==="paced" || kind==="paced_fixed"){
+    const targetMs = state.duration;
+    const frameStart = state.trialOpenedAt;
+    function checkFrame(){
+     if(performance.now() - frameStart >= targetMs){
+      onPacedFrameEnd();
+      return;
+     }
+     state.trialTimer = requestAnimationFrame(checkFrame);
+    }
+    state._trialTimerIsRaf = true;
+    state.trialTimer = requestAnimationFrame(checkFrame);
    }else if(kind==="recovery" || kind==="terminal_recovery"){
     armNoResponseTimer();
    }
@@ -4054,7 +4069,7 @@ const _ssp=$("speedStartPageBtn"); if(_ssp) _ssp.onclick=()=>{ hideAllOverlays()
 window.addEventListener("load",()=>{ try{ updateStartPageLinks(); }catch(e){}; });
 
 
-/* ===== Performance vs Time graph override (V315) ===== */
+/* ===== Performance vs Time graph override (V316) ===== */
 const perfGraphState = {
   preset: "last14",
   fromDate: "",
@@ -4458,10 +4473,10 @@ function openPerformanceOverTimePage(){
   wirePerfGraphControls();
   drawPerformanceOverTimeChart($("perfTimeGraph"), state.history||[]);
 }
-/* ===== end Performance vs Time graph override (V315) ===== */
+/* ===== end Performance vs Time graph override (V316) ===== */
 
 
-/* ===== E-mail Select wiring override (V315) ===== */
+/* ===== E-mail Select wiring override (V316) ===== */
 function openEmailSelectPage(){
   hideAllOverlays();
   const ov = $("emailOverlay");
@@ -4541,10 +4556,10 @@ window.addEventListener("load", ()=>{
   try{ wireEmailSelectControls(); }catch(err){}
  try{ wireEmailDraftAction(); }catch(err){}
 });
-/* ===== end E-mail Select wiring override (V315) ===== */
+/* ===== end E-mail Select wiring override (V316) ===== */
 
 
-/* ===== E-mail draft action override (V315) ===== */
+/* ===== E-mail draft action override (V316) ===== */
 function formatLastTrialLogText(last){
   if(!last || !Array.isArray(last.rtLog) || !last.rtLog.length) return "No trial detail log available.";
   const lines = last.rtLog.map(r=>{
@@ -4636,10 +4651,10 @@ window.addEventListener("load", ()=>{
   try{ wireEmailDraftAction(); }catch(err){}
   try{ syncEditableEmailRecipient(); }catch(err){}
 });
-/* ===== end E-mail draft action override (V315) ===== */
+/* ===== end E-mail draft action override (V316) ===== */
 
 
-/* ===== Editable recipient field override (V315) ===== */
+/* ===== Editable recipient field override (V316) ===== */
 function getEditableEmailRecipient(){
   const input = $("emailRecipientInput");
   const typed = input && input.value ? String(input.value).trim() : "";
@@ -4704,7 +4719,7 @@ function wireEmailDraftAction(){
   }
 }
 window.addEventListener("load", ()=>{ try{ syncEditableEmailRecipient(); }catch(err){}; });
-/* ===== end Editable recipient field override (V315) ===== */
+/* ===== end Editable recipient field override (V316) ===== */
 
 
 window.addEventListener("resize", ()=>{
