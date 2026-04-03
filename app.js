@@ -1,8 +1,8 @@
 // ═══════════════════════════════════════════════════
-// CogSpeed V325
+// CogSpeed V317
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V325";
+const APP_VERSION = "V317";
 const RELEASE = APP_VERSION.replace(/^V/i, "");
 const STORAGE_PREFIX = `cogspeed_v${RELEASE}`;
 
@@ -208,7 +208,6 @@ const state={
  activeMode:"mode1", selfPacedRTs:[], selfPacedCorrect:0, selfPacedWrong:0,
  fixedPacedBaseline:null, fixedPacedPresented:0, fixedPacedCorrect:0, fixedPacedWrong:0,
  trialOpenedAt:null, geo:null, benchmark:null, lastResultText:null,
- sleepLog:null,
  pendingPriorMiss:null, pendingLatePacing:null
  // pendingPriorMiss:
  //   stores the immediately previous paced frame when it LOOKED like a miss at frame end,
@@ -935,7 +934,6 @@ const modeMetricMs = isMode2() ? (state.selfPacedRTs.length?mean(state.selfPaced
   subjectId:subjectKey(state.subjectId||"0"),
   profile:state.profile?{gender:state.profile.gender,age:computeAge(state.profile.birthMonth,state.profile.birthYear),emailResults:state.profile.emailResults}:null,
   samnPerelli:state.samnPerelli,
-  sleepLog: state.sleepLog ? JSON.parse(JSON.stringify(state.sleepLog)) : null,
   calibrationAverageMs:state.calibrationRTs.length?mean(state.calibrationRTs):null,
   blocks:[...state.overloads], blockCount:state.overloads.length,
   averageLast2BlockingScoresMs:modeMetricMs, blockScoreDifferenceMs:blockDiff,
@@ -1469,143 +1467,6 @@ function renderRefresher(){
 // Subject taps one item → reveals "▶ Start Test!" button.
 // Title: Samn-Perelli Fatigue Scale (SP-FS).
 // ──────────────────────────────────────────────────────────────
-
-function sanitizeSleepAwake(hoursVal, minsVal){
- let h = Number(hoursVal);
- let m = Number(minsVal);
- if(!Number.isFinite(h) || h < 0) h = 0;
- if(!Number.isFinite(m) || m < 0) m = 0;
- h = Math.min(36, Math.floor(h));
- m = Math.min(59, Math.floor(m));
- return {hours:h, minutes:m, totalMinutes:h*60+m};
-}
-function parseClockToMinutes(s){
- if(!s || !/^\d{2}:\d{2}$/.test(s)) return null;
- const [hh, mm] = s.split(":").map(Number);
- if(!Number.isFinite(hh) || !Number.isFinite(mm)) return null;
- return hh*60 + mm;
-}
-function formatMinutesHM(mins){
- if(mins==null || !Number.isFinite(mins)) return "—";
- const h = Math.floor(mins/60), m = mins%60;
- return `${h}h ${m}m`;
-}
-function computeSleepDurationMinutes(bed, wake){
- const b = parseClockToMinutes(bed), w = parseClockToMinutes(wake);
- if(b==null || w==null) return null;
- let d = w - b;
- if(d < 0) d += 24*60;
- return d;
-}
-function updateSleepDurationUI(){
- const bed = $("sleepBedtime")?.value || "";
- const wake = $("sleepWakeTime")?.value || "";
- const mins = computeSleepDurationMinutes(bed, wake);
- const out = $("sleepDurationText");
- const warn = $("sleepWarningText");
- if(out) out.textContent = `Sleep duration: ${mins==null ? "—" : formatMinutesHM(mins)}`;
- if(warn){
-  if(mins!=null && (mins < 30 || mins > 16*60)){
-   warn.textContent = "Warning: that sleep duration is unusual, but testing is still allowed.";
-  }else{
-   warn.textContent = "";
-  }
- }
- return mins;
-}
-function setSleepChoice(choice){
- ["sleepPromptYesBtn","sleepPromptNoBtn","sleepPromptSkipBtn"].forEach(id=>{
-  const el = $(id); if(el) el.classList.toggle("active", id===choice);
- });
-}
-function setSleepQuality(score){
- const map = {1:"sleepQualityPoorBtn",2:"sleepQualityOkayBtn",3:"sleepQualityGreatBtn"};
- ["sleepQualityPoorBtn","sleepQualityOkayBtn","sleepQualityGreatBtn"].forEach(id=>{
-  const el = $(id); if(el) el.classList.toggle("active", id===map[score]);
- });
- const label = score===1 ? "Poor" : score===2 ? "Okay" : score===3 ? "Good" : null;
- if(!state.sleepLog) state.sleepLog = {};
- state.sleepLog.sleepQualityScore = score||null;
- state.sleepLog.sleepQualityLabel = label;
-}
-function resetSleepFlow(){
- ["sleepBedtime","sleepWakeTime","sleepAwakeHours","sleepAwakeMinutes","sleepPromptAwakeHours","sleepPromptAwakeMinutes"].forEach(id=>{
-  const el=$(id); if(el) el.value="";
- });
- ["sleepPromptYesBtn","sleepPromptNoBtn","sleepPromptSkipBtn","sleepQualityPoorBtn","sleepQualityOkayBtn","sleepQualityGreatBtn"].forEach(id=>{
-  const el=$(id); if(el) el.classList.remove("active");
- });
- const dt=$("sleepDurationText"); if(dt) dt.textContent="Sleep duration: —";
- const warn=$("sleepWarningText"); if(warn) warn.textContent="";
- state.sleepLog = null;
-}
-function continueFromSleepPrompt(choice){
- const awake = sanitizeSleepAwake($("sleepPromptAwakeHours")?.value, $("sleepPromptAwakeMinutes")?.value);
- state.sleepLog = {
-  sleptSinceLastTest: choice,
-  awakeHours: awake.hours,
-  awakeMinutes: awake.minutes,
-  awakeTotalMinutes: awake.totalMinutes,
-  bedtime: null,
-  wakeTime: null,
-  sleepDurationMinutes: null,
-  sleepQualityScore: null,
-  sleepQualityLabel: null
- };
- if(choice==="yes"){
-  const ah=$("sleepAwakeHours"), am=$("sleepAwakeMinutes");
-  if(ah) ah.value = String(awake.hours);
-  if(am) am.value = String(awake.minutes);
-  showOnly("sleepOverlay");
-  setStatus("Log sleep");
- }else{
-  const sb=$("fatigueStartBtn"); if(sb) sb.classList.add("hidden");
-  $("fatigueList").querySelectorAll(".fatigue-item").forEach(el=>el.style.background="");
-  state.samnPerelli = null;
-  showOnly("fatigueOverlay");
-  setStatus("SP-FS");
- }
-}
-function continueFromSleepLogger(){
- if(!state.sleepLog) state.sleepLog = {};
- const bed = $("sleepBedtime")?.value || "";
- const wake = $("sleepWakeTime")?.value || "";
- const mins = updateSleepDurationUI();
- const qualityScore = state.sleepLog.sleepQualityScore || null;
- if(!bed || !wake || !qualityScore){
-  setStatus("Enter bedtime, wake time, and sleep quality"); return;
- }
- const awake = sanitizeSleepAwake($("sleepAwakeHours")?.value, $("sleepAwakeMinutes")?.value);
- Object.assign(state.sleepLog, {
-  sleptSinceLastTest:"yes",
-  bedtime: bed,
-  wakeTime: wake,
-  sleepDurationMinutes: mins,
-  awakeHours: awake.hours,
-  awakeMinutes: awake.minutes,
-  awakeTotalMinutes: awake.totalMinutes
- });
- const sb=$("fatigueStartBtn"); if(sb) sb.classList.add("hidden");
- $("fatigueList").querySelectorAll(".fatigue-item").forEach(el=>el.style.background="");
- state.samnPerelli = null;
- showOnly("fatigueOverlay");
- setStatus("SP-FS");
-}
-function formatSleepSummary(log){
- if(!log || !log.sleptSinceLastTest) return "SLEEP: not recorded";
- const awake = log.awakeTotalMinutes!=null ? formatMinutesHM(log.awakeTotalMinutes) : "—";
- if(log.sleptSinceLastTest==="yes"){
-  const dur = formatMinutesHM(log.sleepDurationMinutes);
-  const qLabel = log.sleepQualityLabel || "—";
-  const qScore = log.sleepQualityScore!=null ? `${log.sleepQualityScore}/3` : "—";
-  return `SLEEP: Yes · Bed ${log.bedtime||"—"} → Wake ${log.wakeTime||"—"} (${dur}) · Quality: ${qLabel} (${qScore}) · Awake before test: ${awake}`;
- }
- if(log.sleptSinceLastTest==="no"){
-  return `SLEEP: No sleep since last test · Awake before test: ${awake}`;
- }
- return `SLEEP: Skipped · Awake before test: ${awake}`;
-}
-
 function renderFatigueChecklist(){
  const f=$("fatigueList"); f.innerHTML="";
  f.style.cssText="display:flex;flex-direction:column;gap:8px;flex:1";
@@ -2289,7 +2150,7 @@ function formatModePooledRankSection(mode){
 
 function exportCSV(){
  const h=state.history; if(!h.length){setStatus("No history to export."); return;}
- const cols=["session","subjectId","date","samnPerelli","sleepSummary","sleptSinceLastTest","sleepBed","sleepWake","sleepDurationMin","sleepQuality","sleepQualityScore","awakeMin","calibAvgMs","blocks",
+ const cols=["session","subjectId","date","samnPerelli","calibAvgMs","blocks",
   "avgLast2Ms","blockDiffMs","cpi","totalTaps","correct","wrong","missed",
   "pacedCorrect","pacedWrong","spRestartWrong","meanPacedRtMs","pacedRtSd",
   "testDurationMs","endReason","location"];
@@ -2298,14 +2159,6 @@ function exportCSV(){
   r.subjectId||"",
   r.time?new Date(r.time).toLocaleString():"",
   r.samnPerelli?`${r.samnPerelli.score} - ${r.samnPerelli.label}`:"",
-  formatSleepSummary(r.sleepLog||null),
-  (r.sleepLog&&r.sleepLog.sleptSinceLastTest)||"",
-  (r.sleepLog&&r.sleepLog.bedtime)||"",
-  (r.sleepLog&&r.sleepLog.wakeTime)||"",
-  (r.sleepLog&&r.sleepLog.sleepDurationMinutes!=null)?r.sleepLog.sleepDurationMinutes:"",
-  (r.sleepLog&&r.sleepLog.sleepQualityLabel)||"",
-  (r.sleepLog&&r.sleepLog.sleepQualityScore!=null)?r.sleepLog.sleepQualityScore:"",
-  (r.sleepLog&&r.sleepLog.awakeTotalMinutes!=null)?r.sleepLog.awakeTotalMinutes:"",
   r.calibrationAverageMs!=null?r.calibrationAverageMs.toFixed(1):"",
   (r.blocks||[]).join("|"),
   r.averageLast2BlockingScoresMs!=null?r.averageLast2BlockingScoresMs.toFixed(1):"",
@@ -2566,10 +2419,10 @@ function resetProfile(){
 // _adminReturnTo: tracks which page opened admin so Close returns there.
 // ──────────────────────────────────────────────────────────────
 function hideAllOverlays(){
- ["subjectOverlay","profileOverlay","refresherOverlay","sleepPromptOverlay","sleepOverlay","fatigueOverlay","tutorialOverlay","adminOverlay","resultsOverlay","summaryOverlay","rankedOverlay","trialLogOverlay","historyOverlay","rateRtOverlay","perfTimeOverlay","emailOverlay","thinkingOverlay","outcomeOverlay"].forEach(id=>{ const el=$(id); if(el) el.classList.add("hidden"); });
+ ["subjectOverlay","profileOverlay","refresherOverlay","fatigueOverlay","tutorialOverlay","adminOverlay","resultsOverlay","summaryOverlay","rankedOverlay","trialLogOverlay","historyOverlay","rateRtOverlay","perfTimeOverlay","emailOverlay","thinkingOverlay","outcomeOverlay"].forEach(id=>{ const el=$(id); if(el) el.classList.add("hidden"); });
 }
 function showOnly(id){
- ["subjectOverlay","profileOverlay","refresherOverlay","sleepPromptOverlay","sleepOverlay","fatigueOverlay","adminOverlay","resultsOverlay","summaryOverlay","rankedOverlay","trialLogOverlay","historyOverlay","rateRtOverlay","perfTimeOverlay","emailOverlay","tutorialOverlay"].forEach(oid=>{ const el=$(oid); if(el) el.classList[oid===id?"remove":"add"]("hidden"); });
+ ["subjectOverlay","profileOverlay","refresherOverlay","fatigueOverlay","adminOverlay","resultsOverlay","summaryOverlay","rankedOverlay","trialLogOverlay","historyOverlay","rateRtOverlay","perfTimeOverlay","emailOverlay","tutorialOverlay"].forEach(oid=>{ const el=$(oid); if(el) el.classList[oid===id?"remove":"add"]("hidden"); });
 }
 
 // ─── START PAGE SPEEDOMETER LINK ─────────────────────────────
@@ -2697,7 +2550,6 @@ function buildSummary(result){
  const el=$("summaryText"); if(!el) return;
  const hr="─────────────────────────";
  const spf=result.samnPerelli?`${result.samnPerelli.score} (${result.samnPerelli.label})`:"not recorded";
- const sleepStr=formatSleepSummary(result.sleepLog);
  let geoStr="unavailable";
  if(result.geo){
   geoStr=result.geo.status==="ok"
@@ -2716,8 +2568,6 @@ Location:   ${geoStr}
 ${hr}
 FATIGUE (S-PF)
  Pre-test rating: ${spf}
-${hr}
-${sleepStr}
 ${hr}
 SELF-PACED CALIBRATION (SPC)
  Total self-paced responses: ${result.selfPacedResponseCount}
@@ -2749,8 +2599,6 @@ Location:   ${geoStr}
 ${hr}
 FATIGUE (S-PF)
  Pre-test rating: ${spf}
-${hr}
-${sleepStr}
 ${hr}
 SELF-PACED CALIBRATION
  Total self-paced responses: ${result.selfPacedResponseCount}
@@ -2794,8 +2642,6 @@ Location:   ${geoStr}
 ${hr}
 FATIGUE (S-PF)
  Pre-test rating: ${spf}
-${hr}
-${sleepStr}
 ${hr}
 CALIBRATION
  Average RT: ${result.calibrationAverageMs!=null?result.calibrationAverageMs.toFixed(1)+" ms":"—"}
@@ -3087,7 +2933,7 @@ function clearCurrentSession(){
  state.pacedRTs=[]; state.rtLog=[]; state.previousMissed=false; state.lastFrameDuration=null; state.presentedRoundDuration=null;
  state.activeMode=settings.testMode||"mode1"; state.selfPacedRTs=[]; state.selfPacedCorrect=0; state.selfPacedWrong=0;
  state.fixedPacedBaseline=null; state.fixedPacedPresented=0; state.fixedPacedCorrect=0; state.fixedPacedWrong=0;
- state.geo=null; state.benchmark=null; state.lastResultText=null; state.sleepLog=null;
+ state.geo=null; state.benchmark=null; state.lastResultText=null;
  updateCPIDisplay(null); updateMetrics(); setProbeIdle(); setTestingQuiet(false);
 }
 // ─── PAGE NAVIGATION ──────────────────────────────────────────
@@ -3101,7 +2947,6 @@ function goToStartPage(){
  probeCell.classList.remove("gspin-f","gspin-r","gidle-f","gidle-r");
  stopFX(); setStatus("Ready"); showOnly("subjectOverlay");
  try{ updateStartPageLinks(); }catch(e){}
- resetSleepFlow();
  restoreSubjectFromProfile();
 }
 function startOverFlow(){
@@ -3112,7 +2957,6 @@ function startOverFlow(){
  const wl=$("subjectWelcome"); if(wl) wl.style.display="none";
  const we=$("welcomeEmail"); if(we) we.textContent="";
  const hint=$("subjectHint"); if(hint) hint.textContent="Enter your email to begin.";
- resetSleepFlow();
  setStatus("Reset. Enter Subject ID."); showOnly("subjectOverlay");
  endCurtainTransition();
 }
@@ -3192,9 +3036,8 @@ function startTest(){
  if(!state.subjectId){ showOnly("subjectOverlay"); setStatus("Enter Subject ID first"); return; }
  if(!state.samnPerelli){ showOnly("fatigueOverlay"); setStatus("Select fatigue rating first"); return; }
  const sid=state.subjectId, spf=state.samnPerelli, mode=settings.testMode||"mode1";
- const sleepLog = state.sleepLog ? JSON.parse(JSON.stringify(state.sleepLog)) : null;
  clearCurrentSession();
- state.subjectId=sid; state.samnPerelli=spf; state.sleepLog=sleepLog; state.activeMode=mode;
+ state.subjectId=sid; state.samnPerelli=spf; state.activeMode=mode;
  const fo=$("fatigueOut"); if(fo) fo.textContent=String(spf.score);
  hideAllOverlays();
  setTestingQuiet(true);
@@ -3772,7 +3615,7 @@ const TUT_STEPS = [
       <strong style="color:rgba(255,255,255,0.85)">Just respond as fast as you can.</strong>
      </div>
      <div style="margin-top:10px;padding:8px 12px;background:rgba(127,215,255,0.08);border:1px solid rgba(127,215,255,0.3);border-radius:10px;font-size:13px;color:rgba(200,230,255,0.85);line-height:1.5">
-      <span style="color:#7fd7ff;font-weight:700">Up next:</span> First, answer whether you slept since your last test. If yes, log bedtime, wake time, sleep quality, and how long you have been awake. Then rate your current fatigue (SP-FS) — then the test begins.
+      <span style="color:#7fd7ff;font-weight:700">Up next:</span> A quick fatigue rating question — then the test begins!
      </div>
     </div>
    </div>`;
@@ -3852,17 +3695,19 @@ function tutNext(){
  if(_tutStep < 4){
   tutSetStep(_tutStep + 1);
  } else {
-  // Done — go to sleep prompt
+  // Done — go to fatigue
   $("tutorialOverlay").classList.add("hidden");
-  resetSleepFlow();
-  showOnly("sleepPromptOverlay");
+  const sb=$("fatigueStartBtn"); if(sb) sb.classList.add("hidden");
+  $("fatigueList").querySelectorAll(".fatigue-item").forEach(el=>el.style.background="");
+  showOnly("fatigueOverlay");
  }
 }
 
 function tutSkip(){
  $("tutorialOverlay").classList.add("hidden");
- resetSleepFlow();
- showOnly("sleepPromptOverlay");
+ const sb=$("fatigueStartBtn"); if(sb) sb.classList.add("hidden");
+ $("fatigueList").querySelectorAll(".fatigue-item").forEach(el=>el.style.background="");
+ showOnly("fatigueOverlay");
 }
 
 // ─── Event wiring ───
@@ -3893,7 +3738,7 @@ $("skipRefresherBtn").onclick=()=>{
 $("refBackBtn").onclick=()=>goToStartPage();
  try{ updateStartPageLinks(); }catch(e){}
 
-$("fatigueBackBtn").onclick=()=>showOnly("sleepPromptOverlay");
+$("fatigueBackBtn").onclick=()=>goToStartPage();
 
 bindDoubleTapConfirm($("refStartOverBtn"), ()=>startOverFlow(), "Reset", "Tap again to reset");
 bindDoubleTapConfirm($("fatigueStartOverBtn"), ()=>startOverFlow(), "Reset", "Tap again to reset");
@@ -4236,7 +4081,7 @@ const _ssp=$("speedStartPageBtn"); if(_ssp) _ssp.onclick=()=>{ hideAllOverlays()
 window.addEventListener("load",()=>{ try{ updateStartPageLinks(); }catch(e){}; });
 
 
-/* ===== Performance vs Time graph override (V325) ===== */
+/* ===== Performance vs Time graph override (V317) ===== */
 const perfGraphState = {
   preset: "last14",
   fromDate: "",
@@ -4282,20 +4127,6 @@ function perfSessionIsoDate(r){
   if(!Number.isFinite(ms)) return "";
   return new Date(ms).toISOString().slice(0,10);
 }
-
-function perfSleepTrack(r){
-  const log = r && r.sleepLog;
-  if(!log || log.sleptSinceLastTest!=="yes") return null;
-  const bed = parseClockToMinutes(log.bedtime||"");
-  const wake = parseClockToMinutes(log.wakeTime||"");
-  if(bed==null || wake==null) return null;
-  return {
-    bed, wake,
-    overnight: wake < bed,
-    qualityScore: Number(log.sleepQualityScore)||0
-  };
-}
-
 
 function filterSessionsForPerfGraph(hist){
   const base = (hist||[]).slice().sort((a,b)=>perfSessionUtcMs(a)-perfSessionUtcMs(b));
@@ -4427,7 +4258,7 @@ function drawPerformanceOverTimeChart(canvas,hist){
 
   const bestMs = Number(settings.cpiBestMs)||800;
   const worstMs = Number(settings.cpiWorstMs)||3000;
-  const PAD = {top:72,right:76,bottom:n===1?118:150,left:126};
+  const PAD = {top:72,right:76,bottom:n===1?64:92,left:126};
   const cW = W - PAD.left - PAD.right;
   const cH = H - PAD.top - PAD.bottom;
 
@@ -4548,45 +4379,6 @@ function drawPerformanceOverTimeChart(canvas,hist){
     });
   }
 
-
-  function drawSleepPeriods(){
-    const tracks = slice.map(r=>perfSleepTrack(r));
-    if(!tracks.some(Boolean)) return;
-    const sleepTop = PAD.top + cH + 44;
-    const laneH = 12;
-    const laneW = Math.max(16, Math.min(46, n<=1 ? cW*0.35 : (cW/Math.max(1,n-1))*0.78));
-    ctx.font="10px sans-serif";
-    ctx.textAlign="left";
-    ctx.fillStyle="#c6d7e8";
-    ctx.fillText("Sleep period (local bed → wake) · red=Poor · yellow=Okay · green=Good", PAD.left, sleepTop-8);
-    ctx.fillStyle="#9ab6d3";
-    ctx.fillText("0h", PAD.left+cW-48, sleepTop-8);
-    ctx.fillText("24h", PAD.left+cW-20, sleepTop-8);
-    tracks.forEach((tr,i)=>{
-      if(!tr) return;
-      const x = xOf(i);
-      const left = x - laneW/2;
-      ctx.fillStyle="rgba(255,255,255,0.06)";
-      ctx.fillRect(left, sleepTop, laneW, laneH);
-      const qual = tr.qualityScore===3 ? "#88ff88" : tr.qualityScore===2 ? "#ffd84d" : "#ff4d4f";
-      ctx.fillStyle = qual;
-      const bedFrac = tr.bed / 1440;
-      const wakeFrac = tr.wake / 1440;
-      if(tr.overnight){
-        const seg1x = left + bedFrac*laneW;
-        ctx.fillRect(seg1x, sleepTop, left+laneW-seg1x, laneH);
-        ctx.fillRect(left, sleepTop, wakeFrac*laneW, laneH);
-      }else{
-        const segx = left + bedFrac*laneW;
-        const segw = Math.max(2, (wakeFrac-bedFrac)*laneW);
-        ctx.fillRect(segx, sleepTop, segw, laneH);
-      }
-      ctx.strokeStyle="rgba(4,9,18,0.8)";
-      ctx.lineWidth=1;
-      ctx.strokeRect(left, sleepTop, laneW, laneH);
-    });
-  }
-
   function drawCombinedPerfMarkers(cpiVals, mbsVals){
     ctx.strokeStyle="#7fd7ff";
     ctx.lineWidth=2.5;
@@ -4631,7 +4423,6 @@ function drawPerformanceOverTimeChart(canvas,hist){
 
   drawLine(spfVals, v=>yRightFromSpf(v), "#88ff88", "diamond");
   drawCombinedPerfMarkers(cpiVals, mbsVals);
-  drawSleepPeriods();
 
   ctx.textAlign="left";
   ctx.font="bold 11px sans-serif";
@@ -4649,10 +4440,6 @@ function drawPerformanceOverTimeChart(canvas,hist){
   ctx.fillStyle="#ffb357";
   ctx.fillText("Orange circle = MBS", PAD.left+118, PAD.top-14);
   ctx.fillStyle="#88ff88"; ctx.fillText("◆ SP-FS", PAD.left+278, PAD.top-14);
-  ctx.fillStyle="#c6d7e8"; ctx.fillText("Sleep bar = bed→wake", PAD.left+350, PAD.top-14);
-  ctx.fillStyle="#ff4d4f"; ctx.fillText("Poor", PAD.left+490, PAD.top-14);
-  ctx.fillStyle="#ffd84d"; ctx.fillText("Okay", PAD.left+528, PAD.top-14);
-  ctx.fillStyle="#88ff88"; ctx.fillText("Good", PAD.left+568, PAD.top-14);
 }
 
 
@@ -4698,10 +4485,10 @@ function openPerformanceOverTimePage(){
   wirePerfGraphControls();
   drawPerformanceOverTimeChart($("perfTimeGraph"), state.history||[]);
 }
-/* ===== end Performance vs Time graph override (V325) ===== */
+/* ===== end Performance vs Time graph override (V317) ===== */
 
 
-/* ===== E-mail Select wiring override (V325) ===== */
+/* ===== E-mail Select wiring override (V317) ===== */
 function openEmailSelectPage(){
   hideAllOverlays();
   const ov = $("emailOverlay");
@@ -4781,10 +4568,10 @@ window.addEventListener("load", ()=>{
   try{ wireEmailSelectControls(); }catch(err){}
  try{ wireEmailDraftAction(); }catch(err){}
 });
-/* ===== end E-mail Select wiring override (V325) ===== */
+/* ===== end E-mail Select wiring override (V317) ===== */
 
 
-/* ===== E-mail draft action override (V325) ===== */
+/* ===== E-mail draft action override (V317) ===== */
 function formatLastTrialLogText(last){
   if(!last || !Array.isArray(last.rtLog) || !last.rtLog.length) return "No trial detail log available.";
   const lines = last.rtLog.map(r=>{
@@ -4876,10 +4663,10 @@ window.addEventListener("load", ()=>{
   try{ wireEmailDraftAction(); }catch(err){}
   try{ syncEditableEmailRecipient(); }catch(err){}
 });
-/* ===== end E-mail draft action override (V325) ===== */
+/* ===== end E-mail draft action override (V317) ===== */
 
 
-/* ===== Editable recipient field override (V325) ===== */
+/* ===== Editable recipient field override (V317) ===== */
 function getEditableEmailRecipient(){
   const input = $("emailRecipientInput");
   const typed = input && input.value ? String(input.value).trim() : "";
@@ -4944,7 +4731,7 @@ function wireEmailDraftAction(){
   }
 }
 window.addEventListener("load", ()=>{ try{ syncEditableEmailRecipient(); }catch(err){}; });
-/* ===== end Editable recipient field override (V325) ===== */
+/* ===== end Editable recipient field override (V317) ===== */
 
 
 window.addEventListener("resize", ()=>{
@@ -4953,8 +4740,3 @@ window.addEventListener("resize", ()=>{
   try{ renderSpfGaugeForResult(last); }catch(e){}
  }
 });
-
-
-const _sleepContinueBtn=$("sleepContinueBtn"); if(_sleepContinueBtn) _sleepContinueBtn.onclick=()=>continueFromSleepLogger();
-
-const _sleepAwakeMinutes=$("sleepAwakeMinutes"); if(_sleepAwakeMinutes) _sleepAwakeMinutes.addEventListener("keydown",(e)=>{ if(e.key==="Enter"){ e.preventDefault(); continueFromSleepLogger(); }});
