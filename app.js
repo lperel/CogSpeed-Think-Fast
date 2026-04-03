@@ -1,8 +1,8 @@
 // ═══════════════════════════════════════════════════
-// CogSpeed V326
+// CogSpeed V328
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V326";
+const APP_VERSION = "V328";
 const RELEASE = APP_VERSION.replace(/^V/i, "");
 const STORAGE_PREFIX = `cogspeed_v${RELEASE}`;
 
@@ -3740,15 +3740,10 @@ function continueFromSleepLogger(){
  state.sleepLog = state.sleepLog || {};
  const bed=$("sleepBedtimeInput")?.value || "";
  const wake=$("sleepWakeInput")?.value || "";
- const awakeH=Math.max(0, Number($("sleepAwakeHoursInput")?.value || 0) || 0);
- const awakeM=Math.max(0, Number($("sleepAwakeMinutesInput")?.value || 0) || 0);
  const duration=computeSleepDurationMinutes(bed,wake);
  state.sleepLog.bedtime = bed || null;
  state.sleepLog.wakeTime = wake || null;
  state.sleepLog.durationMinutes = duration;
- state.sleepLog.awakeHours = awakeH;
- state.sleepLog.awakeMinutes = awakeM;
- state.sleepLog.awakeTotalMinutes = awakeH*60 + awakeM;
  if(state.sleepLog.qualityScore==null){
   state.sleepLog.qualityScore = 2;
   state.sleepLog.qualityLabel = "Okay";
@@ -3832,14 +3827,11 @@ $("sleepQualityOkayBtn").onclick=()=>setSleepQuality(2);
 $("sleepQualityGoodBtn").onclick=()=>setSleepQuality(3);
 $("sleepContinueBtn").onclick=()=>continueFromSleepLogger();
 $("sleepBackBtn").onclick=()=>showOnly("sleepPromptOverlay");
-bindDoubleTapConfirm($("sleepStartOverBtn"), ()=>startOverFlow(), "Reset", "Tap again to reset");
-$("sleepAwakeMinutesInput").addEventListener("keydown",(e)=>{ if(e.key==="Enter"){ e.preventDefault(); continueFromSleepLogger(); }});
 
 $("sleepPromptBackBtn").onclick=()=>goToStartPage();
 
 
 bindDoubleTapConfirm($("refStartOverBtn"), ()=>{}, "Reset", "Tap again to reset");
-bindDoubleTapConfirm($("fatigueStartOverBtn"), ()=>startOverFlow(), "Reset", "Tap again to reset");
 
 
 const _fsb=$("fatigueStartBtn");
@@ -4179,7 +4171,7 @@ const _ssp=$("speedStartPageBtn"); if(_ssp) _ssp.onclick=()=>{ hideAllOverlays()
 window.addEventListener("load",()=>{ try{ updateStartPageLinks(); }catch(e){}; });
 
 
-/* ===== Performance vs Time graph override (V326) ===== */
+/* ===== Performance vs Time graph override (V328) ===== */
 const perfGraphState = {
   preset: "last14",
   fromDate: "",
@@ -4583,10 +4575,10 @@ function openPerformanceOverTimePage(){
   wirePerfGraphControls();
   drawPerformanceOverTimeChart($("perfTimeGraph"), state.history||[]);
 }
-/* ===== end Performance vs Time graph override (V326) ===== */
+/* ===== end Performance vs Time graph override (V328) ===== */
 
 
-/* ===== E-mail Select wiring override (V326) ===== */
+/* ===== E-mail Select wiring override (V328) ===== */
 function openEmailSelectPage(){
   hideAllOverlays();
   const ov = $("emailOverlay");
@@ -4666,10 +4658,10 @@ window.addEventListener("load", ()=>{
   try{ wireEmailSelectControls(); }catch(err){}
  try{ wireEmailDraftAction(); }catch(err){}
 });
-/* ===== end E-mail Select wiring override (V326) ===== */
+/* ===== end E-mail Select wiring override (V328) ===== */
 
 
-/* ===== E-mail draft action override (V326) ===== */
+/* ===== E-mail draft action override (V328) ===== */
 function formatLastTrialLogText(last){
   if(!last || !Array.isArray(last.rtLog) || !last.rtLog.length) return "No trial detail log available.";
   const lines = last.rtLog.map(r=>{
@@ -4761,10 +4753,10 @@ window.addEventListener("load", ()=>{
   try{ wireEmailDraftAction(); }catch(err){}
   try{ syncEditableEmailRecipient(); }catch(err){}
 });
-/* ===== end E-mail draft action override (V326) ===== */
+/* ===== end E-mail draft action override (V328) ===== */
 
 
-/* ===== Editable recipient field override (V326) ===== */
+/* ===== Editable recipient field override (V328) ===== */
 function getEditableEmailRecipient(){
   const input = $("emailRecipientInput");
   const typed = input && input.value ? String(input.value).trim() : "";
@@ -4829,7 +4821,7 @@ function wireEmailDraftAction(){
   }
 }
 window.addEventListener("load", ()=>{ try{ syncEditableEmailRecipient(); }catch(err){}; });
-/* ===== end Editable recipient field override (V326) ===== */
+/* ===== end Editable recipient field override (V328) ===== */
 
 
 window.addEventListener("resize", ()=>{
