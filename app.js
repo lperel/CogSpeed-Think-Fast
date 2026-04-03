@@ -2,7 +2,7 @@
 // CogSpeed V333
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V333";
+const APP_VERSION = "V334";
 const RELEASE = APP_VERSION.replace(/^V/i, "");
 const STORAGE_PREFIX = `cogspeed_v${RELEASE}`;
 
@@ -3964,7 +3964,6 @@ $("sleepBackBtn").onclick=()=>showOnly("sleepPromptOverlay");
 $("sleepPromptBackBtn").onclick=()=>goToStartPage();
 
 
-bindDoubleTapConfirm($("refStartOverBtn"), ()=>{}, "Reset", "Tap again to reset");
 
 
 const _fsb=$("fatigueStartBtn");
@@ -4066,9 +4065,9 @@ const _asb=$("adminSpeedometerBtn"); if(_asb) _asb.onclick=()=>openSpeedometerFr
 bindDoubleTapConfirm($("adminStartOverBtn"), ()=>startOverFlow(), "Full Reset", "Tap again for full reset");
 $("benchRunBtn").onclick=()=>runDeviceBenchmark(true);
 $("benchMainBtn").onclick=()=>{ $("benchmarkOverlay").classList.add("hidden"); };
-$("startBtn").onclick=startTest;
-$("backToStartBtn").onclick=goToStartPage;
-$("startOverBtn").onclick=startOverFlow;
+const _startBtn=$("startBtn"); if(_startBtn) _startBtn.onclick=startTest;
+const _backToStartBtn=$("backToStartBtn"); if(_backToStartBtn) _backToStartBtn.onclick=goToStartPage;
+const _startOverBtn=$("startOverBtn"); if(_startOverBtn) _startOverBtn.onclick=startOverFlow;
 $("summaryRestartBtn").onclick=()=>{ $("summaryOverlay").classList.add("hidden"); const fg=$("fullGraphOverlay"); if(fg) fg.classList.add("hidden"); goToStartPage(); };
 const _sspeed=$("summarySpeedometerBtn"); if(_sspeed) _sspeed.onclick=()=>{ $("summaryOverlay").classList.add("hidden"); openSpeedometerPage(); };
 const _orb=$("outcomeResultsBtn"); if(_orb) _orb.onclick=()=>{ $("outcomeOverlay").classList.add("hidden"); stopSpeedometer(); $("summaryOverlay").classList.remove("hidden"); setTestingQuiet(false); };
