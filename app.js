@@ -2,7 +2,7 @@
 // CogSpeed V371
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V390";
+const APP_VERSION = "V391";
 const RELEASE = APP_VERSION.replace(/^V/i, "");
 const STORAGE_PREFIX = `cogspeed_v${RELEASE}`;
 
@@ -76,7 +76,8 @@ const DEFAULTS={
  deviceBenchmarkEnabled:0,
  timeFormat:"12",
  lateResponseThresholdMs:600, // first response <600ms on next frame may belong to prior frame; a second >=600ms response belongs to current frame
- RecoveryInterTrialDelayMsStart:0 // delay before opening the next recovery or terminal-recovery trial
+ RecoveryInterTrialDelayMsStart:0, // delay before opening the next recovery or terminal-recovery trial
+ ResumeToPacedDelayMs:0 // delay before resuming paced mode after recovery succeeds
 };
 
 // ═══════════════════════════════════════════════════════════════
@@ -136,6 +137,8 @@ const ADMIN_FIELDS=[
  ["mode3MaxDurationMs","38. Mode 3 total duration ms (default 120000)","number"],
  ["deviceBenchmarkEnabled","39. Device benchmark (0=off, 1=on)","number"],
  ["lateResponseThresholdMs","40. Late response reassignment threshold (ms, default 600)","number"],
+ ["RecoveryInterTrialDelayMsStart","41. Recovery inter-trial delay at start (ms, default 0)","number"],
+ ["ResumeToPacedDelayMs","42. Resume-to-paced delay after recovery (ms, default 0)","number"],
 ];
 
 // ─── Patterns ───
@@ -1392,7 +1395,7 @@ function handleTap(index,eventTimeStamp){
     state.recoveries.push(slower); state.phase="paced"; state.duration=slower;
     state.spCorrectStreak=0; state.spWrongCount=0;
     setStatus(`Block recovery passed — resuming at ${slower.toFixed(0)}ms (${restartFactor}× block baseline)`);
-    setTimeout(()=>openTrial("paced"),180);
+    setTimeout(()=>openTrial("paced"), Number(settings.ResumeToPacedDelayMs)||0);
    }else{
     setStatus(`SP Restart: ${state.spCorrectStreak}/${need} correct`);
     setTimeout(()=>openTrial("recovery"), Number(settings.RecoveryInterTrialDelayMsStart)||0);
