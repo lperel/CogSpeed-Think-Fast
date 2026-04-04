@@ -2,7 +2,7 @@
 // CogSpeed V371
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V374";
+const APP_VERSION = "V375";
 const RELEASE = APP_VERSION.replace(/^V/i, "");
 const STORAGE_PREFIX = `cogspeed_v${RELEASE}`;
 
@@ -49,7 +49,7 @@ const DEFAULTS={
  correctSpeedupFactor:0.20,
  minSpeedupOnCorrectMs:50,
  maxSpeedupOnCorrectMs:200,
- convergenceMinSpeedupOnCorrectMs:25,
+ convergenceMinSpeedupOnCorrectMs:50,
  convergenceMaxSpeedupOnCorrectMs:50,
  convergenceClampThresholdMs:1400,
  spRestartWrongLimit:3,
@@ -119,7 +119,7 @@ const ADMIN_FIELDS=[
 ["correctSpeedupFactor","23. Mode 1 MP correct formula factor (default 0.20)","number"],
 ["minSpeedupOnCorrectMs","24. Mode 1 MP minimum speedup on correct (ms, default 50)","number"],
 ["maxSpeedupOnCorrectMs","25. Mode 1 MP maximum speedup on correct (ms, default 200)","number"],
-["convergenceMinSpeedupOnCorrectMs","26. Mode 1 convergent minimum speedup on correct (ms, default 25)","number"],
+["convergenceMinSpeedupOnCorrectMs","26. Mode 1 convergent minimum speedup on correct (ms, default 50)","number"],
 ["convergenceMaxSpeedupOnCorrectMs","27. Mode 1 convergent maximum speedup on correct (ms, default 50)","number"],
 ["convergenceClampThresholdMs","28. Mode 1 convergent clamp threshold (ms, default 1400)","number"],
  ["recoveryNoResponseMs","29. Mode 1 recovery no-response timeout (ms, default 10000)","number"],
