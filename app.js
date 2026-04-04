@@ -1,8 +1,8 @@
 // ═══════════════════════════════════════════════════
-// CogSpeed V340
+// CogSpeed V341
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V340";
+const APP_VERSION = "V341";
 const RELEASE = APP_VERSION.replace(/^V/i, "");
 const STORAGE_PREFIX = `cogspeed_v${RELEASE}`;
 
