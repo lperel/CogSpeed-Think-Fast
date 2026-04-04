@@ -2,7 +2,7 @@
 // CogSpeed V371
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V387";
+const APP_VERSION = "V388";
 const RELEASE = APP_VERSION.replace(/^V/i, "");
 const STORAGE_PREFIX = `cogspeed_v${RELEASE}`;
 
@@ -2282,16 +2282,18 @@ function openProfileFromContext(returnTo,email=""){
 }
 
 function openProfileOverlay(email){
- const existing = loadProfile();
+ const safeEmail = isValidEmailAddress(email) ? String(email).trim().toLowerCase() : "";
+ const stored = loadProfile();
+ const existing = (safeEmail && stored && String(stored.email||"").trim().toLowerCase()===safeEmail) ? stored : null;
  const existingTimeFormat = existing?.timeFormat || getEffectiveTimeFormat();
  _profileGenderSelected = existing?.gender || "";
  _profileTimeFormat = String(existingTimeFormat) === "24" ? "24" : "12";
 
  // Show email
  const ed = $("profileEmailDisplay");
- if(ed) ed.textContent = email || "Guest / no email";
+ if(ed) ed.textContent = safeEmail || "Guest / no email";
 
- // Pre-fill if returning
+ // Pre-fill only when editing the matching saved email profile.
  if(existing){
   const bm = $("profileBirthMonth"); if(bm) bm.value = existing.birthMonth||"";
   const by = $("profileBirthYear"); if(by) by.value = existing.birthYear||"";
@@ -2317,8 +2319,7 @@ let _profileReturnTo = "refresherOverlay"; // where to go after saving profile
 
 function saveAndContinueProfile(){
  const entered = ($("subjectIdInput")?.value||"").trim().toLowerCase();
- const fallbackEmail = loadProfile()?.email || "";
- const email = isValidEmailAddress(entered) ? entered : (isValidEmailAddress(fallbackEmail) ? fallbackEmail : "");
+ const email = isValidEmailAddress(entered) ? entered : "";
  const bMonth = parseInt($("profileBirthMonth")?.value||"0");
  const bYear = parseInt($("profileBirthYear")?.value||"0");
  const emailResults = !!$("profileEmailResults")?.checked;
