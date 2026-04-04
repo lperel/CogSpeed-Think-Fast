@@ -2,7 +2,7 @@
 // CogSpeed V371
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V375";
+const APP_VERSION = "V377";
 const RELEASE = APP_VERSION.replace(/^V/i, "");
 const STORAGE_PREFIX = `cogspeed_v${RELEASE}`;
 
@@ -49,9 +49,6 @@ const DEFAULTS={
  correctSpeedupFactor:0.20,
  minSpeedupOnCorrectMs:50,
  maxSpeedupOnCorrectMs:200,
- convergenceMinSpeedupOnCorrectMs:50,
- convergenceMaxSpeedupOnCorrectMs:50,
- convergenceClampThresholdMs:1400,
  spRestartWrongLimit:3,
  spRestartCorrectStreak:2,
  maxBlockCount:6,
@@ -119,28 +116,25 @@ const ADMIN_FIELDS=[
 ["correctSpeedupFactor","23. Mode 1 MP correct formula factor (default 0.20)","number"],
 ["minSpeedupOnCorrectMs","24. Mode 1 MP minimum speedup on correct (ms, default 50)","number"],
 ["maxSpeedupOnCorrectMs","25. Mode 1 MP maximum speedup on correct (ms, default 200)","number"],
-["convergenceMinSpeedupOnCorrectMs","26. Mode 1 convergent minimum speedup on correct (ms, default 50)","number"],
-["convergenceMaxSpeedupOnCorrectMs","27. Mode 1 convergent maximum speedup on correct (ms, default 50)","number"],
-["convergenceClampThresholdMs","28. Mode 1 convergent clamp threshold (ms, default 1400)","number"],
- ["recoveryNoResponseMs","29. Mode 1 recovery no-response timeout (ms, default 10000)","number"],
- ["maxBlockCount","30. Mode 1 max total blocks before fail (default 6)","number"],
- ["qualifyingBlockGapMs","31. Mode 1 convergent block max gap (ms, default 250)","number"],
- ["maxTrialCount","32. Mode 1 max paced trials (default 180)","number"],
- ["maxPacedWrong","33. Mode 1 max paced wrong before fail (default 20)","number"],
- ["cpiBestMs","34. Mode 1 CPI best ms anchor (default 800)","number"],
- ["cpiWorstMs","35. Mode 1 CPI worst ms anchor (default 2400)","number"],
+ ["recoveryNoResponseMs","26. Mode 1 recovery no-response timeout (ms, default 10000)","number"],
+ ["maxBlockCount","27. Mode 1 max total blocks before fail (default 6)","number"],
+ ["qualifyingBlockGapMs","28. Mode 1 qualifying block max gap (ms, default 250)","number"],
+ ["maxTrialCount","29. Mode 1 max paced trials (default 180)","number"],
+ ["maxPacedWrong","30. Mode 1 max paced wrong before fail (default 20)","number"],
+ ["cpiBestMs","31. Mode 1 CPI best ms anchor (default 800)","number"],
+ ["cpiWorstMs","32. Mode 1 CPI worst ms anchor (default 2400)","number"],
 
  // 36-37. Mode 2 settings, ordered by use
- ["mode2TrialLimit","36. Mode 2 SPC trial limit (default 150)","number"],
- ["mode2MaxDurationMs","37. Mode 2 total duration ms (default 120000)","number"],
+ ["mode2TrialLimit","33. Mode 2 SPC trial limit (default 150)","number"],
+ ["mode2MaxDurationMs","34. Mode 2 total duration ms (default 120000)","number"],
 
  // 38-41. Mode 3 settings, ordered by use
- ["mode3CalibrationTrials","38. Mode 3 self-paced calibration trials (default 10)","number"],
- ["mode3BaselineFactor","39. Mode 3 MP baseline factor from cal avg (default 1.3)","number"],
- ["mode3PacedTrialLimit","40. Mode 3 fixed machine-paced trial limit (default 140)","number"],
- ["mode3MaxDurationMs","41. Mode 3 total duration ms (default 120000)","number"],
- ["deviceBenchmarkEnabled","42. Device benchmark (0=off, 1=on)","number"],
- ["lateResponseThresholdMs","43. Late response reassignment threshold (ms, default 600)","number"],
+ ["mode3CalibrationTrials","35. Mode 3 self-paced calibration trials (default 10)","number"],
+ ["mode3BaselineFactor","36. Mode 3 MP baseline factor from cal avg (default 1.3)","number"],
+ ["mode3PacedTrialLimit","37. Mode 3 fixed machine-paced trial limit (default 140)","number"],
+ ["mode3MaxDurationMs","38. Mode 3 total duration ms (default 120000)","number"],
+ ["deviceBenchmarkEnabled","39. Device benchmark (0=off, 1=on)","number"],
+ ["lateResponseThresholdMs","40. Late response reassignment threshold (ms, default 600)","number"],
 ];
 
 // ─── Patterns ───
@@ -885,12 +879,10 @@ function finishCalibration(){
 //   where f = correctSpeedupFactor (default 0.20)
 //
 // IMPORTANT:
-//   On CORRECT responses before convergence:
+//   On CORRECT responses that speed up:
 //     minimum speedup = minSpeedupOnCorrectMs (default 50 ms)
 //     maximum speedup = maxSpeedupOnCorrectMs (default 200 ms)
-//   After the first block, or near the low-ms floor:
-//     minimum speedup = convergenceMinSpeedupOnCorrectMs (default 25 ms)
-//     maximum speedup = convergenceMaxSpeedupOnCorrectMs (default 50 ms)
+//   There is no separate speedup path.
 //   On slowdown from the correct-response formula:
 //     maximum slowdown = 100 ms.
 //
@@ -947,22 +939,14 @@ function calculatePacingTransition(currentDuration,rt,correct){
   const f = Number(settings.correctSpeedupFactor)||0.20;
   let deltaMs=(f*r-f)*before;
 
-  const afterFirstBlock = Array.isArray(state.overloads) && state.overloads.length >= 1;
-  const nearFloor = before <= (Number(settings.convergenceClampThresholdMs)||1400);
-
-  const minSpeed = afterFirstBlock || nearFloor
-    ? (Number(settings.convergenceMinSpeedupOnCorrectMs)||25)
-    : (Number(settings.minSpeedupOnCorrectMs)||50);
-
-  const maxSpeed = afterFirstBlock || nearFloor
-    ? (Number(settings.convergenceMaxSpeedupOnCorrectMs)||50)
-    : (Number(settings.maxSpeedupOnCorrectMs)||200);
+  const minSpeed = Number(settings.minSpeedupOnCorrectMs)||50;
+  const maxSpeed = Number(settings.maxSpeedupOnCorrectMs)||200;
 
   let reason = "Correct response formula";
   if(deltaMs < 0){
     const speedupMag = Math.min(maxSpeed, Math.max(minSpeed, Math.abs(deltaMs)));
     deltaMs = -speedupMag;
-    reason = afterFirstBlock || nearFloor ? "Correct speedup (convergent clamp)" : "Correct speedup";
+    reason = "Correct speedup";
   }else{
     deltaMs = Math.min(100, deltaMs);
     reason = "Correct response slowdown";
