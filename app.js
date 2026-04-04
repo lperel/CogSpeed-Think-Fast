@@ -2,7 +2,7 @@
 // CogSpeed V331
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V367";
+const APP_VERSION = "V369";
 const RELEASE = APP_VERSION.replace(/^V/i, "");
 const STORAGE_PREFIX = `cogspeed_v${RELEASE}`;
 
@@ -44,7 +44,7 @@ const DEFAULTS={
  mode3MaxDurationMs:120000,
  mode3BaselineFactor:1.3,
  consecutiveMissesForBlock:2,
-  blockRestartPercent:1.2,
+  blockRestartPercent:1.3,
  wrongSlowdownMs:50,
  correctSpeedupFactor:0.20,
  minSpeedupOnCorrectMs:50,
@@ -112,7 +112,7 @@ const ADMIN_FIELDS=[
  // 18-29. Mode 1 settings, ordered by use
  ["initialPacedPercent","17. Mode 1 MP start: % of calibration avg (default 1.2)","number"],
  ["consecutiveMissesForBlock","18. Mode 1 misses to trigger block (default 2)","number"],
- ["blockRestartPercent","19. Mode 1 restart: % of block baseline (default 1.2)","number"],
+ ["blockRestartPercent","19. Mode 1 restart: % of block baseline (default 1.3)","number"],
  ["spRestartCorrectStreak","20. Mode 1 recovery correct streak to resume (default 2)","number"],
  ["spRestartWrongLimit","21. Mode 1 recovery max wrong before fail (default 3)","number"],
 ["wrongSlowdownMs","22. Mode 1 MP slowdown on wrong (ms, default 50)","number"],
@@ -4092,6 +4092,20 @@ function perfSessionCpi(r){
   if(Number.isFinite(explicit)) return explicit;
   const ms = perfSessionMs(r);
   return ms!=null ? computeCPI(ms) : null;
+}
+
+function getSessionUtcMs(r){
+  if(!r) return NaN;
+  const candidates = [
+    r.time,
+    r?.geo?.gmt_time,
+    r?.geo?.local_time
+  ];
+  for(const v of candidates){
+    const ms = Date.parse(v);
+    if(Number.isFinite(ms)) return ms;
+  }
+  return NaN;
 }
 
 function perfSessionUtcMs(r){
