@@ -2,7 +2,7 @@
 // CogSpeed V371
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V380";
+const APP_VERSION = "V382";
 const RELEASE = APP_VERSION.replace(/^V/i, "");
 const STORAGE_PREFIX = `cogspeed_v${RELEASE}`;
 
@@ -2222,6 +2222,14 @@ function profileSelectTimeFormat(fmt){
   btn.style.borderColor = on ? "#7fd7ff" : "";
   btn.style.color = on ? "#7fd7ff" : "";
  });
+ try{
+  const previewSettings={...settings, timeFormat:String(fmt)==="24"?"24":"12"};
+  const prev=settings;
+  settings=previewSettings;
+  updateSleepTimeFormatHint();
+  applySleepInputFormat();
+  settings=prev;
+ }catch(e){}
 }
 
 function profileSelectGender(g){
@@ -3624,11 +3632,68 @@ function tutSetStep(n){
 // ──────────────────────────────────────────────────────────────
 
 
+function normalizeSleepTimeValue(v){
+ if(v==null) return null;
+ const s=String(v).trim();
+ if(!s) return null;
+ let m=s.match(/^(\d{1,2}):(\d{2})$/);
+ if(m){
+  let hh=Number(m[1]), mm=Number(m[2]);
+  if(Number.isFinite(hh) && Number.isFinite(mm) && hh>=0 && hh<=23 && mm>=0 && mm<=59){
+   return `${String(hh).padStart(2,"0")}:${String(mm).padStart(2,"0")}`;
+  }
+ }
+ m=s.match(/^(\d{1,2}):(\d{2})\s*([AaPp][Mm])$/);
+ if(m){
+  let hh=Number(m[1]), mm=Number(m[2]);
+  const ap=m[3].toUpperCase();
+  if(Number.isFinite(hh) && Number.isFinite(mm) && hh>=1 && hh<=12 && mm>=0 && mm<=59){
+   if(hh===12) hh=0;
+   if(ap==="PM") hh+=12;
+   return `${String(hh).padStart(2,"0")}:${String(mm).padStart(2,"0")}`;
+  }
+ }
+ return null;
+}
 function parseSleepTimeToMinutes(v){
- if(!v || !/^\d{2}:\d{2}$/.test(v)) return null;
- const [hh,mm]=v.split(":").map(Number);
+ const canon=normalizeSleepTimeValue(v);
+ if(!canon) return null;
+ const [hh,mm]=canon.split(":").map(Number);
  if(!Number.isFinite(hh) || !Number.isFinite(mm)) return null;
  return hh*60+mm;
+}
+function getSleepInputCanonicalValue(id){
+ const el=$(id);
+ if(!el) return "";
+ const raw = (el.dataset && el.dataset.canonical) ? el.dataset.canonical : (el.value || "");
+ const canon = normalizeSleepTimeValue(raw);
+ return canon || "";
+}
+function syncSleepInputCanonical(el){
+ if(!el) return "";
+ const canon = normalizeSleepTimeValue(el.value || "");
+ if(el.dataset) el.dataset.canonical = canon || "";
+ return canon || "";
+}
+function applySleepInputFormat(){
+ const mode=getEffectiveTimeFormat();
+ ["sleepBedtimeInput","sleepWakeInput"].forEach(id=>{
+  const el=$(id);
+  if(!el) return;
+  const canon = getSleepInputCanonicalValue(id);
+  if(mode==="24"){
+   el.type="time";
+   el.placeholder="";
+   el.inputMode="numeric";
+   el.value=canon || "";
+  }else{
+   el.type="text";
+   el.placeholder="hh:mm AM";
+   el.inputMode="text";
+   el.value=canon ? formatClockForDisplay(canon) : "";
+  }
+  if(el.dataset) el.dataset.canonical = canon || "";
+ })
 }
 function formatSleepDuration(mins){
  if(mins==null || !Number.isFinite(mins)) return "—";
@@ -3675,8 +3740,8 @@ function formatSleepLine(result){
 }
 
 function updateSleepLoggerUI(){
- const bed=$("sleepBedtimeInput")?.value || "";
- const wake=$("sleepWakeInput")?.value || "";
+ const bed=getSleepInputCanonicalValue("sleepBedtimeInput");
+ const wake=getSleepInputCanonicalValue("sleepWakeInput");
  const d=computeSleepDurationMinutes(bed,wake);
  const box=$("sleepDurationBox");
  const warn=$("sleepWarnBox");
@@ -3714,6 +3779,7 @@ function updateSleepTimeFormatHint(){
 
 function showSleepLogger(){
  updateSleepTimeFormatHint();
+ applySleepInputFormat();
  updateSleepLoggerUI();
  showOnly("sleepOverlay");
 }
@@ -3727,8 +3793,8 @@ function showFatigueOverlay(){
 function continueFromSleepLogger(){
  state.sleepSinceLastTest = "yes";
  state.sleepLog = state.sleepLog || {};
- const bed=$("sleepBedtimeInput")?.value || "";
- const wake=$("sleepWakeInput")?.value || "";
+ const bed=getSleepInputCanonicalValue("sleepBedtimeInput");
+ const wake=getSleepInputCanonicalValue("sleepWakeInput");
  const duration=computeSleepDurationMinutes(bed,wake);
  state.sleepLog.bedtime = bed || null;
  state.sleepLog.wakeTime = wake || null;
@@ -3807,8 +3873,10 @@ $("sleepPromptNoBtn").onclick=()=>{
  setStatus("Sleep since last test: No");
 };
 
-$("sleepBedtimeInput").addEventListener("input", updateSleepLoggerUI);
-$("sleepWakeInput").addEventListener("input", updateSleepLoggerUI);
+$("sleepBedtimeInput").addEventListener("input", (e)=>{ syncSleepInputCanonical(e.currentTarget); updateSleepLoggerUI(); });
+$("sleepWakeInput").addEventListener("input", (e)=>{ syncSleepInputCanonical(e.currentTarget); updateSleepLoggerUI(); });
+$("sleepBedtimeInput").addEventListener("blur", (e)=>{ const canon=syncSleepInputCanonical(e.currentTarget); if(getEffectiveTimeFormat()==="12" && canon) e.currentTarget.value=formatClockForDisplay(canon); updateSleepLoggerUI(); });
+$("sleepWakeInput").addEventListener("blur", (e)=>{ const canon=syncSleepInputCanonical(e.currentTarget); if(getEffectiveTimeFormat()==="12" && canon) e.currentTarget.value=formatClockForDisplay(canon); updateSleepLoggerUI(); });
 $("sleepQualityPoorBtn").onclick=()=>setSleepQuality(1);
 $("sleepQualityOkayBtn").onclick=()=>setSleepQuality(2);
 $("sleepQualityGoodBtn").onclick=()=>setSleepQuality(3);
