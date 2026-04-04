@@ -2,7 +2,7 @@
 // CogSpeed V371
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V388";
+const APP_VERSION = "V389";
 const RELEASE = APP_VERSION.replace(/^V/i, "");
 const STORAGE_PREFIX = `cogspeed_v${RELEASE}`;
 
@@ -2909,7 +2909,7 @@ function resetPretestEntryState(){
  fatigueOut.textContent="—";
  const fsb=$("fatigueStartBtn"); if(fsb) fsb.classList.add("hidden");
  const fl=$("fatigueList"); if(fl) fl.querySelectorAll(".fatigue-item").forEach(el=>{ el.style.background=""; el.classList.remove("selected"); });
- ["sleepBedtimeInput","sleepWakeInput"].forEach(id=>{ const el=$(id); if(el){ el.value=""; if(el.dataset){ el.dataset.canonical=""; el.dataset.meridiem="AM"; } } });
+ ["sleepBedtimeInput","sleepWakeInput"].forEach(id=>{ const el=$(id); if(el){ el.value=""; if(el.dataset){ el.dataset.canonical=""; el.dataset.meridiem = (id==="sleepBedtimeInput"?"PM":"AM"); } } });
  ["sleepBedHourInput","sleepBedMinuteInput","sleepWakeHourInput","sleepWakeMinuteInput"].forEach(id=>{ const el=$(id); if(el) el.value=""; });
  ["sleepBed","sleepWake"].forEach(prefix=>refreshSleepMeridiemButtons(prefix));
  ["sleepQualityPoorBtn","sleepQualityOkayBtn","sleepQualityGoodBtn"].forEach(id=>$(id)?.classList.remove("selected"));
@@ -3685,6 +3685,9 @@ function getSleep12PrefixFromInputId(id){
  if(id==="sleepWakeInput") return "sleepWake";
  return "";
 }
+function getDefaultSleepMeridiem(prefix){
+ return prefix==="sleepBed" ? "PM" : "AM";
+}
 function setSleepMeridiem(prefix, meridiem){
  const hidden=$(prefix==="sleepBed"?"sleepBedtimeInput":"sleepWakeInput");
  if(hidden && hidden.dataset) hidden.dataset.meridiem = meridiem;
@@ -3692,7 +3695,7 @@ function setSleepMeridiem(prefix, meridiem){
 }
 function refreshSleepMeridiemButtons(prefix){
  const hidden=$(prefix==="sleepBed"?"sleepBedtimeInput":"sleepWakeInput");
- const meridiem=(hidden&&hidden.dataset&&hidden.dataset.meridiem)||"AM";
+ const meridiem=(hidden&&hidden.dataset&&hidden.dataset.meridiem)||getDefaultSleepMeridiem(prefix);
  const am=$(prefix+"AmBtn"), pm=$(prefix+"PmBtn");
  if(am){ am.style.background = meridiem==="AM" ? "#1a3366" : ""; am.style.borderColor = meridiem==="AM" ? "var(--accent)" : ""; }
  if(pm){ pm.style.background = meridiem==="PM" ? "#1a3366" : ""; pm.style.borderColor = meridiem==="PM" ? "var(--accent)" : ""; }
@@ -3704,7 +3707,7 @@ function getSleep12CanonicalValue(prefix){
  const hh=Number(hRaw), mm=Number(mRaw);
  if(!Number.isFinite(hh) || !Number.isFinite(mm) || hh<1 || hh>12 || mm<0 || mm>59) return "";
  const hidden=$(prefix==="sleepBed"?"sleepBedtimeInput":"sleepWakeInput");
- const meridiem=(hidden&&hidden.dataset&&hidden.dataset.meridiem)||"AM";
+ const meridiem=(hidden&&hidden.dataset&&hidden.dataset.meridiem)||getDefaultSleepMeridiem(prefix);
  let hour=hh%12;
  if(meridiem==="PM") hour+=12;
  return `${String(hour).padStart(2,"0")}:${String(mm).padStart(2,"0")}`;
@@ -3712,7 +3715,7 @@ function getSleep12CanonicalValue(prefix){
 function setSleep12FromCanonical(prefix, canon){
  const hourEl=$(prefix+"HourInput"), minEl=$(prefix+"MinuteInput");
  if(!hourEl || !minEl) return;
- if(!canon){ hourEl.value=""; minEl.value=""; setSleepMeridiem(prefix,"AM"); return; }
+ if(!canon){ hourEl.value=""; minEl.value=""; setSleepMeridiem(prefix,getDefaultSleepMeridiem(prefix)); return; }
  const [hh,mm]=String(canon).split(":").map(Number);
  if(!Number.isFinite(hh) || !Number.isFinite(mm)) return;
  const meridiem = hh>=12 ? "PM" : "AM";
@@ -3823,6 +3826,7 @@ function updateSleepLoggerUI(){
  if(box) box.textContent = `Sleep duration: ${formatSleepDuration(d)}`;
  if(warn){
   warn.style.display = (d!=null && (d < 30 || d > 16*60)) ? "block" : "none";
+  if(warn && warn.style.display==="block") warn.textContent = "This sleep duration looks unusual. Please check hour and AM/PM selections.";
  }
 }
 function setSleepQuality(score){
