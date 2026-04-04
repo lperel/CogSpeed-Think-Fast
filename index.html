@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
   <meta name="theme-color" content="#0b1830"/>
   <link rel="manifest" href="manifest.json"/>
-  <title>CogSpeed® V383</title>
+  <title>CogSpeed® V384</title>
     <style>
 
     :root{--bg:#091426;--bg2:#132746;--panel:#0d1b33;--panel2:#10213e;--text:#f5fbff;--muted:#d7e7f8;--edge:#4f6f99;--accent:#7fd7ff;--probe:#00f0ff}
@@ -271,8 +271,8 @@
   /* Gear spin (intro/outro only) */
   @keyframes gSpinF{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
   @keyframes gSpinR{from{transform:rotate(0deg)}to{transform:rotate(-360deg)}}
-  .gspin-f .g-rot{animation:gSpinF 1.0s linear infinite;transform-box:fill-box;transform-origin:center}
-  .gspin-r .g-rot{animation:gSpinR 1.0s linear infinite;transform-box:fill-box;transform-origin:center}
+  .gspin-f .g-rot{animation:gSpinF 1.4s linear infinite;transform-box:fill-box;transform-origin:center}
+  .gspin-r .g-rot{animation:gSpinR 1.4s linear infinite;transform-box:fill-box;transform-origin:center}
 
   /* Short screens */
   @media(max-height:680px){
@@ -455,8 +455,8 @@
     <div class="field-row" style="margin-bottom:14px">
       <label style="font-size:16px">Time format<div class="field-hint">Used for sleep-time entry hints and future displays</div></label>
       <div style="display:flex;gap:10px;margin-top:8px">
-        <button id="profileTime12Btn" class="ctrl-btn" style="flex:1;font-size:17px">12-hour</button>
-        <button id="profileTime24Btn" class="ctrl-btn" style="flex:1;font-size:17px">24-hour</button>
+        <button type="button" id="profileTime12Btn" class="ctrl-btn" style="flex:1;font-size:17px">12-hour</button>
+        <button type="button" id="profileTime24Btn" class="ctrl-btn" style="flex:1;font-size:17px">24-hour</button>
       </div>
     </div>
 
@@ -739,7 +739,7 @@
       <button class="ctrl-btn" id="summaryRestartBtn" style="flex:1">New Test</button>
       <button class="ctrl-btn" id="summarySpeedometerBtn" style="flex:1">Speedometer</button>
             <button class="ctrl-btn" id="summaryRankedBtn" style="flex:1">Ranked Averages</button>
-      <button id="summaryProfileBtn" style="background:none;border:none;color:rgba(127,215,255,0.5);font-size:18px;padding:4px 10px;cursor:pointer">⚙</button>
+      <button id="summaryProfileBtn" style="background:none;border:none;color:rgba(127,215,255,0.85);font-size:18px;padding:4px 10px;cursor:pointer">⚙</button>
       <button id="summaryAdminBtn" style="background:none;border:none;color:rgba(127,215,255,0.3);font-size:11px;padding:4px 10px;cursor:pointer;font-family:inherit;letter-spacing:.05em">Admin →</button>
     </div>
   </div>

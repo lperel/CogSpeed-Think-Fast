@@ -2,7 +2,7 @@
 // CogSpeed V371
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V383";
+const APP_VERSION = "V384";
 const RELEASE = APP_VERSION.replace(/^V/i, "");
 const STORAGE_PREFIX = `cogspeed_v${RELEASE}`;
 
@@ -527,8 +527,8 @@ function ensureGearImageStyles(){
    filter:contrast(1.14) saturate(0.95) brightness(1.02);
    transform-origin:50% 50%;
   }
-  .gear-img-wrap.gspin-f img{ animation:gSpinF 1.0s linear infinite; }
-  .gear-img-wrap.gspin-r img{ animation:gSpinR 1.0s linear infinite; }
+  .gear-img-wrap.gspin-f img{ animation:gSpinF 1.4s linear infinite; }
+  .gear-img-wrap.gspin-r img{ animation:gSpinR 1.4s linear infinite; }
   .gear-img-wrap.gidle-f img{ animation:gSpinF 9s linear infinite; }
   .gear-img-wrap.gidle-r img{ animation:gSpinR 9s linear infinite; }
   .gear-mark{
@@ -2270,6 +2270,14 @@ function validateProfileAge(){
  return true;
 }
 
+function openProfileFromContext(returnTo,email=""){
+ _profileReturnTo = returnTo || "subjectOverlay";
+ const safeEmail = String(email || state.profile?.email || state.subjectId || "").trim().toLowerCase();
+ const input = $("subjectIdInput");
+ if(input && safeEmail && safeEmail !== "guest") input.value = safeEmail;
+ openProfileOverlay(safeEmail === "guest" ? "" : safeEmail);
+}
+
 function openProfileOverlay(email){
  const existing = loadProfile();
  _profileGenderSelected = existing?.gender || "";
@@ -2823,7 +2831,7 @@ function animateSpeedometer(canvas, targetCps, blockMs, success){
 }
 function stopSpeedometer(){ if(_speedoRaf){ cancelAnimationFrame(_speedoRaf); _speedoRaf=null; } }
 
-// ─── Results page — gear spin outro (0.5s) then thinking box ───
+// ─── Results page — gear spin outro (2.0s) then thinking box ───
 // ─── RESULTS PAGE FLOW ────────────────────────────────────────
 // THINKING BOX: 2s animated steam+sparks FX after test ends.
 // SUCCESS/FAIL BOX: 3s outcome overlay (green=SUCCESS/red=Test Failed).
@@ -2835,7 +2843,7 @@ function showResultsPage(){
  beginCurtainTransition();
  const last=state.history[state.history.length-1];
  const success=last?isTestSuccess(last.endReason):false;
- // 1. Spin all gears fast for 1.5s
+ // 1. Spin all gears for 2.0s before thinking box
  stimGrid.querySelectorAll(".stim-cell").forEach((c,i)=>{
   c.classList.remove("gidle-f","gidle-r");
   c.classList.add(i%2===0?"gspin-f":"gspin-r");
@@ -2859,7 +2867,7 @@ function showResultsPage(){
    endCurtainTransition();
  try{ updateStartPageLinks(); }catch(e){}
   },2000);
- },500);
+ },2000);
 }
 
 // ─── Session control ───
@@ -3985,20 +3993,19 @@ const _psb=$("profileSaveBtn"); if(_psb) _psb.onclick=saveAndContinueProfile;
 // Profile / ASTERISK page button — can open even before email is entered
 const _peb=$("profileEditBtn"); if(_peb) _peb.onclick=()=>{
  const email=($("subjectIdInput")?.value||"").trim().toLowerCase();
- _profileReturnTo = "subjectOverlay";
- openProfileOverlay(email);
+ openProfileFromContext("subjectOverlay", email);
 };
 
 // Profile button from summary page
-const _spb=$("summaryProfileBtn"); if(_spb) _spb.onclick=()=>{
+const _spb=$("summaryProfileBtn"); if(_spb) _spb.onclick=(e)=>{
+ if(e) e.preventDefault();
  const p=loadProfile();
  const email=p?.email||state.subjectId||"";
- _profileReturnTo="summaryOverlay";
- openProfileOverlay(email);
+ openProfileFromContext("summaryOverlay", email);
 };
 const _prb=$("profileResetBtn"); if(_prb) _prb.onclick=resetProfile;
-const _pt12=$("profileTime12Btn"); if(_pt12) _pt12.onclick=()=>profileSelectTimeFormat("12");
-const _pt24=$("profileTime24Btn"); if(_pt24) _pt24.onclick=()=>profileSelectTimeFormat("24");
+const _pt12=$("profileTime12Btn"); if(_pt12) _pt12.onclick=(e)=>{ if(e) e.preventDefault(); profileSelectTimeFormat("12"); settings.timeFormat="12"; saveSettings(); };
+const _pt24=$("profileTime24Btn"); if(_pt24) _pt24.onclick=(e)=>{ if(e) e.preventDefault(); profileSelectTimeFormat("24"); settings.timeFormat="24"; saveSettings(); };
 // Age validation on input change
 const _pbm=$("profileBirthMonth"); if(_pbm) _pbm.onchange=validateProfileAge;
 const _pby=$("profileBirthYear"); if(_pby) _pby.oninput=validateProfileAge;
