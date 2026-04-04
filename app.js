@@ -2,7 +2,7 @@
 // CogSpeed V331
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V362";
+const APP_VERSION = "V364";
 const RELEASE = APP_VERSION.replace(/^V/i, "");
 const STORAGE_PREFIX = `cogspeed_v${RELEASE}`;
 
@@ -3084,8 +3084,12 @@ function startTest(){
  if(!state.subjectId){ showOnly("subjectOverlay"); setStatus("Enter Subject ID first"); return; }
  if(!state.samnPerelli){ showOnly("fatigueOverlay"); setStatus("Select fatigue rating first"); return; }
  const sid=state.subjectId, spf=state.samnPerelli, mode=settings.testMode||"mode1";
+ const slept=state.sleepSinceLastTest;
+ const sleepLog=state.sleepLog ? JSON.parse(JSON.stringify(state.sleepLog)) : null;
  clearCurrentSession();
  state.subjectId=sid; state.samnPerelli=spf; state.activeMode=mode;
+ state.sleepSinceLastTest=slept;
+ state.sleepLog=sleepLog;
  const fo=$("fatigueOut"); if(fo) fo.textContent=String(spf.score);
  hideAllOverlays();
  setTestingQuiet(true);
@@ -3908,6 +3912,7 @@ $("sleepPromptYesBtn").onclick=()=>{
 };
 $("sleepPromptNoBtn").onclick=()=>{
  state.sleepSinceLastTest="no";
+ state.sleepLog=null;
  showOnly("fatigueOverlay");
  setStatus("Sleep since last test: No");
 };
