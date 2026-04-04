@@ -2,7 +2,7 @@
 // CogSpeed V371
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V389";
+const APP_VERSION = "V390";
 const RELEASE = APP_VERSION.replace(/^V/i, "");
 const STORAGE_PREFIX = `cogspeed_v${RELEASE}`;
 
@@ -75,7 +75,8 @@ const DEFAULTS={
  cpiWorstMs:2400,
  deviceBenchmarkEnabled:0,
  timeFormat:"12",
- lateResponseThresholdMs:600 // first response <600ms on next frame may belong to prior frame; a second >=600ms response belongs to current frame
+ lateResponseThresholdMs:600, // first response <600ms on next frame may belong to prior frame; a second >=600ms response belongs to current frame
+ RecoveryInterTrialDelayMsStart:0 // delay before opening the next recovery or terminal-recovery trial
 };
 
 // ═══════════════════════════════════════════════════════════════
@@ -1394,14 +1395,14 @@ function handleTap(index,eventTimeStamp){
     setTimeout(()=>openTrial("paced"),180);
    }else{
     setStatus(`SP Restart: ${state.spCorrectStreak}/${need} correct`);
-    setTimeout(()=>openTrial("recovery"),160);
+    setTimeout(()=>openTrial("recovery"), Number(settings.RecoveryInterTrialDelayMsStart)||0);
    }
   }else{
    state.spCorrectStreak=0; state.spWrongCount+=1; state.recoveryErrors+=1;
    const limit=Math.max(1,Number(settings.spRestartWrongLimit)||3);
    if(state.spWrongCount>=limit){ state.endReason=`FAILED: reached SP restart wrong-tap limit (${limit})`; finish(); return; }
    setStatus(`SP Restart: ${state.spWrongCount}/${limit} wrong`);
-   setTimeout(()=>openTrial("recovery"),160);
+   setTimeout(()=>openTrial("recovery"), Number(settings.RecoveryInterTrialDelayMsStart)||0);
   }
   recordAnswer(ok); return;
  }
@@ -1418,8 +1419,8 @@ function handleTap(index,eventTimeStamp){
    state.current.resolved=true; state.recoveryCorrectCompleted+=1;
    const need=Math.max(1,Number(settings.spRestartCorrectStreak)||2);
    if(state.recoveryCorrectCompleted>=need){ state.endReason=`Convergent blocks — ${state.terminalBlockReason||"2 consecutive blocks within threshold"}. Completed ${need} final trials.`; finish(); return; }
-   setTimeout(()=>openTrial("terminal_recovery"),160);
-  }else setTimeout(()=>openTrial("terminal_recovery"),160);
+   setTimeout(()=>openTrial("terminal_recovery"), Number(settings.RecoveryInterTrialDelayMsStart)||0);
+  }else setTimeout(()=>openTrial("terminal_recovery"), Number(settings.RecoveryInterTrialDelayMsStart)||0);
   return;
  }
 
