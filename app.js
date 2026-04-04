@@ -2,7 +2,7 @@
 // CogSpeed V331
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V366";
+const APP_VERSION = "V367";
 const RELEASE = APP_VERSION.replace(/^V/i, "");
 const STORAGE_PREFIX = `cogspeed_v${RELEASE}`;
 
@@ -2933,23 +2933,21 @@ function startTest(){
 //  cell, response. Session selector dropdown. CSV download button.
 // Accessible from admin → 📋 Trial Detail button.
 // ──────────────────────────────────────────────────────────────
+function syncTrialLogSessionSelect(selectedValue){
+ const sel=$("trialLogSessionSelect"); if(!sel) return;
+ const options = [...state.history].reverse().map((r,i)=>{
+  const idx=state.history.length-1-i;
+  return `<option value="${idx}">Session ${idx+1} · ${formatModeTag(r.testMode)} · ${r.subjectId} · ${new Date(r.time).toLocaleString()}</option>`;
+ }).join("");
+ if(sel.dataset.optionsHtml !== options){ sel.innerHTML = options; sel.dataset.optionsHtml = options; }
+ if(selectedValue!=null) sel.value=String(selectedValue);
+}
+
 function buildTrialLog(sessionIndex){
  const tbody=$("trialLogBody"); if(!tbody) return;
- // Populate session selector
  const sel=$("trialLogSessionSelect");
  const preservedValue = (sessionIndex!=null) ? String(sessionIndex) : (sel ? sel.value : null);
- if(sel){
-  sel.innerHTML="";
-  // Most recent first
-  [...state.history].reverse().forEach((r,i)=>{
-   const idx=state.history.length-1-i;
-   const opt=document.createElement("option");
-   opt.value=String(idx);
-   opt.textContent=`Session ${idx+1} · ${formatModeTag(r.testMode)} · ${r.subjectId} · ${new Date(r.time).toLocaleString()}`;
-   sel.appendChild(opt);
-  });
-  if(preservedValue!=null) sel.value=String(preservedValue);
- }
+ if(sel) syncTrialLogSessionSelect(preservedValue);
  const idx=sel?Number(sel.value):state.history.length-1;
  const result=state.history[idx];
  const log=result?result.rtLog:state.rtLog;
@@ -3849,6 +3847,10 @@ if ("serviceWorker" in navigator) {
   }catch(err){
    console.warn("Service worker registration failed:", err);
   }
+  try{ updateStartPageLinks(); }catch(err){}
+  try{ wireEmailSelectControls(); }catch(err){}
+  try{ wireEmailDraftAction(); }catch(err){}
+  try{ syncEditableEmailRecipient(); }catch(err){}
  });
 }
 
@@ -4053,10 +4055,9 @@ const _ssp=$("speedStartPageBtn"); if(_ssp) _ssp.onclick=()=>{ hideAllOverlays()
 // Includes links back to Speedometer and Start.
 
 
-window.addEventListener("load",()=>{ try{ updateStartPageLinks(); }catch(e){}; });
 
 
-/* ===== Performance vs Time graph override (V331) ===== */
+/* ===== Performance vs Time graph ===== */
 const perfGraphState = {
   preset: "last14",
   fromDate: "",
@@ -4481,12 +4482,18 @@ function openResponseGraphPage(fromAdmin){
  if(adminBtn) adminBtn.style.display = fromAdmin ? "none" : "";
 }
 
+function renderPerformanceOverTimePage(){
+  drawPerformanceOverTimeChart($("perfTimeGraph"), state.history||[]);
+}
+
 function openPerformanceOverTimePage(){
   hideAllOverlays();
   const ov=$("perfTimeOverlay");
   if(ov) ov.classList.remove("hidden");
   wirePerfGraphControls();
-  drawPerformanceOverTimeChart($("perfTimeGraph"), state.history||[]);
+  renderPerformanceOverTimePage();
+  requestAnimationFrame(()=>requestAnimationFrame(renderPerformanceOverTimePage));
+  setTimeout(renderPerformanceOverTimePage,80);
 }
 /* ===== end Performance vs Time graph override (V331) ===== */
 
@@ -4567,14 +4574,10 @@ function wireEmailSelectControls(){
   }
 }
 
-window.addEventListener("load", ()=>{
-  try{ wireEmailSelectControls(); }catch(err){}
- try{ wireEmailDraftAction(); }catch(err){}
-});
-/* ===== end E-mail Select wiring override (V331) ===== */
+/* ===== end E-mail Select wiring ===== */
 
 
-/* ===== E-mail draft action override (V331) ===== */
+/* ===== E-mail draft action ===== */
 function formatLastTrialLogText(last){
   if(!last || !Array.isArray(last.rtLog) || !last.rtLog.length) return "No trial detail log available.";
   const lines = last.rtLog.map(r=>{
@@ -4662,14 +4665,10 @@ function buildEmailBodyFromSelection(){
 }
 
 
-window.addEventListener("load", ()=>{
-  try{ wireEmailDraftAction(); }catch(err){}
-  try{ syncEditableEmailRecipient(); }catch(err){}
-});
-/* ===== end E-mail draft action override (V331) ===== */
+/* ===== end E-mail draft action ===== */
 
 
-/* ===== Editable recipient field override (V331) ===== */
+/* ===== Editable recipient field ===== */
 function getEditableEmailRecipient(){
   const input = $("emailRecipientInput");
   const typed = input && input.value ? String(input.value).trim() : "";
@@ -4733,8 +4732,7 @@ function wireEmailDraftAction(){
     };
   }
 }
-window.addEventListener("load", ()=>{ try{ syncEditableEmailRecipient(); }catch(err){}; });
-/* ===== end Editable recipient field override (V331) ===== */
+/* ===== end Editable recipient field ===== */
 
 
 window.addEventListener("resize", ()=>{
