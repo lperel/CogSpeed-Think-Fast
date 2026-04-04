@@ -2,7 +2,7 @@
 // CogSpeed V371
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V371";
+const APP_VERSION = "V373";
 const RELEASE = APP_VERSION.replace(/^V/i, "");
 const STORAGE_PREFIX = `cogspeed_v${RELEASE}`;
 
@@ -3709,8 +3709,9 @@ function showSleepLogger(){
 }
 function showFatigueOverlay(){
  const fsb=$("fatigueStartBtn"); if(fsb) fsb.classList.add("hidden");
- const fl=$("fatigueList"); if(fl) fl.querySelectorAll(".fatigue-item").forEach(el=>{ el.style.background=""; el.classList.remove("selected"); });
- showFatigueOverlay();
+ const fl=$("fatigueList");
+ if(fl) fl.querySelectorAll(".fatigue-item").forEach(el=>{ el.style.background=""; el.classList.remove("selected"); });
+ showOnly("fatigueOverlay");
 }
 
 function continueFromSleepLogger(){
@@ -3726,7 +3727,7 @@ function continueFromSleepLogger(){
   state.sleepLog.qualityScore = 2;
   state.sleepLog.qualityLabel = "Okay";
  }
- showOnly("fatigueOverlay");
+ showFatigueOverlay();
 }
 
 function showSleepPrompt(){
