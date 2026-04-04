@@ -2,7 +2,7 @@
 // CogSpeed V371
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V377";
+const APP_VERSION = "V380";
 const RELEASE = APP_VERSION.replace(/^V/i, "");
 const STORAGE_PREFIX = `cogspeed_v${RELEASE}`;
 
@@ -44,9 +44,9 @@ const DEFAULTS={
  mode3MaxDurationMs:120000,
  mode3BaselineFactor:1.3,
  consecutiveMissesForBlock:2,
-  blockRestartPercent:1.3,
+  blockRestartPercent:1.2,
  wrongSlowdownMs:50,
- correctSpeedupFactor:0.20,
+ correctSpeedupFactor:0.30,
  minSpeedupOnCorrectMs:50,
  maxSpeedupOnCorrectMs:200,
  spRestartWrongLimit:3,
@@ -109,11 +109,11 @@ const ADMIN_FIELDS=[
  // 18-29. Mode 1 settings, ordered by use
  ["initialPacedPercent","17. Mode 1 MP start: % of calibration avg (default 1.2)","number"],
  ["consecutiveMissesForBlock","18. Mode 1 misses to trigger block (default 2)","number"],
- ["blockRestartPercent","19. Mode 1 restart: % of block baseline (default 1.3)","number"],
+ ["blockRestartPercent","19. Mode 1 restart: % of block baseline (default 1.2)","number"],
  ["spRestartCorrectStreak","20. Mode 1 recovery correct streak to resume (default 2)","number"],
  ["spRestartWrongLimit","21. Mode 1 recovery max wrong before fail (default 3)","number"],
 ["wrongSlowdownMs","22. Mode 1 MP slowdown on wrong (ms, default 50)","number"],
-["correctSpeedupFactor","23. Mode 1 MP correct formula factor (default 0.20)","number"],
+["correctSpeedupFactor","23. Mode 1 MP correct formula factor (default 0.30)","number"],
 ["minSpeedupOnCorrectMs","24. Mode 1 MP minimum speedup on correct (ms, default 50)","number"],
 ["maxSpeedupOnCorrectMs","25. Mode 1 MP maximum speedup on correct (ms, default 200)","number"],
  ["recoveryNoResponseMs","26. Mode 1 recovery no-response timeout (ms, default 10000)","number"],
@@ -310,7 +310,7 @@ function harvestActiveFrameTiming(actualAtMs){
 // ─── CPI ───
 // ─── CPI SCORE CALCULATION ────────────────────────────────────
 // Converts avg last 2 block durations (ms) to 0-100 CPI score.
-// Scale: cpiBestMs=800ms → CPI 100, cpiWorstMs=3000ms → CPI 0.
+// Scale: cpiBestMs=800ms → CPI 100, cpiWorstMs=2400ms → CPI 0.
 // Source: Perelli (2026). Formula: (worst-ms)/(worst-best)*100
 // ──────────────────────────────────────────────────────────────
 function computeCPI(avgMs){
@@ -876,7 +876,7 @@ function finishCalibration(){
 //   r = responseTime / roundDuration
 //   deltaMs = (f*r - f) * roundDuration
 //           = f * (responseTime - roundDuration)
-//   where f = correctSpeedupFactor (default 0.20)
+//   where f = correctSpeedupFactor (default 0.30)
 //
 // IMPORTANT:
 //   On CORRECT responses that speed up:
@@ -936,7 +936,7 @@ function calculatePacingTransition(currentDuration,rt,correct){
  if(correct){
   if(rt==null||!isFinite(rt)) return null;
   const r=rt/before;
-  const f = Number(settings.correctSpeedupFactor)||0.20;
+  const f = Number(settings.correctSpeedupFactor)||0.30;
   let deltaMs=(f*r-f)*before;
 
   const minSpeed = Number(settings.minSpeedupOnCorrectMs)||50;
@@ -1384,9 +1384,9 @@ function handleTap(index,eventTimeStamp){
     // REQUIRED RESTART RULE:
     //   restartMs = blockBaselineMs × blockRestartPercent
     // blockBaselineMs is the paced baseline at the block point.
-    // blockRestartPercent defaults to 1.3, so restart is 30% slower than block baseline.
+    // blockRestartPercent defaults to 1.2, so restart is 20% slower than block baseline.
     const restartBaseMs=Number(state.blockRestartBaseline)||Number(state.blockDuration)||0;
-    const restartFactor=Number(settings.blockRestartPercent)||1.3;
+    const restartFactor=Number(settings.blockRestartPercent)||1.2;
     const slower=clamp(Math.round(restartBaseMs*restartFactor),settings.minDurationMs,settings.maxDurationMs);
     state.recoveries.push(slower); state.phase="paced"; state.duration=slower;
     state.spCorrectStreak=0; state.spWrongCount=0;
@@ -2421,8 +2421,8 @@ function getCognitivePerformanceTableText(result){
  if((result.testMode||"mode1")!=="mode1") return "Not used in this mode.";
  const cpi = result.cognitivePerformanceIndex!=null ? Number(result.cognitivePerformanceIndex) : null;
  const actualSpfs = result.samnPerelli && result.samnPerelli.score!=null ? Number(result.samnPerelli.score) : null;
- const best = Number(settings.cpiBestMs)||900;
- const worst = Number(settings.cpiWorstMs)||3400;
+ const best = Number(settings.cpiBestMs)||DEFAULTS.cpiBestMs;
+ const worst = Number(settings.cpiWorstMs)||DEFAULTS.cpiWorstMs;
  const span = worst - best;
  const cpiToMs = c => Math.round(best + ((100-c)/100)*span);
  const rows = [
@@ -3043,7 +3043,7 @@ function buildTrialLog(sessionIndex){
  }
  tbody.innerHTML="";
  if(!log||!log.length){
-  tbody.innerHTML='<tr><td colspan="19" style="text-align:center;color:var(--muted);padding:12px">No trial data for this session</td></tr>';
+  tbody.innerHTML='<tr><td colspan="18" style="text-align:center;color:var(--muted);padding:12px">No trial data for this session</td></tr>';
   const meta=$("trialLogMeta"); if(meta) meta.textContent="No data";
   return;
  }
@@ -3067,7 +3067,7 @@ function buildTrialLog(sessionIndex){
   const nextRateStr=e.nextRateMs!=null?`${e.nextRateMs}ms`:"—";
   const changeStr=e.rateChangeMs!=null?`${e.rateChangeMs>0?"+":""}${e.rateChangeMs}ms`:"—";
   const reasonStr=e.rateChangeReason||"—";
-  tr.innerHTML=`<td style="font-weight:700">${e.seq}</td><td style="font-size:10px">${timeStr}</td><td style="font-size:10px;color:var(--muted)">${phaseLabel}</td><td>${durStr}</td><td style="font-weight:700">${rtStr}</td><td>${targetStr}</td><td>${ageStr}</td><td>${overStr}</td><td>${rafSamplesStr}</td><td>${meanRafStr}</td><td>${maxRafStr}</td><td style="color:${oc};font-weight:700">${outcomeLabel}</td><td>${e.counted===false?"No":"Yes"}</td><td>${e.probe}</td><td style="color:var(--accent)">${e.correctCell}</td><td style="color:${oc==="var(--muted)"?"var(--muted)":oc}">${e.response}</td><td>${changeStr}</td><td>${nextRateStr}</td><td>${reasonStr}</td>`;
+  tr.innerHTML=`<td style="font-weight:700">${e.seq}</td><td style="font-size:10px">${timeStr}</td><td style="font-size:10px;color:var(--muted)">${phaseLabel}</td><td>${durStr}</td><td style="font-weight:700">${rtStr}</td><td>${targetStr}</td><td>${ageStr}</td><td>${overStr}</td><td>${rafSamplesStr}</td><td>${meanRafStr}</td><td>${maxRafStr}</td><td style="color:${oc};font-weight:700">${outcomeLabel}</td><td>${e.counted===false?"No":"Yes"}</td><td style="color:var(--accent)">${e.correctCell}</td><td style="color:${oc==="var(--muted)"?"var(--muted)":oc}">${e.response}</td><td>${changeStr}</td><td>${nextRateStr}</td><td>${reasonStr}</td>`;
   tbody.appendChild(tr);
  });
 }
