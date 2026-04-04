@@ -1,8 +1,8 @@
 // ═══════════════════════════════════════════════════
-// CogSpeed V338
+// CogSpeed V339
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V338";
+const APP_VERSION = "V339";
 const RELEASE = APP_VERSION.replace(/^V/i, "");
 const STORAGE_PREFIX = `cogspeed_v${RELEASE}`;
 
@@ -212,7 +212,8 @@ const state={
  trialOpenedAt:null, geo:null, benchmark:null, lastResultText:null,
  sleepSinceLastTest:null,
  sleepLog:null,
- pendingPriorMiss:null, pendingLatePacing:null
+ pendingPriorMiss:null, pendingLatePacing:null,
+ timingFrameOvershoots:[], timingRafIntervals:[]
  // pendingPriorMiss:
  //   stores the immediately previous paced frame when it LOOKED like a miss at frame end,
  //   but is still inside the late-response grace rule window.
@@ -249,6 +250,18 @@ function shuffle(arr){ const a=[...arr]; for(let i=a.length-1;i>0;i--){ const j=
 function subjectKey(id){ return id==="0"?"Guest":id; }
 function setStatus(m){ statusLine.textContent=m; }
 function formatDuration(ms){ if(ms==null) return "—"; const s=Math.round(ms/1000),m=Math.floor(s/60); return m>0?`${m}m ${s%60}s`:`${s}s`; }
+function roundMaybe(v,d=2){ return v==null || !isFinite(v) ? null : Number(v.toFixed(d)); }
+function buildTimingQualitySummary(){
+ const overs=state.timingFrameOvershoots||[];
+ const rafs=state.timingRafIntervals||[];
+ return {
+  pacedFrameCountMeasured: overs.length,
+  avgFrameOvershootMs: overs.length ? roundMaybe(mean(overs),2) : null,
+  maxFrameOvershootMs: overs.length ? roundMaybe(Math.max(...overs),2) : null,
+  avgRafIntervalMs: rafs.length ? roundMaybe(mean(rafs),2) : null,
+  maxRafIntervalMs: rafs.length ? roundMaybe(Math.max(...rafs),2) : null
+ };
+}
 // Mode helpers centralize mode checks so start / finish / summary logic
 // can switch cleanly between CogSpeed, SPC, and SPCMP behavior.
 function isMode1(){ return (settings.testMode||"mode1")==="mode1"; }
@@ -260,7 +273,7 @@ function getSessionMaxDurationMs(){ return isMode2() ? (Number(settings.mode2Max
 // ─── CPI ───
 // ─── CPI SCORE CALCULATION ────────────────────────────────────
 // Converts avg last 2 block durations (ms) to 0-100 CPI score.
-// Scale: cpiBestMs=800ms → CPI 100, cpiWorstMs=3000ms → CPI 0.
+// Scale: cpiBestMs=800ms → CPI 100, cpiWorstMs=2400ms → CPI 0 by default (editable in Admin).
 // Source: Perelli (2026). Formula: (worst-ms)/(worst-best)*100
 // ──────────────────────────────────────────────────────────────
 function computeCPI(avgMs){
@@ -957,7 +970,7 @@ const modeMetricMs = isMode2() ? (state.selfPacedRTs.length?mean(state.selfPaced
   fixedPacedBaselineMs: state.fixedPacedBaseline, fixedPacedPresented: state.fixedPacedPresented,
   fixedPacedCorrect: state.fixedPacedCorrect, fixedPacedWrong: state.fixedPacedWrong,
   rtLog:[...state.rtLog], endReason:state.endReason||"Run complete",
-  time:new Date().toISOString(), geo:state.geo
+  time:new Date().toISOString(), geo:state.geo, timingQuality:buildTimingQualitySummary()
  };
  state.history.push(result);
 localStorage.setItem(`${STORAGE_PREFIX}_history`,JSON.stringify(state.history));
@@ -1039,8 +1052,17 @@ function openTrial(kind){
    }else if(kind==="paced" || kind==="paced_fixed"){
     const targetMs = state.duration;
     const frameStart = state.trialOpenedAt;
-    function checkFrame(){
-     if(performance.now() - frameStart >= targetMs){
+    const frameTargetAt = frameStart + targetMs;
+    let lastCheckAt = frameStart;
+    function checkFrame(now){
+     if(now!=null && isFinite(now)){
+      const dt = now - lastCheckAt;
+      if(dt >= 0){ state.timingRafIntervals.push(dt); }
+      lastCheckAt = now;
+     }
+     const currentNow = (now!=null && isFinite(now)) ? now : performance.now();
+     if(currentNow >= frameTargetAt){
+      state.timingFrameOvershoots.push(Math.max(0, currentNow - frameTargetAt));
       onPacedFrameEnd();
       return;
      }
@@ -2150,7 +2172,7 @@ function formatModePooledRankSection(mode){
 // exportResults(): downloads full history as ${STORAGE_PREFIX}_results.json
 // exportCSV(): downloads history as ${STORAGE_PREFIX}_history.csv
 //  Columns: session, subjectId, date, SP-FS, calibration, blocks,
-//  CPI, taps, correct, wrong, missed, paced stats, duration, end reason.
+//  CPI, taps, correct, wrong, missed, paced stats, timing-quality logs, duration, end reason.
 // emailResults(): opens mailto: with last result text in body.
 // ──────────────────────────────────────────────────────────────
 
@@ -2160,7 +2182,7 @@ function exportCSV(){
   "avgLast2Ms","blockDiffMs","cpi","totalTaps","correct","wrong","missed",
   "sleepSinceLastTest","sleepBedtime","sleepWakeTime","sleepDurationMinutes","sleepQualityLabel","sleepQualityScore",
   "pacedCorrect","pacedWrong","spRestartWrong","meanPacedRtMs","pacedRtSd",
-  "testDurationMs","endReason","location"];
+  "avgFrameOvershootMs","maxFrameOvershootMs","avgRafIntervalMs","maxRafIntervalMs","testDurationMs","endReason","location"];
  const csvCell=v=>{
   const s=v==null?"":String(v);
   return /[",\n\r]/.test(s) ? `"${s.replace(/"/g,'""')}"` : s;
@@ -2186,6 +2208,10 @@ function exportCSV(){
   r.pacedResponseCount||0, r.pacedErrors||0, r.recoveryErrors||0,
   r.pacedResponseMeanMs!=null?r.pacedResponseMeanMs.toFixed(1):"",
   r.pacedResponseSdMs!=null?r.pacedResponseSdMs.toFixed(1):"",
+  r.timingQuality?.avgFrameOvershootMs!=null?r.timingQuality.avgFrameOvershootMs:"",
+  r.timingQuality?.maxFrameOvershootMs!=null?r.timingQuality.maxFrameOvershootMs:"",
+  r.timingQuality?.avgRafIntervalMs!=null?r.timingQuality.avgRafIntervalMs:"",
+  r.timingQuality?.maxRafIntervalMs!=null?r.timingQuality.maxRafIntervalMs:"",
   r.testDurationMs!=null?Math.round(r.testDurationMs):"",
   r.endReason||"",
   (r.geo&&r.geo.address)||""
@@ -2518,7 +2544,7 @@ function isTestSuccess(r){ return (r||"").toLowerCase().startsWith("convergent")
 // Formats full monospace result text (state.lastResultText).
 // Includes: subject ID, date/time, location, SP-FS, calibration,
 //  block scores, CPI, response stats, end reason, reference table.
-// REFERENCE TABLE: 7-row S-PF/CPI/MBS lookup from Perelli (2026)
+// REFERENCE TABLE: 7-row SP-FS/CPI/MBS lookup from Perelli (2026)
 //  with ← YOUR SCORE arrow on the matching CPI band.
 // ──────────────────────────────────────────────────────────────
 // Pooled mode-specific ranking summaries:
@@ -2630,7 +2656,7 @@ GMT time:   ${formatSummaryGmtTime(result)}
 Test duration: ${formatDuration(result.testDurationMs)}
 Location:   ${geoStr}
 ${hr}
-FATIGUE (S-PF)
+FATIGUE (SP-FS)
  Pre-test rating: ${spf}
 ${formatSleepLine(result)}
 ${hr}
@@ -2664,7 +2690,7 @@ GMT time:   ${formatSummaryGmtTime(result)}
 Test duration: ${formatDuration(result.testDurationMs)}
 Location:   ${geoStr}
 ${hr}
-FATIGUE (S-PF)
+FATIGUE (SP-FS)
  Pre-test rating: ${spf}
 ${formatSleepLine(result)}
 ${hr}
@@ -2710,7 +2736,7 @@ GMT time:   ${formatSummaryGmtTime(result)}
 Test duration: ${formatDuration(result.testDurationMs)}
 Location:   ${geoStr}
 ${hr}
-FATIGUE (S-PF)
+FATIGUE (SP-FS)
  Pre-test rating: ${spf}
 ${formatSleepLine(result)}
 ${hr}
@@ -3007,6 +3033,7 @@ function resetTrialStateOnly(){
  state.activeMode=settings.testMode||"mode1"; state.selfPacedRTs=[]; state.selfPacedCorrect=0; state.selfPacedWrong=0;
  state.fixedPacedBaseline=null; state.fixedPacedPresented=0; state.fixedPacedCorrect=0; state.fixedPacedWrong=0;
  state.geo=null; state.benchmark=null; state.lastResultText=null;
+ state.timingFrameOvershoots=[]; state.timingRafIntervals=[];
  updateCPIDisplay(null); updateMetrics(); setProbeIdle(); setTestingQuiet(false);
 }
 
@@ -3989,7 +4016,6 @@ $("sleepBackBtn").onclick=()=>showOnly("sleepPromptOverlay");
 $("sleepPromptBackBtn").onclick=()=>goToStartPage();
 
 
-bindDoubleTapConfirm($("refStartOverBtn"), ()=>{}, "Reset", "Tap again to reset");
 
 
 const _fsb=$("fatigueStartBtn");
@@ -4091,9 +4117,9 @@ const _asb=$("adminSpeedometerBtn"); if(_asb) _asb.onclick=()=>openSpeedometerFr
 bindDoubleTapConfirm($("adminStartOverBtn"), ()=>startOverFlow(), "Full Reset", "Tap again for full reset");
 $("benchRunBtn").onclick=()=>runDeviceBenchmark(true);
 $("benchMainBtn").onclick=()=>{ $("benchmarkOverlay").classList.add("hidden"); };
-$("startBtn").onclick=startTest;
-$("backToStartBtn").onclick=goToStartPage;
-$("startOverBtn").onclick=startOverFlow;
+const _startBtn=$("startBtn"); if(_startBtn) _startBtn.onclick=startTest;
+const _backToStartBtn=$("backToStartBtn"); if(_backToStartBtn) _backToStartBtn.onclick=goToStartPage;
+const _startOverBtn=$("startOverBtn"); if(_startOverBtn) _startOverBtn.onclick=startOverFlow;
 $("summaryRestartBtn").onclick=()=>{ $("summaryOverlay").classList.add("hidden"); const fg=$("fullGraphOverlay"); if(fg) fg.classList.add("hidden"); goToStartPage(); };
 const _sspeed=$("summarySpeedometerBtn"); if(_sspeed) _sspeed.onclick=()=>{ $("summaryOverlay").classList.add("hidden"); openSpeedometerPage(); };
 const _orb=$("outcomeResultsBtn"); if(_orb) _orb.onclick=()=>{ $("outcomeOverlay").classList.add("hidden"); stopSpeedometer(); $("summaryOverlay").classList.remove("hidden"); setTestingQuiet(false); };
