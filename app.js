@@ -1,8 +1,8 @@
 // ═══════════════════════════════════════════════════
-// CogSpeed V336
+// CogSpeed V338
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V336";
+const APP_VERSION = "V338";
 const RELEASE = APP_VERSION.replace(/^V/i, "");
 const STORAGE_PREFIX = `cogspeed_v${RELEASE}`;
 
@@ -2161,6 +2161,10 @@ function exportCSV(){
   "sleepSinceLastTest","sleepBedtime","sleepWakeTime","sleepDurationMinutes","sleepQualityLabel","sleepQualityScore",
   "pacedCorrect","pacedWrong","spRestartWrong","meanPacedRtMs","pacedRtSd",
   "testDurationMs","endReason","location"];
+ const csvCell=v=>{
+  const s=v==null?"":String(v);
+  return /[",\n\r]/.test(s) ? `"${s.replace(/"/g,'""')}"` : s;
+ };
  const rows=h.map((r,i)=>[
   i+1,
   r.subjectId||"",
@@ -2183,13 +2187,14 @@ function exportCSV(){
   r.pacedResponseMeanMs!=null?r.pacedResponseMeanMs.toFixed(1):"",
   r.pacedResponseSdMs!=null?r.pacedResponseSdMs.toFixed(1):"",
   r.testDurationMs!=null?Math.round(r.testDurationMs):"",
-  `"${(r.endReason||"").replace(/"/g,'""')}"`,
-  `"${((r.geo&&r.geo.address)||"").replace(/"/g,'""')}"`
- ].map(v=>v==null?"":v).join(","));
- const csv=[cols.join(","), ...rows].join("\n");
- const blob=new Blob([csv],{type:"text/csv"});
+  r.endReason||"",
+  (r.geo&&r.geo.address)||""
+ ].map(csvCell).join(","));
+ const csv=[cols.map(csvCell).join(","), ...rows].join("\n");
+ const blob=new Blob([csv],{type:"text/csv;charset=utf-8"});
  const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=`${STORAGE_PREFIX}_history.csv`; a.click();
 }
+
 // Email results
 // Subject line always uses the current APP_VERSION build label.
 function emailResults(){
@@ -4565,7 +4570,7 @@ function drawPerformanceOverTimeChart(canvas,hist){
   const rangeLabel = perfGraphState.preset === "custom"
     ? `    Range: ${perfGraphState.fromDate||"start"} → ${perfGraphState.toDate||"end"}`
     : (perfGraphState.preset === "last14" ? "    Range: Last 14 sessions" : "");
-  ctx.fillText(`All sessions sequentially    Subjects: ${subjectCount}    Sessions: ${n}    Chronology: Local${rangeLabel}`, PAD.left, 46);
+  ctx.fillText(`All sessions sequentially    Subjects: ${subjectCount}    Sessions: ${n}    Chronology: Device Local Time${rangeLabel}`, PAD.left, 46);
 
   ctx.save();
   ctx.translate(18, PAD.top + cH/2); ctx.rotate(-Math.PI/2);
