@@ -2,7 +2,7 @@
 // CogSpeed V371
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V384";
+const APP_VERSION = "V385";
 const RELEASE = APP_VERSION.replace(/^V/i, "");
 const STORAGE_PREFIX = `cogspeed_v${RELEASE}`;
 
@@ -2213,22 +2213,18 @@ let _profileGenderSelected = "";
 let _profileTimeFormat = null;
 
 function profileSelectTimeFormat(fmt){
- _profileTimeFormat = fmt;
+ _profileTimeFormat = String(fmt)==="24" ? "24" : "12";
  ["12","24"].forEach(x=>{
   const btn = $("profileTime"+x+"Btn");
   if(!btn) return;
-  const on = x===String(fmt);
+  const on = x===String(_profileTimeFormat);
   btn.style.background = on ? "linear-gradient(180deg,#0d2e5a,#081b36)" : "";
   btn.style.borderColor = on ? "#7fd7ff" : "";
   btn.style.color = on ? "#7fd7ff" : "";
  });
  try{
-  const previewSettings={...settings, timeFormat:String(fmt)==="24"?"24":"12"};
-  const prev=settings;
-  settings=previewSettings;
-  updateSleepTimeFormatHint();
-  applySleepInputFormat();
-  settings=prev;
+  updateSleepTimeFormatHint(_profileTimeFormat);
+  applySleepInputFormat(_profileTimeFormat);
  }catch(e){}
 }
 
@@ -3713,8 +3709,8 @@ function setSleep12FromCanonical(prefix, canon){
  minEl.value=String(mm).padStart(2,"0");
  setSleepMeridiem(prefix,meridiem);
 }
-function getSleepInputCanonicalValue(id){
- const mode=getEffectiveTimeFormat();
+function getSleepInputCanonicalValue(id, modeOverride=null){
+ const mode=(modeOverride===null||modeOverride===undefined)?getEffectiveTimeFormat():String(modeOverride)==="24"?"24":"12";
  const el=$(id);
  if(!el) return "";
  if(mode==="12"){
@@ -3737,8 +3733,8 @@ function syncSleepInputCanonical(el){
  if(el.dataset) el.dataset.canonical = canon || "";
  return canon || "";
 }
-function applySleepInputFormat(){
- const mode=getEffectiveTimeFormat();
+function applySleepInputFormat(modeOverride=null){
+ const mode=(modeOverride===null||modeOverride===undefined)?getEffectiveTimeFormat():String(modeOverride)==="24"?"24":"12";
  ["sleepBedtimeInput","sleepWakeInput"].forEach(id=>{
   const el=$(id);
   if(!el) return;
@@ -4004,8 +4000,8 @@ const _spb=$("summaryProfileBtn"); if(_spb) _spb.onclick=(e)=>{
  openProfileFromContext("summaryOverlay", email);
 };
 const _prb=$("profileResetBtn"); if(_prb) _prb.onclick=resetProfile;
-const _pt12=$("profileTime12Btn"); if(_pt12) _pt12.onclick=(e)=>{ if(e) e.preventDefault(); profileSelectTimeFormat("12"); settings.timeFormat="12"; saveSettings(); };
-const _pt24=$("profileTime24Btn"); if(_pt24) _pt24.onclick=(e)=>{ if(e) e.preventDefault(); profileSelectTimeFormat("24"); settings.timeFormat="24"; saveSettings(); };
+const _pt12=$("profileTime12Btn"); if(_pt12) _pt12.onclick=(e)=>{ if(e) e.preventDefault(); profileSelectTimeFormat("12"); };
+const _pt24=$("profileTime24Btn"); if(_pt24) _pt24.onclick=(e)=>{ if(e) e.preventDefault(); profileSelectTimeFormat("24"); };
 // Age validation on input change
 const _pbm=$("profileBirthMonth"); if(_pbm) _pbm.onchange=validateProfileAge;
 const _pby=$("profileBirthYear"); if(_pby) _pby.oninput=validateProfileAge;
