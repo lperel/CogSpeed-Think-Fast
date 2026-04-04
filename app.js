@@ -1,8 +1,8 @@
 // ═══════════════════════════════════════════════════
-// CogSpeed V341
+// CogSpeed V331
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V346";
+const APP_VERSION = "V362";
 const RELEASE = APP_VERSION.replace(/^V/i, "");
 const STORAGE_PREFIX = `cogspeed_v${RELEASE}`;
 
@@ -212,8 +212,7 @@ const state={
  trialOpenedAt:null, geo:null, benchmark:null, lastResultText:null,
  sleepSinceLastTest:null,
  sleepLog:null,
- pendingPriorMiss:null, pendingLatePacing:null,
- timingFrameOvershoots:[], timingRafIntervals:[]
+ pendingPriorMiss:null, pendingLatePacing:null
  // pendingPriorMiss:
  //   stores the immediately previous paced frame when it LOOKED like a miss at frame end,
  //   but is still inside the late-response grace rule window.
@@ -250,18 +249,6 @@ function shuffle(arr){ const a=[...arr]; for(let i=a.length-1;i>0;i--){ const j=
 function subjectKey(id){ return id==="0"?"Guest":id; }
 function setStatus(m){ statusLine.textContent=m; }
 function formatDuration(ms){ if(ms==null) return "—"; const s=Math.round(ms/1000),m=Math.floor(s/60); return m>0?`${m}m ${s%60}s`:`${s}s`; }
-function roundMaybe(v,d=2){ return v==null || !isFinite(v) ? null : Number(v.toFixed(d)); }
-function buildTimingQualitySummary(){
- const overs=state.timingFrameOvershoots||[];
- const rafs=state.timingRafIntervals||[];
- return {
-  pacedFrameCountMeasured: overs.length,
-  avgFrameOvershootMs: overs.length ? roundMaybe(mean(overs),2) : null,
-  maxFrameOvershootMs: overs.length ? roundMaybe(Math.max(...overs),2) : null,
-  avgRafIntervalMs: rafs.length ? roundMaybe(mean(rafs),2) : null,
-  maxRafIntervalMs: rafs.length ? roundMaybe(Math.max(...rafs),2) : null
- };
-}
 // Mode helpers centralize mode checks so start / finish / summary logic
 // can switch cleanly between CogSpeed, SPC, and SPCMP behavior.
 function isMode1(){ return (settings.testMode||"mode1")==="mode1"; }
@@ -273,7 +260,7 @@ function getSessionMaxDurationMs(){ return isMode2() ? (Number(settings.mode2Max
 // ─── CPI ───
 // ─── CPI SCORE CALCULATION ────────────────────────────────────
 // Converts avg last 2 block durations (ms) to 0-100 CPI score.
-// Scale: cpiBestMs=800ms → CPI 100, cpiWorstMs=2400ms → CPI 0 by default (editable in Admin).
+// Scale: cpiBestMs=800ms → CPI 100, cpiWorstMs=3000ms → CPI 0.
 // Source: Perelli (2026). Formula: (worst-ms)/(worst-best)*100
 // ──────────────────────────────────────────────────────────────
 function computeCPI(avgMs){
@@ -490,8 +477,8 @@ function ensureGearImageStyles(){
    filter:contrast(1.14) saturate(0.95) brightness(1.02);
    transform-origin:50% 50%;
   }
-  .gear-img-wrap.gspin-f img{ animation:gSpinF 1.0s linear infinite; }
-  .gear-img-wrap.gspin-r img{ animation:gSpinR 1.0s linear infinite; }
+  .gear-img-wrap.gspin-f img{ animation:gSpinF 1.4s linear infinite; }
+  .gear-img-wrap.gspin-r img{ animation:gSpinR 1.4s linear infinite; }
   .gear-img-wrap.gidle-f img{ animation:gSpinF 9s linear infinite; }
   .gear-img-wrap.gidle-r img{ animation:gSpinR 9s linear infinite; }
   .gear-mark{
@@ -970,7 +957,7 @@ const modeMetricMs = isMode2() ? (state.selfPacedRTs.length?mean(state.selfPaced
   fixedPacedBaselineMs: state.fixedPacedBaseline, fixedPacedPresented: state.fixedPacedPresented,
   fixedPacedCorrect: state.fixedPacedCorrect, fixedPacedWrong: state.fixedPacedWrong,
   rtLog:[...state.rtLog], endReason:state.endReason||"Run complete",
-  time:new Date().toISOString(), geo:state.geo, timingQuality:buildTimingQualitySummary()
+  time:new Date().toISOString(), geo:state.geo
  };
  state.history.push(result);
 localStorage.setItem(`${STORAGE_PREFIX}_history`,JSON.stringify(state.history));
@@ -1052,17 +1039,8 @@ function openTrial(kind){
    }else if(kind==="paced" || kind==="paced_fixed"){
     const targetMs = state.duration;
     const frameStart = state.trialOpenedAt;
-    const frameTargetAt = frameStart + targetMs;
-    let lastCheckAt = frameStart;
-    function checkFrame(now){
-     if(now!=null && isFinite(now)){
-      const dt = now - lastCheckAt;
-      if(dt >= 0){ state.timingRafIntervals.push(dt); }
-      lastCheckAt = now;
-     }
-     const currentNow = (now!=null && isFinite(now)) ? now : performance.now();
-     if(currentNow >= frameTargetAt){
-      state.timingFrameOvershoots.push(Math.max(0, currentNow - frameTargetAt));
+    function checkFrame(){
+     if(performance.now() - frameStart >= targetMs){
       onPacedFrameEnd();
       return;
      }
@@ -1572,7 +1550,181 @@ function bindDoubleTapConfirm(btn, action, idleText, confirmText){
 }
 
 // ─── Charts ───
-// Per-session graphing helpers used by the active admin overlays.
+// ─── HISTORY AND GRAPHS ───────────────────────────────────────
+// drawCombinedChart(): 3-series chart — CPI (cyan, left axis 0-100),
+//  Block ms (amber, right axis REVERSED: smaller ms at top = better),
+//  SP-FS (green, left axis 1-7). Shows last 20 sessions.
+//  "↑ better" label on right axis. Each series rises with improvement.
+// drawRTScatterChart(): per-trial RT scatter (reversed Y: fast=top).
+// ──────────────────────────────────────────────────────────────
+function drawCombinedChart(canvas,hist,selectedIdx){
+ if(!canvas) return;
+ const ctx=canvas.getContext("2d"),W=canvas.width,H=canvas.height;
+ ctx.clearRect(0,0,W,H);
+ ctx.fillStyle="#081321";
+ ctx.fillRect(0,0,W,H);
+
+ const PAD={top:62,right:56,bottom:82,left:76}, cW=W-PAD.left-PAD.right, cH=H-PAD.top-PAD.bottom;
+ if(!hist.length){
+  ctx.fillStyle="#d7e7f8";
+  ctx.font="bold 13px sans-serif";
+  ctx.textAlign="center";
+  ctx.fillText("No data yet",W/2,H/2);
+  return;
+ }
+
+ const slice=hist.slice(-20);
+ const n=slice.length;
+ const selected = (selectedIdx!=null && hist[selectedIdx]) ? hist[selectedIdx] : slice[slice.length-1] || null;
+
+ const bestMs = Number(settings.cpiBestMs)||800;
+ const worstMs = Number(settings.cpiWorstMs)||3000;
+
+ function xO(i){ return PAD.left + (n>1 ? (i/(n-1))*cW : cW/2); }
+ function yLeftFromCpi(v){ return PAD.top + cH - ((v-0)/100)*cH; }
+ function cpiFromMs(ms){
+  const span = (worstMs-bestMs)||1;
+  return Math.max(0,Math.min(100,100*(worstMs-ms)/span));
+ }
+ function msFromCpi(cpi){
+  const span = (worstMs-bestMs)||1;
+  return Math.round(bestMs + ((100-cpi)/100)*span);
+ }
+ function yLeftFromMs(ms){ return yLeftFromCpi(cpiFromMs(ms)); }
+ function yRightFromSpf(v){ return PAD.top + cH - (((v-1)/6))*cH; }
+
+ // Gridlines
+ ctx.strokeStyle="rgba(79,111,153,0.26)";
+ ctx.lineWidth=1;
+ [0,25,50,75,100].forEach(v=>{
+  const y=yLeftFromCpi(v);
+  ctx.beginPath();
+  ctx.moveTo(PAD.left,y);
+  ctx.lineTo(PAD.left+cW,y);
+  ctx.stroke();
+ });
+
+ // Left axis labels: CPI and matching MBS ms
+ ctx.font="10px sans-serif";
+ ctx.textAlign="right";
+ ctx.fillStyle="#d7e7f8";
+ [100,75,50,25,0].forEach(cpi=>{
+  const y=yLeftFromCpi(cpi);
+  const ms=msFromCpi(cpi);
+  ctx.fillText(`${cpi} | ${ms}ms`, PAD.left-8, y+3);
+ });
+
+ // Right axis labels: SP-FS
+ ctx.textAlign="left";
+ ctx.fillStyle="#88ff88";
+ [7,6,5,4,3,2,1].forEach(v=>{
+  const y=yRightFromSpf(v);
+  ctx.fillText(String(v), PAD.left+cW+8, y+3);
+ });
+
+ // Axes titles
+ ctx.save();
+ ctx.translate(22, PAD.top + cH/2);
+ ctx.rotate(-Math.PI/2);
+ ctx.fillStyle="#d7e7f8";
+ ctx.font="bold 11px sans-serif";
+ ctx.textAlign="center";
+ ctx.fillText("CPI | MBS (up is better)", 0, 0);
+ ctx.restore();
+
+ ctx.save();
+ ctx.translate(W-18, PAD.top + cH/2);
+ ctx.rotate(Math.PI/2);
+ ctx.fillStyle="#88ff88";
+ ctx.font="bold 11px sans-serif";
+ ctx.textAlign="center";
+ ctx.fillText("SP-FS (up is better)", 0, 0);
+ ctx.restore();
+
+ // Title and selected-session metadata
+ ctx.fillStyle="#b7d9ef";
+ ctx.textAlign="left";
+ ctx.font="bold 12px sans-serif";
+ ctx.fillText("CPI, MBS, and SP-FS by Test Date/Time", PAD.left, 22);
+
+ if(selected){
+  ctx.font="11px sans-serif";
+  ctx.fillStyle="#d7e7f8";
+  const sid = selected.subjectId || "—";
+  const mode = formatModeTag(selected.testMode);
+  ctx.fillText(`Subject ID: ${sid}    Test Mode: ${mode}`, PAD.left, 40);
+ }
+
+ // X-axis labels by date/time of test
+ ctx.strokeStyle="rgba(79,111,153,0.35)";
+ ctx.beginPath();
+ ctx.moveTo(PAD.left, PAD.top+cH);
+ ctx.lineTo(PAD.left+cW, PAD.top+cH);
+ ctx.stroke();
+
+ ctx.font="9px sans-serif";
+ ctx.fillStyle="#7fa0c0";
+ ctx.textAlign="right";
+ slice.forEach((r,i)=>{
+  const x=xO(i), y=PAD.top+cH+8;
+  const d=new Date(r.time);
+  const label=`${d.toLocaleDateString("en-US",{month:"numeric",day:"numeric"})} ${d.toLocaleTimeString("en-US",{hour:"2-digit",minute:"2-digit"})}`;
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(-Math.PI/4);
+  ctx.fillText(label, 0, 0);
+  ctx.restore();
+ });
+
+ function drawLine(vals, yFunc, color, pointStyle){
+  ctx.strokeStyle=color;
+  ctx.lineWidth=2.2;
+  ctx.beginPath();
+  let started=false;
+  vals.forEach((v,i)=>{
+   if(v==null){ started=false; return; }
+   const x=xO(i), y=yFunc(v);
+   if(!started){ ctx.moveTo(x,y); started=true; } else { ctx.lineTo(x,y); }
+  });
+  ctx.stroke();
+
+  vals.forEach((v,i)=>{
+   if(v==null) return;
+   const x=xO(i), y=yFunc(v);
+   ctx.fillStyle=color;
+   if(pointStyle==="square"){
+    ctx.fillRect(x-3.5,y-3.5,7,7);
+   }else if(pointStyle==="diamond"){
+    ctx.save();
+    ctx.translate(x,y);
+    ctx.rotate(Math.PI/4);
+    ctx.fillRect(-3.5,-3.5,7,7);
+    ctx.restore();
+   }else{
+    ctx.beginPath();
+    ctx.arc(x,y,3.7,0,Math.PI*2);
+    ctx.fill();
+   }
+  });
+ }
+
+ const cpsVals=slice.map(r=>r.cognitivePerformanceIndex!=null?Number(r.cognitivePerformanceIndex):null);
+ const mbsVals=slice.map(r=>r.averageLast2BlockingScoresMs!=null?Number(r.averageLast2BlockingScoresMs):null);
+ const spfVals=slice.map(r=>r.samnPerelli&&r.samnPerelli.score!=null?Number(r.samnPerelli.score):null);
+
+ drawLine(cpsVals, v=>yLeftFromCpi(v), "#7fd7ff", "circle");
+ drawLine(mbsVals, v=>yLeftFromMs(v), "#ff9f40", "square");
+ drawLine(spfVals, v=>yRightFromSpf(v), "#88ff88", "diamond");
+
+ // Legend
+ ctx.textAlign="left";
+ ctx.font="bold 10px sans-serif";
+ ctx.fillStyle="#7fd7ff"; ctx.fillText("● CPI", PAD.left, PAD.top-10);
+ ctx.fillStyle="#ff9f40"; ctx.fillText("■ MBS", PAD.left+58, PAD.top-10);
+ ctx.fillStyle="#88ff88"; ctx.fillText("◆ SP-FS", PAD.left+116, PAD.top-10);
+}
+
+
 function graphMetricMsForSession(r){
  if(!r) return null;
  const candidates = [
@@ -1998,25 +2150,20 @@ function formatModePooledRankSection(mode){
 // exportResults(): downloads full history as ${STORAGE_PREFIX}_results.json
 // exportCSV(): downloads history as ${STORAGE_PREFIX}_history.csv
 //  Columns: session, subjectId, date, SP-FS, calibration, blocks,
-//  CPI, taps, correct, wrong, missed, paced stats, timing-quality logs, duration, end reason.
+//  CPI, taps, correct, wrong, missed, paced stats, duration, end reason.
 // emailResults(): opens mailto: with last result text in body.
 // ──────────────────────────────────────────────────────────────
 
 function exportCSV(){
  const h=state.history; if(!h.length){setStatus("No history to export."); return;}
- const cols=["session","subjectId","testMode","date","samnPerelli","calibAvgMs","blocks",
+ const cols=["session","subjectId","date","samnPerelli","calibAvgMs","blocks",
   "avgLast2Ms","blockDiffMs","cpi","totalTaps","correct","wrong","missed",
   "sleepSinceLastTest","sleepBedtime","sleepWakeTime","sleepDurationMinutes","sleepQualityLabel","sleepQualityScore",
   "pacedCorrect","pacedWrong","spRestartWrong","meanPacedRtMs","pacedRtSd",
-  "avgFrameOvershootMs","maxFrameOvershootMs","avgRafIntervalMs","maxRafIntervalMs","testDurationMs","endReason","location"];
- const csvCell=v=>{
-  const s=v==null?"":String(v);
-  return /[",\n\r]/.test(s) ? `"${s.replace(/"/g,'""')}"` : s;
- };
+  "testDurationMs","endReason","location"];
  const rows=h.map((r,i)=>[
   i+1,
   r.subjectId||"",
-  (r.testMode||"mode1"),
   r.time?new Date(r.time).toLocaleString():"",
   r.samnPerelli?`${r.samnPerelli.score} - ${r.samnPerelli.label}`:"",
   r.calibrationAverageMs!=null?r.calibrationAverageMs.toFixed(1):"",
@@ -2034,19 +2181,14 @@ function exportCSV(){
   r.pacedResponseCount||0, r.pacedErrors||0, r.recoveryErrors||0,
   r.pacedResponseMeanMs!=null?r.pacedResponseMeanMs.toFixed(1):"",
   r.pacedResponseSdMs!=null?r.pacedResponseSdMs.toFixed(1):"",
-  r.timingQuality?.avgFrameOvershootMs!=null?r.timingQuality.avgFrameOvershootMs:"",
-  r.timingQuality?.maxFrameOvershootMs!=null?r.timingQuality.maxFrameOvershootMs:"",
-  r.timingQuality?.avgRafIntervalMs!=null?r.timingQuality.avgRafIntervalMs:"",
-  r.timingQuality?.maxRafIntervalMs!=null?r.timingQuality.maxRafIntervalMs:"",
   r.testDurationMs!=null?Math.round(r.testDurationMs):"",
-  r.endReason||"",
-  (r.geo&&r.geo.address)||""
- ].map(csvCell).join(","));
- const csv=[cols.map(csvCell).join(","), ...rows].join("\n");
- const blob=new Blob([csv],{type:"text/csv;charset=utf-8"});
+  `"${(r.endReason||"").replace(/"/g,'""')}"`,
+  `"${((r.geo&&r.geo.address)||"").replace(/"/g,'""')}"`
+ ].map(v=>v==null?"":v).join(","));
+ const csv=[cols.join(","), ...rows].join("\n");
+ const blob=new Blob([csv],{type:"text/csv"});
  const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=`${STORAGE_PREFIX}_history.csv`; a.click();
 }
-
 // Email results
 // Subject line always uses the current APP_VERSION build label.
 function emailResults(){
@@ -2320,10 +2462,10 @@ function resetProfile(){
 // _adminReturnTo: tracks which page opened admin so Close returns there.
 // ──────────────────────────────────────────────────────────────
 function hideAllOverlays(){
- ["subjectOverlay","profileOverlay","refresherOverlay","sleepPromptOverlay","fatigueOverlay","tutorialOverlay","adminOverlay","resultsOverlay","summaryOverlay","rankedOverlay","trialLogOverlay","rateRtOverlay","perfTimeOverlay","emailOverlay","thinkingOverlay","outcomeOverlay"].forEach(id=>{ const el=$(id); if(el) el.classList.add("hidden"); });
+ ["subjectOverlay","profileOverlay","refresherOverlay","sleepPromptOverlay","fatigueOverlay","tutorialOverlay","adminOverlay","resultsOverlay","summaryOverlay","rankedOverlay","trialLogOverlay","historyOverlay","rateRtOverlay","perfTimeOverlay","emailOverlay","thinkingOverlay","outcomeOverlay"].forEach(id=>{ const el=$(id); if(el) el.classList.add("hidden"); });
 }
 function showOnly(id){
- ["subjectOverlay","profileOverlay","refresherOverlay","tutorialExitOverlay","sleepPromptOverlay","sleepOverlay","fatigueOverlay","adminOverlay","resultsOverlay","summaryOverlay","rankedOverlay","trialLogOverlay","rateRtOverlay","perfTimeOverlay","emailOverlay","tutorialOverlay","thinkingOverlay","outcomeOverlay"].forEach(oid=>{ const el=$(oid); if(el) el.classList[oid===id?"remove":"add"]("hidden"); });
+ ["subjectOverlay","profileOverlay","refresherOverlay","tutorialExitOverlay","sleepPromptOverlay","sleepOverlay","fatigueOverlay","adminOverlay","resultsOverlay","summaryOverlay","rankedOverlay","trialLogOverlay","historyOverlay","rateRtOverlay","perfTimeOverlay","emailOverlay","tutorialOverlay","thinkingOverlay","outcomeOverlay"].forEach(oid=>{ const el=$(oid); if(el) el.classList[oid===id?"remove":"add"]("hidden"); });
 }
 
 // ─── START PAGE SPEEDOMETER LINK ─────────────────────────────
@@ -2370,7 +2512,7 @@ function isTestSuccess(r){ return (r||"").toLowerCase().startsWith("convergent")
 // Formats full monospace result text (state.lastResultText).
 // Includes: subject ID, date/time, location, SP-FS, calibration,
 //  block scores, CPI, response stats, end reason, reference table.
-// REFERENCE TABLE: 7-row SP-FS/CPI/MBS lookup from Perelli (2026)
+// REFERENCE TABLE: 7-row S-PF/CPI/MBS lookup from Perelli (2026)
 //  with ← YOUR SCORE arrow on the matching CPI band.
 // ──────────────────────────────────────────────────────────────
 // Pooled mode-specific ranking summaries:
@@ -2447,19 +2589,6 @@ function getTerminalRecoveryWrongCount(result){
  }
 }
 
-function formatSummaryLocalTime(result){
- const v = result && result.geo && result.geo.local_time;
- if(v) return v;
- const t = result && result.time;
- return t ? new Date(t).toLocaleString() : "—";
-}
-function formatSummaryGmtTime(result){
- const v = result && result.geo && result.geo.gmt_time;
- if(v) return v;
- const t = result && result.time;
- return t ? new Date(t).toUTCString() : "—";
-}
-
 function buildSummary(result){
  const el=$("summaryText"); if(!el) return;
  const hr="─────────────────────────";
@@ -2477,12 +2606,10 @@ function buildSummary(result){
 ${hr}
 Test Mode:  ${formatModeTag(result.testMode)}\nSession:    ${result.sessionNumber!=null?result.sessionNumber:"—"}\nSubject ID:  ${result.subjectId}
 Date / Time:  ${new Date(result.time).toLocaleString()}
-Local time: ${formatSummaryLocalTime(result)}
-GMT time:   ${formatSummaryGmtTime(result)}
 Test duration: ${formatDuration(result.testDurationMs)}
 Location:   ${geoStr}
 ${hr}
-FATIGUE (SP-FS)
+FATIGUE (S-PF)
  Pre-test rating: ${spf}
 ${formatSleepLine(result)}
 ${hr}
@@ -2511,12 +2638,10 @@ END REASON
 ${hr}
 Test Mode:  ${formatModeTag(result.testMode)}\nSession:    ${result.sessionNumber!=null?result.sessionNumber:"—"}\nSubject ID:  ${result.subjectId}
 Date / Time:  ${new Date(result.time).toLocaleString()}
-Local time: ${formatSummaryLocalTime(result)}
-GMT time:   ${formatSummaryGmtTime(result)}
 Test duration: ${formatDuration(result.testDurationMs)}
 Location:   ${geoStr}
 ${hr}
-FATIGUE (SP-FS)
+FATIGUE (S-PF)
  Pre-test rating: ${spf}
 ${formatSleepLine(result)}
 ${hr}
@@ -2557,12 +2682,10 @@ END REASON
 ${hr}
 Test Mode:  ${formatModeTag(result.testMode)}\nSession:    ${result.sessionNumber!=null?result.sessionNumber:"—"}\nSubject ID:  ${result.subjectId}
 Date / Time:  ${new Date(result.time).toLocaleString()}
-Local time: ${formatSummaryLocalTime(result)}
-GMT time:   ${formatSummaryGmtTime(result)}
 Test duration: ${formatDuration(result.testDurationMs)}
 Location:   ${geoStr}
 ${hr}
-FATIGUE (SP-FS)
+FATIGUE (S-PF)
  Pre-test rating: ${spf}
 ${formatSleepLine(result)}
 ${hr}
@@ -2798,7 +2921,7 @@ function animateSpeedometer(canvas, targetCps, blockMs, success){
 }
 function stopSpeedometer(){ if(_speedoRaf){ cancelAnimationFrame(_speedoRaf); _speedoRaf=null; } }
 
-// ─── Results page — gear spin outro (0.5s) then thinking box ───
+// ─── Results page — gear spin outro (2.0s) then thinking box ───
 // ─── RESULTS PAGE FLOW ────────────────────────────────────────
 // THINKING BOX: 2s animated steam+sparks FX after test ends.
 // SUCCESS/FAIL BOX: 3s outcome overlay (green=SUCCESS/red=Test Failed).
@@ -2810,7 +2933,7 @@ function showResultsPage(){
  beginCurtainTransition();
  const last=state.history[state.history.length-1];
  const success=last?isTestSuccess(last.endReason):false;
- // 1. Spin all gears fast for 1.5s
+ // 1. Spin all gears a little slower for 2.0s
  stimGrid.querySelectorAll(".stim-cell").forEach((c,i)=>{
   c.classList.remove("gidle-f","gidle-r");
   c.classList.add(i%2===0?"gspin-f":"gspin-r");
@@ -2834,21 +2957,19 @@ function showResultsPage(){
    endCurtainTransition();
  try{ updateStartPageLinks(); }catch(e){}
   },2000);
- },500);
+ },2000);
 }
 
 // ─── Session control ───
 // ─── SESSION STATE MANAGEMENT ─────────────────────────────────
-// resetTrialStateOnly(): resets active trial / block / result state only.
-// resetPretestEntryState(): resets sleep + SP-FS entry state for a new pretest path.
-// resetSubjectSessionState(): full reset for Start Over while preserving saved profile storage.
-// clearCurrentSession(): compatibility alias that now maps to resetSubjectSessionState().
+// clearCurrentSession(): resets all trial/block/calibration state
+//  while preserving subjectId and samnPerelli for retests.
+// saveSettings() / loadSettings(): persist to localStorage.
 // ──────────────────────────────────────────────────────────────
-function resetTrialStateOnly(){
+function clearCurrentSession(){
  clearTimer(); clearNoResponseTimer(); clearMaxTestTimer();
  state.phase="idle"; state.duration=null; state.blockDuration=null;
  state.current=null; state.previous=null; state.unresolvedStreak=0;
- state.pendingPriorMiss=null; state.pendingLatePacing=null;
  state.overloads=[]; state.recoveries=[]; state.recoveryCorrectCompleted=0;
  state.spCorrectStreak=0; state.spWrongCount=0; state.terminalBlockReason=null;
  state.totalTrials=0; state.endReason=""; state.totalResponses=0; state.pacedErrors=0; state.recoveryErrors=0;
@@ -2858,53 +2979,17 @@ function resetTrialStateOnly(){
  state.pacedRTs=[]; state.rtLog=[]; state.previousMissed=false; state.lastFrameDuration=null; state.presentedRoundDuration=null;
  state.activeMode=settings.testMode||"mode1"; state.selfPacedRTs=[]; state.selfPacedCorrect=0; state.selfPacedWrong=0;
  state.fixedPacedBaseline=null; state.fixedPacedPresented=0; state.fixedPacedCorrect=0; state.fixedPacedWrong=0;
- state.geo=null; state.benchmark=null; state.lastResultText=null;
- state.timingFrameOvershoots=[]; state.timingRafIntervals=[];
- updateCPIDisplay(null); updateMetrics(); setProbeIdle(); setTestingQuiet(false);
-}
-
-function resetFatigueSelectionUI(){
- const sb=$("fatigueStartBtn"); if(sb) sb.classList.add("hidden");
- const fl=$("fatigueList");
- if(fl) fl.querySelectorAll(".fatigue-item").forEach(el=>el.style.background="");
-}
-
-function resetSleepLoggerUI(){
- const bed=$("sleepBedtimeInput"); if(bed) bed.value="";
- const wake=$("sleepWakeInput"); if(wake) wake.value="";
- const duration=$("sleepDurationBox"); if(duration) duration.textContent="Sleep duration: —";
- const warn=$("sleepWarnBox"); if(warn) warn.style.display="none";
- ["sleepQualityPoorBtn","sleepQualityOkayBtn","sleepQualityGoodBtn"].forEach(id=>{
-  const btn=$(id);
-  if(btn){ btn.style.background=""; btn.style.borderColor=""; }
- });
-}
-
-function resetPretestEntryState(){
- state.samnPerelli=null;
  state.sleepSinceLastTest=null;
  state.sleepLog=null;
- resetFatigueSelectionUI();
- resetSleepLoggerUI();
- const fo=$("fatigueOut"); if(fo) fo.textContent="—";
-}
-
-function resetSubjectSessionState(){
- resetTrialStateOnly();
- resetPretestEntryState();
- state.subjectId=null;
-}
-
-function clearCurrentSession(){
- resetSubjectSessionState();
+ state.geo=null; state.benchmark=null; state.lastResultText=null;
+ updateCPIDisplay(null); updateMetrics(); setProbeIdle(); setTestingQuiet(false);
 }
 // ─── PAGE NAVIGATION ──────────────────────────────────────────
-// goToStartPage(): returns to subject ID entry, clears current trial + pretest state.
-// startOverFlow(): full reset including subject ID, sleep path, and SP-FS.
+// goToStartPage(): returns to subject ID entry, clears test state.
+// startOverFlow(): full reset including subject ID and SP-FS.
 // ──────────────────────────────────────────────────────────────
 function goToStartPage(){
- resetTrialStateOnly();
- resetPretestEntryState();
+ clearCurrentSession();
  ["thinkingOverlay","outcomeOverlay","testScreen"].forEach(id=>{ const el=$(id); if(el) el.classList.add("hidden"); });
  const curtain=$("curtain"); if(curtain) curtain.classList.remove("open");
  probeCell.classList.remove("gspin-f","gspin-r","gidle-f","gidle-r");
@@ -2913,7 +2998,7 @@ function goToStartPage(){
  restoreSubjectFromProfile();
 }
 function startOverFlow(){
- resetSubjectSessionState();
+ clearCurrentSession(); state.subjectId=null; state.samnPerelli=null;
  fatigueOut.textContent="—"; $("subjectIdInput").value="";
  _adminUnlocked=false;
  // Full reset: clear welcome-back display but preserve saved profile in localStorage
@@ -2927,7 +3012,7 @@ function startOverFlow(){
 // ─── Gear spin intro then start ───
 // ─── GEAR SPIN INTRO / OUTRO ──────────────────────────────────
 // runGearSpinThenStart(): closes curtain, reopens it visibly (0.75s),
-//  then keeps all gears visibly spinning for 2.0s before firing callback.
+//  then keeps all gears visibly spinning a little slower for a total of 2.0s before firing callback.
 // Outro spin triggered in showResultsPage() after test ends.
 // CURTAIN TRANSITION: left/right panels slide apart on open,
 //  slide closed on test end (CSS transform translateX).
@@ -2983,7 +3068,7 @@ function runGearSpinThenStart(callback) {
    setTimeout(()=>{
     callback();
     endCurtainTransition();
-   }, 2000);
+   }, 1250);
   }, 750);
  }, 40);
 }
@@ -2998,10 +3083,10 @@ function runGearSpinThenStart(callback) {
 function startTest(){
  if(!state.subjectId){ showOnly("subjectOverlay"); setStatus("Enter Subject ID first"); return; }
  if(!state.samnPerelli){ showOnly("fatigueOverlay"); setStatus("Select fatigue rating first"); return; }
- const mode=settings.testMode||"mode1";
- resetTrialStateOnly();
- state.activeMode=mode;
- const fo=$("fatigueOut"); if(fo) fo.textContent=String(state.samnPerelli.score);
+ const sid=state.subjectId, spf=state.samnPerelli, mode=settings.testMode||"mode1";
+ clearCurrentSession();
+ state.subjectId=sid; state.samnPerelli=spf; state.activeMode=mode;
+ const fo=$("fatigueOut"); if(fo) fo.textContent=String(spf.score);
  hideAllOverlays();
  setTestingQuiet(true);
  captureGeo();
@@ -3261,8 +3346,57 @@ function buildRateRtOverlay(sessionIndex){
  drawRateRtChart($("rateRtChart"), sessionsForChart, idx);
 }
 
-// ─── Device benchmark ───
+// ─── History & Graphs overlay ───
+// ─── HISTORY OVERLAY ──────────────────────────────────────────
+// Table of all sessions (newest first) with CPI, blocks, duration.
+// Clickable rows show that session's full summary.
+// Rendered inside admin → 📈 History & Graphs button.
+// ──────────────────────────────────────────────────────────────
+function buildHistoryOverlay(sessionIndex){
+ const hist = state.history||[];
+ const selectedIdx = sessionIndex!=null ? sessionIndex : (buildHistoryOverlay._selectedIndex!=null ? buildHistoryOverlay._selectedIndex : (hist.length?hist.length-1:null));
+ buildHistoryOverlay._selectedIndex = selectedIdx;
+ // Draw chart
+ drawCombinedChart(null,state.history, selectedIdx);
+ const meta=null;
+ const selected = (selectedIdx!=null && hist[selectedIdx]) ? hist[selectedIdx] : null;
+ if(meta){
+  meta.textContent = selected ? `Session ${selectedIdx+1} · ${formatModeTag(selected.testMode)} · SP-FS ${selected.samnPerelli?selected.samnPerelli.score:"—"} · ${new Date(selected.time).toLocaleString()}` : "No session selected";
+ }
+ // Build session table
+ const tbody=null; if(!tbody) return;
+ tbody.innerHTML="";
+ if(!state.history.length){
+  tbody.innerHTML='<tr><td colspan="10" style="text-align:center;color:var(--muted);padding:12px">No history yet</td></tr>';
+  return;
+ }
+ [...state.history].reverse().forEach((r,ri)=>{
+  const idx=state.history.length-1-ri;
+  const tr=document.createElement("tr");
+  const date=new Date(r.time).toLocaleString("en-US",{month:"short",day:"numeric",hour:"2-digit",minute:"2-digit"});
+  const spf=r.samnPerelli?r.samnPerelli.score:"—";
+  const calRT=r.calibrationAverageMs!=null?r.calibrationAverageMs.toFixed(0)+"ms":"—";
+  const avgBlk=r.averageLast2BlockingScoresMs!=null?r.averageLast2BlockingScoresMs.toFixed(0)+"ms":"—";
+  const cps=r.cognitivePerformanceIndex!=null?r.cognitivePerformanceIndex.toFixed(1):"—";
+  const dur=formatDuration(r.testDurationMs);
+  const endShort=(r.endReason||"").substring(0,30)+((r.endReason||"").length>30?"…":"");
+  tr.style.cursor="pointer";
+  tr.title="Click to view trial detail";
+  if(idx===selectedIdx) tr.style.background="rgba(127,215,255,0.10)";
+  tr.onclick=()=>{ buildHistoryOverlay(idx); };
+  tr.innerHTML=`<td style="font-weight:700;color:var(--accent)">${idx+1}</td><td style="font-size:11px">${date}</td><td>${formatModeTag(r.testMode)} · ${r.subjectId}</td><td style="color:#88ff88">${spf}</td><td>${calRT}</td><td>${r.blockCount||0}</td><td style="color:#ff9f40">${avgBlk}</td><td style="color:var(--accent);font-weight:800">${cps}</td><td>${dur}</td><td style="font-size:10px;color:var(--muted)">${endShort}</td>`;
+  tbody.appendChild(tr);
+ });
+}
+buildHistoryOverlay._openSelectedTrial=function(){
+ const idx = buildHistoryOverlay._selectedIndex;
+ if(idx==null) return;
+ const _hov=$("historyOverlay"); if(_hov) _hov.classList.add("hidden");
+ buildTrialLog(idx);
+ $("trialLogOverlay").classList.remove("hidden");
+};
 
+// ─── Device benchmark ───
 async function runDeviceBenchmark(force){
  const enabled=force||Number(settings.deviceBenchmarkEnabled||0)===1;
  if(!enabled){ state.benchmark=null; return; }
@@ -3706,17 +3840,13 @@ function continueFromSleepLogger(){
   state.sleepLog.qualityScore = 2;
   state.sleepLog.qualityLabel = "Okay";
  }
- showFatigueOverlay();
-}
-
-function showFatigueOverlay(){
- state.samnPerelli=null;
- resetFatigueSelectionUI();
  showOnly("fatigueOverlay");
 }
 
 function showSleepPrompt(){
- resetPretestEntryState();
+ const sb=$("fatigueStartBtn"); if(sb) sb.classList.add("hidden");
+ const fl=$("fatigueList");
+ if(fl) fl.querySelectorAll(".fatigue-item").forEach(el=>el.style.background="");
  showOnly("sleepPromptOverlay");
 }
 
@@ -3772,13 +3902,13 @@ $("refBackBtn").onclick=()=>goToStartPage();
 $("fatigueBackBtn").onclick=()=>{ if(state.sleepSinceLastTest==="yes") showOnly("sleepOverlay"); else showOnly("sleepPromptOverlay"); };
 
 $("sleepPromptYesBtn").onclick=()=>{
+ state.sleepSinceLastTest="yes";
  showSleepLogger();
  setStatus("Sleep since last test: Yes");
 };
 $("sleepPromptNoBtn").onclick=()=>{
  state.sleepSinceLastTest="no";
- state.sleepLog=null;
- showFatigueOverlay();
+ showOnly("fatigueOverlay");
  setStatus("Sleep since last test: No");
 };
 
@@ -3793,6 +3923,7 @@ $("sleepBackBtn").onclick=()=>showOnly("sleepPromptOverlay");
 $("sleepPromptBackBtn").onclick=()=>goToStartPage();
 
 
+bindDoubleTapConfirm($("refStartOverBtn"), ()=>{}, "Reset", "Tap again to reset");
 
 
 const _fsb=$("fatigueStartBtn");
@@ -3894,9 +4025,9 @@ const _asb=$("adminSpeedometerBtn"); if(_asb) _asb.onclick=()=>openSpeedometerFr
 bindDoubleTapConfirm($("adminStartOverBtn"), ()=>startOverFlow(), "Full Reset", "Tap again for full reset");
 $("benchRunBtn").onclick=()=>runDeviceBenchmark(true);
 $("benchMainBtn").onclick=()=>{ $("benchmarkOverlay").classList.add("hidden"); };
-const _startBtn=$("startBtn"); if(_startBtn) _startBtn.onclick=startTest;
-const _backToStartBtn=$("backToStartBtn"); if(_backToStartBtn) _backToStartBtn.onclick=goToStartPage;
-const _startOverBtn=$("startOverBtn"); if(_startOverBtn) _startOverBtn.onclick=startOverFlow;
+$("startBtn").onclick=startTest;
+$("backToStartBtn").onclick=goToStartPage;
+$("startOverBtn").onclick=startOverFlow;
 $("summaryRestartBtn").onclick=()=>{ $("summaryOverlay").classList.add("hidden"); const fg=$("fullGraphOverlay"); if(fg) fg.classList.add("hidden"); goToStartPage(); };
 const _sspeed=$("summarySpeedometerBtn"); if(_sspeed) _sspeed.onclick=()=>{ $("summaryOverlay").classList.add("hidden"); openSpeedometerPage(); };
 const _orb=$("outcomeResultsBtn"); if(_orb) _orb.onclick=()=>{ $("outcomeOverlay").classList.add("hidden"); stopSpeedometer(); $("summaryOverlay").classList.remove("hidden"); setTestingQuiet(false); };
@@ -4132,7 +4263,7 @@ const _ssp=$("speedStartPageBtn"); if(_ssp) _ssp.onclick=()=>{ hideAllOverlays()
 window.addEventListener("load",()=>{ try{ updateStartPageLinks(); }catch(e){}; });
 
 
-/* ===== Performance vs Time graph override (V333) ===== */
+/* ===== Performance vs Time graph override (V331) ===== */
 const perfGraphState = {
   preset: "last14",
   fromDate: "",
@@ -4309,7 +4440,7 @@ function drawPerformanceOverTimeChart(canvas,hist){
 
   const bestMs = Number(settings.cpiBestMs)||800;
   const worstMs = Number(settings.cpiWorstMs)||3000;
-  const PAD = {top:72,right:76,bottom:n===1?92:118,left:126};
+  const PAD = {top:72,right:76,bottom:n===1?64:92,left:126};
   const cW = W - PAD.left - PAD.right;
   const cH = H - PAD.top - PAD.bottom;
 
@@ -4324,13 +4455,6 @@ function drawPerformanceOverTimeChart(canvas,hist){
   }
   function yLeftFromMs(ms){ return yLeftFromCpi(cpiFromMs(ms)); }
   function yRightFromSpf(v){ return PAD.top + cH - (((v-1)/6))*cH; }
-  function sleepQualityColor(r){
-    const q = String(r && r.sleepLog && r.sleepLog.qualityLabel || "").toLowerCase();
-    if(q === "poor") return "#ff4d4f";
-    if(q === "okay") return "#ffd84d";
-    if(q === "good") return "#4cd964";
-    return null;
-  }
 
   ctx.strokeStyle="rgba(127,215,255,0.16)";
   ctx.lineWidth=1;
@@ -4373,7 +4497,7 @@ function drawPerformanceOverTimeChart(canvas,hist){
   const rangeLabel = perfGraphState.preset === "custom"
     ? `    Range: ${perfGraphState.fromDate||"start"} → ${perfGraphState.toDate||"end"}`
     : (perfGraphState.preset === "last14" ? "    Range: Last 14 sessions" : "");
-  ctx.fillText(`All sessions sequentially    Subjects: ${subjectCount}    Sessions: ${n}    Chronology: Device Local Time${rangeLabel}`, PAD.left, 46);
+  ctx.fillText(`All sessions sequentially    Subjects: ${subjectCount}    Sessions: ${n}    Chronology: UTC${rangeLabel}`, PAD.left, 46);
 
   ctx.save();
   ctx.translate(18, PAD.top + cH/2); ctx.rotate(-Math.PI/2);
@@ -4393,36 +4517,19 @@ function drawPerformanceOverTimeChart(canvas,hist){
   ctx.strokeStyle="rgba(79,111,153,0.35)";
   ctx.beginPath(); ctx.moveTo(PAD.left, PAD.top+cH); ctx.lineTo(PAD.left+cW, PAD.top+cH); ctx.stroke();
 
-  const sleepBarTop = PAD.top + cH + 8;
-  const sleepBarHeight = 10;
-  const sleepBarWidth = Math.max(8, Math.min(18, Math.round(cW / Math.max(n, 18) * 0.55)));
-  ctx.textAlign = "left";
-  ctx.font = "bold 10px sans-serif";
-  ctx.fillStyle = "#d7e7f8";
-  ctx.fillText("Sleep", PAD.left, sleepBarTop + 9);
-  slice.forEach((r,i)=>{
-    const color = sleepQualityColor(r);
-    if(!color) return;
-    const x = xOf(i) - sleepBarWidth/2;
-    ctx.fillStyle = color;
-    ctx.fillRect(x, sleepBarTop, sleepBarWidth, sleepBarHeight);
-    ctx.strokeStyle = "rgba(255,255,255,0.18)";
-    ctx.strokeRect(x, sleepBarTop, sleepBarWidth, sleepBarHeight);
-  });
-
   ctx.font="10px sans-serif";
   ctx.fillStyle="#9ab6d3";
   if(n===1){
     const d=new Date(slice[0].time);
     const label=`${d.toLocaleDateString("en-US",{month:"numeric",day:"numeric",year:"2-digit"})} ${d.toLocaleTimeString("en-US",{hour:"2-digit",minute:"2-digit"})}`;
     ctx.textAlign="center";
-    ctx.fillText(label, xOf(0), sleepBarTop + 30);
+    ctx.fillText(label, xOf(0), PAD.top+cH+26);
   }else{
     ctx.textAlign="right";
     const labelStep = Math.max(1, Math.ceil(n/12));
     slice.forEach((r,i)=>{
       if(i % labelStep !== 0 && i !== n-1) return;
-      const x=xOf(i), y=sleepBarTop + 28;
+      const x=xOf(i), y=PAD.top+cH+8;
       const d = new Date(r.time);
       const raw = `${d.toLocaleDateString("en-US",{month:"numeric",day:"numeric"})} ${d.toLocaleTimeString("en-US",{hour:"2-digit",minute:"2-digit"})}`;
       const label = raw.length>22 ? raw.slice(0,22) : raw;
@@ -4560,10 +4667,10 @@ function openPerformanceOverTimePage(){
   wirePerfGraphControls();
   drawPerformanceOverTimeChart($("perfTimeGraph"), state.history||[]);
 }
-/* ===== end Performance vs Time graph override (V333) ===== */
+/* ===== end Performance vs Time graph override (V331) ===== */
 
 
-/* ===== E-mail Select wiring override (V333) ===== */
+/* ===== E-mail Select wiring override (V331) ===== */
 function openEmailSelectPage(){
   hideAllOverlays();
   const ov = $("emailOverlay");
@@ -4643,10 +4750,10 @@ window.addEventListener("load", ()=>{
   try{ wireEmailSelectControls(); }catch(err){}
  try{ wireEmailDraftAction(); }catch(err){}
 });
-/* ===== end E-mail Select wiring override (V333) ===== */
+/* ===== end E-mail Select wiring override (V331) ===== */
 
 
-/* ===== E-mail draft action override (V333) ===== */
+/* ===== E-mail draft action override (V331) ===== */
 function formatLastTrialLogText(last){
   if(!last || !Array.isArray(last.rtLog) || !last.rtLog.length) return "No trial detail log available.";
   const lines = last.rtLog.map(r=>{
@@ -4692,8 +4799,7 @@ function formatLastPerfTimeText(){
     const cpi = r.cognitivePerformanceIndex!=null ? Math.round(Number(r.cognitivePerformanceIndex)) : "—";
     const mbs = r.averageLast2BlockingScoresMs!=null ? Math.round(Number(r.averageLast2BlockingScoresMs)) : "—";
     const spf = r.samnPerelli && r.samnPerelli.score!=null ? r.samnPerelli.score : "—";
-    const sleep = r.sleepLog && r.sleepLog.qualityLabel ? ` | Sleep ${r.sleepLog.qualityLabel}` : "";
-    return `${i+1}. ${when} | CPI ${cpi} | MBS ${mbs} | SP-FS ${spf}${sleep}`;
+    return `${i+1}. ${when} | CPI ${cpi} | MBS ${mbs} | SP-FS ${spf}`;
   });
   return "Performance over Date and Time\n\n" + rows.join("\n");
 }
@@ -4739,10 +4845,10 @@ window.addEventListener("load", ()=>{
   try{ wireEmailDraftAction(); }catch(err){}
   try{ syncEditableEmailRecipient(); }catch(err){}
 });
-/* ===== end E-mail draft action override (V333) ===== */
+/* ===== end E-mail draft action override (V331) ===== */
 
 
-/* ===== Editable recipient field override (V333) ===== */
+/* ===== Editable recipient field override (V331) ===== */
 function getEditableEmailRecipient(){
   const input = $("emailRecipientInput");
   const typed = input && input.value ? String(input.value).trim() : "";
@@ -4807,7 +4913,7 @@ function wireEmailDraftAction(){
   }
 }
 window.addEventListener("load", ()=>{ try{ syncEditableEmailRecipient(); }catch(err){}; });
-/* ===== end Editable recipient field override (V333) ===== */
+/* ===== end Editable recipient field override (V331) ===== */
 
 
 window.addEventListener("resize", ()=>{

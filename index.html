@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
   <meta name="theme-color" content="#0b1830"/>
   <link rel="manifest" href="manifest.json"/>
-  <title>CogSpeed® V346</title>
+  <title>CogSpeed® V362</title>
     <style>
 
     :root{--bg:#091426;--bg2:#132746;--panel:#0d1b33;--panel2:#10213e;--text:#f5fbff;--muted:#d7e7f8;--edge:#4f6f99;--accent:#7fd7ff;--probe:#00f0ff}
@@ -356,7 +356,7 @@
       <img src="CogSpeed.jpeg" alt="CogSpeed logo" style="width:min(78vw,420px);max-width:100%;height:auto;display:block;object-fit:contain;border:1px solid #2f5fb8;box-shadow:0 2px 16px rgba(0,0,0,.25)"/>
     </div>
     <div style="flex:1;display:flex;flex-direction:column;justify-content:flex-start;align-items:center;gap:clamp(6px,1.2dvh,14px);padding-top:10px">
-      <div style="text-align:center"><span class="badge" style="font-size:11px;padding:2px 10px" id="versionBadge">V346</span></div>
+      <div style="text-align:center"><span class="badge" style="font-size:11px;padding:2px 10px" id="versionBadge">V362</span></div>
       <div style="text-align:center">
         <span style="font-size:clamp(20px,3.6dvh,34px);font-weight:900;font-style:italic;letter-spacing:.12em;color:var(--accent);text-transform:uppercase;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;text-shadow:0 0 12px rgba(127,215,255,0.6)">Think Fast!</span>
       </div>
@@ -390,8 +390,7 @@
 </div>
 <!-- ═══ PROFILE OVERLAY ═══ -->
 <div id="profileOverlay" class="overlay hidden" style="padding:0;align-items:stretch">
-  <div class="modal" style="max-width:100%;width:100%;border-radius:0;min-height:100dvh;display:flex;flex-direction:column;padding:20px 18px max(16px,env(safe-area-inset-bottom,16px));position:relative">
-    <img src="gmm-logo.png" alt="Gray Matter Metrics, LLC logo" style="position:absolute;top:14px;right:14px;width:72px;max-width:18vw;height:auto;opacity:0.92;filter:drop-shadow(0 2px 8px rgba(0,0,0,.22));pointer-events:none">
+  <div class="modal" style="max-width:100%;width:100%;border-radius:0;min-height:100dvh;display:flex;flex-direction:column;padding:20px 18px max(16px,env(safe-area-inset-bottom,16px))">
     <div style="text-align:center;margin-bottom:14px">
       <div style="font-size:22px;font-weight:900;color:var(--accent)">Your Profile</div>
       <div style="font-size:14px;color:var(--muted);margin-top:4px">Saved for future tests on this device</div>
@@ -465,7 +464,7 @@
       You must be 14 or older to use CogSpeed.<br>Your data is stored only on this device.
     </div>
 
-    <div style="margin-top:auto;padding-top:10px;text-align:center;font-size:18px;color:rgba(127,215,255,0.88);line-height:1.4;font-weight:600">For more information or comments: thinkfastgmm@gmail.com</div>
+    <div style="margin-top:auto;padding-top:10px;text-align:center;font-size:18px;color:rgba(127,215,255,0.88);line-height:1.4;font-weight:600">For more information or comments contact : Infograymattermetrics@gmail.com</div>
 
     <!-- Buttons -->
     <div style="display:flex;gap:10px;margin-top:10px">
@@ -485,7 +484,8 @@
       <button class="ctrl-btn" id="skipRefresherBtn">Tutorial</button>
       <button class="ctrl-btn" id="refSleepBtn">Sleep Logger</button>
       <button class="ctrl-btn" id="refBackBtn">Back to Start Page</button>
-          </div>
+      <button class="ctrl-btn hidden" id="refStartOverBtn" aria-hidden="true" tabindex="-1">Reset</button>
+    </div>
     </div>
   </div>
 </div>
@@ -623,7 +623,7 @@
       </div>
       <div class="controls" style="margin-bottom:8px;display:grid;grid-template-columns:1fr 1fr;gap:6px">
         <button class="ctrl-btn" id="adminLastResultBtn" style="width:100%;background:linear-gradient(180deg,#1a3355,#0d1b33);border-color:#4f8fcc">📄 Last Results</button>
-        <button class="ctrl-btn" id="adminBackBtn">Start Page</button>
+        <button class="ctrl-btn" id="adminBackBtn">Speedometer</button>
         <button class="ctrl-btn" id="adminSpeedometerBtn">Speedometer</button>
       </div>
       <div class="controls" style="margin-bottom:8px;flex-wrap:wrap;gap:6px">
@@ -867,21 +867,24 @@
 </div>
 
 
-<!-- ═══ MAIN APP — hidden metrics/result container used by JS ═══ -->
+<!-- ═══ MAIN APP — hidden container for JS-required IDs ═══ -->
 <div class="app" id="mainApp" style="display:none">
   <div class="panel result hidden" id="resultBox"></div>
-  <!-- Hidden metrics/result IDs used by JS — completely hidden from subject -->
+  <!-- All IDs required by JS — completely hidden from subject -->
   <div style="display:none">
     <span id="fatigueOut">—</span>
     <span id="modeLabel">Subject mode</span>
     <span id="phaseLabel">Ready</span>
-    <span id="statusLine">CogSpeed V341</span>
+    <span id="statusLine">CogSpeed V331</span>
     <span id="rateOut">—</span>
     <span id="blocksOut">0</span>
     <span id="recoveryOut">0</span>
     <span id="wrongOut">0</span>
     <span id="cpiOut">—</span>
     
+    <button id="startBtn">Start</button>
+    <button id="backToStartBtn">Restart</button>
+    <button id="startOverBtn">Full Reset</button>
   </div>
 </div>
 
@@ -905,7 +908,7 @@
   <div class="resp-grid" id="respGrid"></div>
 </div>
 
-<script src="app.js?v=346"></script>
+<script src="app.js?v=362"></script>
 
 </body>
 </html>
