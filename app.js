@@ -2,7 +2,7 @@
 // CogSpeed V371
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V386";
+const APP_VERSION = "V387";
 const RELEASE = APP_VERSION.replace(/^V/i, "");
 const STORAGE_PREFIX = `cogspeed_v${RELEASE}`;
 
@@ -2212,6 +2212,14 @@ let _profileGenderSelected = "";
 
 let _profileTimeFormat = null;
 
+function isValidEmailAddress(v){
+ return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(v||"").trim());
+}
+
+function getProfileDraftTimeFormat(){
+ return String(_profileTimeFormat||getEffectiveTimeFormat()) === "24" ? "24" : "12";
+}
+
 function profileSelectTimeFormat(fmt){
  _profileTimeFormat = String(fmt)==="24" ? "24" : "12";
  ["12","24"].forEach(x=>{
@@ -2266,19 +2274,22 @@ function validateProfileAge(){
 
 function openProfileFromContext(returnTo,email=""){
  _profileReturnTo = returnTo || "subjectOverlay";
- const safeEmail = String(email || state.profile?.email || state.subjectId || "").trim().toLowerCase();
+ const candidate = String(email || state.profile?.email || state.subjectId || "").trim().toLowerCase();
+ const safeEmail = isValidEmailAddress(candidate) ? candidate : "";
  const input = $("subjectIdInput");
- if(input && safeEmail && safeEmail !== "guest") input.value = safeEmail;
- openProfileOverlay(safeEmail === "guest" ? "" : safeEmail);
+ if(input && safeEmail) input.value = safeEmail;
+ openProfileOverlay(safeEmail);
 }
 
 function openProfileOverlay(email){
  const existing = loadProfile();
+ const existingTimeFormat = existing?.timeFormat || getEffectiveTimeFormat();
  _profileGenderSelected = existing?.gender || "";
+ _profileTimeFormat = String(existingTimeFormat) === "24" ? "24" : "12";
 
  // Show email
  const ed = $("profileEmailDisplay");
- if(ed) ed.textContent = email || "No email entered yet";
+ if(ed) ed.textContent = email || "Guest / no email";
 
  // Pre-fill if returning
  if(existing){
@@ -2288,7 +2299,7 @@ function openProfileOverlay(email){
   profileToggleEmail(!!existing.emailResults);
   if(existing.gender) profileSelectGender(existing.gender);
   validateProfileAge();
-  profileSelectTimeFormat(existing?.timeFormat || getEffectiveTimeFormat());
+  profileSelectTimeFormat(_profileTimeFormat);
  } else {
   const bm = $("profileBirthMonth"); if(bm) bm.value="";
   const by = $("profileBirthYear"); if(by) by.value="";
@@ -2296,7 +2307,7 @@ function openProfileOverlay(email){
   profileToggleEmail(false);
   profileSelectGender("");
   const msg=$("profileAgeMsg"); if(msg) msg.textContent="";
-  profileSelectTimeFormat(getEffectiveTimeFormat());
+  profileSelectTimeFormat(_profileTimeFormat);
  }
 
  showOnly("profileOverlay");
@@ -2305,15 +2316,16 @@ function openProfileOverlay(email){
 let _profileReturnTo = "refresherOverlay"; // where to go after saving profile
 
 function saveAndContinueProfile(){
- const email = ($("subjectIdInput")?.value||"").trim().toLowerCase() ||
-        loadProfile()?.email || "";
+ const entered = ($("subjectIdInput")?.value||"").trim().toLowerCase();
+ const fallbackEmail = loadProfile()?.email || "";
+ const email = isValidEmailAddress(entered) ? entered : (isValidEmailAddress(fallbackEmail) ? fallbackEmail : "");
  const bMonth = parseInt($("profileBirthMonth")?.value||"0");
  const bYear = parseInt($("profileBirthYear")?.value||"0");
  const emailResults = !!$("profileEmailResults")?.checked;
- const timeFormat = _profileTimeFormat || getEffectiveTimeFormat();
+ const timeFormat = getProfileDraftTimeFormat();
 
  // Always save time-format settings from this page
- settings.timeFormat = String(timeFormat)==="24" ? "24" : "12";
+ settings.timeFormat = timeFormat;
  saveSettings();
 
  // If no email is entered yet, allow returning after saving settings only.
@@ -2343,6 +2355,7 @@ function saveAndContinueProfile(){
 function resetProfile(){
  clearProfile();
  _profileGenderSelected = "";
+ _profileTimeFormat = getEffectiveTimeFormat();
  const bm=$("profileBirthMonth"); if(bm) bm.value="";
  const by=$("profileBirthYear"); if(by) by.value="";
  const er=$("profileEmailResults"); if(er) er.checked=false;
@@ -2352,7 +2365,7 @@ function resetProfile(){
   if(btn){ btn.style.background=""; btn.style.borderColor=""; btn.style.color=""; }
  });
  const msg=$("profileAgeMsg"); if(msg) msg.textContent="";
- profileSelectTimeFormat(getEffectiveTimeFormat());
+ profileSelectTimeFormat(_profileTimeFormat);
  setStatus("Profile reset");
 }
 
