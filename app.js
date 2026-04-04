@@ -2,7 +2,7 @@
 // CogSpeed V371
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V385";
+const APP_VERSION = "V386";
 const RELEASE = APP_VERSION.replace(/^V/i, "");
 const STORAGE_PREFIX = `cogspeed_v${RELEASE}`;
 
@@ -2222,10 +2222,8 @@ function profileSelectTimeFormat(fmt){
   btn.style.borderColor = on ? "#7fd7ff" : "";
   btn.style.color = on ? "#7fd7ff" : "";
  });
- try{
-  updateSleepTimeFormatHint(_profileTimeFormat);
-  applySleepInputFormat(_profileTimeFormat);
- }catch(e){}
+ // Do not touch Sleep Logger inputs while editing Profile.
+ // The saved format is applied when Sleep Logger opens.
 }
 
 function profileSelectGender(g){
