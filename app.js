@@ -2,7 +2,7 @@
 // CogSpeed V341
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V341";
+const APP_VERSION = "V346";
 const RELEASE = APP_VERSION.replace(/^V/i, "");
 const STORAGE_PREFIX = `cogspeed_v${RELEASE}`;
 
@@ -1572,181 +1572,7 @@ function bindDoubleTapConfirm(btn, action, idleText, confirmText){
 }
 
 // ─── Charts ───
-// ─── HISTORY AND GRAPHS ───────────────────────────────────────
-// drawCombinedChart(): 3-series chart — CPI (cyan, left axis 0-100),
-//  Block ms (amber, right axis REVERSED: smaller ms at top = better),
-//  SP-FS (green, left axis 1-7). Shows last 20 sessions.
-//  "↑ better" label on right axis. Each series rises with improvement.
-// drawRTScatterChart(): per-trial RT scatter (reversed Y: fast=top).
-// ──────────────────────────────────────────────────────────────
-function drawCombinedChart(canvas,hist,selectedIdx){
- if(!canvas) return;
- const ctx=canvas.getContext("2d"),W=canvas.width,H=canvas.height;
- ctx.clearRect(0,0,W,H);
- ctx.fillStyle="#081321";
- ctx.fillRect(0,0,W,H);
-
- const PAD={top:62,right:56,bottom:82,left:76}, cW=W-PAD.left-PAD.right, cH=H-PAD.top-PAD.bottom;
- if(!hist.length){
-  ctx.fillStyle="#d7e7f8";
-  ctx.font="bold 13px sans-serif";
-  ctx.textAlign="center";
-  ctx.fillText("No data yet",W/2,H/2);
-  return;
- }
-
- const slice=hist.slice(-20);
- const n=slice.length;
- const selected = (selectedIdx!=null && hist[selectedIdx]) ? hist[selectedIdx] : slice[slice.length-1] || null;
-
- const bestMs = Number(settings.cpiBestMs)||800;
- const worstMs = Number(settings.cpiWorstMs)||3000;
-
- function xO(i){ return PAD.left + (n>1 ? (i/(n-1))*cW : cW/2); }
- function yLeftFromCpi(v){ return PAD.top + cH - ((v-0)/100)*cH; }
- function cpiFromMs(ms){
-  const span = (worstMs-bestMs)||1;
-  return Math.max(0,Math.min(100,100*(worstMs-ms)/span));
- }
- function msFromCpi(cpi){
-  const span = (worstMs-bestMs)||1;
-  return Math.round(bestMs + ((100-cpi)/100)*span);
- }
- function yLeftFromMs(ms){ return yLeftFromCpi(cpiFromMs(ms)); }
- function yRightFromSpf(v){ return PAD.top + cH - (((v-1)/6))*cH; }
-
- // Gridlines
- ctx.strokeStyle="rgba(79,111,153,0.26)";
- ctx.lineWidth=1;
- [0,25,50,75,100].forEach(v=>{
-  const y=yLeftFromCpi(v);
-  ctx.beginPath();
-  ctx.moveTo(PAD.left,y);
-  ctx.lineTo(PAD.left+cW,y);
-  ctx.stroke();
- });
-
- // Left axis labels: CPI and matching MBS ms
- ctx.font="10px sans-serif";
- ctx.textAlign="right";
- ctx.fillStyle="#d7e7f8";
- [100,75,50,25,0].forEach(cpi=>{
-  const y=yLeftFromCpi(cpi);
-  const ms=msFromCpi(cpi);
-  ctx.fillText(`${cpi} | ${ms}ms`, PAD.left-8, y+3);
- });
-
- // Right axis labels: SP-FS
- ctx.textAlign="left";
- ctx.fillStyle="#88ff88";
- [7,6,5,4,3,2,1].forEach(v=>{
-  const y=yRightFromSpf(v);
-  ctx.fillText(String(v), PAD.left+cW+8, y+3);
- });
-
- // Axes titles
- ctx.save();
- ctx.translate(22, PAD.top + cH/2);
- ctx.rotate(-Math.PI/2);
- ctx.fillStyle="#d7e7f8";
- ctx.font="bold 11px sans-serif";
- ctx.textAlign="center";
- ctx.fillText("CPI | MBS (up is better)", 0, 0);
- ctx.restore();
-
- ctx.save();
- ctx.translate(W-18, PAD.top + cH/2);
- ctx.rotate(Math.PI/2);
- ctx.fillStyle="#88ff88";
- ctx.font="bold 11px sans-serif";
- ctx.textAlign="center";
- ctx.fillText("SP-FS (up is better)", 0, 0);
- ctx.restore();
-
- // Title and selected-session metadata
- ctx.fillStyle="#b7d9ef";
- ctx.textAlign="left";
- ctx.font="bold 12px sans-serif";
- ctx.fillText("CPI, MBS, and SP-FS by Test Date/Time", PAD.left, 22);
-
- if(selected){
-  ctx.font="11px sans-serif";
-  ctx.fillStyle="#d7e7f8";
-  const sid = selected.subjectId || "—";
-  const mode = formatModeTag(selected.testMode);
-  ctx.fillText(`Subject ID: ${sid}    Test Mode: ${mode}`, PAD.left, 40);
- }
-
- // X-axis labels by date/time of test
- ctx.strokeStyle="rgba(79,111,153,0.35)";
- ctx.beginPath();
- ctx.moveTo(PAD.left, PAD.top+cH);
- ctx.lineTo(PAD.left+cW, PAD.top+cH);
- ctx.stroke();
-
- ctx.font="9px sans-serif";
- ctx.fillStyle="#7fa0c0";
- ctx.textAlign="right";
- slice.forEach((r,i)=>{
-  const x=xO(i), y=PAD.top+cH+8;
-  const d=new Date(r.time);
-  const label=`${d.toLocaleDateString("en-US",{month:"numeric",day:"numeric"})} ${d.toLocaleTimeString("en-US",{hour:"2-digit",minute:"2-digit"})}`;
-  ctx.save();
-  ctx.translate(x, y);
-  ctx.rotate(-Math.PI/4);
-  ctx.fillText(label, 0, 0);
-  ctx.restore();
- });
-
- function drawLine(vals, yFunc, color, pointStyle){
-  ctx.strokeStyle=color;
-  ctx.lineWidth=2.2;
-  ctx.beginPath();
-  let started=false;
-  vals.forEach((v,i)=>{
-   if(v==null){ started=false; return; }
-   const x=xO(i), y=yFunc(v);
-   if(!started){ ctx.moveTo(x,y); started=true; } else { ctx.lineTo(x,y); }
-  });
-  ctx.stroke();
-
-  vals.forEach((v,i)=>{
-   if(v==null) return;
-   const x=xO(i), y=yFunc(v);
-   ctx.fillStyle=color;
-   if(pointStyle==="square"){
-    ctx.fillRect(x-3.5,y-3.5,7,7);
-   }else if(pointStyle==="diamond"){
-    ctx.save();
-    ctx.translate(x,y);
-    ctx.rotate(Math.PI/4);
-    ctx.fillRect(-3.5,-3.5,7,7);
-    ctx.restore();
-   }else{
-    ctx.beginPath();
-    ctx.arc(x,y,3.7,0,Math.PI*2);
-    ctx.fill();
-   }
-  });
- }
-
- const cpsVals=slice.map(r=>r.cognitivePerformanceIndex!=null?Number(r.cognitivePerformanceIndex):null);
- const mbsVals=slice.map(r=>r.averageLast2BlockingScoresMs!=null?Number(r.averageLast2BlockingScoresMs):null);
- const spfVals=slice.map(r=>r.samnPerelli&&r.samnPerelli.score!=null?Number(r.samnPerelli.score):null);
-
- drawLine(cpsVals, v=>yLeftFromCpi(v), "#7fd7ff", "circle");
- drawLine(mbsVals, v=>yLeftFromMs(v), "#ff9f40", "square");
- drawLine(spfVals, v=>yRightFromSpf(v), "#88ff88", "diamond");
-
- // Legend
- ctx.textAlign="left";
- ctx.font="bold 10px sans-serif";
- ctx.fillStyle="#7fd7ff"; ctx.fillText("● CPI", PAD.left, PAD.top-10);
- ctx.fillStyle="#ff9f40"; ctx.fillText("■ MBS", PAD.left+58, PAD.top-10);
- ctx.fillStyle="#88ff88"; ctx.fillText("◆ SP-FS", PAD.left+116, PAD.top-10);
-}
-
-
+// Per-session graphing helpers used by the active admin overlays.
 function graphMetricMsForSession(r){
  if(!r) return null;
  const candidates = [
@@ -2494,10 +2320,10 @@ function resetProfile(){
 // _adminReturnTo: tracks which page opened admin so Close returns there.
 // ──────────────────────────────────────────────────────────────
 function hideAllOverlays(){
- ["subjectOverlay","profileOverlay","refresherOverlay","sleepPromptOverlay","fatigueOverlay","tutorialOverlay","adminOverlay","resultsOverlay","summaryOverlay","rankedOverlay","trialLogOverlay","historyOverlay","rateRtOverlay","perfTimeOverlay","emailOverlay","thinkingOverlay","outcomeOverlay"].forEach(id=>{ const el=$(id); if(el) el.classList.add("hidden"); });
+ ["subjectOverlay","profileOverlay","refresherOverlay","sleepPromptOverlay","fatigueOverlay","tutorialOverlay","adminOverlay","resultsOverlay","summaryOverlay","rankedOverlay","trialLogOverlay","rateRtOverlay","perfTimeOverlay","emailOverlay","thinkingOverlay","outcomeOverlay"].forEach(id=>{ const el=$(id); if(el) el.classList.add("hidden"); });
 }
 function showOnly(id){
- ["subjectOverlay","profileOverlay","refresherOverlay","tutorialExitOverlay","sleepPromptOverlay","sleepOverlay","fatigueOverlay","adminOverlay","resultsOverlay","summaryOverlay","rankedOverlay","trialLogOverlay","historyOverlay","rateRtOverlay","perfTimeOverlay","emailOverlay","tutorialOverlay","thinkingOverlay","outcomeOverlay"].forEach(oid=>{ const el=$(oid); if(el) el.classList[oid===id?"remove":"add"]("hidden"); });
+ ["subjectOverlay","profileOverlay","refresherOverlay","tutorialExitOverlay","sleepPromptOverlay","sleepOverlay","fatigueOverlay","adminOverlay","resultsOverlay","summaryOverlay","rankedOverlay","trialLogOverlay","rateRtOverlay","perfTimeOverlay","emailOverlay","tutorialOverlay","thinkingOverlay","outcomeOverlay"].forEach(oid=>{ const el=$(oid); if(el) el.classList[oid===id?"remove":"add"]("hidden"); });
 }
 
 // ─── START PAGE SPEEDOMETER LINK ─────────────────────────────
@@ -3435,57 +3261,8 @@ function buildRateRtOverlay(sessionIndex){
  drawRateRtChart($("rateRtChart"), sessionsForChart, idx);
 }
 
-// ─── History & Graphs overlay ───
-// ─── HISTORY OVERLAY ──────────────────────────────────────────
-// Table of all sessions (newest first) with CPI, blocks, duration.
-// Clickable rows show that session's full summary.
-// Rendered inside admin → 📈 History & Graphs button.
-// ──────────────────────────────────────────────────────────────
-function buildHistoryOverlay(sessionIndex){
- const hist = state.history||[];
- const selectedIdx = sessionIndex!=null ? sessionIndex : (buildHistoryOverlay._selectedIndex!=null ? buildHistoryOverlay._selectedIndex : (hist.length?hist.length-1:null));
- buildHistoryOverlay._selectedIndex = selectedIdx;
- // Draw chart
- drawCombinedChart(null,state.history, selectedIdx);
- const meta=null;
- const selected = (selectedIdx!=null && hist[selectedIdx]) ? hist[selectedIdx] : null;
- if(meta){
-  meta.textContent = selected ? `Session ${selectedIdx+1} · ${formatModeTag(selected.testMode)} · SP-FS ${selected.samnPerelli?selected.samnPerelli.score:"—"} · ${new Date(selected.time).toLocaleString()}` : "No session selected";
- }
- // Build session table
- const tbody=null; if(!tbody) return;
- tbody.innerHTML="";
- if(!state.history.length){
-  tbody.innerHTML='<tr><td colspan="10" style="text-align:center;color:var(--muted);padding:12px">No history yet</td></tr>';
-  return;
- }
- [...state.history].reverse().forEach((r,ri)=>{
-  const idx=state.history.length-1-ri;
-  const tr=document.createElement("tr");
-  const date=new Date(r.time).toLocaleString("en-US",{month:"short",day:"numeric",hour:"2-digit",minute:"2-digit"});
-  const spf=r.samnPerelli?r.samnPerelli.score:"—";
-  const calRT=r.calibrationAverageMs!=null?r.calibrationAverageMs.toFixed(0)+"ms":"—";
-  const avgBlk=r.averageLast2BlockingScoresMs!=null?r.averageLast2BlockingScoresMs.toFixed(0)+"ms":"—";
-  const cps=r.cognitivePerformanceIndex!=null?r.cognitivePerformanceIndex.toFixed(1):"—";
-  const dur=formatDuration(r.testDurationMs);
-  const endShort=(r.endReason||"").substring(0,30)+((r.endReason||"").length>30?"…":"");
-  tr.style.cursor="pointer";
-  tr.title="Click to view trial detail";
-  if(idx===selectedIdx) tr.style.background="rgba(127,215,255,0.10)";
-  tr.onclick=()=>{ buildHistoryOverlay(idx); };
-  tr.innerHTML=`<td style="font-weight:700;color:var(--accent)">${idx+1}</td><td style="font-size:11px">${date}</td><td>${formatModeTag(r.testMode)} · ${r.subjectId}</td><td style="color:#88ff88">${spf}</td><td>${calRT}</td><td>${r.blockCount||0}</td><td style="color:#ff9f40">${avgBlk}</td><td style="color:var(--accent);font-weight:800">${cps}</td><td>${dur}</td><td style="font-size:10px;color:var(--muted)">${endShort}</td>`;
-  tbody.appendChild(tr);
- });
-}
-buildHistoryOverlay._openSelectedTrial=function(){
- const idx = buildHistoryOverlay._selectedIndex;
- if(idx==null) return;
- const _hov=$("historyOverlay"); if(_hov) _hov.classList.add("hidden");
- buildTrialLog(idx);
- $("trialLogOverlay").classList.remove("hidden");
-};
-
 // ─── Device benchmark ───
+
 async function runDeviceBenchmark(force){
  const enabled=force||Number(settings.deviceBenchmarkEnabled||0)===1;
  if(!enabled){ state.benchmark=null; return; }
