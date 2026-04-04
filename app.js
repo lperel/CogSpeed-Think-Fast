@@ -2,7 +2,7 @@
 // CogSpeed V371
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V382";
+const APP_VERSION = "V383";
 const RELEASE = APP_VERSION.replace(/^V/i, "");
 const STORAGE_PREFIX = `cogspeed_v${RELEASE}`;
 
@@ -2893,7 +2893,9 @@ function resetPretestEntryState(){
  fatigueOut.textContent="—";
  const fsb=$("fatigueStartBtn"); if(fsb) fsb.classList.add("hidden");
  const fl=$("fatigueList"); if(fl) fl.querySelectorAll(".fatigue-item").forEach(el=>{ el.style.background=""; el.classList.remove("selected"); });
- ["sleepBedtimeInput","sleepWakeInput"].forEach(id=>{ const el=$(id); if(el) el.value=""; });
+ ["sleepBedtimeInput","sleepWakeInput"].forEach(id=>{ const el=$(id); if(el){ el.value=""; if(el.dataset){ el.dataset.canonical=""; el.dataset.meridiem="AM"; } } });
+ ["sleepBedHourInput","sleepBedMinuteInput","sleepWakeHourInput","sleepWakeMinuteInput"].forEach(id=>{ const el=$(id); if(el) el.value=""; });
+ ["sleepBed","sleepWake"].forEach(prefix=>refreshSleepMeridiemButtons(prefix));
  ["sleepQualityPoorBtn","sleepQualityOkayBtn","sleepQualityGoodBtn"].forEach(id=>$(id)?.classList.remove("selected"));
  updateSleepLoggerUI();
 }
@@ -3662,15 +3664,67 @@ function parseSleepTimeToMinutes(v){
  if(!Number.isFinite(hh) || !Number.isFinite(mm)) return null;
  return hh*60+mm;
 }
+function getSleep12PrefixFromInputId(id){
+ if(id==="sleepBedtimeInput") return "sleepBed";
+ if(id==="sleepWakeInput") return "sleepWake";
+ return "";
+}
+function setSleepMeridiem(prefix, meridiem){
+ const hidden=$(prefix==="sleepBed"?"sleepBedtimeInput":"sleepWakeInput");
+ if(hidden && hidden.dataset) hidden.dataset.meridiem = meridiem;
+ refreshSleepMeridiemButtons(prefix);
+}
+function refreshSleepMeridiemButtons(prefix){
+ const hidden=$(prefix==="sleepBed"?"sleepBedtimeInput":"sleepWakeInput");
+ const meridiem=(hidden&&hidden.dataset&&hidden.dataset.meridiem)||"AM";
+ const am=$(prefix+"AmBtn"), pm=$(prefix+"PmBtn");
+ if(am){ am.style.background = meridiem==="AM" ? "#1a3366" : ""; am.style.borderColor = meridiem==="AM" ? "var(--accent)" : ""; }
+ if(pm){ pm.style.background = meridiem==="PM" ? "#1a3366" : ""; pm.style.borderColor = meridiem==="PM" ? "var(--accent)" : ""; }
+}
+function getSleep12CanonicalValue(prefix){
+ const hRaw=($(prefix+"HourInput")?.value||"").trim();
+ const mRaw=($(prefix+"MinuteInput")?.value||"").trim();
+ if(!hRaw || !mRaw) return "";
+ const hh=Number(hRaw), mm=Number(mRaw);
+ if(!Number.isFinite(hh) || !Number.isFinite(mm) || hh<1 || hh>12 || mm<0 || mm>59) return "";
+ const hidden=$(prefix==="sleepBed"?"sleepBedtimeInput":"sleepWakeInput");
+ const meridiem=(hidden&&hidden.dataset&&hidden.dataset.meridiem)||"AM";
+ let hour=hh%12;
+ if(meridiem==="PM") hour+=12;
+ return `${String(hour).padStart(2,"0")}:${String(mm).padStart(2,"0")}`;
+}
+function setSleep12FromCanonical(prefix, canon){
+ const hourEl=$(prefix+"HourInput"), minEl=$(prefix+"MinuteInput");
+ if(!hourEl || !minEl) return;
+ if(!canon){ hourEl.value=""; minEl.value=""; setSleepMeridiem(prefix,"AM"); return; }
+ const [hh,mm]=String(canon).split(":").map(Number);
+ if(!Number.isFinite(hh) || !Number.isFinite(mm)) return;
+ const meridiem = hh>=12 ? "PM" : "AM";
+ const h12 = ((hh+11)%12)+1;
+ hourEl.value=String(h12);
+ minEl.value=String(mm).padStart(2,"0");
+ setSleepMeridiem(prefix,meridiem);
+}
 function getSleepInputCanonicalValue(id){
+ const mode=getEffectiveTimeFormat();
  const el=$(id);
  if(!el) return "";
+ if(mode==="12"){
+  const prefix=getSleep12PrefixFromInputId(id);
+  if(prefix) return getSleep12CanonicalValue(prefix) || "";
+ }
  const raw = (el.dataset && el.dataset.canonical) ? el.dataset.canonical : (el.value || "");
  const canon = normalizeSleepTimeValue(raw);
  return canon || "";
 }
 function syncSleepInputCanonical(el){
  if(!el) return "";
+ if(getEffectiveTimeFormat()==="12"){
+  const prefix=getSleep12PrefixFromInputId(el.id||"");
+  const canon=prefix ? getSleep12CanonicalValue(prefix) : "";
+  if(el.dataset) el.dataset.canonical = canon || "";
+  return canon || "";
+ }
  const canon = normalizeSleepTimeValue(el.value || "");
  if(el.dataset) el.dataset.canonical = canon || "";
  return canon || "";
@@ -3680,19 +3734,24 @@ function applySleepInputFormat(){
  ["sleepBedtimeInput","sleepWakeInput"].forEach(id=>{
   const el=$(id);
   if(!el) return;
-  const canon = getSleepInputCanonicalValue(id);
+  const canon = (el.dataset && el.dataset.canonical) ? el.dataset.canonical : normalizeSleepTimeValue(el.value || "") || "";
+  if(el.dataset) el.dataset.canonical = canon || "";
+  const isBed=id==="sleepBedtimeInput";
+  const wrap24=$(isBed?"sleepBedtime24Wrap":"sleepWake24Wrap");
+  const wrap12=$(isBed?"sleepBedtime12Wrap":"sleepWake12Wrap");
+  const prefix=isBed?"sleepBed":"sleepWake";
   if(mode==="24"){
+   if(wrap24) wrap24.classList.remove("hidden");
+   if(wrap12) wrap12.classList.add("hidden");
    el.type="time";
    el.placeholder="";
    el.inputMode="numeric";
    el.value=canon || "";
   }else{
-   el.type="text";
-   el.placeholder="hh:mm AM";
-   el.inputMode="text";
-   el.value=canon ? formatClockForDisplay(canon) : "";
+   if(wrap24) wrap24.classList.add("hidden");
+   if(wrap12) wrap12.classList.remove("hidden");
+   setSleep12FromCanonical(prefix, canon || "");
   }
-  if(el.dataset) el.dataset.canonical = canon || "";
  })
 }
 function formatSleepDuration(mins){
@@ -3769,7 +3828,7 @@ function updateSleepTimeFormatHint(){
  let txt = "Use the time format shown by your device when entering sleep and wake times.";
  try{
   if(getEffectiveTimeFormat() === "12"){
-   txt = "Enter sleep and wake times using AM/PM.";
+   txt = "Enter sleep and wake times using hour, minute, and AM/PM buttons.";
   }else{
    txt = "Enter sleep and wake times using 24-hour time.";
   }
@@ -3875,8 +3934,13 @@ $("sleepPromptNoBtn").onclick=()=>{
 
 $("sleepBedtimeInput").addEventListener("input", (e)=>{ syncSleepInputCanonical(e.currentTarget); updateSleepLoggerUI(); });
 $("sleepWakeInput").addEventListener("input", (e)=>{ syncSleepInputCanonical(e.currentTarget); updateSleepLoggerUI(); });
-$("sleepBedtimeInput").addEventListener("blur", (e)=>{ const canon=syncSleepInputCanonical(e.currentTarget); if(getEffectiveTimeFormat()==="12" && canon) e.currentTarget.value=formatClockForDisplay(canon); updateSleepLoggerUI(); });
-$("sleepWakeInput").addEventListener("blur", (e)=>{ const canon=syncSleepInputCanonical(e.currentTarget); if(getEffectiveTimeFormat()==="12" && canon) e.currentTarget.value=formatClockForDisplay(canon); updateSleepLoggerUI(); });
+["sleepBedHourInput","sleepBedMinuteInput","sleepWakeHourInput","sleepWakeMinuteInput"].forEach(id=>{
+ const el=$(id); if(el) el.addEventListener("input", ()=>updateSleepLoggerUI());
+});
+const _sba=$("sleepBedAmBtn"); if(_sba) _sba.onclick=(e)=>{ e.preventDefault(); setSleepMeridiem("sleepBed","AM"); updateSleepLoggerUI(); };
+const _sbp=$("sleepBedPmBtn"); if(_sbp) _sbp.onclick=(e)=>{ e.preventDefault(); setSleepMeridiem("sleepBed","PM"); updateSleepLoggerUI(); };
+const _swa=$("sleepWakeAmBtn"); if(_swa) _swa.onclick=(e)=>{ e.preventDefault(); setSleepMeridiem("sleepWake","AM"); updateSleepLoggerUI(); };
+const _swp=$("sleepWakePmBtn"); if(_swp) _swp.onclick=(e)=>{ e.preventDefault(); setSleepMeridiem("sleepWake","PM"); updateSleepLoggerUI(); };
 $("sleepQualityPoorBtn").onclick=()=>setSleepQuality(1);
 $("sleepQualityOkayBtn").onclick=()=>setSleepQuality(2);
 $("sleepQualityGoodBtn").onclick=()=>setSleepQuality(3);
@@ -3929,13 +3993,8 @@ const _peb=$("profileEditBtn"); if(_peb) _peb.onclick=()=>{
 const _spb=$("summaryProfileBtn"); if(_spb) _spb.onclick=()=>{
  const p=loadProfile();
  const email=p?.email||state.subjectId||"";
- if(email&&/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){
-  // After saving profile from summary, return to summary
-  _profileReturnTo="summaryOverlay";
-  openProfileOverlay(email);
- } else {
-  setStatus("No profile to edit — enter email on start page");
- }
+ _profileReturnTo="summaryOverlay";
+ openProfileOverlay(email);
 };
 const _prb=$("profileResetBtn"); if(_prb) _prb.onclick=resetProfile;
 const _pt12=$("profileTime12Btn"); if(_pt12) _pt12.onclick=()=>profileSelectTimeFormat("12");

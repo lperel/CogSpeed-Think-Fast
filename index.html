@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
   <meta name="theme-color" content="#0b1830"/>
   <link rel="manifest" href="manifest.json"/>
-  <title>CogSpeed® V382</title>
+  <title>CogSpeed® V383</title>
     <style>
 
     :root{--bg:#091426;--bg2:#132746;--panel:#0d1b33;--panel2:#10213e;--text:#f5fbff;--muted:#d7e7f8;--edge:#4f6f99;--accent:#7fd7ff;--probe:#00f0ff}
@@ -554,12 +554,34 @@
 
     <div class="field-row">
       <label>Went to sleep at<div class="field-hint">Enter your sleep start time clearly</div></label>
-      <input id="sleepBedtimeInput" type="time" style="font-size:18px">
+      <div id="sleepBedtime24Wrap">
+        <input id="sleepBedtimeInput" type="time" style="font-size:18px">
+      </div>
+      <div id="sleepBedtime12Wrap" class="hidden">
+        <div style="display:flex;gap:8px;align-items:center">
+          <input id="sleepBedHourInput" type="number" min="1" max="12" placeholder="hh" inputmode="numeric" style="flex:0 0 88px;padding:16px;border:1px solid var(--edge);border-radius:14px;background:#0a1629;color:var(--text);font-size:22px;font-weight:600;text-align:center">
+          <span style="font-size:28px;font-weight:800;color:var(--accent)">:</span>
+          <input id="sleepBedMinuteInput" type="number" min="0" max="59" placeholder="mm" inputmode="numeric" style="flex:0 0 88px;padding:16px;border:1px solid var(--edge);border-radius:14px;background:#0a1629;color:var(--text);font-size:22px;font-weight:600;text-align:center">
+          <button id="sleepBedAmBtn" type="button" class="ctrl-btn" style="flex:1;font-size:18px;min-height:56px">AM</button>
+          <button id="sleepBedPmBtn" type="button" class="ctrl-btn" style="flex:1;font-size:18px;min-height:56px">PM</button>
+        </div>
+      </div>
     </div>
 
     <div class="field-row">
       <label>Woke up at<div class="field-hint">Enter your wake time clearly</div></label>
-      <input id="sleepWakeInput" type="time" style="font-size:18px">
+      <div id="sleepWake24Wrap">
+        <input id="sleepWakeInput" type="time" style="font-size:18px">
+      </div>
+      <div id="sleepWake12Wrap" class="hidden">
+        <div style="display:flex;gap:8px;align-items:center">
+          <input id="sleepWakeHourInput" type="number" min="1" max="12" placeholder="hh" inputmode="numeric" style="flex:0 0 88px;padding:16px;border:1px solid var(--edge);border-radius:14px;background:#0a1629;color:var(--text);font-size:22px;font-weight:600;text-align:center">
+          <span style="font-size:28px;font-weight:800;color:var(--accent)">:</span>
+          <input id="sleepWakeMinuteInput" type="number" min="0" max="59" placeholder="mm" inputmode="numeric" style="flex:0 0 88px;padding:16px;border:1px solid var(--edge);border-radius:14px;background:#0a1629;color:var(--text);font-size:22px;font-weight:600;text-align:center">
+          <button id="sleepWakeAmBtn" type="button" class="ctrl-btn" style="flex:1;font-size:18px;min-height:56px">AM</button>
+          <button id="sleepWakePmBtn" type="button" class="ctrl-btn" style="flex:1;font-size:18px;min-height:56px">PM</button>
+        </div>
+      </div>
     </div>
 
     <div class="field-row">
@@ -907,7 +929,7 @@
   <div class="resp-grid" id="respGrid"></div>
 </div>
 
-<script src="app.js?v=382"></script>
+<script src="app.js?v=383"></script>
 
 </body>
 </html>
