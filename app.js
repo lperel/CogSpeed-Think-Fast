@@ -1,8 +1,8 @@
 // ═══════════════════════════════════════════════════
-// CogSpeed V335
+// CogSpeed V336
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V335";
+const APP_VERSION = "V336";
 const RELEASE = APP_VERSION.replace(/^V/i, "");
 const STORAGE_PREFIX = `cogspeed_v${RELEASE}`;
 
@@ -2156,7 +2156,7 @@ function formatModePooledRankSection(mode){
 
 function exportCSV(){
  const h=state.history; if(!h.length){setStatus("No history to export."); return;}
- const cols=["session","subjectId","date","samnPerelli","calibAvgMs","blocks",
+ const cols=["session","subjectId","testMode","date","samnPerelli","calibAvgMs","blocks",
   "avgLast2Ms","blockDiffMs","cpi","totalTaps","correct","wrong","missed",
   "sleepSinceLastTest","sleepBedtime","sleepWakeTime","sleepDurationMinutes","sleepQualityLabel","sleepQualityScore",
   "pacedCorrect","pacedWrong","spRestartWrong","meanPacedRtMs","pacedRtSd",
@@ -2164,6 +2164,7 @@ function exportCSV(){
  const rows=h.map((r,i)=>[
   i+1,
   r.subjectId||"",
+  (r.testMode||"mode1"),
   r.time?new Date(r.time).toLocaleString():"",
   r.samnPerelli?`${r.samnPerelli.score} - ${r.samnPerelli.label}`:"",
   r.calibrationAverageMs!=null?r.calibrationAverageMs.toFixed(1):"",
@@ -4564,7 +4565,7 @@ function drawPerformanceOverTimeChart(canvas,hist){
   const rangeLabel = perfGraphState.preset === "custom"
     ? `    Range: ${perfGraphState.fromDate||"start"} → ${perfGraphState.toDate||"end"}`
     : (perfGraphState.preset === "last14" ? "    Range: Last 14 sessions" : "");
-  ctx.fillText(`All sessions sequentially    Subjects: ${subjectCount}    Sessions: ${n}    Chronology: UTC${rangeLabel}`, PAD.left, 46);
+  ctx.fillText(`All sessions sequentially    Subjects: ${subjectCount}    Sessions: ${n}    Chronology: Local${rangeLabel}`, PAD.left, 46);
 
   ctx.save();
   ctx.translate(18, PAD.top + cH/2); ctx.rotate(-Math.PI/2);
