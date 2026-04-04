@@ -1,8 +1,8 @@
 // ═══════════════════════════════════════════════════
-// CogSpeed V331
+// CogSpeed V371
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V370";
+const APP_VERSION = "V371";
 const RELEASE = APP_VERSION.replace(/^V/i, "");
 const STORAGE_PREFIX = `cogspeed_v${RELEASE}`;
 
@@ -213,7 +213,8 @@ const state={
  trialOpenedAt:null, geo:null, benchmark:null, lastResultText:null,
  sleepSinceLastTest:null,
  sleepLog:null,
- pendingPriorMiss:null, pendingLatePacing:null
+ pendingPriorMiss:null, pendingLatePacing:null,
+ activeFrameTiming:null, frameOvershootLog:[], rafIntervalLog:[]
  // pendingPriorMiss:
  //   stores the immediately previous paced frame when it LOOKED like a miss at frame end,
  //   but is still inside the late-response grace rule window.
@@ -258,6 +259,59 @@ function isMode3(){ return (settings.testMode||"mode1")==="mode3"; }
 function currentModeLabel(){ return isMode1() ? "CogSpeed Mode" : isMode2() ? "SPC Mode" : "SPCMP Mode"; }
 function getEffectiveTimeFormat(){ return String(settings.timeFormat||"12") === "24" ? "24" : "12"; }
 function getSessionMaxDurationMs(){ return isMode2() ? (Number(settings.mode2MaxDurationMs)||150000) : isMode3() ? (Number(settings.mode3MaxDurationMs)||150000) : (Number(settings.maxTestDurationMs)||150000); }
+
+// Timing diagnostics are observational only. They do NOT affect pacing or scoring.
+function beginFrameTiming(targetMs, phase){
+ state.activeFrameTiming = {
+  phase,
+  targetMs:Number(targetMs)||0,
+  frameStartedAt:null,
+  scheduledEndAt:null,
+  lastRafAt:null,
+  rafIntervals:[]
+ };
+}
+function noteFrameTimingStart(startAt){
+ if(!state.activeFrameTiming) return;
+ state.activeFrameTiming.frameStartedAt = startAt;
+ state.activeFrameTiming.scheduledEndAt = startAt + (Number(state.activeFrameTiming.targetMs)||0);
+ state.activeFrameTiming.lastRafAt = startAt;
+}
+function noteFrameTimingRaf(now){
+ const ft=state.activeFrameTiming; if(!ft||ft.frameStartedAt==null) return;
+ if(ft.lastRafAt!=null){
+  const delta=now-ft.lastRafAt;
+  if(isFinite(delta)&&delta>=0) ft.rafIntervals.push(delta);
+ }
+ ft.lastRafAt=now;
+}
+function summarizeFrameTiming(ft, actualAtMs){
+ if(!ft||ft.frameStartedAt==null) return null;
+ const actualAt = Number.isFinite(actualAtMs) ? actualAtMs : performance.now();
+ const targetMs = Number(ft.targetMs)||0;
+ const frameAge = Math.max(0, actualAt - ft.frameStartedAt);
+ const overshoot = Math.max(0, actualAt - (ft.scheduledEndAt!=null ? ft.scheduledEndAt : (ft.frameStartedAt + targetMs)));
+ const intervals = Array.isArray(ft.rafIntervals) ? ft.rafIntervals.filter(v=>isFinite(v)&&v>=0) : [];
+ return {
+  targetFrameMs: Math.round(targetMs),
+  frameAgeMs: Math.round(frameAge),
+  frameOvershootMs: Math.round(overshoot),
+  rafSamples: intervals.length,
+  meanRafIntervalMs: intervals.length ? Number(mean(intervals).toFixed(2)) : null,
+  maxRafIntervalMs: intervals.length ? Number(Math.max(...intervals).toFixed(2)) : null
+ };
+}
+function harvestActiveFrameTiming(actualAtMs){
+ const ft=state.activeFrameTiming;
+ const summary=summarizeFrameTiming(ft, actualAtMs);
+ state.activeFrameTiming=null;
+ if(summary){
+  if(summary.frameOvershootMs!=null&&isFinite(summary.frameOvershootMs)) state.frameOvershootLog.push(summary.frameOvershootMs);
+  if(summary.meanRafIntervalMs!=null&&isFinite(summary.meanRafIntervalMs)) state.rafIntervalLog.push(summary.meanRafIntervalMs);
+  if(summary.maxRafIntervalMs!=null&&isFinite(summary.maxRafIntervalMs)) state.rafIntervalLog.push(summary.maxRafIntervalMs);
+ }
+ return summary;
+}
 
 // ─── CPI ───
 // ─── CPI SCORE CALCULATION ────────────────────────────────────
@@ -664,7 +718,7 @@ function updateMetrics(){
 // Captures: phase, RT, outcome, probe, correct cell, response cell.
 // Late-catch logs against previous trial (not current).
 // ──────────────────────────────────────────────────────────────
-function logTrial({phase,rt,outcome,responseIndex,counted}){
+function logTrial({phase,rt,outcome,responseIndex,counted,timing}){
  const trial=state.current; if(!trial) return;
  const ci=trial.topItems[trial.correctPos];
  const ri=responseIndex!=null?trial.topItems[responseIndex]:null;
@@ -680,7 +734,13 @@ function logTrial({phase,rt,outcome,responseIndex,counted}){
   correctCell:ci?`${ci.family}:${ci.count} @${trial.correctPos+1}`:"—",
   response:ri?`${ri.family}:${ri.count} @${responseIndex+1}`:(responseIndex!=null?`pos${responseIndex+1}`:"no_response"),
   warmup: counted===false,
-  counted
+  counted,
+  targetFrameMs: timing&&timing.targetFrameMs!=null ? timing.targetFrameMs : null,
+  frameAgeMs: timing&&timing.frameAgeMs!=null ? timing.frameAgeMs : null,
+  frameOvershootMs: timing&&timing.frameOvershootMs!=null ? timing.frameOvershootMs : null,
+  rafSamples: timing&&timing.rafSamples!=null ? timing.rafSamples : null,
+  meanRafIntervalMs: timing&&timing.meanRafIntervalMs!=null ? timing.meanRafIntervalMs : null,
+  maxRafIntervalMs: timing&&timing.maxRafIntervalMs!=null ? timing.maxRafIntervalMs : null
  });
 }
 
@@ -934,6 +994,12 @@ function finish(){
 //          fixed machine-paced counts, and machine-paced mean RT
 const modeMetricMs = isMode2() ? (state.selfPacedRTs.length?mean(state.selfPacedRTs):null) : isMode3() ? (state.pacedRTs.length?mean(state.pacedRTs):(state.fixedPacedBaseline||null)) : avg2;
  const modeCPI = (isMode2()||isMode3()) ? null : (modeMetricMs!=null ? computeCPI(modeMetricMs) : cps);
+ const timingQuality={
+  avgFrameOvershootMs: state.frameOvershootLog.length ? Number(mean(state.frameOvershootLog).toFixed(2)) : null,
+  maxFrameOvershootMs: state.frameOvershootLog.length ? Number(Math.max(...state.frameOvershootLog).toFixed(2)) : null,
+  avgRafIntervalMs: state.rafIntervalLog.length ? Number(mean(state.rafIntervalLog).toFixed(2)) : null,
+  maxRafIntervalMs: state.rafIntervalLog.length ? Number(Math.max(...state.rafIntervalLog).toFixed(2)) : null
+ };
  const result={
   sessionNumber: state.history.length + 1,
   testMode: state.activeMode||settings.testMode||"mode1",
@@ -959,7 +1025,7 @@ const modeMetricMs = isMode2() ? (state.selfPacedRTs.length?mean(state.selfPaced
   fixedPacedBaselineMs: state.fixedPacedBaseline, fixedPacedPresented: state.fixedPacedPresented,
   fixedPacedCorrect: state.fixedPacedCorrect, fixedPacedWrong: state.fixedPacedWrong,
   rtLog:[...state.rtLog], endReason:state.endReason||"Run complete",
-  time:new Date().toISOString(), geo:state.geo
+  time:new Date().toISOString(), geo:state.geo, timingQuality
  };
  state.history.push(result);
 localStorage.setItem(`${STORAGE_PREFIX}_history`,JSON.stringify(state.history));
@@ -1041,9 +1107,13 @@ function openTrial(kind){
    }else if(kind==="paced" || kind==="paced_fixed"){
     const targetMs = state.duration;
     const frameStart = state.trialOpenedAt;
+    beginFrameTiming(targetMs, kind);
+    noteFrameTimingStart(frameStart);
     function checkFrame(){
-     if(performance.now() - frameStart >= targetMs){
-      onPacedFrameEnd();
+     const now = performance.now();
+     noteFrameTimingRaf(now);
+     if(now - frameStart >= targetMs){
+      onPacedFrameEnd(now);
       return;
      }
      state.trialTimer = requestAnimationFrame(checkFrame);
@@ -1074,7 +1144,7 @@ function finalizePendingPriorMiss(){
  state.current = pm.trial;
  state.presentedRoundDuration = pm.durationMs;
 
- logTrial({phase:"missed",rt:null,outcome:"missed",responseIndex:null});
+ logTrial({phase:"missed",rt:null,outcome:"missed",responseIndex:null,timing:pm.timing||null});
  state.current = savedCurrent;
  state.presentedRoundDuration = savedPresented;
 
@@ -1123,7 +1193,7 @@ function applyPendingLatePacingIfAny(){
  }
 }
 
-function onPacedFrameEnd(){
+function onPacedFrameEnd(actualNow){
  // Mode 3 fixed machine-paced handler:
 // every trial uses one fixed baseline duration,
 // no adaptive speedup/slowdown within the fixed MP phase.
@@ -1149,6 +1219,7 @@ if(state.phase==="paced_fixed"){
  if(state.pendingPriorMiss){
   if(finalizePendingPriorMiss()) return;
  }
+ const frameTiming = harvestActiveFrameTiming(performance.now());
 
  const truelyMissed=state.current&&!state.current.resolved&&!state.hadResponse;
  if(truelyMissed){
@@ -1158,7 +1229,8 @@ if(state.phase==="paced_fixed"){
   // Until then, this frame is only an APPARENT miss, not yet a TRUE miss.
   state.pendingPriorMiss = {
    trial: state.current,
-   durationMs: state.presentedRoundDuration!=null ? state.presentedRoundDuration : (state.duration?Math.round(state.duration):null)
+   durationMs: state.presentedRoundDuration!=null ? state.presentedRoundDuration : (state.duration?Math.round(state.duration):null),
+   timing: frameTiming
   };
 
   // If the previous frame already got a late-attributed response and this current frame now
@@ -1353,16 +1425,17 @@ function handleTap(index,eventTimeStamp){
  // Mode 3 fixed machine-paced
  if(state.phase==="paced_fixed"){
   const rt=getSafeTrialRtMs(eventTimeStamp);
+  const timingSummary = harvestActiveFrameTiming(performance.now());
   if(state.current&&!state.current.resolved&&trialMatches(state.current,index)){
    state.current.resolved=true; state.totalResponses+=1; state.totalCorrect+=1; state.fixedPacedCorrect+=1; state.pacedRTs.push(rt);
-   logTrial({phase:"paced_fixed",rt,outcome:"correct",responseIndex:index}); flashBtn(index,true);
+   logTrial({phase:"paced_fixed",rt,outcome:"correct",responseIndex:index,timing:timingSummary}); flashBtn(index,true);
    if(state.fixedPacedPresented >= (Number(settings.mode3PacedTrialLimit)||140)){ state.endReason="Required responses reached"; finish(); return; }
    openTrial("paced_fixed"); return;
   }
   state.hadResponse=true;
   state.totalResponses+=1; state.totalIncorrect+=1; state.pacedErrors+=1; state.fixedPacedWrong+=1;
   if(checkMaxPacedWrong()) return;
-  logTrial({phase:"paced_fixed_wrong",rt,outcome:"wrong",responseIndex:index});
+  logTrial({phase:"paced_fixed_wrong",rt,outcome:"wrong",responseIndex:index,timing:timingSummary});
   flashBtn(index,false);
   if(state.fixedPacedPresented >= (Number(settings.mode3PacedTrialLimit)||140)){ state.endReason="Required responses reached"; finish(); return; }
   openTrial("paced_fixed"); return;
@@ -1392,7 +1465,7 @@ function handleTap(index,eventTimeStamp){
    const savedPresented = state.presentedRoundDuration;
    state.current = prior;
    state.presentedRoundDuration = priorDur;
-   logTrial({phase:"paced_late_correct",rt:eRT,outcome:"correct",responseIndex:index});
+   logTrial({phase:"paced_late_correct",rt:eRT,outcome:"correct",responseIndex:index,timing:state.pendingPriorMiss?.timing||null});
    state.current = savedCurrent;
    state.presentedRoundDuration = savedPresented;
 
@@ -1408,7 +1481,7 @@ function handleTap(index,eventTimeStamp){
    const savedPresented = state.presentedRoundDuration;
    state.current = prior;
    state.presentedRoundDuration = priorDur;
-   logTrial({phase:"paced_late_wrong",rt:rt,outcome:"wrong",responseIndex:index});
+   logTrial({phase:"paced_late_wrong",rt:rt,outcome:"wrong",responseIndex:index,timing:state.pendingPriorMiss?.timing||null});
    state.current = savedCurrent;
    state.presentedRoundDuration = savedPresented;
 
@@ -1434,6 +1507,7 @@ function handleTap(index,eventTimeStamp){
  if(state.pendingPriorMiss){
   if(finalizePendingPriorMiss()) return;
  }
+ const frameTiming = harvestActiveFrameTiming(performance.now());
 
  // If we had already captured a late-attributed response for Frame 1 and now we receive
  // a second, true Frame 2 response (>=600 ms after Frame 2 appeared),
@@ -1447,7 +1521,7 @@ function handleTap(index,eventTimeStamp){
   state.current.resolved=true; state.totalResponses+=1; state.totalCorrect+=1;
   state.hadResponse=true;
   applyPacing(rt,true); state.pacedRTs.push(rt);
-  logTrial({phase:"paced",rt,outcome:"correct",responseIndex:index}); flashBtn(index,true);
+  logTrial({phase:"paced",rt,outcome:"correct",responseIndex:index,timing:frameTiming}); flashBtn(index,true);
   recordAnswer(true); return;
  }
 
@@ -1455,7 +1529,7 @@ function handleTap(index,eventTimeStamp){
  state.totalResponses+=1; state.totalIncorrect+=1; state.pacedErrors+=1;
  if(checkMaxPacedWrong()) return;
  applyPacing(null,false);
- logTrial({phase:"paced_wrong",rt,outcome:"wrong",responseIndex:index});
+ logTrial({phase:"paced_wrong",rt,outcome:"wrong",responseIndex:index,timing:frameTiming});
  flashBtn(index,false); recordAnswer(false);
 }
 
@@ -1969,6 +2043,7 @@ function exportCSV(){
   "avgLast2Ms","blockDiffMs","cpi","totalTaps","correct","wrong","missed",
   "sleepSinceLastTest","sleepBedtime","sleepWakeTime","sleepDurationMinutes","sleepQualityLabel","sleepQualityScore",
   "pacedCorrect","pacedWrong","spRestartWrong","meanPacedRtMs","pacedRtSd",
+  "avgFrameOvershootMs","maxFrameOvershootMs","avgRafIntervalMs","maxRafIntervalMs",
   "testDurationMs","endReason","location"];
  const rows=h.map((r,i)=>[
   i+1,
@@ -1990,6 +2065,10 @@ function exportCSV(){
   r.pacedResponseCount||0, r.pacedErrors||0, r.recoveryErrors||0,
   r.pacedResponseMeanMs!=null?r.pacedResponseMeanMs.toFixed(1):"",
   r.pacedResponseSdMs!=null?r.pacedResponseSdMs.toFixed(1):"",
+  r.timingQuality?.avgFrameOvershootMs!=null?r.timingQuality.avgFrameOvershootMs.toFixed(2):"",
+  r.timingQuality?.maxFrameOvershootMs!=null?r.timingQuality.maxFrameOvershootMs.toFixed(2):"",
+  r.timingQuality?.avgRafIntervalMs!=null?r.timingQuality.avgRafIntervalMs.toFixed(2):"",
+  r.timingQuality?.maxRafIntervalMs!=null?r.timingQuality.maxRafIntervalMs.toFixed(2):"",
   r.testDurationMs!=null?Math.round(r.testDurationMs):"",
   `"${(r.endReason||"").replace(/"/g,'""')}"`,
   `"${((r.geo&&r.geo.address)||"").replace(/"/g,'""')}"`
@@ -2793,6 +2872,7 @@ function resetTrialStateOnly(){
  state.fixedPacedBaseline=null; state.fixedPacedPresented=0; state.fixedPacedCorrect=0; state.fixedPacedWrong=0;
  state.geo=null; state.benchmark=null; state.lastResultText=null;
  state.pendingPriorMiss=null; state.pendingLatePacing=null;
+ state.activeFrameTiming=null; state.frameOvershootLog=[]; state.rafIntervalLog=[];
  updateCPIDisplay(null); updateMetrics(); setProbeIdle(); setTestingQuiet(false);
 }
 function resetPretestEntryState(){
@@ -2951,10 +3031,16 @@ function buildTrialLog(sessionIndex){
  const idx=sel?Number(sel.value):state.history.length-1;
  const result=state.history[idx];
  const log=result?result.rtLog:state.rtLog;
- const meta=$("trialLogMeta"); if(meta && result) meta.textContent=`Session ${idx+1} · ${formatModeTag(result.testMode)} · SP-FS ${result.samnPerelli?result.samnPerelli.score:"—"} · ${new Date(result.time).toLocaleString()}`;
+ const meta=$("trialLogMeta"); if(meta && result){
+  const tq=result.timingQuality||{};
+  const timingTxt=(tq.avgFrameOvershootMs!=null||tq.avgRafIntervalMs!=null)
+   ? ` · Timing avg overshoot ${tq.avgFrameOvershootMs!=null?tq.avgFrameOvershootMs.toFixed(1):"—"}ms · max overshoot ${tq.maxFrameOvershootMs!=null?tq.maxFrameOvershootMs.toFixed(1):"—"}ms · avg rAF ${tq.avgRafIntervalMs!=null?tq.avgRafIntervalMs.toFixed(2):"—"}ms`
+   : "";
+  meta.textContent=`Session ${idx+1} · ${formatModeTag(result.testMode)} · SP-FS ${result.samnPerelli?result.samnPerelli.score:"—"} · ${new Date(result.time).toLocaleString()}${timingTxt}`;
+ }
  tbody.innerHTML="";
  if(!log||!log.length){
-  tbody.innerHTML='<tr><td colspan="10" style="text-align:center;color:var(--muted);padding:12px">No trial data for this session</td></tr>';
+  tbody.innerHTML='<tr><td colspan="16" style="text-align:center;color:var(--muted);padding:12px">No trial data for this session</td></tr>';
   const meta=$("trialLogMeta"); if(meta) meta.textContent="No data";
   return;
  }
@@ -2969,7 +3055,13 @@ function buildTrialLog(sessionIndex){
   const phaseLabel = isWarmup ? "Warmup" : (e.phase||"—");
   const outcomeLabel = isWarmup ? "Warmup" : (e.outcome||"—");
   const oc=outcomeColor[outcomeLabel]||"var(--muted)";
-  tr.innerHTML=`<td style="font-weight:700">${e.seq}</td><td style="font-size:10px">${timeStr}</td><td style="font-size:10px;color:var(--muted)">${phaseLabel}</td><td>${durStr}</td><td style="font-weight:700">${rtStr}</td><td style="color:${oc};font-weight:700">${outcomeLabel}</td><td>${e.counted===false?"No":"Yes"}</td><td>${e.probe}</td><td style="color:var(--accent)">${e.correctCell}</td><td style="color:${oc==="var(--muted)"?"var(--muted)":oc}">${e.response}</td>`;
+  const targetStr=e.targetFrameMs!=null?`${e.targetFrameMs}ms`:"—";
+  const ageStr=e.frameAgeMs!=null?`${e.frameAgeMs}ms`:"—";
+  const overStr=e.frameOvershootMs!=null?`${e.frameOvershootMs}ms`:"—";
+  const meanRafStr=e.meanRafIntervalMs!=null?`${Number(e.meanRafIntervalMs).toFixed(2)}ms`:"—";
+  const maxRafStr=e.maxRafIntervalMs!=null?`${Number(e.maxRafIntervalMs).toFixed(2)}ms`:"—";
+  const rafSamplesStr=e.rafSamples!=null?String(e.rafSamples):"—";
+  tr.innerHTML=`<td style="font-weight:700">${e.seq}</td><td style="font-size:10px">${timeStr}</td><td style="font-size:10px;color:var(--muted)">${phaseLabel}</td><td>${durStr}</td><td style="font-weight:700">${rtStr}</td><td>${targetStr}</td><td>${ageStr}</td><td>${overStr}</td><td>${rafSamplesStr}</td><td>${meanRafStr}</td><td>${maxRafStr}</td><td style="color:${oc};font-weight:700">${outcomeLabel}</td><td>${e.counted===false?"No":"Yes"}</td><td>${e.probe}</td><td style="color:var(--accent)">${e.correctCell}</td><td style="color:${oc==="var(--muted)"?"var(--muted)":oc}">${e.response}</td>`;
   tbody.appendChild(tr);
  });
 }
@@ -2979,13 +3071,19 @@ function downloadTrialLogCSV(){
  const result=state.history[idx];
  const log=result?result.rtLog:state.rtLog;
  if(!log||!log.length){ setStatus("No trial data to download"); return; }
- const hdr="trial#,clockTime,phase,presentationRateMs,rtMs,outcome,probe,correctCell,response\n";
+ const hdr="trial#,clockTime,phase,presentationRateMs,rtMs,targetFrameMs,frameAgeMs,frameOvershootMs,rafSamples,meanRafIntervalMs,maxRafIntervalMs,outcome,probe,correctCell,response\n";
  const rows=log.map(e=>[
   e.seq,
   e.clockTime||"",
   e.phase,
   e.durationMs!=null?e.durationMs:"",
   e.rt!=null?e.rt:"",
+  e.targetFrameMs!=null?e.targetFrameMs:"",
+  e.frameAgeMs!=null?e.frameAgeMs:"",
+  e.frameOvershootMs!=null?e.frameOvershootMs:"",
+  e.rafSamples!=null?e.rafSamples:"",
+  e.meanRafIntervalMs!=null?e.meanRafIntervalMs:"",
+  e.maxRafIntervalMs!=null?e.maxRafIntervalMs:"",
   e.outcome,
   e.probe,
   e.correctCell,
