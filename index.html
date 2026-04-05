@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
   <meta name="theme-color" content="#0b1830"/>
   <link rel="manifest" href="manifest.json"/>
-  <title>CogSpeed® V393</title>
+  <title>CogSpeed® V400</title>
     <style>
 
     :root{--bg:#091426;--bg2:#132746;--panel:#0d1b33;--panel2:#10213e;--text:#f5fbff;--muted:#d7e7f8;--edge:#4f6f99;--accent:#7fd7ff;--probe:#00f0ff}
@@ -26,7 +26,7 @@
     .statusline{font-size:13px;color:var(--muted);text-align:center;padding:4px;min-height:22px}
     .hidden{display:none!important}
     .overlay{position:fixed;inset:0;z-index:100;display:flex;align-items:flex-start;justify-content:center;padding:max(8px,env(safe-area-inset-top,8px)) 10px max(8px,env(safe-area-inset-bottom,8px));background:rgba(2,8,16,.72);backdrop-filter:blur(4px);overflow:auto}
-    .modal{max-width:min(96vw,440px);width:100%;border-radius:24px;padding:18px 16px;background:linear-gradient(180deg,rgba(255,255,255,.04),rgba(255,255,255,.01)),var(--panel2);border:1px solid var(--edge);margin-top:4px}
+    .modal{max-width:min(94vw,420px);width:100%;border-radius:22px;padding:16px 14px;background:linear-gradient(180deg,rgba(255,255,255,.04),rgba(255,255,255,.01)),var(--panel2);border:1px solid var(--edge);margin-top:4px}
     .modal h2{text-align:center;font-size:26px;font-weight:900;margin-bottom:10px;color:var(--text)}
     .modal-hint{font-size:16px;color:var(--muted);text-align:center;margin-bottom:12px;font-weight:500}
     .field-row{margin-bottom:12px}
@@ -88,17 +88,17 @@
        dvh = dynamic viewport height (excludes browser chrome on Android/iOS)
        iPhone SE 1st gen ~548px · SE 2nd/3rd ~667px · standard ~844px
        iPhone 14/15 Pro ~932px · Pro Max ~956px · Pixel 8 Pro ~898px        */
-    .modal h2         {font-size:clamp(26px,5.0dvh,48px)}
-    .modal-hint       {font-size:clamp(16px,2.9dvh,28px)}
-    .ctrl-btn         {font-size:clamp(16px,3.1dvh,30px);min-height:clamp(48px,8.5dvh,80px)}
-    .field-row label  {font-size:clamp(18px,3.1dvh,30px)}
-    .field-hint       {font-size:clamp(13px,2.0dvh,20px)}
-    .field-row input  {font-size:clamp(20px,3.6dvh,34px);padding:clamp(12px,2.2dvh,22px) 16px}
-    .fatigue-item     {font-size:clamp(17px,3.3dvh,32px);padding:clamp(12px,2.4dvh,26px) 18px}
-    .ref-num          {font-size:clamp(18px,3.5dvh,34px)}
+    .modal h2         {font-size:clamp(24px,4.6dvh,42px)}
+    .modal-hint       {font-size:clamp(15px,2.6dvh,24px)}
+    .ctrl-btn         {font-size:clamp(15px,2.8dvh,26px);min-height:clamp(44px,7.6dvh,72px)}
+    .field-row label  {font-size:clamp(17px,2.8dvh,26px)}
+    .field-hint       {font-size:clamp(12px,1.8dvh,18px)}
+    .field-row input  {font-size:clamp(18px,3.2dvh,30px);padding:clamp(10px,1.9dvh,18px) 14px}
+    .fatigue-item     {font-size:clamp(16px,3.0dvh,28px);padding:clamp(10px,2.0dvh,20px) 16px}
+    .ref-num          {font-size:clamp(17px,3.1dvh,30px)}
     .ref-lbl          {font-size:clamp(10px,1.8dvh,17px)}
-    .ref-arrow        {font-size:clamp(16px,2.6dvh,26px)}
-    .modal            {padding:clamp(14px,2.2dvh,28px) 16px}
+    .ref-arrow        {font-size:clamp(15px,2.3dvh,22px)}
+    .modal            {padding:clamp(12px,2.0dvh,22px) 14px}
 
     /* ── Fatigue list: items grow to fill all available vertical space ── */
     .fatigue-list{flex:1;margin-bottom:0;gap:clamp(5px,1.1dvh,14px)}
@@ -834,6 +834,11 @@
     <div style="text-align:center;margin-bottom:10px"><span class="badge">Response-Time Graph</span></div>
     <canvas id="fullModeGraph" width="1100" height="620" style="display:block;width:100%;border-radius:12px;border:1px solid var(--edge);background:#081321"></canvas>
     <div id="responseGraphInfo" style="font-size:12px;color:var(--muted);text-align:center;margin-top:8px">Response time by trial for the most recent session. Higher on the graph = faster (smaller ms).</div>
+    <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+      <select id="responseGraphSessionSelect" style="flex:1;padding:8px;border:1px solid var(--edge);border-radius:10px;background:#0a1629;color:var(--text);font-size:13px"></select>
+      <button class="ctrl-btn" id="responseGraphPrevBtn" style="flex:0 0 auto;min-width:120px">← Prev Session</button>
+      <button class="ctrl-btn" id="responseGraphNextBtn" style="flex:0 0 auto;min-width:120px">Next Session →</button>
+    </div>
     <div class="controls" style="margin-top:12px">
       <button class="ctrl-btn" id="fullGraphSpeedometerBtn" style="flex:1">Speedometer</button>
       <button id="fullGraphAdminBtn" style="background:none;border:none;color:rgba(127,215,255,0.38);font-size:12px;padding:6px 10px;cursor:pointer;font-family:inherit;letter-spacing:.05em">Admin</button>

@@ -1,8 +1,56 @@
 // ═══════════════════════════════════════════════════
-// CogSpeed V371
+// CogSpeed V399
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V393";
+const APP_VERSION = "V400";
+
+// ═══════════════════════════════════════════════════
+// RECENT INTEGRATED PROGRAM CHANGES (through V399)
+// This block summarizes the major program updates that were merged into
+// the current main line so future edits do not have to reconstruct them
+// from one-off patch builds.
+//
+// 1) Sleep logger / results integration
+//    - Sleep entry supports 12-hour mode (hour + minute + AM/PM buttons)
+//      and 24-hour mode.
+//    - Sleep data is preserved across test start and saved into result
+//      records, CSV export, and the Results page summary.
+//    - Each sleep entry now stores a real wake datetime
+//      (sleepLog.wakeDateTimeIso) so “Time since last sleep” can span
+//      multiple days across sessions.
+//
+// 2) Profile / guest separation
+//    - Guest mode (subject ID 0) is treated as settings-only and must not
+//      inherit a previously saved email profile.
+//    - The 12/24 hour toggle on the Profile page is local draft UI state
+//      while Profile is open and is only committed on Save & Continue.
+//
+// 3) Performance / graph updates
+//    - Performance over Date and Time shows all sessions by default,
+//      uses device-local chronology labeling, plots smaller CPI/MBS markers,
+//      and includes sleep-quality bars (Poor/Okay/Good).
+//    - Response-Time Graph and other live charts use HiDPI canvas setup for
+//      sharper rendering on Retina / high-DPI displays.
+//
+// 4) Trial detail / timing diagnostics
+//    - Trial Detail column names were clarified.
+//    - Trial log now records pacing deltas (Rate Change / Next Rate /
+//      Why Changed) and per-trial timing diagnostics for paced rounds.
+//
+// 5) Recovery / pacing defaults
+//    - Mode 1 restart after block uses blockRestartPercent (default 1.2).
+//    - Correct paced response uses correctSpeedupFactor (default 0.30) with
+//      min/max speedup on correct fixed at 50/200 ms.
+//    - Recovery inter-trial and resume-to-paced delays are now admin
+//      settings rather than unexplained hardcoded timeouts.
+//
+// 6) Structural cleanup
+//    - Dead history-overlay code, stale legacy controls, duplicate startup
+//      boilerplate, and vestigial state fields were removed.
+//    - Overlay show/hide now discovers overlays from the DOM rather than
+//      relying on multiple mismatched hardcoded ID lists.
+// ═══════════════════════════════════════════════════
+
 const RELEASE = APP_VERSION.replace(/^V/i, "");
 const STORAGE_PREFIX = `cogspeed_v${RELEASE}`;
 
@@ -26,6 +74,8 @@ const STORAGE_PREFIX = `cogspeed_v${RELEASE}`;
 // All configurable test parameters. Changes here affect ALL users.
 // Admin panel allows per-device override (localStorage only).
 // To permanently change a default, edit here and push to GitHub.
+// NOTE: keep DEFAULTS, ADMIN_FIELDS labels, CPI comments, and any table
+// fallbacks aligned. Recent cleanup removed several stale mismatches.
 // ═══════════════════════════════════════════════════════════════
 // ═══════════════════════════════════════════════════════════════
 // THREE TEST MODES
@@ -193,6 +243,13 @@ function saveSettings(){ localStorage.setItem(`${STORAGE_PREFIX}_settings`,JSON.
 let settings=loadSettings();
 
 // ─── State ───
+// Shared runtime state for the current session.
+// IMPORTANT: keep session-reset helpers aligned with this shape:
+//   - resetTrialStateOnly()       = clear active trial/test runtime only
+//   - resetPretestEntryState()    = clear sleep / SP-FS entry path only
+//   - resetSubjectSessionState()  = full subject/session reset
+// Several recent regressions came from clearing the wrong fields at the
+// wrong time (especially sleep fields and guest/profile state).
 const state={
  phase:"idle", duration:null, blockDuration:null, blockRestartBaseline:null, profile:null,
  current:null, previous:null, unresolvedStreak:0,
@@ -1028,6 +1085,10 @@ const modeMetricMs = isMode2() ? (state.selfPacedRTs.length?mean(state.selfPaced
   rtLog:[...state.rtLog], endReason:state.endReason||"Run complete",
   time:new Date().toISOString(), geo:state.geo, timingQuality
  };
+ if(result.sleepSinceLastTest==="yes" && result.sleepLog){
+  const wakeIso = deriveWakeDateTimeIso(result.sleepLog.wakeTime, result.time);
+  if(wakeIso) result.sleepLog.wakeDateTimeIso = wakeIso;
+ }
  state.history.push(result);
 localStorage.setItem(`${STORAGE_PREFIX}_history`,JSON.stringify(state.history));
  updateStartPageLinks();
@@ -2037,23 +2098,28 @@ function formatModePooledRankSection(mode){
 }
 // ─── Export / Email ───
 // ─── EXPORT / EMAIL ───────────────────────────────────────────
-// exportResults(): downloads full history as ${STORAGE_PREFIX}_results.json
 // exportCSV(): downloads history as ${STORAGE_PREFIX}_history.csv
 //  Columns: session, subjectId, date, SP-FS, calibration, blocks,
 //  CPI, taps, correct, wrong, missed, paced stats, duration, end reason.
 // emailResults(): opens mailto: with last result text in body.
 // ──────────────────────────────────────────────────────────────
 
+function csvCell(v){
+ const s = v==null ? "" : String(v);
+ return /[",\n]/.test(s) ? `"${s.replace(/"/g,'""')}"` : s;
+}
+
 function exportCSV(){
  const h=state.history; if(!h.length){setStatus("No history to export."); return;}
- const cols=["session","subjectId","date","samnPerelli","calibAvgMs","blocks",
+ const cols=["session","testMode","subjectId","date","samnPerelli","calibAvgMs","blocks",
   "avgLast2Ms","blockDiffMs","cpi","totalTaps","correct","wrong","missed",
-  "sleepSinceLastTest","sleepBedtime","sleepWakeTime","sleepDurationMinutes","sleepQualityLabel","sleepQualityScore",
+  "sleepSinceLastTest","sleepBedtime","sleepWakeTime","sleepWakeDateTimeIso","sleepDurationMinutes","sleepQualityLabel","sleepQualityScore",
   "pacedCorrect","pacedWrong","spRestartWrong","meanPacedRtMs","pacedRtSd",
   "avgFrameOvershootMs","maxFrameOvershootMs","avgRafIntervalMs","maxRafIntervalMs",
   "testDurationMs","endReason","location"];
  const rows=h.map((r,i)=>[
   i+1,
+  r.testMode||"",
   r.subjectId||"",
   r.time?new Date(r.time).toLocaleString():"",
   r.samnPerelli?`${r.samnPerelli.score} - ${r.samnPerelli.label}`:"",
@@ -2066,6 +2132,7 @@ function exportCSV(){
   r.sleepSinceLastTest||"",
   r.sleepLog?.bedtime||"",
   r.sleepLog?.wakeTime||"",
+  r.sleepLog?.wakeDateTimeIso||"",
   r.sleepLog?.durationMinutes!=null?r.sleepLog.durationMinutes:"",
   r.sleepLog?.qualityLabel||"",
   r.sleepLog?.qualityScore!=null?r.sleepLog.qualityScore:"",
@@ -2077,15 +2144,14 @@ function exportCSV(){
   r.timingQuality?.avgRafIntervalMs!=null?r.timingQuality.avgRafIntervalMs.toFixed(2):"",
   r.timingQuality?.maxRafIntervalMs!=null?r.timingQuality.maxRafIntervalMs.toFixed(2):"",
   r.testDurationMs!=null?Math.round(r.testDurationMs):"",
-  `"${(r.endReason||"").replace(/"/g,'""')}"`,
-  `"${((r.geo&&r.geo.address)||"").replace(/"/g,'""')}"`
- ].map(v=>v==null?"":v).join(","));
- const csv=[cols.join(","), ...rows].join("\n");
+  r.endReason||"",
+  (r.geo&&r.geo.address)||""
+ ].map(csvCell).join(","));
+ const csv=[cols.map(csvCell).join(","), ...rows].join("\n");
  const blob=new Blob([csv],{type:"text/csv"});
  const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=`${STORAGE_PREFIX}_history.csv`; a.click();
 }
-// Email results
-// Subject line always uses the current APP_VERSION build label.
+
 function emailResults(){
  const last=state.history[state.history.length-1];
  if(!last){ setStatus("No results to email."); return; }
@@ -2210,7 +2276,6 @@ function computeAge(bMonth, bYear){
 }
 
 // Current profile being edited
-let _profileData = {email:"", birthMonth:0, birthYear:0, gender:"", emailResults:false};
 let _profileGenderSelected = "";
 
 
@@ -2285,6 +2350,10 @@ function openProfileFromContext(returnTo,email=""){
  openProfileOverlay(safeEmail);
 }
 
+// Profile editor open path:
+// - email users load/save their full profile
+// - guest users (subject ID 0) must NOT inherit a saved email profile
+// - time-format toggle stays local draft state until Save & Continue
 function openProfileOverlay(email){
  const safeEmail = isValidEmailAddress(email) ? String(email).trim().toLowerCase() : "";
  const stored = loadProfile();
@@ -2887,8 +2956,9 @@ function showResultsPage(){
 
 // ─── Session control ───
 // ─── SESSION STATE MANAGEMENT ─────────────────────────────────
-// clearCurrentSession(): resets all trial/block/calibration state
-//  while preserving subjectId and samnPerelli for retests.
+// resetTrialStateOnly(): clears only active test/runtime state.
+// resetPretestEntryState(): clears sleep/SP-FS entry state.
+// resetSubjectSessionState(): clears runtime + pretest state while preserving saved profile/settings.
 // saveSettings() / loadSettings(): persist to localStorage.
 // ──────────────────────────────────────────────────────────────
 function resetTrialStateOnly(){
@@ -3785,23 +3855,67 @@ function formatSleepDuration(mins){
  const h=Math.floor(mins/60), m=mins%60;
  return `${h}h ${m}m`;
 }
-function computeTimeSinceLastSleepMinutes(result){
- const wake = result?.sleepLog?.wakeTime;
- const testIso = result?.time;
- const wakeMins = parseSleepTimeToMinutes(wake);
+function formatElapsedDuration(mins){
+ if(mins==null || !Number.isFinite(mins)) return "—";
+ const days=Math.floor(mins/(24*60));
+ const rem=mins-days*24*60;
+ const h=Math.floor(rem/60), m=rem%60;
+ return days>0 ? `${days}d ${h}h ${m}m` : `${h}h ${m}m`;
+}
+function deriveWakeDateTimeIso(wakeTime, testIso){
+ const wakeMins = parseSleepTimeToMinutes(wakeTime);
  if(wakeMins==null || !testIso) return null;
- const d = new Date(testIso);
- if(!isFinite(d.getTime())) return null;
- const testMins = d.getHours()*60 + d.getMinutes();
- let delta = testMins - wakeMins;
- if(delta < 0) delta += 24*60;
- return delta;
+ const testDate = new Date(testIso);
+ if(!isFinite(testDate.getTime())) return null;
+ const wakeDate = new Date(testDate);
+ wakeDate.setHours(Math.floor(wakeMins/60), wakeMins%60, 0, 0);
+ if(wakeDate.getTime() > testDate.getTime()) wakeDate.setDate(wakeDate.getDate()-1);
+ return wakeDate.toISOString();
+}
+function findMostRecentSleepWakeDateTimeIso(result){
+ const direct = result?.sleepLog?.wakeDateTimeIso;
+ if(direct){
+  const d = new Date(direct);
+  if(isFinite(d.getTime())) return direct;
+ }
+ const testIso = result?.time;
+ const testDate = new Date(testIso);
+ if(!isFinite(testDate.getTime())) return null;
+ const history = Array.isArray(state?.history) ? state.history : [];
+ let bestIso = null;
+ let bestMs = -Infinity;
+ for(const r of history){
+  const iso = r?.sleepLog?.wakeDateTimeIso;
+  if(!iso) continue;
+  const d = new Date(iso);
+  const ms = d.getTime();
+  if(!isFinite(ms)) continue;
+  if(ms <= testDate.getTime() && ms > bestMs){
+   bestMs = ms;
+   bestIso = iso;
+  }
+ }
+ return bestIso;
+}
+// Computes elapsed time from the most recent recorded sleep wake datetime.
+// Falls back to the latest prior session with sleepLog.wakeDateTimeIso so
+// sessions several days after the last recorded sleep still display
+// meaningful elapsed time.
+function computeTimeSinceLastSleepMinutes(result){
+ const wakeIso = findMostRecentSleepWakeDateTimeIso(result);
+ const testIso = result?.time;
+ if(!wakeIso || !testIso) return null;
+ const wakeDate = new Date(wakeIso);
+ const testDate = new Date(testIso);
+ if(!isFinite(wakeDate.getTime()) || !isFinite(testDate.getTime())) return null;
+ const deltaMs = testDate.getTime() - wakeDate.getTime();
+ if(deltaMs < 0) return null;
+ return Math.round(deltaMs/60000);
 }
 function formatTimeSinceLastSleepLine(result){
- if(result?.sleepSinceLastTest !== "yes") return null;
  const mins = computeTimeSinceLastSleepMinutes(result);
- if(mins==null) return "Time since last sleep: —";
- return `Time since last sleep: ${formatSleepDuration(mins)}`;
+ if(mins==null) return null;
+ return `Time since last sleep: ${formatElapsedDuration(mins)}`;
 }
 function computeSleepDurationMinutes(bed,wake){
  const b=parseSleepTimeToMinutes(bed), w=parseSleepTimeToMinutes(wake);
@@ -3894,6 +4008,12 @@ function showFatigueOverlay(){
  showOnly("fatigueOverlay");
 }
 
+// Sleep Logger save path:
+// - parse current entry mode (12-hour structured fields or 24-hour input)
+// - save canonical HH:MM times
+// - compute durationMinutes
+// - save wakeDateTimeIso anchored to the session date so Results can
+//   compute “Time since last sleep” across multiple days
 function continueFromSleepLogger(){
  state.sleepSinceLastTest = "yes";
  state.sleepLog = state.sleepLog || {};
@@ -4131,6 +4251,7 @@ if ("serviceWorker" in navigator) {
   try{ wireEmailSelectControls(); }catch(err){}
   try{ wireEmailDraftAction(); }catch(err){}
   try{ syncEditableEmailRecipient(); }catch(err){}
+  try{ wireResponseGraphControls(); }catch(err){}
  });
 }
 
@@ -4339,7 +4460,7 @@ const _ssp=$("speedStartPageBtn"); if(_ssp) _ssp.onclick=()=>{ hideAllOverlays()
 
 /* ===== Performance vs Time graph ===== */
 const perfGraphState = {
-  preset: "last14",
+  preset: "all",
   fromDate: "",
   toDate: ""
 };
@@ -4469,7 +4590,7 @@ function wirePerfGraphControls(){
   };
 
   preset.onchange = ()=>{
-    perfGraphState.preset = preset.value || "last14";
+    perfGraphState.preset = preset.value || "all";
     rerender();
   };
   fromEl.onchange = ()=>{
@@ -4667,12 +4788,12 @@ function drawPerformanceOverTimeChart(canvas,hist){
       if(cpi==null || mbs==null) return;
       const x = xOf(i), y = yLeftFromCpi(cpi);
       ctx.beginPath();
-      ctx.arc(x,y,7.2,0,Math.PI*2);
+      ctx.arc(x,y,5.6,0,Math.PI*2);
       ctx.strokeStyle="#ffb357";
       ctx.lineWidth=3;
       ctx.stroke();
       ctx.beginPath();
-      ctx.arc(x,y,3.6,0,Math.PI*2);
+      ctx.arc(x,y,2.8,0,Math.PI*2);
       ctx.fillStyle="#7fd7ff";
       ctx.fill();
     });
@@ -4718,12 +4839,12 @@ function drawPerformanceOverTimeChart(canvas,hist){
   ctx.textAlign="left";
   ctx.font="bold 11px sans-serif";
   ctx.beginPath();
-  ctx.arc(PAD.left+7, PAD.top-18, 7.2, 0, Math.PI*2);
+  ctx.arc(PAD.left+7, PAD.top-18, 5.6, 0, Math.PI*2);
   ctx.strokeStyle="#ffb357";
   ctx.lineWidth=3;
   ctx.stroke();
   ctx.beginPath();
-  ctx.arc(PAD.left+7, PAD.top-18, 3.6, 0, Math.PI*2);
+  ctx.arc(PAD.left+7, PAD.top-18, 2.8, 0, Math.PI*2);
   ctx.fillStyle="#7fd7ff";
   ctx.fill();
   ctx.fillStyle="#7fd7ff";
@@ -4756,22 +4877,88 @@ function getLastGraphableResult(){
  return null;
 }
 
-function openResponseGraphPage(fromAdmin){
- hideAllOverlays();
- const ov = $("fullGraphOverlay");
- if(ov) ov.classList.remove("hidden");
- const last = getLastGraphableResult();
+function getGraphableResults(){
+ const h = state.history || [];
+ const out = [];
+ for(let i=0;i<h.length;i++){
+  const r = h[i];
+  if(r && ((Array.isArray(r.rtLog) && r.rtLog.length) || r.testMode==="mode1" || r.testMode==="mode2" || r.testMode==="mode3")){
+   out.push({result:r,index:i});
+  }
+ }
+ return out;
+}
+
+function syncResponseGraphSessionSelect(selectedValue){
+ const sel = $("responseGraphSessionSelect");
+ if(!sel) return null;
+ const graphable = getGraphableResults();
+ const options = graphable.map(({result,index})=>{
+  const when = result.time ? new Date(result.time).toLocaleString() : `Session ${index+1}`;
+  return `<option value="${index}">Session ${index+1} · ${when}</option>`;
+ }).join("");
+ if(sel.dataset.optionsHtml !== options){
+  sel.innerHTML = options;
+  sel.dataset.optionsHtml = options;
+ }
+ if(selectedValue!=null && graphable.some(g=>g.index===Number(selectedValue))){
+  sel.value = String(selectedValue);
+ }else if(sel.options.length){
+  sel.selectedIndex = sel.options.length - 1;
+ }
+ return sel.value!=="" ? Number(sel.value) : null;
+}
+
+function renderResponseGraphPage(selectedValue){
  const canvas = $("fullModeGraph");
  const info = $("responseGraphInfo");
- if(last && canvas){
-  drawModeResultChart(canvas, last);
+ const actualIndex = syncResponseGraphSessionSelect(selectedValue);
+ const target = Number.isFinite(actualIndex) ? (state.history||[])[actualIndex] : getLastGraphableResult();
+ if(target && canvas){
+  drawModeResultChart(canvas, target);
   if(info){
-   const when = last.time ? new Date(last.time).toLocaleString() : "most recent session";
-   info.textContent = `Response time by trial for ${when}. Higher on the graph = faster (smaller ms). ${getResponseGraphPhaseLegendText(last)}`;
+   const when = target.time ? new Date(target.time).toLocaleString() : `session ${Number.isFinite(actualIndex)?actualIndex+1:""}`;
+   info.textContent = `Response time by trial for ${when}. Higher on the graph = faster (smaller ms). ${getResponseGraphPhaseLegendText(target)}`;
   }
  }else if(info){
   info.textContent = "No graphable session data available.";
  }
+}
+
+function wireResponseGraphControls(){
+ const sel = $("responseGraphSessionSelect");
+ const prev = $("responseGraphPrevBtn");
+ const next = $("responseGraphNextBtn");
+ if(sel && !sel.dataset.wired){
+  sel.dataset.wired = "1";
+  sel.onchange = ()=>renderResponseGraphPage(Number(sel.value));
+ }
+ if(prev && !prev.dataset.wired){
+  prev.dataset.wired = "1";
+  prev.onclick = ()=>{
+   if(!sel || !sel.options.length) return;
+   sel.selectedIndex = Math.max(0, sel.selectedIndex - 1);
+   if(sel.onchange) sel.onchange();
+  };
+ }
+ if(next && !next.dataset.wired){
+  next.dataset.wired = "1";
+  next.onclick = ()=>{
+   if(!sel || !sel.options.length) return;
+   sel.selectedIndex = Math.min(sel.options.length - 1, sel.selectedIndex + 1);
+   if(sel.onchange) sel.onchange();
+  };
+ }
+}
+
+function openResponseGraphPage(fromAdmin){
+ hideAllOverlays();
+ const ov = $("fullGraphOverlay");
+ if(ov) ov.classList.remove("hidden");
+ wireResponseGraphControls();
+ const graphable = getGraphableResults();
+ const initialIndex = graphable.length ? graphable[graphable.length-1].index : null;
+ renderResponseGraphPage(initialIndex);
  const adminBtn = $("fullGraphAdminBtn");
  if(adminBtn) adminBtn.style.display = fromAdmin ? "none" : "";
 }
@@ -4789,10 +4976,10 @@ function openPerformanceOverTimePage(){
   requestAnimationFrame(()=>requestAnimationFrame(renderPerformanceOverTimePage));
   setTimeout(renderPerformanceOverTimePage,80);
 }
-/* ===== end Performance vs Time graph override (V331) ===== */
+/* ===== end Performance vs Time graph section ===== */
 
 
-/* ===== E-mail Select wiring override (V331) ===== */
+/* ===== E-mail Select wiring ===== */
 function openEmailSelectPage(){
   hideAllOverlays();
   const ov = $("emailOverlay");
