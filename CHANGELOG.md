@@ -1,3 +1,20 @@
+## V412 — Wiring audit / stale-drift cleanup
+- Consolidated remaining manual admin-open boilerplate to use `openAdminFromOverlay()` for Outcome, Summary, and Rate/RT paths.
+- Corrected stale inline comments describing the gear-spin hold; active behavior remains the same.
+- Bumped all versioned/static elements to V412 so `app.js`, `index.html`, `manifest.json`, and `sw.js` stay aligned.
+
+## V411 — Audit clean merge
+
+- Re-ran a DOM/wiring audit against the active V410 line. All jQuery-style `$("id")` references in `app.js` now map to real elements in `index.html`; no missing control IDs were found in the active UI.
+- Refreshed static version alignment to V411 across `app.js`, `index.html`, `manifest.json`, and `sw.js`.
+- Clarified that `use12HourTime` is legacy migration-only compatibility logic inside `loadSettings()`; `timeFormat` remains the canonical setting.
+- Updated integrated-change comments so documentation matches the current merged main line.
+
+## V409 — E-mail formatting + Trial Detail readability
+- Improved plain-text e-mail formatting for Trial Detail Log, Response-Time Graph, Performance over Date and Time, and Presentation Rate vs Response Time data so exported draft text is easier to read.
+- Trial Detail e-mail text now matches the visible log more closely, including Presented Rate, RT, Rate Change, Correct Target, Chosen Response, Max rAF, and Why Changed.
+- Improved on-screen Trial Detail table readability with sticky headers, nowrap cells, and horizontal scrolling that preserves full data visibility.
+
 ## V407 — Wiring, version, and stale-drift audit
 
 - Fixed stale version drift so the static HTML and manifest now match the live build: title, version badge, status line, manifest name, and script query string all point to V407.
@@ -89,3 +106,9 @@ It is meant to provide a readable history without overloading inline code commen
 - Restored the visible RT column in the Trial Detail Log between Presented Rate and Rate Change.
 - Updated the empty-table colspan and version alignment fields.
 
+
+## V410 — Clean merge audit
+- Fixed stale static version drift so all visible/package elements now match the live build: HTML title, version badge, status line, script query string, manifest name, app version, and service-worker release.
+- Refreshed top-of-file integrated-change comments to match the current main line through V410.
+- Verified current startup wiring remains consolidated to a single load initializer and response-graph controls are wired in the active path.
+- No scoring, pacing, sleep, or graph-math logic changes in this audit build.

@@ -1,11 +1,11 @@
 // ═══════════════════════════════════════════════════
-// CogSpeed V407
+// CogSpeed V412
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V408";
+const APP_VERSION = "V412";
 
 // ═══════════════════════════════════════════════════
-// RECENT INTEGRATED PROGRAM CHANGES (through V407)
+// RECENT INTEGRATED PROGRAM CHANGES (through V412)
 // This block summarizes the major program updates that were merged into
 // the current main line so future edits do not have to reconstruct them
 // from one-off patch builds.
@@ -236,6 +236,7 @@ function loadSettings(){
  if(!s) return {...DEFAULTS};
  const m={...DEFAULTS};
  Object.keys(DEFAULTS).forEach(k=>{ if(s[k]!==undefined) m[k]=s[k]; });
+ // Legacy migration only: older builds saved the same preference as use12HourTime (1/0).
  if(!m.timeFormat) m.timeFormat = (s.use12HourTime===0 || s.use12HourTime==="0") ? "24" : "12";
  return m;
 }
@@ -2915,7 +2916,7 @@ function animateSpeedometer(canvas, targetCps, blockMs, success){
 }
 function stopSpeedometer(){ if(_speedoRaf){ cancelAnimationFrame(_speedoRaf); _speedoRaf=null; } }
 
-// ─── Results page — gear spin outro (2.0s) then thinking box ───
+// ─── Results page — gear spin outro (1.0s) then thinking box ───
 // ─── RESULTS PAGE FLOW ────────────────────────────────────────
 // THINKING BOX: 2s animated steam+sparks FX after test ends.
 // SUCCESS/FAIL BOX: 3s outcome overlay (green=SUCCESS/red=Test Failed).
@@ -2959,7 +2960,7 @@ function showResultsPage(){
  beginCurtainTransition();
  const last=state.history[state.history.length-1];
  const success=last?isTestSuccess(last.endReason):false;
- // 1. Spin all gears for 2.0s before thinking box
+ // 1. Spin all gears for 1.0s before thinking box
  stimGrid.querySelectorAll(".stim-cell").forEach((c,i)=>{
   c.classList.remove("gidle-f","gidle-r");
   c.classList.add(i%2===0?"gspin-f":"gspin-r");
@@ -4255,17 +4256,8 @@ const _sssel=$("summarySessionSelect"); if(_sssel) _sssel.onchange=()=>openSumma
 const _ssprev=$("summaryPrevBtn"); if(_ssprev) _ssprev.onclick=()=>{ const s=$("summarySessionSelect"); if(!s||!s.options.length) return; s.selectedIndex=Math.max(0, s.selectedIndex-1); if(s.onchange) s.onchange(); };
 const _ssnext=$("summaryNextBtn"); if(_ssnext) _ssnext.onclick=()=>{ const s=$("summarySessionSelect"); if(!s||!s.options.length) return; s.selectedIndex=Math.min(s.options.length-1, s.selectedIndex+1); if(s.onchange) s.onchange(); };
 const _orb=$("outcomeResultsBtn"); if(_orb) _orb.onclick=()=>{ $("outcomeOverlay").classList.add("hidden"); stopSpeedometer(); openSummarySession(state.history.length-1); setTestingQuiet(false); };
-const _sadmin=$("speedAdminBtn"); if(_sadmin) _sadmin.onclick=()=>{ _adminReturnTo = "outcomeOverlay"; $("outcomeOverlay").classList.add("hidden"); $("adminOverlay").classList.remove("hidden"); if(_adminUnlocked){ $("adminGate").classList.add("hidden"); $("adminBody").classList.remove("hidden"); renderAdmin(); } else { $("adminGate").classList.remove("hidden"); $("adminBody").classList.add("hidden"); $("adminPass").value=""; } };
-$("summaryAdminBtn").onclick=()=>{
- _adminReturnTo = "summaryOverlay"; // return here on close
- $("summaryOverlay").classList.add("hidden");
- $("adminOverlay").classList.remove("hidden");
- if(_adminUnlocked){
-  $("adminGate").classList.add("hidden"); $("adminBody").classList.remove("hidden"); renderAdmin();
- } else {
-  $("adminGate").classList.remove("hidden"); $("adminBody").classList.add("hidden"); $("adminPass").value="";
- }
-};
+const _sadmin=$("speedAdminBtn"); if(_sadmin) _sadmin.onclick=()=>openAdminFromOverlay("outcomeOverlay");
+$("summaryAdminBtn").onclick=()=>openAdminFromOverlay("summaryOverlay");
 // ─── Init ───
 modeLabel.textContent="Subject mode";
 renderFatigueChecklist();
@@ -4457,7 +4449,7 @@ function openSpeedometerFromAdmin(){
 
 $("trialLogCloseBtn").onclick=()=>{ $("trialLogOverlay").classList.add("hidden"); openSpeedometerFromAdmin(); };
 
-const _rrab=$("rateRtAdminBtn"); if(_rrab) _rrab.onclick=()=>{ $("rateRtOverlay").classList.add("hidden"); $("adminOverlay").classList.remove("hidden"); if(_adminUnlocked){ $("adminGate").classList.add("hidden"); $("adminBody").classList.remove("hidden"); renderAdmin(); } else { $("adminGate").classList.remove("hidden"); $("adminBody").classList.add("hidden"); $("adminPass").value=""; } };
+const _rrab=$("rateRtAdminBtn"); if(_rrab) _rrab.onclick=()=>openAdminFromOverlay("rateRtOverlay");
 
 
 const _apt=$("adminPerfTimeBtn"); if(_apt) _apt.onclick=()=>{ $("adminOverlay").classList.add("hidden"); openPerformanceOverTimePage(); };
@@ -5086,20 +5078,27 @@ function wireEmailSelectControls(){
 /* ===== E-mail draft action ===== */
 function formatLastTrialLogText(last){
   if(!last || !Array.isArray(last.rtLog) || !last.rtLog.length) return "No trial detail log available.";
-  const lines = last.rtLog.map(r=>{
+  const rows = last.rtLog.map(r=>{
+    const clock = r.clockTime ? new Date(r.clockTime).toLocaleTimeString("en-US",{hour12:false,hour:"2-digit",minute:"2-digit",second:"2-digit"}) : "—";
+    const presented = r.durationMs!=null ? `${r.durationMs} ms` : "—";
+    const rt = r.rt!=null ? `${r.rt} ms` : "—";
+    const change = r.rateChangeMs!=null ? `${r.rateChangeMs>0?"+":""}${r.rateChangeMs} ms` : "—";
+    const maxRaf = r.maxRafIntervalMs!=null ? `${Number(r.maxRafIntervalMs).toFixed(2)} ms` : "—";
     return [
       `#${r.seq||""}`,
-      `Phase: ${r.phase||"—"}`,
-      `RT: ${r.rt!=null ? r.rt : "—"}`,
-      `Outcome: ${r.outcome||"—"}`,
-      `Probe: ${r.probe||"—"}`,
-      `Correct: ${r.correctCell||"—"}`,
-      `Response: ${r.response||"—"}`,
-      `Rate change: ${r.rateChangeMs!=null?((r.rateChangeMs>0?"+":"")+r.rateChangeMs+" ms"):"—"}`,
-      `Next rate: ${r.nextRateMs!=null?(r.nextRateMs+" ms"):"—"}`
+      `Clock ${clock}`,
+      `Phase ${r.phase||"—"}`,
+      `Presented ${presented}`,
+      `RT ${rt}`,
+      `Rate change ${change}`,
+      `Trial result ${r.outcome||"—"}`,
+      `Correct target ${r.correctCell||"—"}`,
+      `Chosen response ${r.response||"—"}`,
+      `Max rAF ${maxRaf}`,
+      `Why changed ${r.rateChangeReason||"—"}`
     ].join(" | ");
   });
-  return "Trial Detail Log\n\n" + lines.join("\n");
+  return "Trial Detail Log\n\n" + rows.join("\n");
 }
 
 function formatLastRankedText(last){
@@ -5116,9 +5115,9 @@ function formatLastRankedText(last){
 function formatLastResponseGraphText(last){
   if(!last || !Array.isArray(last.rtLog) || !last.rtLog.length) return "No response-time graph data available.";
   const rows = last.rtLog.map((r,i)=>{
-    const dur = r.durationMs!=null ? r.durationMs : "—";
-    const rt = r.rt!=null ? r.rt : "—";
-    return `${i+1}. Trial ${r.seq||i+1} | Phase ${r.phase||"—"} | Presentation ${dur} ms | Response ${rt} ms | Outcome ${r.outcome||"—"}`;
+    const dur = r.durationMs!=null ? `${r.durationMs} ms` : "—";
+    const rt = r.rt!=null ? `${r.rt} ms` : "—";
+    return `${i+1}. Trial ${r.seq||i+1} | Phase ${r.phase||"—"} | Presented ${dur} | RT ${rt} | Trial result ${r.outcome||"—"}`;
   });
   return "Response-Time Graph Data\n\n" + rows.join("\n");
 }
@@ -5131,7 +5130,8 @@ function formatLastPerfTimeText(){
     const cpi = r.cognitivePerformanceIndex!=null ? Math.round(Number(r.cognitivePerformanceIndex)) : "—";
     const mbs = r.averageLast2BlockingScoresMs!=null ? Math.round(Number(r.averageLast2BlockingScoresMs)) : "—";
     const spf = r.samnPerelli && r.samnPerelli.score!=null ? r.samnPerelli.score : "—";
-    return `${i+1}. ${when} | CPI ${cpi} | MBS ${mbs} | SP-FS ${spf}`;
+    const sleep = r.sleepLog && r.sleepLog.qualityLabel ? r.sleepLog.qualityLabel : (r.sleepSinceLastTest==="no" ? "No sleep since last test" : "—");
+    return `${i+1}. ${when} | CPI ${cpi} | MBS ${mbs} ms | SP-FS ${spf} | Sleep ${sleep}`;
   });
   return "Performance over Date and Time\n\n" + rows.join("\n");
 }
@@ -5139,9 +5139,10 @@ function formatLastPerfTimeText(){
 function formatLastRateRtText(last){
   if(!last) return "No Presentation Rate vs Response Time data available.";
   const rows = (last.rtLog||[]).map((r,i)=>{
-    const dur = r.durationMs!=null ? r.durationMs : "—";
-    const rt = r.rt!=null ? r.rt : "—";
-    return `${i+1}. Phase ${r.phase||"—"} | Presentation ${dur} ms | Response ${rt} ms | Outcome ${r.outcome||"—"}`;
+    const dur = r.durationMs!=null ? `${r.durationMs} ms` : "—";
+    const rt = r.rt!=null ? `${r.rt} ms` : "—";
+    const change = r.rateChangeMs!=null ? `${r.rateChangeMs>0?"+":""}${r.rateChangeMs} ms` : "—";
+    return `${i+1}. Phase ${r.phase||"—"} | Presented ${dur} | RT ${rt} | Rate change ${change} | Trial result ${r.outcome||"—"}`;
   });
   return rows.length ? ("Presentation Rate vs Response Time\n\n" + rows.join("\n")) : "No Presentation Rate vs Response Time data available.";
 }
