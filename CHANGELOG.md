@@ -128,3 +128,9 @@ It is meant to provide a readable history without overloading inline code commen
 - Speedometer now states which session is currently displayed.
 - View Results, Trial Detail Log, Rate vs RT, and Response-Time Graph launched from Speedometer now follow the selected session.
 - Kept version/package/release identifiers aligned.
+
+
+## V416 - Results and Speedometer space cleanup
+- Expanded Results summary panel vertically so more results text fits on screen.
+- Reduced Speedometer size and tightened button spacing so the bottom Start Page button fits more reliably on screen.
+- Updated versioned files to V416.

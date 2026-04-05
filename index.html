@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
   <meta name="theme-color" content="#0b1830"/>
   <link rel="manifest" href="manifest.json"/>
-  <title>CogSpeed® V415</title>
+  <title>CogSpeed® V416</title>
     <style>
 
     :root{--bg:#091426;--bg2:#132746;--panel:#0d1b33;--panel2:#10213e;--text:#f5fbff;--muted:#d7e7f8;--edge:#4f6f99;--accent:#7fd7ff;--probe:#00f0ff}
@@ -356,7 +356,7 @@
       <img src="CogSpeed.jpeg" alt="CogSpeed logo" style="width:min(78vw,420px);max-width:100%;height:auto;display:block;object-fit:contain;border:1px solid #2f5fb8;box-shadow:0 2px 16px rgba(0,0,0,.25)"/>
     </div>
     <div style="flex:1;display:flex;flex-direction:column;justify-content:flex-start;align-items:center;gap:clamp(6px,1.2dvh,14px);padding-top:10px">
-      <div style="text-align:center"><span class="badge" style="font-size:11px;padding:2px 10px" id="versionBadge">V415</span></div>
+      <div style="text-align:center"><span class="badge" style="font-size:11px;padding:2px 10px" id="versionBadge">V416</span></div>
       <div style="text-align:center">
         <span style="font-size:clamp(20px,3.6dvh,34px);font-weight:900;font-style:italic;letter-spacing:.12em;color:var(--accent);text-transform:uppercase;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;text-shadow:0 0 12px rgba(127,215,255,0.6)">Think Fast!</span>
       </div>
@@ -697,9 +697,9 @@
 </div>
 
 <!-- ═══ OUTCOME OVERLAY ═══ -->
-<div id="outcomeOverlay" class="outcome-overlay hidden" style="flex-direction:column;align-items:center;justify-content:center;gap:0;padding:10px 8px 20px">
+<div id="outcomeOverlay" class="outcome-overlay hidden" style="flex-direction:column;align-items:center;justify-content:center;gap:0;padding:8px 8px 12px">
   <!-- Square speedometer canvas — fills ~top half of screen -->
-  <div id="speedometerWrap" class="speedometer-brain-bg" style="width:min(82vw,42vh);aspect-ratio:1/1;flex-shrink:0">
+  <div id="speedometerWrap" class="speedometer-brain-bg" style="width:min(76vw,34vh);aspect-ratio:1/1;flex-shrink:0">
     <canvas id="speedometerCanvas" style="width:100%;height:100%;display:block"></canvas>
   </div>
   <div id="spfGaugeWrap" style="width:min(92vw,720px);margin:2px auto 10px;flex-shrink:0">
@@ -722,14 +722,14 @@
   
   
 
-  <div id="speedometerBtnGrid" style="width:min(88vw,660px);display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;align-items:stretch">
-    <button class="ctrl-btn" id="outcomeResultsBtn" style="width:100%;font-size:16px;padding:15px 24px;background:linear-gradient(180deg,#1a3a5a,#0d1e30);border-color:#4f6f99;color:#d9fbff;letter-spacing:.06em">View Results →</button>
-    <button class="ctrl-btn" id="speedPerfTimeBtn" style="width:100%;font-size:15px;padding:12px 20px;margin-top:8px">Performance vs Time</button>
-    <button class="ctrl-btn" id="speedResponseGraphBtn" style="width:100%;font-size:15px;padding:12px 20px;margin-top:8px">Response-Time Graph</button>
-    <button class="ctrl-btn" id="speedTrialLogBtn" style="width:100%;font-size:15px;padding:12px 20px;margin-top:8px">Trial Detail Log</button>
+  <div id="speedometerBtnGrid" style="width:min(86vw,620px);display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;align-items:stretch">
+    <button class="ctrl-btn" id="outcomeResultsBtn" style="width:100%;font-size:15px;padding:12px 18px;background:linear-gradient(180deg,#1a3a5a,#0d1e30);border-color:#4f6f99;color:#d9fbff;letter-spacing:.06em">View Results →</button>
+    <button class="ctrl-btn" id="speedPerfTimeBtn" style="width:100%;font-size:14px;padding:10px 16px;margin-top:6px">Performance vs Time</button>
+    <button class="ctrl-btn" id="speedResponseGraphBtn" style="width:100%;font-size:14px;padding:10px 16px;margin-top:6px">Response-Time Graph</button>
+    <button class="ctrl-btn" id="speedTrialLogBtn" style="width:100%;font-size:14px;padding:10px 16px;margin-top:6px">Trial Detail Log</button>
     <div class="controls" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px">
-      <button class="ctrl-btn" id="speedRateRtBtn" style="width:100%;font-size:15px;padding:12px 12px">Presentation Rate vs Response Time</button>
-      <button class="ctrl-btn" id="speedEmailSelectBtn" style="width:100%;font-size:15px;padding:12px 12px">E-mail Select</button>
+      <button class="ctrl-btn" id="speedRateRtBtn" style="width:100%;font-size:14px;padding:10px 10px">Presentation Rate vs Response Time</button>
+      <button class="ctrl-btn" id="speedEmailSelectBtn" style="width:100%;font-size:14px;padding:10px 10px">E-mail Select</button>
     </div>
     <button id="speedAdminBtn" style="width:100%;justify-self:stretch;background:none;border:none;color:rgba(127,215,255,0.38);font-size:12px;padding:8px 10px;margin-top:8px;cursor:pointer;font-family:inherit;letter-spacing:.05em">Admin</button>
     <button class="ctrl-btn" id="speedStartPageBtn" style="grid-column:1 / -1;width:100%;font-size:15px;padding:12px 20px;margin-top:8px">Back to Start</button>
@@ -745,7 +745,7 @@
       <select id="summarySessionSelect" style="width:100%;padding:12px 14px;border-radius:12px;border:1px solid var(--edge);background:#081321;color:var(--text);font-size:15px"></select>
       <button class="ctrl-btn" id="summaryNextBtn" style="padding:10px 12px;min-height:42px">Next →</button>
     </div>
-    <div id="summaryText" style="font-family:monospace;font-size:15px;color:var(--muted);white-space:pre;overflow-x:auto;max-height:46vh;overflow-y:auto;background:#060e1a;border:1px solid var(--edge);border-radius:10px;padding:14px;line-height:1.75"></div>
+    <div id="summaryText" style="font-family:monospace;font-size:15px;color:var(--muted);white-space:pre;overflow-x:auto;max-height:58vh;overflow-y:auto;background:#060e1a;border:1px solid var(--edge);border-radius:10px;padding:14px;line-height:1.75"></div>
     <div style="display:flex;align-items:center;gap:8px;margin-top:10px;flex-wrap:wrap">
       <button class="ctrl-btn" id="summaryRestartBtn" style="flex:1">New Test</button>
       <button class="ctrl-btn" id="summarySpeedometerBtn" style="flex:1">Speedometer</button>
@@ -944,7 +944,7 @@
   <div class="resp-grid" id="respGrid"></div>
 </div>
 
-<script src="app.js?v=415"></script>
+<script src="app.js?v=416"></script>
 
 </body>
 </html>
