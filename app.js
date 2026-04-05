@@ -1,11 +1,11 @@
 // ═══════════════════════════════════════════════════
-// CogSpeed V414
+// CogSpeed V418
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V416";
+const APP_VERSION = "V418";
 
 // ═══════════════════════════════════════════════════
-// RECENT INTEGRATED PROGRAM CHANGES (through V415)
+// RECENT INTEGRATED PROGRAM CHANGES (through V418)
 // This block summarizes the major program updates that were merged into
 // the current main line so future edits do not have to reconstruct them
 // from one-off patch builds.
@@ -2446,6 +2446,16 @@ function resetProfile(){
  setStatus("Profile reset");
 }
 
+function resetAllSessions(){
+ state.history = [];
+ localStorage.removeItem(`${STORAGE_PREFIX}_history`);
+ updateStartPageLinks();
+ try{ syncSummarySessionSelect(0); }catch(e){}
+ try{ syncSpeedometerSessionSelect(0); }catch(e){}
+ try{ syncTrialLogSessionSelect(0); }catch(e){}
+ setStatus("All sessions deleted");
+}
+
 // ─── OVERLAY / NAVIGATION UTILITIES ──────────────────────────
 // hideAllOverlays(): hides every overlay (used at test start).
 // showOnly(id): shows one overlay, hides all others.
@@ -4232,6 +4242,7 @@ const _spb=$("summaryProfileBtn"); if(_spb) _spb.onclick=(e)=>{
  openProfileFromContext("summaryOverlay", email);
 };
 const _prb=$("profileResetBtn"); if(_prb) _prb.onclick=resetProfile;
+const _prs=$("profileResetSessionsBtn"); if(_prs) bindDoubleTapConfirm(_prs, ()=>resetAllSessions(), "Reset Sessions", "Tap again to delete sessions");
 const _pt12=$("profileTime12Btn"); if(_pt12) _pt12.onclick=(e)=>{ if(e) e.preventDefault(); profileSelectTimeFormat("12"); };
 const _pt24=$("profileTime24Btn"); if(_pt24) _pt24.onclick=(e)=>{ if(e) e.preventDefault(); profileSelectTimeFormat("24"); };
 // Age validation on input change

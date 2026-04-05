@@ -1,3 +1,8 @@
+## V418 — Audit clean merge + version/comment alignment
+- Re-ran a DOM/wiring audit against the active V417 line. No missing active DOM IDs were found in the live UI, and no duplicate element IDs were found in `index.html`.
+- Fixed stale version/comment drift so the top-of-file `app.js` header, integrated-change comment block, hidden status line, HTML title, script query string, manifest, and service worker all match V418.
+- Kept current functional behavior intact while folding the audit cleanup into the main line.
+
 ## V415 — Speedometer space cleanup
 - Hid the redundant Speedometer session info line under the selector.
 - Reduced the Speedometer size slightly so the lower buttons fit on screen more comfortably.
@@ -134,3 +139,9 @@ It is meant to provide a readable history without overloading inline code commen
 - Expanded Results summary panel vertically so more results text fits on screen.
 - Reduced Speedometer size and tightened button spacing so the bottom Start Page button fits more reliably on screen.
 - Updated versioned files to V416.
+
+## V417 — Profile Reset Sessions button
+- Kept Profile Reset button behavior unchanged (clears saved profile fields only).
+- Added a new subject-facing double-tap **Reset Sessions** button on the Profile page.
+- Reset Sessions clears saved session history only (`state.history` / `${STORAGE_PREFIX}_history`) without deleting profile/settings.
+- Clarified the separation from Admin Full Reset, which is broader and does not specifically mean session-history deletion.
