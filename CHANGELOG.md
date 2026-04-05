@@ -85,3 +85,7 @@ It is meant to provide a readable history without overloading inline code commen
 ## Notes
 - Older saved admin settings on a device can still override new code defaults until Reset Admin Settings is used.
 - This change log summarizes the current integrated line and major changes, not every experiment or failed intermediate patch.
+## V408 — Trial Detail RT column
+- Restored the visible RT column in the Trial Detail Log between Presented Rate and Rate Change.
+- Updated the empty-table colspan and version alignment fields.
+

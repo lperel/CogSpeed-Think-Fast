@@ -2,7 +2,7 @@
 // CogSpeed V407
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V407";
+const APP_VERSION = "V408";
 
 // ═══════════════════════════════════════════════════
 // RECENT INTEGRATED PROGRAM CHANGES (through V407)
@@ -3175,7 +3175,7 @@ function buildTrialLog(sessionIndex){
  }
  tbody.innerHTML="";
  if(!log||!log.length){
-  tbody.innerHTML='<tr><td colspan="10" style="text-align:center;color:var(--muted);padding:12px">No trial data for this session</td></tr>';
+  tbody.innerHTML='<tr><td colspan="11" style="text-align:center;color:var(--muted);padding:12px">No trial data for this session</td></tr>';
   const meta=$("trialLogMeta"); if(meta) meta.textContent="SP-FS —";
   return;
  }
