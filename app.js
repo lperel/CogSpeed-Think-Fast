@@ -2,7 +2,7 @@
 // CogSpeed V371
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V391";
+const APP_VERSION = "V393";
 const RELEASE = APP_VERSION.replace(/^V/i, "");
 const STORAGE_PREFIX = `cogspeed_v${RELEASE}`;
 
@@ -2534,6 +2534,7 @@ ${hr}
 FATIGUE (S-PF)
  Pre-test rating: ${spf}
 ${formatSleepLine(result)}
+${formatTimeSinceLastSleepLine(result)||""}
 ${hr}
 SELF-PACED CALIBRATION (SPC)
  Total self-paced responses: ${result.selfPacedResponseCount}
@@ -2566,6 +2567,7 @@ ${hr}
 FATIGUE (S-PF)
  Pre-test rating: ${spf}
 ${formatSleepLine(result)}
+${formatTimeSinceLastSleepLine(result)||""}
 ${hr}
 SELF-PACED CALIBRATION
  Total self-paced responses: ${result.selfPacedResponseCount}
@@ -2610,6 +2612,7 @@ ${hr}
 FATIGUE (S-PF)
  Pre-test rating: ${spf}
 ${formatSleepLine(result)}
+${formatTimeSinceLastSleepLine(result)||""}
 ${hr}
 CALIBRATION
  Average RT: ${result.calibrationAverageMs!=null?result.calibrationAverageMs.toFixed(1)+" ms":"—"}
@@ -2951,7 +2954,7 @@ function startOverFlow(){
 // ─── Gear spin intro then start ───
 // ─── GEAR SPIN INTRO / OUTRO ──────────────────────────────────
 // runGearSpinThenStart(): closes curtain, reopens it visibly (0.75s),
-//  then keeps all gears visibly spinning for 2.0s before firing callback.
+//  then keeps all gears visibly spinning for 1.0s before firing callback.
 // Outro spin triggered in showResultsPage() after test ends.
 // CURTAIN TRANSITION: left/right panels slide apart on open,
 //  slide closed on test end (CSS transform translateX).
@@ -3007,7 +3010,7 @@ function runGearSpinThenStart(callback) {
    setTimeout(()=>{
     callback();
     endCurtainTransition();
-   }, 2000);
+   }, 1000);
   }, 750);
  }, 40);
 }
@@ -3781,6 +3784,24 @@ function formatSleepDuration(mins){
  if(mins==null || !Number.isFinite(mins)) return "—";
  const h=Math.floor(mins/60), m=mins%60;
  return `${h}h ${m}m`;
+}
+function computeTimeSinceLastSleepMinutes(result){
+ const wake = result?.sleepLog?.wakeTime;
+ const testIso = result?.time;
+ const wakeMins = parseSleepTimeToMinutes(wake);
+ if(wakeMins==null || !testIso) return null;
+ const d = new Date(testIso);
+ if(!isFinite(d.getTime())) return null;
+ const testMins = d.getHours()*60 + d.getMinutes();
+ let delta = testMins - wakeMins;
+ if(delta < 0) delta += 24*60;
+ return delta;
+}
+function formatTimeSinceLastSleepLine(result){
+ if(result?.sleepSinceLastTest !== "yes") return null;
+ const mins = computeTimeSinceLastSleepMinutes(result);
+ if(mins==null) return "Time since last sleep: —";
+ return `Time since last sleep: ${formatSleepDuration(mins)}`;
 }
 function computeSleepDurationMinutes(bed,wake){
  const b=parseSleepTimeToMinutes(bed), w=parseSleepTimeToMinutes(wake);
