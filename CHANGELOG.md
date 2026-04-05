@@ -1,3 +1,21 @@
+## V407 — Wiring, version, and stale-drift audit
+
+- Fixed stale version drift so the static HTML and manifest now match the live build: title, version badge, status line, manifest name, and script query string all point to V407.
+- Removed stale wiring for legacy hidden buttons (`startBtn`, `backToStartBtn`, `startOverBtn`) that no longer exist in `index.html`.
+- Kept only the active visible navigation wiring in the main program.
+- Updated comments to reflect that legacy hidden-button placeholders are gone and the active control wiring is the source of truth.
+
+## V406 — Clean merge and bug cleanup
+
+- Fixed a real cache-busting/versioning bug where `index.html` still loaded `app.js?v=383` instead of the current build script.
+- Updated stale top-of-file comments in `app.js` from V399 to V406 so documentation matches the integrated main line.
+- Removed a stale optional `emailSelectRecipientBtn` wiring block that no longer had a matching element in `index.html`.
+- No pacing, scoring, sleep-logic, or graph-math changes in this build.
+
+# V404
+
+- Trial Detail Log visible columns reduced and reordered to: #, Clock, Phase, Presented Rate, Rate Change, Trial Result, Correct Target, Chosen Response, Max rAF, Why Changed.
+
 # CogSpeed Change Log
 
 This file summarizes the major integrated changes in the current main program line.

@@ -1,11 +1,11 @@
 // ═══════════════════════════════════════════════════
-// CogSpeed V399
+// CogSpeed V407
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V403";
+const APP_VERSION = "V407";
 
 // ═══════════════════════════════════════════════════
-// RECENT INTEGRATED PROGRAM CHANGES (through V399)
+// RECENT INTEGRATED PROGRAM CHANGES (through V407)
 // This block summarizes the major program updates that were merged into
 // the current main line so future edits do not have to reconstruct them
 // from one-off patch builds.
@@ -3175,7 +3175,7 @@ function buildTrialLog(sessionIndex){
  }
  tbody.innerHTML="";
  if(!log||!log.length){
-  tbody.innerHTML='<tr><td colspan="18" style="text-align:center;color:var(--muted);padding:12px">No trial data for this session</td></tr>';
+  tbody.innerHTML='<tr><td colspan="10" style="text-align:center;color:var(--muted);padding:12px">No trial data for this session</td></tr>';
   const meta=$("trialLogMeta"); if(meta) meta.textContent="SP-FS —";
   return;
  }
@@ -3199,7 +3199,7 @@ function buildTrialLog(sessionIndex){
   const nextRateStr=e.nextRateMs!=null?`${e.nextRateMs}ms`:"—";
   const changeStr=e.rateChangeMs!=null?`${e.rateChangeMs>0?"+":""}${e.rateChangeMs}ms`:"—";
   const reasonStr=e.rateChangeReason||"—";
-  tr.innerHTML=`<td style="font-weight:700">${e.seq}</td><td style="font-size:10px">${timeStr}</td><td style="font-size:10px;color:var(--muted)">${phaseLabel}</td><td>${durStr}</td><td style="font-weight:700">${rtStr}</td><td>${targetStr}</td><td>${ageStr}</td><td>${overStr}</td><td>${rafSamplesStr}</td><td>${meanRafStr}</td><td>${maxRafStr}</td><td style="color:${oc};font-weight:700">${outcomeLabel}</td><td>${e.counted===false?"No":"Yes"}</td><td style="color:var(--accent)">${e.correctCell}</td><td style="color:${oc==="var(--muted)"?"var(--muted)":oc}">${e.response}</td><td>${changeStr}</td><td>${nextRateStr}</td><td>${reasonStr}</td>`;
+  tr.innerHTML=`<td style="font-weight:700">${e.seq}</td><td style="font-size:10px">${timeStr}</td><td style="font-size:10px;color:var(--muted)">${phaseLabel}</td><td>${durStr}</td><td>${rtStr}</td><td>${changeStr}</td><td style="color:${oc};font-weight:700">${outcomeLabel}</td><td style="color:var(--accent)">${e.correctCell}</td><td style="color:${oc==="var(--muted)"?"var(--muted)":oc}">${e.response}</td><td>${maxRafStr}</td><td>${reasonStr}</td>`;
   tbody.appendChild(tr);
  });
 }
@@ -4249,9 +4249,6 @@ const _asb=$("adminSpeedometerBtn"); if(_asb) _asb.onclick=()=>openSpeedometerFr
 bindDoubleTapConfirm($("adminStartOverBtn"), ()=>startOverFlow(), "Full Reset", "Tap again for full reset");
 $("benchRunBtn").onclick=()=>runDeviceBenchmark(true);
 $("benchMainBtn").onclick=()=>{ $("benchmarkOverlay").classList.add("hidden"); };
-const _startBtn=$("startBtn"); if(_startBtn) _startBtn.onclick=startTest;
-const _backToStartBtn=$("backToStartBtn"); if(_backToStartBtn) _backToStartBtn.onclick=goToStartPage;
-const _startOverBtn=$("startOverBtn"); if(_startOverBtn) _startOverBtn.onclick=startOverFlow;
 $("summaryRestartBtn").onclick=()=>{ $("summaryOverlay").classList.add("hidden"); const fg=$("fullGraphOverlay"); if(fg) fg.classList.add("hidden"); goToStartPage(); };
 const _sspeed=$("summarySpeedometerBtn"); if(_sspeed) _sspeed.onclick=()=>{ $("summaryOverlay").classList.add("hidden"); openSpeedometerPage(); };
 const _sssel=$("summarySessionSelect"); if(_sssel) _sssel.onchange=()=>openSummarySession(Number(_sssel.value));
@@ -5032,7 +5029,6 @@ function wireEmailSelectControls(){
   const speedBtn = $("speedEmailSelectBtn");
   const backSpeed = $("emailSpeedometerBtn");
   const backStart = $("emailStartBtn");
-  const recipBtn = $("emailSelectRecipientBtn");
   const dataSel = $("emailDataSelect");
   const info = $("emailSelectInfo");
 
@@ -5065,13 +5061,6 @@ function wireEmailSelectControls(){
     };
   }
 
-  if(recipBtn && recipBtn.dataset.emailWired !== "1"){
-    recipBtn.dataset.emailWired = "1";
-    recipBtn.onclick = (e)=>{
-      if(e) e.preventDefault();
-      if(info) info.textContent = "Recipient selection ready.";
-    };
-  }
 
   if(dataSel && dataSel.dataset.emailWired !== "1"){
     dataSel.dataset.emailWired = "1";
