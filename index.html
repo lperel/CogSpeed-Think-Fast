@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
   <meta name="theme-color" content="#0b1830"/>
   <link rel="manifest" href="manifest.json"/>
-  <title>CogSpeed® V400</title>
+  <title>CogSpeed® V403</title>
     <style>
 
     :root{--bg:#091426;--bg2:#132746;--panel:#0d1b33;--panel2:#10213e;--text:#f5fbff;--muted:#d7e7f8;--edge:#4f6f99;--accent:#7fd7ff;--probe:#00f0ff}
@@ -734,6 +734,11 @@
 <div id="summaryOverlay" class="overlay hidden">
   <div class="modal">
     <div style="text-align:center;margin-bottom:10px"><span class="badge">Results</span></div>
+    <div style="display:grid;grid-template-columns:auto 1fr auto;gap:8px;align-items:center;margin-bottom:10px">
+      <button class="ctrl-btn" id="summaryPrevBtn" style="padding:10px 12px;min-height:42px">← Prev</button>
+      <select id="summarySessionSelect" style="width:100%;padding:12px 14px;border-radius:12px;border:1px solid var(--edge);background:#081321;color:var(--text);font-size:15px"></select>
+      <button class="ctrl-btn" id="summaryNextBtn" style="padding:10px 12px;min-height:42px">Next →</button>
+    </div>
     <div id="summaryText" style="font-family:monospace;font-size:15px;color:var(--muted);white-space:pre;overflow-x:auto;max-height:46vh;overflow-y:auto;background:#060e1a;border:1px solid var(--edge);border-radius:10px;padding:14px;line-height:1.75"></div>
     <div style="display:flex;align-items:center;gap:8px;margin-top:10px;flex-wrap:wrap">
       <button class="ctrl-btn" id="summaryRestartBtn" style="flex:1">New Test</button>
@@ -850,7 +855,7 @@
 <div id="trialLogOverlay" class="overlay hidden">
   <div class="modal" style="max-width:min(99vw,1200px);width:min(99vw,1200px)">
     <h2>Trial Detail Log</h2>
-    <p class="modal-hint" id="trialLogMeta"></p>
+    <p class="modal-hint" id="trialLogMeta">SP-FS —</p>
     <div style="margin-bottom:8px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
       <select id="trialLogSessionSelect" style="flex:1;padding:8px;border:1px solid var(--edge);border-radius:10px;background:#0a1629;color:var(--text);font-size:13px"></select>
     </div>
@@ -880,8 +885,9 @@
 <!-- ═══ RATE vs RT OVERLAY ═══ -->
 <div id="rateRtOverlay" class="overlay hidden">
   <div class="modal" style="max-width:min(98vw,900px)">
-    <h2>Presentation Rate vs Response Time — Same-Mode Sessions</h2>
-    <p class="modal-hint" id="rateRtMeta">Sessions are overlaid only within the selected test mode. Each session starts at trial 1. Use Prev/Next to highlight one session.</p>
+    <h2 style="font-size:clamp(20px,3.2dvh,28px)">Presentation Rate vs Response Time</h2>
+    <p class="modal-hint" id="rateRtMeta">SP-FS —</p>
+    <div id="rateRtInfoBar" style="margin-bottom:8px;padding:8px 10px;border:1px solid var(--edge);border-radius:10px;background:#0a1629;color:var(--muted);font-size:12px;line-height:1.35">No session selected</div>
     <div style="margin-bottom:8px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
       <select id="rateRtSessionSelect" style="flex:1;padding:8px;border:1px solid var(--edge);border-radius:10px;background:#0a1629;color:var(--text);font-size:13px"></select>
     </div>

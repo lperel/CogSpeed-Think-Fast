@@ -2,7 +2,7 @@
 // CogSpeed V399
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V400";
+const APP_VERSION = "V403";
 
 // ═══════════════════════════════════════════════════
 // RECENT INTEGRATED PROGRAM CHANGES (through V399)
@@ -2923,6 +2923,38 @@ function stopSpeedometer(){ if(_speedoRaf){ cancelAnimationFrame(_speedoRaf); _s
 // LAST RESULTS: accessible from admin → 📄 Last Results button.
 // E-MAIL: emailResults() opens mailto: with full result text body.
 // ──────────────────────────────────────────────────────────────
+function getSummarySelectedIndex(){
+ const s=$("summarySessionSelect");
+ if(!s || !s.options.length) return Math.max(0, state.history.length-1);
+ const idx=Number(s.value);
+ return Number.isFinite(idx) ? Math.max(0, Math.min(state.history.length-1, idx)) : Math.max(0, state.history.length-1);
+}
+
+function syncSummarySessionSelect(selectedIdx){
+ const s=$("summarySessionSelect");
+ if(!s) return;
+ const wanted = Math.max(0, Math.min(state.history.length-1, Number(selectedIdx)||0));
+ const existing = Array.from(s.options).map(o=>o.value).join('|');
+ const desired = state.history.map((r,idx)=>String(idx)).join('|');
+ if(existing !== desired){
+  s.innerHTML = state.history.map((r,idx)=>{
+   const stamp = r && r.time ? new Date(r.time).toLocaleString() : `Session ${idx+1}`;
+   const mode = r && r.testMode ? formatModeTag(r.testMode) : '—';
+   const subj = r && r.subjectId ? r.subjectId : '—';
+   return `<option value="${idx}">Session ${idx+1} • ${mode} • ${subj} • ${stamp}</option>`;
+  }).join('');
+ }
+ if(s.options.length) s.value = String(wanted);
+}
+
+function openSummarySession(idx){
+ if(!state.history.length) return;
+ const clamped = Math.max(0, Math.min(state.history.length-1, Number(idx)||0));
+ syncSummarySessionSelect(clamped);
+ buildSummary(state.history[clamped]);
+ $("summaryOverlay").classList.remove("hidden");
+}
+
 function showResultsPage(){
  beginCurtainTransition();
  const last=state.history[state.history.length-1];
@@ -2943,6 +2975,7 @@ function showResultsPage(){
  setTimeout(()=>{
   // 3. Show thinking box
   const ts=$("testScreen"); if(ts) ts.classList.add("hidden");
+  syncSummarySessionSelect(state.history.length-1);
   const thinking=$("thinkingOverlay");
   if(thinking){ thinking.classList.remove("hidden"); startFX(); }
   setTimeout(()=>{
@@ -3138,16 +3171,12 @@ function buildTrialLog(sessionIndex){
  const result=state.history[idx];
  const log=result?result.rtLog:state.rtLog;
  const meta=$("trialLogMeta"); if(meta && result){
-  const tq=result.timingQuality||{};
-  const timingTxt=(tq.avgFrameOvershootMs!=null||tq.avgRafIntervalMs!=null)
-   ? ` · Timing avg overshoot ${tq.avgFrameOvershootMs!=null?tq.avgFrameOvershootMs.toFixed(1):"—"}ms · max overshoot ${tq.maxFrameOvershootMs!=null?tq.maxFrameOvershootMs.toFixed(1):"—"}ms · avg rAF ${tq.avgRafIntervalMs!=null?tq.avgRafIntervalMs.toFixed(2):"—"}ms`
-   : "";
-  meta.textContent=`Session ${idx+1} · ${formatModeTag(result.testMode)} · SP-FS ${result.samnPerelli?result.samnPerelli.score:"—"} · ${new Date(result.time).toLocaleString()}${timingTxt}`;
+  meta.textContent=`SP-FS ${result.samnPerelli?result.samnPerelli.score:"—"}`;
  }
  tbody.innerHTML="";
  if(!log||!log.length){
   tbody.innerHTML='<tr><td colspan="18" style="text-align:center;color:var(--muted);padding:12px">No trial data for this session</td></tr>';
-  const meta=$("trialLogMeta"); if(meta) meta.textContent="No data";
+  const meta=$("trialLogMeta"); if(meta) meta.textContent="SP-FS —";
   return;
  }
  // Color coding
@@ -3383,7 +3412,13 @@ function buildRateRtOverlay(sessionIndex){
  const sessionsForChart = sameModeSessions.length ? sameModeSessions : (result ? [{...result, _actualIndex: idx}] : []);
  const meta=$("rateRtMeta");
  if(meta){
-  meta.textContent = result ? `Selected: Session ${idx+1} · ${formatModeTag(result.testMode)} · SP-FS ${result.samnPerelli?result.samnPerelli.score:"—"} · ${result.subjectId} · ${new Date(result.time).toLocaleString()} · ${sessionsForChart.length} same-mode session(s) overlaid from trial 1` : "No session selected";
+  meta.textContent = result ? `SP-FS ${result.samnPerelli?result.samnPerelli.score:"—"}` : "SP-FS —";
+ }
+ const info=$("rateRtInfoBar");
+ if(info){
+  info.textContent = result
+   ? `Session ${idx+1} · ${formatModeTag(result.testMode)} · ${result.subjectId} · ${new Date(result.time).toLocaleString()} · ${sessionsForChart.length} same-mode session(s) overlaid from trial 1`
+   : "No session selected";
  }
  drawRateRtChart($("rateRtChart"), sessionsForChart, idx);
 }
@@ -4196,11 +4231,9 @@ const _ecb=$("exportCsvAdminBtn"); if(_ecb) _ecb.onclick=exportCSV;
 $("adminTrialLogBtn").onclick=()=>{ buildTrialLog(state.history.length-1); $("trialLogOverlay").classList.remove("hidden"); };
 const _arrb=$("adminRateRtBtn"); if(_arrb) _arrb.onclick=()=>{ $("adminOverlay").classList.add("hidden"); $("rateRtOverlay").classList.remove("hidden"); buildRateRtOverlay(); };
 $("adminLastResultBtn").onclick=()=>{
- const last=state.history[state.history.length-1];
- if(!last){ setStatus("No results yet."); return; }
+ if(!state.history.length){ setStatus("No results yet."); return; }
  $("adminOverlay").classList.add("hidden");
- buildSummary(last);
- $("summaryOverlay").classList.remove("hidden");
+ openSummarySession(state.history.length-1);
 };
 $("trialLogCsvBtn").onclick=()=>downloadTrialLogCSV();
 const _rrsel=$("rateRtSessionSelect"); if(_rrsel) _rrsel.onchange=()=>buildRateRtOverlay();
@@ -4221,7 +4254,10 @@ const _backToStartBtn=$("backToStartBtn"); if(_backToStartBtn) _backToStartBtn.o
 const _startOverBtn=$("startOverBtn"); if(_startOverBtn) _startOverBtn.onclick=startOverFlow;
 $("summaryRestartBtn").onclick=()=>{ $("summaryOverlay").classList.add("hidden"); const fg=$("fullGraphOverlay"); if(fg) fg.classList.add("hidden"); goToStartPage(); };
 const _sspeed=$("summarySpeedometerBtn"); if(_sspeed) _sspeed.onclick=()=>{ $("summaryOverlay").classList.add("hidden"); openSpeedometerPage(); };
-const _orb=$("outcomeResultsBtn"); if(_orb) _orb.onclick=()=>{ $("outcomeOverlay").classList.add("hidden"); stopSpeedometer(); $("summaryOverlay").classList.remove("hidden"); setTestingQuiet(false); };
+const _sssel=$("summarySessionSelect"); if(_sssel) _sssel.onchange=()=>openSummarySession(Number(_sssel.value));
+const _ssprev=$("summaryPrevBtn"); if(_ssprev) _ssprev.onclick=()=>{ const s=$("summarySessionSelect"); if(!s||!s.options.length) return; s.selectedIndex=Math.max(0, s.selectedIndex-1); if(s.onchange) s.onchange(); };
+const _ssnext=$("summaryNextBtn"); if(_ssnext) _ssnext.onclick=()=>{ const s=$("summarySessionSelect"); if(!s||!s.options.length) return; s.selectedIndex=Math.min(s.options.length-1, s.selectedIndex+1); if(s.onchange) s.onchange(); };
+const _orb=$("outcomeResultsBtn"); if(_orb) _orb.onclick=()=>{ $("outcomeOverlay").classList.add("hidden"); stopSpeedometer(); openSummarySession(state.history.length-1); setTestingQuiet(false); };
 const _sadmin=$("speedAdminBtn"); if(_sadmin) _sadmin.onclick=()=>{ _adminReturnTo = "outcomeOverlay"; $("outcomeOverlay").classList.add("hidden"); $("adminOverlay").classList.remove("hidden"); if(_adminUnlocked){ $("adminGate").classList.add("hidden"); $("adminBody").classList.remove("hidden"); renderAdmin(); } else { $("adminGate").classList.remove("hidden"); $("adminBody").classList.add("hidden"); $("adminPass").value=""; } };
 $("summaryAdminBtn").onclick=()=>{
  _adminReturnTo = "summaryOverlay"; // return here on close
@@ -4256,7 +4292,7 @@ if ("serviceWorker" in navigator) {
 }
 
 
-$("summaryRankedBtn").onclick=()=>{ const last=state.history[state.history.length-1]; if(!last) return; buildRankedSummary(last); $("summaryOverlay").classList.add("hidden"); $("rankedOverlay").classList.remove("hidden"); };
+$("summaryRankedBtn").onclick=()=>{ const selected=state.history[getSummarySelectedIndex()]; if(!selected) return; buildRankedSummary(selected); $("summaryOverlay").classList.add("hidden"); $("rankedOverlay").classList.remove("hidden"); };
 
 try{ updateStartPageLinks(); }catch(e){}
 
