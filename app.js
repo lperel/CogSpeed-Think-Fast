@@ -2,10 +2,10 @@
 // CogSpeed V414
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V414";
+const APP_VERSION = "V415";
 
 // ═══════════════════════════════════════════════════
-// RECENT INTEGRATED PROGRAM CHANGES (through V414)
+// RECENT INTEGRATED PROGRAM CHANGES (through V415)
 // This block summarizes the major program updates that were merged into
 // the current main line so future edits do not have to reconstruct them
 // from one-off patch builds.
@@ -4450,9 +4450,8 @@ function renderSpeedometerOutcome(result, sessionIndex){
  syncSpeedometerSessionSelect(idx);
  const info = $("speedometerSessionInfo");
  if(info){
-  info.textContent = result
-   ? `Showing Session ${idx+1} · ${formatModeTag(result.testMode)} · ${result.subjectId||"—"} · ${result.time?new Date(result.time).toLocaleString():"—"}`
-   : "No session selected";
+  info.textContent = "";
+  info.style.display = "none";
  }
  stopSpeedometer();
  setTimeout(()=>animateSpeedometer(canvas, cps, mbs, success), 80);

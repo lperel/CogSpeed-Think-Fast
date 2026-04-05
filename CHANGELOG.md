@@ -1,3 +1,7 @@
+## V415 — Speedometer space cleanup
+- Hid the redundant Speedometer session info line under the selector.
+- Reduced the Speedometer size slightly so the lower buttons fit on screen more comfortably.
+
 ## V414 — Audit clean merge + version alignment
 
 - Re-ran a DOM/wiring audit against the active V413 line; no missing active DOM IDs were found in the live UI.
