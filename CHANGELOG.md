@@ -1,3 +1,9 @@
+## V414 — Audit clean merge + version alignment
+
+- Re-ran a DOM/wiring audit against the active V413 line; no missing active DOM IDs were found in the live UI.
+- Fixed stale static version drift so the visible badge, status line, script query string, manifest, service worker, and app version all match V414.
+- Refreshed top-of-file integrated-change comments to match the current merged main line through V414, including the Speedometer session browser.
+
 ## V412 — Wiring audit / stale-drift cleanup
 - Consolidated remaining manual admin-open boilerplate to use `openAdminFromOverlay()` for Outcome, Summary, and Rate/RT paths.
 - Corrected stale inline comments describing the gear-spin hold; active behavior remains the same.
@@ -112,3 +118,9 @@ It is meant to provide a readable history without overloading inline code commen
 - Refreshed top-of-file integrated-change comments to match the current main line through V410.
 - Verified current startup wiring remains consolidated to a single load initializer and response-graph controls are wired in the active path.
 - No scoring, pacing, sleep, or graph-math logic changes in this audit build.
+
+## V413 — Speedometer session browser
+- Added Speedometer session selector with Prev / Next controls.
+- Speedometer now states which session is currently displayed.
+- View Results, Trial Detail Log, Rate vs RT, and Response-Time Graph launched from Speedometer now follow the selected session.
+- Kept version/package/release identifiers aligned.
