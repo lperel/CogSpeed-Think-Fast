@@ -1,11 +1,11 @@
 // ═══════════════════════════════════════════════════
-// CogSpeed V442
+// CogSpeed V444
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V442";
+const APP_VERSION = "V444";
 
 // ═══════════════════════════════════════════════════
-// RECENT INTEGRATED PROGRAM CHANGES (through V442)
+// RECENT INTEGRATED PROGRAM CHANGES (through V444)
 // This block summarizes the major program updates that were merged into
 // the current main line so future edits do not have to reconstruct them
 // from one-off patch builds.
@@ -3276,46 +3276,27 @@ function openSpeedometerSession(idx){
 }
 
 function showResultsPage(){
- beginCurtainTransition();
- const last=state.history[state.history.length-1];
- let completed=false;
- const completeResultsTransition=()=>{
-  if(completed) return;
-  completed=true;
-  clearCurtainWatchdog();
-  const ts=$("testScreen"); if(ts) ts.classList.add("hidden");
-  const thinking=$("thinkingOverlay");
-  try{
-   stopFX();
-   if(thinking) thinking.classList.add("hidden");
-   syncSummarySessionSelect(state.history.length-1);
-   renderSpeedometerOutcome(last);
-  } finally {
-   normalizeCurtainForTesting();
-   try{ updateStartPageLinks(); }catch(e){}
-  }
- };
- armCurtainWatchdog(4600, completeResultsTransition);
- // 1. Spin all gears for 1.0s before thinking box
- stimGrid.querySelectorAll(".stim-cell").forEach((c,i)=>{
-  c.classList.remove("gidle-f","gidle-r");
-  c.classList.add(i%2===0?"gspin-f":"gspin-r");
- });
- respGrid.querySelectorAll(".resp-btn").forEach((b,i)=>{
-  b.classList.remove("gidle-f","gidle-r");
-  b.classList.add(i%2===0?"gspin-f":"gspin-r");
- });
- probeCell.classList.remove("gidle-f"); probeCell.classList.add("gspin-f");
- // 2. Close curtain
- const curtain=$("curtain"); if(curtain) curtain.classList.remove("open");
- endCurtainTransition();
- setTimeout(()=>{
-  const ts=$("testScreen"); if(ts) ts.classList.add("hidden");
+ // Results path uses the safer option: bypass shared endCurtainTransition()
+ // and normalize the curtain/test-screen state directly. This avoids any
+ // results handoff dependence on transition-end cleanup ordering.
+ document.body.classList.remove("curtain-active");
+ const curtain=$("curtain");
+ if(curtain){
+  curtain.classList.add("open");
+  curtain.classList.remove("closing","opening");
+ }
+ clearCurtainWatchdog();
+ const ts=$("testScreen"); if(ts){ ts.classList.add("hidden"); ts.style.pointerEvents="auto"; }
+ const thinking=$("thinkingOverlay");
+ try{
+  stopFX();
+  if(thinking) thinking.classList.add("hidden");
   syncSummarySessionSelect(state.history.length-1);
-  const thinking=$("thinkingOverlay");
-  if(thinking){ thinking.classList.remove("hidden"); startFX(); }
-  setTimeout(completeResultsTransition,2000);
- },2000);
+  const last=state.history[state.history.length-1];
+  renderSpeedometerOutcome(last);
+ } finally {
+  try{ updateStartPageLinks(); }catch(e){}
+ }
 }
 
 // ─── Session control ───
@@ -3410,31 +3391,27 @@ function hardResetCurtainState(hideTestScreen=false){
  document.body.classList.remove("curtain-active");
  const curtain=$("curtain");
  if(curtain){
+  curtain.classList.add("open");
   curtain.classList.remove("closing","opening");
   curtain.style.transition="none";
-  curtain.classList.add("open");
   void curtain.offsetWidth;
   curtain.style.transition="";
  }
  const ts=$("testScreen");
  if(ts){
   if(hideTestScreen) ts.classList.add("hidden");
-  else ts.classList.remove("transition-blocked");
+  else {
+   ts.classList.remove("hidden");
+   ts.classList.remove("transition-blocked");
+  }
+  ts.style.pointerEvents="auto";
  }
 }
 function beginCurtainTransition(){
  hardResetCurtainState(false);
- document.body.classList.add("curtain-active");
- hideAllOverlays();
- const rb=$("resultBox"); if(rb){ rb.textContent=""; rb.classList.add("hidden"); }
- const pl=$("phaseLabel"); if(pl) pl.textContent="";
- const sl=$("statusLine"); if(sl) sl.textContent="";
- const probeLbl=document.querySelector("#testScreen .probe-label");
- if(probeLbl) probeLbl.textContent="";
 }
 function endCurtainTransition(){
- document.body.classList.remove("curtain-active");
- clearCurtainWatchdog();
+ hardResetCurtainState(false);
 }
 function normalizeCurtainForTesting(){
  hardResetCurtainState(false);
@@ -3449,52 +3426,16 @@ function armCurtainWatchdog(ms, fallback){
 }
 
 function runGearSpinThenStart(callback) {
- beginCurtainTransition();
+ hardResetCurtainState(false);
  const ts = $("testScreen"); if(ts) ts.classList.remove("hidden");
- let completed=false;
- const finishStartTransition=()=>{
-  if(completed) return;
-  completed=true;
-  clearCurtainWatchdog();
-  try{
-   callback();
-  }finally{
-   normalizeCurtainForTesting();
-  }
- };
- armCurtainWatchdog(2600, finishStartTransition);
-
  stimGrid.innerHTML = "";
- for(let i=0;i<6;i++){
-  const cell = document.createElement("div");
-  cell.className = "stim-cell";
-  cell.innerHTML = buildGearSVG(i+1, null, "large", i%2===0?"gspin-f":"gspin-r");
-  stimGrid.appendChild(cell);
- }
-
  probeCell.classList.remove("idle");
- probeInner.innerHTML = buildGearSVG(0, null, "probe", "gspin-f");
-
+ probeInner.innerHTML = "";
  respGrid.innerHTML = "";
- for(let i=0;i<6;i++){
-  const btn = document.createElement("div");
-  btn.className = "resp-btn";
-  btn.innerHTML = buildGearSVG(i+1, null, "large", i%2===0?"gspin-f":"gspin-r");
-  respGrid.appendChild(btn);
- }
-
- const curtain = $("curtain");
- if(curtain){
-  curtain.classList.remove("open");
-  void curtain.offsetWidth;
- }
-
  setTimeout(()=>{
-  if(curtain) curtain.classList.add("open");
-  setTimeout(()=>{
-   setTimeout(finishStartTransition, 1000);
-  }, 750);
- }, 40);
+  hardResetCurtainState(false);
+  callback();
+ }, 20);
 }
 
 // ─── START TEST ───

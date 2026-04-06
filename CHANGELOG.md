@@ -1,3 +1,14 @@
+## V444 — Results-path curtain watchdog safety cleanup
+- Kept the app as a single monolithic `app.js`.
+- Applied the safer results-path curtain handling pattern so the results handoff does not depend on `endCurtainTransition()` clearing watchdog state.
+- Kept curtain reset defensive, but results transition now bypasses shared curtain-end cleanup in favor of direct state normalization.
+- Refreshed live/package version references to V444.
+
+## V444 — Stabilization build: curtain removed from live flow
+- Removed curtain animation from live start, trial-transition, and finish/results flow so app state no longer depends on transition callbacks.
+- Kept a hard curtain reset only as defensive cleanup across all modes, including Mode 2.
+- Refreshed live/package version references to V444.
+
 ## V442 — Transition-system fail-safe hardening across Modes 1–4
 - Re-ran version/package alignment and active DOM wiring audit against the V441 monolith line; no missing active DOM IDs or duplicate HTML IDs were found.
 - Hardened the shared curtain transition system so start, trial advance, and finish/results no longer depend on animation completion callbacks.
