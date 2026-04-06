@@ -1,11 +1,11 @@
 // ═══════════════════════════════════════════════════
-// CogSpeed V449
+// CogSpeed V450
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V449";
+const APP_VERSION = "V450";
 
 // ═══════════════════════════════════════════════════
-// RECENT INTEGRATED PROGRAM CHANGES (through V449)
+// RECENT INTEGRATED PROGRAM CHANGES (through V450)
 // This block summarizes the major program updates that were merged into
 // the current main line so future edits do not have to reconstruct them
 // from one-off patch builds.
@@ -327,6 +327,7 @@ const state={
  activeMode:"mode1", selfPacedRTs:[], selfPacedCorrect:0, selfPacedWrong:0,
  fixedPacedBaseline:null, fixedPacedPresented:0, fixedPacedCorrect:0, fixedPacedWrong:0,
  trialOpenedAt:null, geo:null, benchmark:null, lastResultText:null,
+ activeResult:null, activeSessionIndex:null, activeResultSource:null,
  sleepSinceLastTest:null,
  sleepLog:null,
  pendingPriorMiss:null, pendingLatePacing:null,
@@ -361,6 +362,50 @@ function syncReleaseUI(){
  if(statusLine) statusLine.textContent = `CogSpeed ${APP_VERSION}`;
 }
 syncReleaseUI();
+
+function formatActiveResultSource(result, sessionIndex, sourceHint){
+ const idx = Number.isFinite(Number(sessionIndex)) ? Number(sessionIndex) : (result && Array.isArray(state.history) ? state.history.indexOf(result) : -1);
+ const when = result && result.time ? new Date(result.time).toLocaleString() : 'unsaved';
+ const base = idx>=0 ? `history[${idx}]` : 'currentResult';
+ const extra = sourceHint ? ` · ${sourceHint}` : '';
+ return `SOURCE: ${base}${extra} · ${when}`;
+}
+function setActiveResultContext(result, sessionIndex, sourceHint){
+ state.activeResult = result || null;
+ state.activeSessionIndex = Number.isFinite(Number(sessionIndex)) ? Number(sessionIndex) : ((result && Array.isArray(state.history)) ? state.history.indexOf(result) : null);
+ state.activeResultSource = formatActiveResultSource(result, state.activeSessionIndex, sourceHint||'');
+ return {result:state.activeResult, index:state.activeSessionIndex, source:state.activeResultSource};
+}
+function resolveResultContext(resultOverride, sessionIndex, sourceHint){
+ if(resultOverride){
+  return setActiveResultContext(resultOverride, sessionIndex, sourceHint || (Array.isArray(state.history) && state.history.indexOf(resultOverride)>=0 ? 'explicit resultOverride' : 'explicit current result'));
+ }
+ if(Number.isFinite(Number(sessionIndex)) && Array.isArray(state.history) && state.history[Number(sessionIndex)]){
+  return setActiveResultContext(state.history[Number(sessionIndex)], Number(sessionIndex), sourceHint || 'explicit session index');
+ }
+ if(state.activeResult){
+  return setActiveResultContext(state.activeResult, state.activeSessionIndex, sourceHint || 'active result');
+ }
+ if(Array.isArray(state.history) && state.history.length){
+  return setActiveResultContext(state.history[state.history.length-1], state.history.length-1, sourceHint || 'latest saved history');
+ }
+ return {result:null, index:null, source:'SOURCE: none'};
+}
+function applySummarySourceDiagnostic(result, sessionIndex, sourceText){
+ const el=$('summaryText'); if(!el||!result) return;
+ const source = sourceText || formatActiveResultSource(result, sessionIndex, 'summary');
+ const body = String(el.textContent||'');
+ const lines = body.split('\n');
+ if(lines[0]===source) return;
+ el.textContent = `${source}\n${body}`;
+}
+function applySpeedometerSourceDiagnostic(result, sessionIndex, sourceText){
+ const info=$('speedometerSessionInfo');
+ if(!info) return;
+ if(!result){ info.textContent=''; info.style.display='none'; return; }
+ info.textContent = sourceText || formatActiveResultSource(result, sessionIndex, 'speedometer');
+ info.style.display='block';
+}
 
 // ─── Utilities ───
 function randInt(min,max){ return Math.floor(Math.random()*(max-min+1))+min; }
@@ -1244,6 +1289,7 @@ function finish(){
    rtLog:[...state.rtLog], endReason:state.endReason||"Run complete",
    time:new Date().toISOString(), geo:state.geo, timingQuality
   };
+  setActiveResultContext(result, null, "computed result");
   if(result.sleepSinceLastTest==="yes" && result.sleepLog){
    const wakeIso = deriveWakeDateTimeIso(result.sleepLog.wakeTime, result.time);
    if(wakeIso) result.sleepLog.wakeDateTimeIso = wakeIso;
@@ -1257,6 +1303,7 @@ function finish(){
   setFlowDiagnostic("FINISH_SAVE", `FINISH_SAVE — ${result.endReason||"Run complete"}`);
   state.history.push(result);
   localStorage.setItem(`${STORAGE_PREFIX}_history`,JSON.stringify(state.history));
+  setActiveResultContext(result, state.history.length-1, "saved history");
   try{ updateStartPageLinks(); }catch(e){}
  }catch(err){
   console.error("finish save failed", err);
@@ -1266,6 +1313,7 @@ function finish(){
  try{
   setFlowDiagnostic("FINISH_RENDER", `FINISH_RENDER — ${result.endReason||"Run complete"}`);
   buildSummary(result);
+  applySummarySourceDiagnostic(result, state.activeSessionIndex, state.activeResultSource);
   state.lastResultText = $("summaryText") ? $("summaryText").textContent : "";
  }catch(err){
   console.error("finish render failed", err);
@@ -3327,10 +3375,12 @@ function syncSummarySessionSelect(selectedIdx){
 }
 
 function openSummarySession(idx){
- if(!state.history.length) return;
- const clamped = Math.max(0, Math.min(state.history.length-1, Number(idx)||0));
- syncSummarySessionSelect(clamped);
- buildSummary(state.history[clamped]);
+ const ctx = resolveResultContext(null, idx, "summary session");
+ if(!ctx.result) return;
+ const clamped = Number.isFinite(Number(ctx.index)) ? Math.max(0, Math.min(state.history.length-1, Number(ctx.index))) : null;
+ if(clamped!=null) syncSummarySessionSelect(clamped);
+ buildSummary(ctx.result);
+ applySummarySourceDiagnostic(ctx.result, clamped, ctx.source);
  $("summaryOverlay").classList.remove("hidden");
 }
 
@@ -3359,12 +3409,11 @@ function syncSpeedometerSessionSelect(selectedIdx){
 }
 
 function openSpeedometerSession(idx){
- if(!state.history || !state.history.length) return goToStartPage();
- const clamped = Math.max(0, Math.min(state.history.length-1, Number(idx)||0));
- const result = state.history[clamped];
+ const ctx = resolveResultContext(null, idx, "speedometer session");
+ if(!ctx.result) return goToStartPage();
  hideAllOverlays();
- syncSpeedometerSessionSelect(clamped);
- renderSpeedometerOutcome(result, clamped);
+ if(Number.isFinite(Number(ctx.index)) && ctx.index>=0) syncSpeedometerSessionSelect(ctx.index);
+ renderSpeedometerOutcome(ctx.result, ctx.index);
 }
 
 function showResultsPage(resultOverride){
@@ -3375,19 +3424,19 @@ function showResultsPage(resultOverride){
  const thinking=$("thinkingOverlay");
  const outcome=$("outcomeOverlay");
  const testScreen=$("testScreen");
+ const ctx = resolveResultContext(resultOverride, null, "showResultsPage");
  try{
   stopFX();
   if(testScreen) testScreen.classList.add("hidden");
   if(thinking) thinking.classList.add("hidden");
   if(outcome) outcome.classList.remove("hidden");
-  const last=resultOverride || state.history[state.history.length-1];
-  const idx = last ? state.history.indexOf(last) : -1;
-  if(idx>=0) syncSummarySessionSelect(idx);
-  renderSpeedometerOutcome(last);
+  if(Number.isFinite(Number(ctx.index)) && ctx.index>=0) syncSummarySessionSelect(ctx.index);
+  renderSpeedometerOutcome(ctx.result, ctx.index);
  }catch(err){
   console.error("showResultsPage failed", err);
   if(outcome) outcome.classList.remove("hidden");
-  try{ syncOutcomeStatusText(resultOverride || state.history[state.history.length-1] || {endReason:state.endReason||"Run complete"}); }catch(e){}
+  try{ syncOutcomeStatusText(ctx.result || {endReason:state.endReason||"Run complete"}); }catch(e){}
+  try{ applySpeedometerSourceDiagnostic(ctx.result, ctx.index, ctx.source); }catch(e){}
  }finally{
   try{ updateStartPageLinks(); }catch(e){}
  }
@@ -4655,9 +4704,10 @@ const _ecb=$("exportCsvAdminBtn"); if(_ecb) _ecb.onclick=exportCSV;
 $("adminTrialLogBtn").onclick=()=>{ buildTrialLog(state.history.length-1); $("trialLogOverlay").classList.remove("hidden"); };
 const _arrb=$("adminRateRtBtn"); if(_arrb) _arrb.onclick=()=>{ $("adminOverlay").classList.add("hidden"); $("rateRtOverlay").classList.remove("hidden"); buildRateRtOverlay(); };
 $("adminLastResultBtn").onclick=()=>{
- if(!state.history.length){ setStatus("No results yet."); return; }
+ const ctx = resolveResultContext(null, null, "admin last result");
+ if(!ctx.result){ setStatus("No results yet."); return; }
  $("adminOverlay").classList.add("hidden");
- openSummarySession(state.history.length-1);
+ openSummarySession(ctx.index);
 };
 $("trialLogCsvBtn").onclick=()=>downloadTrialLogCSV();
 const _rrsel=$("rateRtSessionSelect"); if(_rrsel) _rrsel.onchange=()=>buildRateRtOverlay();
@@ -4867,12 +4917,9 @@ function renderSpeedometerOutcome(result, sessionIndex){
  const wrap = $("speedometerWrap");
  if(wrap) canvas.style.width = wrap.offsetWidth + "px";
  const idx = Number.isFinite(Number(sessionIndex)) ? Math.max(0, Math.min(state.history.length-1, Number(sessionIndex))) : (result ? Math.max(0, state.history.indexOf(result)) : Math.max(0, state.history.length-1));
- syncSpeedometerSessionSelect(idx);
- const info = $("speedometerSessionInfo");
- if(info){
-  info.textContent = "";
-  info.style.display = "none";
- }
+ setActiveResultContext(result, idx>=0?idx:null, idx>=0?"rendered from history":"rendered current result");
+ if(idx>=0) syncSpeedometerSessionSelect(idx);
+ applySpeedometerSourceDiagnostic(result, idx>=0?idx:null, state.activeResultSource);
  const mode4Toggle=$("speedometerMode4ToggleBtn");
  if(mode4Toggle){
   if(result && result.testMode==="mode4" && result.mode4Triggered){
@@ -4900,7 +4947,8 @@ function syncOutcomeStatusText(result){
 function openSpeedometerPage(sessionIndex){
  try{ wireEmailSelectControls(); }catch(err){}
  try{ wireEmailDraftAction(); }catch(err){}
- const idx = Number.isFinite(Number(sessionIndex)) ? Math.max(0, Math.min(state.history.length-1, Number(sessionIndex))) : (state.history && state.history.length ? state.history.length-1 : null);
+ const ctx = resolveResultContext(null, sessionIndex, "openSpeedometerPage");
+ const idx = Number.isFinite(Number(ctx.index)) ? Math.max(0, Math.min(state.history.length-1, Number(ctx.index))) : null;
  if(idx!=null){
   openSpeedometerSession(idx);
  }else{
@@ -4911,7 +4959,8 @@ function openSpeedometerPage(sessionIndex){
 function openSpeedometerFromAdmin(sessionIndex){
  const admin = $("adminOverlay");
  if(admin) admin.classList.add("hidden");
- const idx = Number.isFinite(Number(sessionIndex)) ? Math.max(0, Math.min(state.history.length-1, Number(sessionIndex))) : (state.history && state.history.length ? state.history.length-1 : null);
+ const ctx = resolveResultContext(null, sessionIndex, "openSpeedometerFromAdmin");
+ const idx = Number.isFinite(Number(ctx.index)) ? Math.max(0, Math.min(state.history.length-1, Number(ctx.index))) : null;
  if(idx!=null){
   openSpeedometerSession(idx);
  }else{

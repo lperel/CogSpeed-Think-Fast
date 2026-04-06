@@ -1,3 +1,9 @@
+## V450 — Result/session source-of-truth unification
+- Unified result/session selection so Admin Results, Speedometer, and Results Summary resolve through one active-result context before falling back to saved history.
+- Added visible source diagnostics to Results Summary and Speedometer, showing whether the view is rendering from the current result or a saved history session.
+- Updated finish/save/show paths so the current result context is carried forward even if history save or summary rendering has partial failures.
+- Refreshed live/package version references to V450.
+
 ## V449 — Fail-open finish pipeline stabilization
 - Reworked the finish path into fail-open stages so the app cannot strand the user on the test screen if result computation, localStorage save, summary rendering, or results handoff fails.
 - Added visible finish-phase diagnostics for smoke testing: `FINISH_COMPUTE`, `FINISH_SAVE`, `FINISH_RENDER`, and `FINISH_SHOW`, while trial openings now mark `TRIAL`.
