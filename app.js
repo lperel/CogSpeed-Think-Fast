@@ -1,11 +1,11 @@
 // ═══════════════════════════════════════════════════
-// CogSpeed V445
+// CogSpeed V446
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V445";
+const APP_VERSION = "V446";
 
 // ═══════════════════════════════════════════════════
-// RECENT INTEGRATED PROGRAM CHANGES (through V445)
+// RECENT INTEGRATED PROGRAM CHANGES (through V446)
 // This block summarizes the major program updates that were merged into
 // the current main line so future edits do not have to reconstruct them
 // from one-off patch builds.
@@ -96,10 +96,6 @@ const APP_VERSION = "V445";
 //    - Failed non-triggered Mode 4 sessions now leave SPI and SBLP empty in
 //      saved results so historical summaries, Results pages, and session
 //      lists do not imply sustained scoring occurred when it did not.
-// 8) V445 curtain-neutral stabilization
-//    - Curtain removed from live start, trial-advance, and finish/results control flow.
-//    - Curtain is now non-blocking and decorative only; it can no longer block taps.
-//    - Mode 2 explicitly included in the shared transition-neutral cleanup path.
 // ═══════════════════════════════════════════════════
 
 const RELEASE = APP_VERSION.replace(/^V/i, "");
@@ -1969,32 +1965,34 @@ function drawModeResultChart(canvas,result){
  const cW=W-PAD.left-PAD.right,cH=H-PAD.top-PAD.bottom;
 
  const mode1Trials = result.testMode==="mode1"
-  ? log.filter(e=>[
-     "paced","paced_wrong","paced_late_correct","paced_late_wrong","missed"
-    ].includes(e.phase) && e.durationMs!=null)
+  ? log.filter(e=>["paced","paced_wrong","paced_late_correct","paced_late_wrong","missed"].includes(e.phase) && e.durationMs!=null)
   : [];
- const mode1Responses = result.testMode==="mode1"
-  ? mode1Trials.filter(e=>e.rt!=null)
-  : [];
- const mode1Misses = result.testMode==="mode1"
-  ? mode1Trials.filter(e=>e.phase==="missed")
-  : [];
+ const mode1Responses = result.testMode==="mode1" ? mode1Trials.filter(e=>e.rt!=null) : [];
+ const mode1Misses = result.testMode==="mode1" ? mode1Trials.filter(e=>e.phase==="missed") : [];
+
+ const includedPhasesByMode = {
+  mode2:["calibration"],
+  mode3:["calibration","paced_fixed","paced_fixed_wrong","paced_fixed_missed"],
+  mode4:["calibration","paced","paced_wrong","paced_late_correct","paced_late_wrong","missed","mode4_sustained","mode4_sustained_wrong","mode4_sustained_missed","mode4_final"]
+ };
+ const sequence = result.testMode==="mode1"
+  ? mode1Trials
+  : log.filter(e=>(includedPhasesByMode[result.testMode]||[]).includes(e.phase));
+ const seqIndex = new Map();
+ sequence.forEach((e,i)=>{ if(!seqIndex.has(e)) seqIndex.set(e,i); });
 
  const pts = result.testMode==="mode1"
   ? mode1Responses
-  : log.filter(e=>e.rt!=null && (
-     result.testMode==="mode2" ? e.phase==="calibration"
-     : result.testMode==="mode3" ? (e.phase==="calibration" || e.phase==="paced_fixed" || e.phase==="paced_fixed_wrong")
-     : result.testMode==="mode4" ? (["calibration","paced","paced_wrong","paced_late_correct","paced_late_wrong","mode4_sustained","mode4_sustained_wrong","mode4_final"].includes(e.phase))
-     : false
+  : sequence.filter(e=>e.rt!=null && (
+      result.testMode!=="mode4" || ["calibration","paced","paced_wrong","paced_late_correct","paced_late_wrong","mode4_sustained","mode4_sustained_wrong","mode4_final"].includes(e.phase)
     ));
 
  const presentedSeries = result.testMode==="mode1"
   ? mode1Trials
   : result.testMode==="mode3"
-    ? log.filter(e=>e.durationMs!=null && (e.phase==="paced_fixed" || e.phase==="paced_fixed_wrong" || e.phase==="paced_fixed_missed"))
+    ? sequence.filter(e=>e.durationMs!=null && ["paced_fixed","paced_fixed_wrong","paced_fixed_missed"].includes(e.phase))
     : result.testMode==="mode4"
-      ? log.filter(e=>e.durationMs!=null && (["paced","paced_wrong","paced_late_correct","paced_late_wrong","missed","mode4_sustained","mode4_sustained_wrong","mode4_sustained_missed"].includes(e.phase)))
+      ? sequence.filter(e=>e.durationMs!=null && ["paced","paced_wrong","paced_late_correct","paced_late_wrong","missed","mode4_sustained","mode4_sustained_wrong","mode4_sustained_missed"].includes(e.phase))
       : [];
 
  if(!pts.length && !presentedSeries.length){
@@ -2010,11 +2008,10 @@ function drawModeResultChart(canvas,result){
  const maxRT=Math.ceil(Math.max(...combinedVals,1000)/250)*250;
  const minRT=Math.max(0,Math.floor(Math.min(...combinedVals)/250)*250);
 
- const xCount = result.testMode==="mode1"
-  ? Math.max(1, mode1Trials.length)
-  : Math.max(1, Math.max(pts.length, presentedSeries.length));
+ const xCount = result.testMode==="mode1" ? Math.max(1, mode1Trials.length) : Math.max(1, sequence.length);
  function xO(i, n=xCount){ return PAD.left + (i/Math.max(1,n-1))*cW; }
  function yO(v){ return PAD.top + ((v-minRT)/Math.max(1,(maxRT-minRT)))*cH; }
+ function idxOfEntry(e){ return result.testMode==="mode1" ? mode1Trials.indexOf(e) : (seqIndex.get(e) ?? 0); }
 
  if(isFull){
   ctx.fillStyle="#d7e7f8";
@@ -2054,12 +2051,33 @@ function drawModeResultChart(canvas,result){
  ctx.lineTo(PAD.left+cW, PAD.top+cH);
  ctx.stroke();
 
+ if(result.testMode==="mode4" && sequence.length){
+  const sustainedStart = sequence.findIndex(e=>String(e.phase||"").startsWith("mode4_sustained"));
+  const finalStart = sequence.findIndex(e=>e.phase==="mode4_final");
+  const markers = [
+   sustainedStart>0 ? {idx:sustainedStart,label:"Sustained MBS"} : null,
+   finalStart>0 ? {idx:finalStart,label:"Final self-paced"} : null
+  ].filter(Boolean);
+  markers.forEach((m,mi)=>{
+   const x = xO(m.idx);
+   ctx.strokeStyle = "rgba(255,255,255,0.28)";
+   ctx.lineWidth = 1.5;
+   ctx.beginPath(); ctx.moveTo(x, PAD.top); ctx.lineTo(x, PAD.top+cH); ctx.stroke();
+   ctx.save();
+   ctx.fillStyle = "#d7e7f8";
+   ctx.font = (isFull?"11px":"9px")+" sans-serif";
+   ctx.textAlign = "center";
+   ctx.fillText(m.label, x + (mi===0?40:50), PAD.top + 14 + mi*12);
+   ctx.restore();
+  });
+ }
+
  if(presentedSeries.length){
   ctx.strokeStyle="rgba(255,170,68,0.95)";
   ctx.lineWidth=isFull?3:2;
   ctx.beginPath();
   presentedSeries.forEach((e,i)=>{
-   const x = result.testMode==="mode1" ? xO(mode1Trials.indexOf(e)) : xO(i, presentedSeries.length);
+   const x = xO(idxOfEntry(e));
    const y = yO(e.durationMs);
    if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
   });
@@ -2071,16 +2089,16 @@ function drawModeResultChart(canvas,result){
   ctx.lineWidth=isFull?2.5:1.5;
   ctx.beginPath();
   pts.forEach((e,i)=>{
-   const x = result.testMode==="mode1" ? xO(mode1Trials.indexOf(e)) : xO(i, pts.length);
+   const x = xO(idxOfEntry(e));
    const y = yO(e.rt);
    if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
   });
   ctx.stroke();
  }
 
- pts.forEach((e,i)=>{
+ pts.forEach((e)=>{
   const ok=e.outcome==="correct";
-  const x = result.testMode==="mode1" ? xO(mode1Trials.indexOf(e)) : xO(i, pts.length);
+  const x = xO(idxOfEntry(e));
   const y = yO(e.rt);
   ctx.fillStyle=ok ? "#00ff88" : "#ff4466";
   ctx.beginPath(); ctx.arc(x,y, isFull?5:3.5,0,Math.PI*2); ctx.fill();
@@ -2139,7 +2157,9 @@ function drawModeResultChart(canvas,result){
   ? "Machine-paced trial →"
   : result.testMode==="mode2"
     ? "Self-Paced trial →"
-    : "Self-Paced + Machine-Paced trial →";
+    : result.testMode==="mode4"
+      ? "Adaptive → Sustained MBS → Final self-paced trial →"
+      : "Self-Paced + Machine-Paced trial →";
  ctx.fillText(xLabel, PAD.left+cW/2, H-10);
  if(!isFull){
   const modeTxt=formatModeTag(result.testMode);
@@ -3280,21 +3300,27 @@ function openSpeedometerSession(idx){
 }
 
 function showResultsPage(){
- // Curtain-neutral results handoff: do not use curtain state or animation.
+ // Curtain-neutral results handoff: curtain is fully non-blocking here.
  clearCurtainWatchdog();
- document.body.classList.remove("curtain-active");
  hardResetCurtainState(true);
+ hideAllOverlays();
  const thinking=$("thinkingOverlay");
+ const outcome=$("outcomeOverlay");
  try{
   stopFX();
   if(thinking) thinking.classList.add("hidden");
+  if(outcome) outcome.classList.remove("hidden");
   syncSummarySessionSelect(state.history.length-1);
   const last=state.history[state.history.length-1];
   renderSpeedometerOutcome(last);
- } finally {
+ }catch(err){
+  console.error("showResultsPage failed", err);
+  if(outcome) outcome.classList.remove("hidden");
+ }finally{
   try{ updateStartPageLinks(); }catch(e){}
  }
 }
+
 
 // ─── Session control ───
 // ─── SESSION STATE MANAGEMENT ─────────────────────────────────
@@ -3388,10 +3414,11 @@ function hardResetCurtainState(hideTestScreen=false){
  document.body.classList.remove("curtain-active");
  const curtain=$("curtain");
  if(curtain){
-  curtain.classList.remove("open","closing","opening");
+  curtain.classList.add("open");
+  curtain.classList.remove("closing","opening");
   curtain.style.transition="none";
-  curtain.style.display="none";
-  curtain.style.pointerEvents="none";
+  void curtain.offsetWidth;
+  curtain.style.transition="";
  }
  const ts=$("testScreen");
  if(ts){
@@ -3428,8 +3455,10 @@ function runGearSpinThenStart(callback) {
  probeCell.classList.remove("idle");
  probeInner.innerHTML = "";
  respGrid.innerHTML = "";
- try{ callback(); }
- finally{ hardResetCurtainState(false); }
+ setTimeout(()=>{
+  hardResetCurtainState(false);
+  callback();
+ }, 20);
 }
 
 // ─── START TEST ───
@@ -5045,37 +5074,44 @@ function drawPerformanceOverTimeChart(canvas,hist){
   const cW = W - PAD.left - PAD.right;
   const cH = H - PAD.top - PAD.bottom;
 
+  const allTriggeredMode4 = slice.every(r=>r && r.testMode==="mode4" && r.mode4Triggered);
+  const mixedMode4 = slice.some(r=>r && r.testMode==="mode4" && r.mode4Triggered) && !allTriggeredMode4;
+  const leftMetricLabel = allTriggeredMode4 ? "SBLP ms" : mixedMode4 ? "MBS / SBLP ms" : "MBS ms";
+  const leftScoreLabel = allTriggeredMode4 ? "SPI" : mixedMode4 ? "CPI / SPI" : "CPI";
+  const dotLegend = allTriggeredMode4 ? "Blue dot = SPI" : mixedMode4 ? "Blue dot = CPI / SPI" : "Blue dot = CPI";
+  const ringLegend = allTriggeredMode4 ? "Orange circle = SBLP" : mixedMode4 ? "Orange circle = MBS / SBLP" : "Orange circle = MBS";
+
   function xOf(i){
     if(n<=1) return PAD.left + cW/2;
     return PAD.left + (i/(n-1))*cW;
   }
-  function yLeftFromCpi(v){ return PAD.top + cH - ((v-0)/100)*cH; }
-  function cpiFromMs(ms){
+  function yLeftFromScore(v){ return PAD.top + cH - ((v-0)/100)*cH; }
+  function scoreFromMs(ms){
     const span=(worstMs-bestMs)||1;
     return Math.max(0, Math.min(100, 100*(worstMs-ms)/span));
   }
-  function yLeftFromMs(ms){ return yLeftFromCpi(cpiFromMs(ms)); }
+  function yLeftFromMs(ms){ return yLeftFromScore(scoreFromMs(ms)); }
   function yRightFromSpf(v){ return PAD.top + cH - (((v-1)/6))*cH; }
 
   ctx.strokeStyle="rgba(127,215,255,0.16)";
   ctx.lineWidth=1;
   [0,25,50,75,100].forEach(v=>{
-    const y=yLeftFromCpi(v);
+    const y=yLeftFromScore(v);
     ctx.beginPath(); ctx.moveTo(PAD.left,y); ctx.lineTo(PAD.left+cW,y); ctx.stroke();
   });
 
-  const cpiTicks = [100,75,50,25,0];
-  const mbsTicks = cpiTicks.map(cpi => Math.round(bestMs + ((100-cpi)/100)*(worstMs-bestMs)));
+  const scoreTicks = [100,75,50,25,0];
+  const metricTicks = scoreTicks.map(score => Math.round(bestMs + ((100-score)/100)*(worstMs-bestMs)));
   ctx.font="11px sans-serif";
   ctx.textAlign="right";
-  cpiTicks.forEach((cpi, i)=>{
-    const y = yLeftFromCpi(cpi);
+  scoreTicks.forEach((score, i)=>{
+    const y = yLeftFromScore(score);
     ctx.strokeStyle="#ffb357";
     ctx.beginPath(); ctx.moveTo(PAD.left-46, y); ctx.lineTo(PAD.left-36, y); ctx.stroke();
-    ctx.fillStyle="#ffb357"; ctx.fillText(String(mbsTicks[i]), PAD.left-52, y+4);
+    ctx.fillStyle="#ffb357"; ctx.fillText(String(metricTicks[i]), PAD.left-52, y+4);
     ctx.strokeStyle="#7fd7ff";
     ctx.beginPath(); ctx.moveTo(PAD.left-16, y); ctx.lineTo(PAD.left-6, y); ctx.stroke();
-    ctx.fillStyle="#7fd7ff"; ctx.fillText(String(cpi), PAD.left-22, y+4);
+    ctx.fillStyle="#7fd7ff"; ctx.fillText(String(score), PAD.left-22, y+4);
   });
 
   ctx.textAlign="left";
@@ -5103,12 +5139,12 @@ function drawPerformanceOverTimeChart(canvas,hist){
   ctx.save();
   ctx.translate(18, PAD.top + cH/2); ctx.rotate(-Math.PI/2);
   ctx.fillStyle="#ffb357"; ctx.textAlign="center"; ctx.font="bold 11px sans-serif";
-  ctx.fillText("MBS ms", 0, 0); ctx.restore();
+  ctx.fillText(leftMetricLabel, 0, 0); ctx.restore();
 
   ctx.save();
   ctx.translate(42, PAD.top + cH/2); ctx.rotate(-Math.PI/2);
   ctx.fillStyle="#7fd7ff"; ctx.textAlign="center"; ctx.font="bold 11px sans-serif";
-  ctx.fillText("CPI", 0, 0); ctx.restore();
+  ctx.fillText(leftScoreLabel, 0, 0); ctx.restore();
 
   ctx.save();
   ctx.translate(W-20, PAD.top + cH/2); ctx.rotate(Math.PI/2);
@@ -5162,37 +5198,32 @@ function drawPerformanceOverTimeChart(canvas,hist){
     });
   }
 
-  function drawCombinedPerfMarkers(cpiVals, mbsVals){
+  function drawCombinedPerfMarkers(scoreVals, metricVals){
     ctx.strokeStyle="#7fd7ff";
     ctx.lineWidth=2.5;
     ctx.beginPath();
     let started=false;
-    cpiVals.forEach((cpi,i)=>{
-      const mbs = mbsVals[i];
-      if(cpi==null || mbs==null){ started=false; return; }
-      const x = xOf(i), y = yLeftFromCpi(cpi);
+    scoreVals.forEach((score,i)=>{
+      const metric = metricVals[i];
+      if(score==null || metric==null){ started=false; return; }
+      const x = xOf(i), y = yLeftFromScore(score);
       if(!started){ ctx.moveTo(x,y); started=true; } else { ctx.lineTo(x,y); }
     });
-    if(cpiVals.filter((cpi,i)=>cpi!=null && mbsVals[i]!=null).length>1) ctx.stroke();
+    if(scoreVals.filter((score,i)=>score!=null && metricVals[i]!=null).length>1) ctx.stroke();
 
-    cpiVals.forEach((cpi,i)=>{
-      const mbs = mbsVals[i];
-      if(cpi==null || mbs==null) return;
-      const x = xOf(i), y = yLeftFromCpi(cpi);
-      ctx.beginPath();
-      ctx.arc(x,y,5.6,0,Math.PI*2);
-      ctx.strokeStyle="#ffb357";
-      ctx.lineWidth=3;
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.arc(x,y,2.8,0,Math.PI*2);
-      ctx.fillStyle="#7fd7ff";
-      ctx.fill();
+    scoreVals.forEach((score,i)=>{
+      const metric = metricVals[i];
+      if(score==null || metric==null) return;
+      const x = xOf(i), y = yLeftFromScore(score);
+      ctx.beginPath(); ctx.arc(x,y,5.6,0,Math.PI*2);
+      ctx.strokeStyle="#ffb357"; ctx.lineWidth=3; ctx.stroke();
+      ctx.beginPath(); ctx.arc(x,y,2.8,0,Math.PI*2);
+      ctx.fillStyle="#7fd7ff"; ctx.fill();
     });
   }
 
-  const cpiVals = slice.map(r=>perfSessionCpi(r));
-  const mbsVals = slice.map(r=>perfSessionMs(r));
+  const scoreVals = slice.map(r=>perfSessionCpi(r));
+  const metricVals = slice.map(r=>perfSessionMs(r));
   const spfVals = slice.map(r=>r && r.samnPerelli && r.samnPerelli.score!=null ? Number(r.samnPerelli.score) : null);
   function sleepQualityColor(r){
     const q = String(r?.sleepLog?.qualityLabel || "").trim().toLowerCase();
@@ -5203,7 +5234,7 @@ function drawPerformanceOverTimeChart(canvas,hist){
   }
   const sleepColors = slice.map(r=>sleepQualityColor(r));
 
-  const hasAnyMetric = cpiVals.some(v=>v!=null) || mbsVals.some(v=>v!=null) || spfVals.some(v=>v!=null) || sleepColors.some(v=>v!=null);
+  const hasAnyMetric = scoreVals.some(v=>v!=null) || metricVals.some(v=>v!=null) || spfVals.some(v=>v!=null) || sleepColors.some(v=>v!=null);
   if(!hasAnyMetric){
     ctx.fillStyle="#d7e7f8";
     ctx.font="bold 15px sans-serif";
@@ -5213,7 +5244,7 @@ function drawPerformanceOverTimeChart(canvas,hist){
   }
 
   drawLine(spfVals, v=>yRightFromSpf(v), "#88ff88", "diamond");
-  drawCombinedPerfMarkers(cpiVals, mbsVals);
+  drawCombinedPerfMarkers(scoreVals, metricVals);
 
   const sleepBarY = PAD.top + cH + 18;
   const sleepBarH = 10;
@@ -5240,10 +5271,10 @@ function drawPerformanceOverTimeChart(canvas,hist){
   ctx.fillStyle="#7fd7ff";
   ctx.fill();
   ctx.fillStyle="#7fd7ff";
-  ctx.fillText("Blue dot = CPI", PAD.left+20, PAD.top-14);
+  ctx.fillText(dotLegend, PAD.left+20, PAD.top-14);
   ctx.fillStyle="#ffb357";
-  ctx.fillText("Orange circle = MBS", PAD.left+118, PAD.top-14);
-  ctx.fillStyle="#88ff88"; ctx.fillText("◆ SP-FS", PAD.left+278, PAD.top-14);
+  ctx.fillText(ringLegend, PAD.left+148, PAD.top-14);
+  ctx.fillStyle="#88ff88"; ctx.fillText("◆ SP-FS", PAD.left+322, PAD.top-14);
 
   const legendY = PAD.top + cH + 38;
   ctx.fillStyle = "#ff4d4f"; ctx.fillRect(PAD.left, legendY, 12, 8);

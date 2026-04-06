@@ -1,10 +1,11 @@
-## V445 — Curtain-neutral stabilization
-- Removed curtain behavior from live start, trial-transition, and finish/results control flow.
-- Curtain is now non-blocking and decorative only; it can no longer block taps or gate state progression.
-- Explicitly included Mode 2 in the shared transition-neutral cleanup scope.
-- Refreshed live/package version references to V445.
+## V446 — Curtain-neutral stabilization + Mode 4 graph fixes
+- Removed remaining curtain-active CSS side effects from the live UI shell so the curtain cannot hide overlays or intercept results presentation.
+- Hardened `showResultsPage()` to hide the test screen, clear all overlays, and show the outcome/speedometer directly.
+- Fixed Performance over Date and Time labels for Mode 4 sessions so the chart can show SPI/SBLP labeling rather than stale CPI/MBS-only wording.
+- Fixed the Response-Time graph X alignment bug by plotting RT and presented-rate series on one common sequence axis.
+- Added a Mode 4-specific response-graph X-axis label and phase-boundary markers for sustained and final-trial transitions.
 
-## V444 — Results-path curtain watchdog safety cleanup
+## V446 — Results-path curtain watchdog safety cleanup
 - Kept the app as a single monolithic `app.js`.
 - Applied the safer results-path curtain handling pattern so the results handoff does not depend on `endCurtainTransition()` clearing watchdog state.
 - Kept curtain reset defensive, but results transition now bypasses shared curtain-end cleanup in favor of direct state normalization.
