@@ -1,11 +1,11 @@
 // ═══════════════════════════════════════════════════
-// CogSpeed V441
+// CogSpeed V442
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V441";
+const APP_VERSION = "V442";
 
 // ═══════════════════════════════════════════════════
-// RECENT INTEGRATED PROGRAM CHANGES (through V441)
+// RECENT INTEGRATED PROGRAM CHANGES (through V442)
 // This block summarizes the major program updates that were merged into
 // the current main line so future edits do not have to reconstruct them
 // from one-off patch builds.
@@ -3278,7 +3278,24 @@ function openSpeedometerSession(idx){
 function showResultsPage(){
  beginCurtainTransition();
  const last=state.history[state.history.length-1];
- const success=last?isTestSuccess(last.endReason):false;
+ let completed=false;
+ const completeResultsTransition=()=>{
+  if(completed) return;
+  completed=true;
+  clearCurtainWatchdog();
+  const ts=$("testScreen"); if(ts) ts.classList.add("hidden");
+  const thinking=$("thinkingOverlay");
+  try{
+   stopFX();
+   if(thinking) thinking.classList.add("hidden");
+   syncSummarySessionSelect(state.history.length-1);
+   renderSpeedometerOutcome(last);
+  } finally {
+   normalizeCurtainForTesting();
+   try{ updateStartPageLinks(); }catch(e){}
+  }
+ };
+ armCurtainWatchdog(4600, completeResultsTransition);
  // 1. Spin all gears for 1.0s before thinking box
  stimGrid.querySelectorAll(".stim-cell").forEach((c,i)=>{
   c.classList.remove("gidle-f","gidle-r");
@@ -3293,17 +3310,11 @@ function showResultsPage(){
  const curtain=$("curtain"); if(curtain) curtain.classList.remove("open");
  endCurtainTransition();
  setTimeout(()=>{
-  // 3. Show thinking box
   const ts=$("testScreen"); if(ts) ts.classList.add("hidden");
   syncSummarySessionSelect(state.history.length-1);
   const thinking=$("thinkingOverlay");
   if(thinking){ thinking.classList.remove("hidden"); startFX(); }
-  setTimeout(()=>{
-   stopFX(); if(thinking) thinking.classList.add("hidden");
-   renderSpeedometerOutcome(last);
-   normalizeCurtainForTesting();
- try{ updateStartPageLinks(); }catch(e){}
-  },2000);
+  setTimeout(completeResultsTransition,2000);
  },2000);
 }
 
@@ -3390,7 +3401,29 @@ function startOverFlow(){
 // leaked text fragments from flashing on screen.
 // ──────────────────────────────────────────────────────────────
 
+let _curtainWatchdogTimer=null;
+function clearCurtainWatchdog(){
+ if(_curtainWatchdogTimer){ clearTimeout(_curtainWatchdogTimer); _curtainWatchdogTimer=null; }
+}
+function hardResetCurtainState(hideTestScreen=false){
+ clearCurtainWatchdog();
+ document.body.classList.remove("curtain-active");
+ const curtain=$("curtain");
+ if(curtain){
+  curtain.classList.remove("closing","opening");
+  curtain.style.transition="none";
+  curtain.classList.add("open");
+  void curtain.offsetWidth;
+  curtain.style.transition="";
+ }
+ const ts=$("testScreen");
+ if(ts){
+  if(hideTestScreen) ts.classList.add("hidden");
+  else ts.classList.remove("transition-blocked");
+ }
+}
 function beginCurtainTransition(){
+ hardResetCurtainState(false);
  document.body.classList.add("curtain-active");
  hideAllOverlays();
  const rb=$("resultBox"); if(rb){ rb.textContent=""; rb.classList.add("hidden"); }
@@ -3401,21 +3434,35 @@ function beginCurtainTransition(){
 }
 function endCurtainTransition(){
  document.body.classList.remove("curtain-active");
+ clearCurtainWatchdog();
 }
 function normalizeCurtainForTesting(){
- endCurtainTransition();
- const curtain=$("curtain");
- if(curtain){
-  curtain.classList.add("open");
-  curtain.style.transition = "none";
-  void curtain.offsetWidth;
-  curtain.style.transition = "";
- }
+ hardResetCurtainState(false);
+}
+function armCurtainWatchdog(ms, fallback){
+ clearCurtainWatchdog();
+ _curtainWatchdogTimer=setTimeout(()=>{
+  _curtainWatchdogTimer=null;
+  try{ if(typeof fallback==="function") fallback(); }
+  finally{ hardResetCurtainState(false); }
+ }, Math.max(250, Number(ms)||0));
 }
 
 function runGearSpinThenStart(callback) {
  beginCurtainTransition();
  const ts = $("testScreen"); if(ts) ts.classList.remove("hidden");
+ let completed=false;
+ const finishStartTransition=()=>{
+  if(completed) return;
+  completed=true;
+  clearCurtainWatchdog();
+  try{
+   callback();
+  }finally{
+   normalizeCurtainForTesting();
+  }
+ };
+ armCurtainWatchdog(2600, finishStartTransition);
 
  stimGrid.innerHTML = "";
  for(let i=0;i<6;i++){
@@ -3445,13 +3492,7 @@ function runGearSpinThenStart(callback) {
  setTimeout(()=>{
   if(curtain) curtain.classList.add("open");
   setTimeout(()=>{
-   setTimeout(()=>{
-    try{
-     callback();
-    }finally{
-     normalizeCurtainForTesting();
-    }
-   }, 1000);
+   setTimeout(finishStartTransition, 1000);
   }, 750);
  }, 40);
 }

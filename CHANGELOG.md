@@ -1,3 +1,10 @@
+## V442 — Transition-system fail-safe hardening across Modes 1–4
+- Re-ran version/package alignment and active DOM wiring audit against the V441 monolith line; no missing active DOM IDs or duplicate HTML IDs were found.
+- Hardened the shared curtain transition system so start, trial advance, and finish/results no longer depend on animation completion callbacks.
+- Added one shared curtain hard-reset / watchdog path used across all modes, with explicit Mode 2 coverage in the transition repair scope.
+- Wrapped the intro and finish/result handoff paths in fail-safe completion logic so the app can recover even if a curtain callback chain stalls.
+- Refreshed live/package version references to V442 across `app.js`, `index.html`, `manifest.json`, `sw.js`, and the downloadable package folder.
+
 ## V441 — Focused audit cleanup + version/changelog alignment
 - Fixed a real live/package version drift bug where the hidden status line in `index.html` still showed `CogSpeed V439` instead of the active build.
 - Corrected stale changelog drift in the historical V434 entry where it incorrectly claimed live/package references were refreshed to `V436`; it now correctly states `V434`.
@@ -26,7 +33,7 @@
 ## V436 — Focused audit cleanup + script-version alignment
 - Re-ran version/package alignment and active DOM wiring audit against the V435 line; no missing active DOM IDs or duplicate HTML IDs were found.
 - Fixed a real package/version drift bug where `index.html` still loaded `app.js?v=434` even though the active build had moved forward, which could allow stale cached script reuse during smoke testing and deployment.
-- Refreshed live/package version references to V434 across `app.js`, `index.html`, `manifest.json`, `sw.js`, and the downloadable package folder.
+- Refreshed live/package version references to V436 across `app.js`, `index.html`, `manifest.json`, `sw.js`, and the downloadable package folder.
 
 ## V437 — Shared curtain/test-screen freeze repair
 - Re-ran version/package alignment and active DOM wiring audit against the V436 Mode 4 line; no missing active DOM IDs or duplicate HTML IDs were found.
