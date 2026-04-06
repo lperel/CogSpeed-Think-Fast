@@ -1,11 +1,11 @@
 // ═══════════════════════════════════════════════════
-// CogSpeed V418
+// CogSpeed V422
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V419";
+const APP_VERSION = "V422";
 
 // ═══════════════════════════════════════════════════
-// RECENT INTEGRATED PROGRAM CHANGES (through V418)
+// RECENT INTEGRATED PROGRAM CHANGES (through V422)
 // This block summarizes the major program updates that were merged into
 // the current main line so future edits do not have to reconstruct them
 // from one-off patch builds.
@@ -51,7 +51,25 @@ const APP_VERSION = "V419";
 //      boilerplate, and vestigial state fields were removed.
 //    - Overlay show/hide now discovers overlays from the DOM rather than
 //      relying on multiple mismatched hardcoded ID lists.
-// ═══════════════════════════════════════════════════
+//
+// 7) V421 clean merge / package consistency
+//    - Unified package contact text to thinkfastgmm@gmail.com across
+//      Profile, About, Privacy, and Terms pages.
+//    - Added GMM FIREBIRD.png to the service-worker app shell so the
+//      Profile logo is available offline.
+//    - Aligned the Admin reset button text with the actual Full Reset
+//      behavior to remove label/action mismatch.
+//    - Refreshed package version references to V421.
+//    - Corrected stale changelog summary drift around the Mode 1
+//      block-restart default.
+//
+// 8) V422 audit cleanup
+//    - Fixed calibration comment drift so measured-calibration defaults
+//      match the live code (default 5, not 7).
+//    - Fixed warm-up fallback logic so an explicit value of 0 is honored
+//      in calibration counts and measured-trial inclusion checks.
+//    - Re-ran version/package alignment and DOM ID wiring audit.
+//// ═══════════════════════════════════════════════════
 
 const RELEASE = APP_VERSION.replace(/^V/i, "");
 const STORAGE_PREFIX = `cogspeed_v${RELEASE}`;
@@ -874,7 +892,7 @@ function failCalibration(reason){ state.endReason=reason; finish(); }
 // Measured calibration phase:
 //   After warmups, keep presenting self-paced trials until the number of
 //   CORRECT measured responses reaches initialMeasuredCalibrationTrials
-//   (default 7).
+//   (default 5).
 //
 // IMPORTANT:
 //   Wrong-response RTs are NEVER included in calibration averaging.
@@ -1137,7 +1155,7 @@ function openTrial(kind){
  updateMetrics();
 
  if(kind==="calibration"){
-  const total=isMode2()?(Number(settings.mode2TrialLimit)||150):isMode3()?((Number(settings.initialUnusedCalibrationTrials)||2)+(Number(settings.mode3CalibrationTrials)||10)):(settings.initialUnusedCalibrationTrials+settings.initialMeasuredCalibrationTrials), idx=state.calibrationTrialIndex+1;
+  const total=isMode2()?(Number(settings.mode2TrialLimit)||150):isMode3()?(((settings.initialUnusedCalibrationTrials ?? 1))+(Number(settings.mode3CalibrationTrials)||10)):(settings.initialUnusedCalibrationTrials+settings.initialMeasuredCalibrationTrials), idx=state.calibrationTrialIndex+1;
   phaseLabel.textContent=`Cal ${idx}/${total}`;
   setStatus(isMode1()?(idx<=settings.initialUnusedCalibrationTrials?"Self-paced (unused)":"Self-paced (measured)"):"Self-paced");
  }else if(kind==="paced"){
@@ -1358,7 +1376,7 @@ function handleTap(index,eventTimeStamp){
   const rt=getSafeTrialRtMs(eventTimeStamp), ok=trialMatches(state.current,index);
   flashBtn(index,ok); state.totalResponses+=1;
 
-  const warmups = Number(settings.initialUnusedCalibrationTrials)||2;
+  const warmups = Number.isFinite(Number(settings.initialUnusedCalibrationTrials)) ? Number(settings.initialUnusedCalibrationTrials) : 1;
   const measuredTargetMode1 = Number(settings.initialMeasuredCalibrationTrials)||5;
   const includeInAverages = state.calibrationTrialIndex>=warmups;
 
@@ -3077,7 +3095,9 @@ function resetSubjectSessionState(){
 }
 // ─── PAGE NAVIGATION ──────────────────────────────────────────
 // goToStartPage(): returns to subject ID entry, clears test state.
-// startOverFlow(): full reset including subject ID and SP-FS.
+// startOverFlow(): Full Reset for the current device/app state.
+// Clears current subject/session runtime and related saved test state.
+// Use this only for the broad Admin reset action, not for Reset Sessions.
 // ──────────────────────────────────────────────────────────────
 function goToStartPage(){
  resetSubjectSessionState();

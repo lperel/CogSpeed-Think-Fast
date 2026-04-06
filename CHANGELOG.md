@@ -1,3 +1,23 @@
+## V422 — Audit cleanup + calibration consistency
+- Re-ran version/package alignment and DOM ID wiring audit against the V421 line.
+- Bumped visible/package version references to V422 across `app.js`, `index.html`, `manifest.json`, and `sw.js`.
+- Fixed calibration comment drift so the measured-calibration default matches the live code (`initialMeasuredCalibrationTrials` default 5, not 7).
+- Fixed warm-up fallback logic so an explicit `initialUnusedCalibrationTrials = 0` is honored in Mode 3 calibration counts and measured-calibration inclusion checks.
+- Kept V421 package-consistency fixes intact, including unified contact text and the cached Profile logo asset.
+
+## V421 — Clean merge audit + package consistency fixes
+- Added `GMM FIREBIRD.png` to the service-worker app shell so the Profile logo is available offline.
+- Unified package contact text to `thinkfastgmm@gmail.com` across Profile, About, Privacy, and Terms pages.
+- Fixed the Admin reset label/action mismatch by renaming the Admin button to **Full Reset** to match actual behavior.
+- Refreshed visible/package version references to V421 across `app.js`, `index.html`, `manifest.json`, and `sw.js`.
+- Corrected stale changelog summary drift so the current main-line Mode 1 block-restart default matches the live code.
+
+## V420 — Audit clean merge + version/comment alignment
+- Re-ran a focused DOM/wiring audit against the active V419 line. No missing active DOM IDs or duplicate element IDs were found in the live UI.
+- Confirmed `timeFormat` remains the canonical time-format setting; `use12HourTime` is still present only as legacy migration support when loading older saved settings.
+- Fixed stale top-of-file comment drift in `app.js` so the header and integrated-change block now match the current merged main line.
+- Bumped all visible/package version elements to V420 so `app.js`, `index.html`, `manifest.json`, and `sw.js` stay aligned.
+
 ## V419 — Admin default updates
 - Changed default warm-up calibration trials from 2 to 1.
 - Changed default measured calibration trials from 7 to 5.
@@ -67,7 +87,7 @@ It is meant to provide a readable history without overloading inline code commen
 ## Major integrated program changes in the current main line
 
 ### Core test and pacing
-- Mode 1 restart percentage of block baseline default set to 1.2.
+- Mode 1 restart percentage of block baseline default set to 1.3.
 - Correct-response formula factor default set to 0.30.
 - Correct speedup range kept at 50–200 ms.
 - Convergent-clamp special speedup branch removed so normal speedup bounds apply throughout.
