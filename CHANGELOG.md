@@ -1,3 +1,10 @@
+## V449 — Fail-open finish pipeline stabilization
+- Reworked the finish path into fail-open stages so the app cannot strand the user on the test screen if result computation, localStorage save, summary rendering, or results handoff fails.
+- Added visible finish-phase diagnostics for smoke testing: `FINISH_COMPUTE`, `FINISH_SAVE`, `FINISH_RENDER`, and `FINISH_SHOW`, while trial openings now mark `TRIAL`.
+- Hardened `showResultsPage()` so it can render directly from the current result payload even if the session could not be saved to history.
+- Kept the curtain non-blocking and the runtime as one monolithic `app.js`.
+- Refreshed visible/package version references to V449.
+
 ## V448 — No-animation / no-delay stabilization build
 - Removed the remaining ready-delay from the curtain-neutral start path so the first trial opens immediately.
 - Kept curtain helpers only as defensive cleanup and error recovery; live test flow no longer depends on curtain timing.
