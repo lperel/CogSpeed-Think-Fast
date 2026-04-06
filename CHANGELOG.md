@@ -1,3 +1,9 @@
+## V445 — Curtain-neutral stabilization
+- Removed curtain behavior from live start, trial-transition, and finish/results control flow.
+- Curtain is now non-blocking and decorative only; it can no longer block taps or gate state progression.
+- Explicitly included Mode 2 in the shared transition-neutral cleanup scope.
+- Refreshed live/package version references to V445.
+
 ## V444 — Results-path curtain watchdog safety cleanup
 - Kept the app as a single monolithic `app.js`.
 - Applied the safer results-path curtain handling pattern so the results handoff does not depend on `endCurtainTransition()` clearing watchdog state.

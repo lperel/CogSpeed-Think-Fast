@@ -1,11 +1,11 @@
 // ═══════════════════════════════════════════════════
-// CogSpeed V444
+// CogSpeed V445
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V444";
+const APP_VERSION = "V445";
 
 // ═══════════════════════════════════════════════════
-// RECENT INTEGRATED PROGRAM CHANGES (through V444)
+// RECENT INTEGRATED PROGRAM CHANGES (through V445)
 // This block summarizes the major program updates that were merged into
 // the current main line so future edits do not have to reconstruct them
 // from one-off patch builds.
@@ -96,6 +96,10 @@ const APP_VERSION = "V444";
 //    - Failed non-triggered Mode 4 sessions now leave SPI and SBLP empty in
 //      saved results so historical summaries, Results pages, and session
 //      lists do not imply sustained scoring occurred when it did not.
+// 8) V445 curtain-neutral stabilization
+//    - Curtain removed from live start, trial-advance, and finish/results control flow.
+//    - Curtain is now non-blocking and decorative only; it can no longer block taps.
+//    - Mode 2 explicitly included in the shared transition-neutral cleanup path.
 // ═══════════════════════════════════════════════════
 
 const RELEASE = APP_VERSION.replace(/^V/i, "");
@@ -3276,17 +3280,10 @@ function openSpeedometerSession(idx){
 }
 
 function showResultsPage(){
- // Results path uses the safer option: bypass shared endCurtainTransition()
- // and normalize the curtain/test-screen state directly. This avoids any
- // results handoff dependence on transition-end cleanup ordering.
- document.body.classList.remove("curtain-active");
- const curtain=$("curtain");
- if(curtain){
-  curtain.classList.add("open");
-  curtain.classList.remove("closing","opening");
- }
+ // Curtain-neutral results handoff: do not use curtain state or animation.
  clearCurtainWatchdog();
- const ts=$("testScreen"); if(ts){ ts.classList.add("hidden"); ts.style.pointerEvents="auto"; }
+ document.body.classList.remove("curtain-active");
+ hardResetCurtainState(true);
  const thinking=$("thinkingOverlay");
  try{
   stopFX();
@@ -3391,11 +3388,10 @@ function hardResetCurtainState(hideTestScreen=false){
  document.body.classList.remove("curtain-active");
  const curtain=$("curtain");
  if(curtain){
-  curtain.classList.add("open");
-  curtain.classList.remove("closing","opening");
+  curtain.classList.remove("open","closing","opening");
   curtain.style.transition="none";
-  void curtain.offsetWidth;
-  curtain.style.transition="";
+  curtain.style.display="none";
+  curtain.style.pointerEvents="none";
  }
  const ts=$("testScreen");
  if(ts){
@@ -3432,10 +3428,8 @@ function runGearSpinThenStart(callback) {
  probeCell.classList.remove("idle");
  probeInner.innerHTML = "";
  respGrid.innerHTML = "";
- setTimeout(()=>{
-  hardResetCurtainState(false);
-  callback();
- }, 20);
+ try{ callback(); }
+ finally{ hardResetCurtainState(false); }
 }
 
 // ─── START TEST ───
