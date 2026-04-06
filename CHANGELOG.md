@@ -1,3 +1,35 @@
+## V457 — 1-second gear-spin intro restored safely
+- Restored a 1-second spinning-gear intro at test start with no separate visual buffer.
+- Kept the start path curtain-neutral and fail-open; the first calibration trial opens from a fixed timer rather than an animation callback.
+- Kept the app monolithic and preserved curtain cleanup as defensive-only behavior.
+
+## V456 — Audit cleanup / curtain-neutral CSS cleanup
+- Fixed stale top-of-file version/comment drift in `app.js` so the header and integrated-change block match the live build.
+- Removed the remaining `body.curtain-active` overlay-hiding CSS side effects from `index.html`; the curtain now stays decorative/defensive only and cannot suppress overlays if that class is left behind.
+- Corrected stale inline wording that still referenced a 180000 ms default in the final self-paced no-response rule; the live default remains 150000 ms unless changed in Admin.
+- Refreshed package version references to V456.
+
+## V455 — Admin max-time default restored
+- Changed Admin **Max total test time** default back to **150000 ms**.
+- Updated the live code fallback for `maxTestDurationMs` to **150000 ms** so the default and fallback match.
+- Kept the Mode 4 rule that suspends the overall timer during the sustained phase and restarts the remaining time when the first final self-paced trial is shown.
+- Refreshed package version references to V455.
+
+## V454 — Mode 4 max-time suspension across sustained phase
+- Suspended the overall max-test timer when the Mode 4 sustained MBS phase begins.
+- Restarted the remaining overall max-test timer when the first Mode 4 final self-paced trial is displayed.
+- Refreshed live/package version references to V454.
+
+## V453 — Mode 4 final self-paced timeout rule
+- Mode 4 final self-paced trials no longer arm the per-trial no-response timeout.
+- If a subject stops responding after the sustained segment, the session remains alive until the overall max test time is reached, then shows results.
+- Kept the app monolithic and refreshed package/version references to V453.
+
+## V452 — Mode 4 adaptive-stop alignment
+- Restored the normal Mode 1 adaptive-phase failure stops during Mode 4 before convergence, including max-block failure and other adaptive fail conditions.
+- Kept the Mode 4 sustained MBS segment non-interrupting once entered so all sustained trials are presented before final self-paced trials.
+- Kept the app as one monolithic `app.js` and refreshed live/package version references to V452.
+
 ## V450 — Result/session source-of-truth unification
 - Unified result/session selection so Admin Results, Speedometer, and Results Summary resolve through one active-result context before falling back to saved history.
 - Added visible source diagnostics to Results Summary and Speedometer, showing whether the view is rendering from the current result or a saved history session.

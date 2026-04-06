@@ -1,11 +1,11 @@
 // ═══════════════════════════════════════════════════
-// CogSpeed V450
+// CogSpeed V457
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V450";
+const APP_VERSION = "V457";
 
 // ═══════════════════════════════════════════════════
-// RECENT INTEGRATED PROGRAM CHANGES (through V450)
+// RECENT INTEGRATED PROGRAM CHANGES (through V457)
 // This block summarizes the major program updates that were merged into
 // the current main line so future edits do not have to reconstruct them
 // from one-off patch builds.
@@ -15,9 +15,8 @@ const APP_VERSION = "V450";
 //      and 24-hour mode.
 //    - Sleep data is preserved across test start and saved into result
 //      records, CSV export, and the Results page summary.
-//    - Each sleep entry now stores a real wake datetime
-//      (sleepLog.wakeDateTimeIso) so “Time since last sleep” can span
-//      multiple days across sessions.
+//    - Each sleep entry stores a real wake datetime so “Time since last
+//      sleep” can span multiple days across sessions.
 //
 // 2) Profile / guest separation
 //    - Guest mode (subject ID 0) is treated as settings-only and must not
@@ -26,83 +25,40 @@ const APP_VERSION = "V450";
 //      while Profile is open and is only committed on Save & Continue.
 //
 // 3) Performance / graph updates
-//    - Speedometer now has a session browser (dropdown + Prev/Next)
-//      and linked views open for the currently selected session.
-//    - Performance over Date and Time shows all sessions by default,
-//      uses device-local chronology labeling, plots smaller CPI/MBS markers,
-//      and includes sleep-quality bars (Poor/Okay/Good).
-//    - Response-Time Graph and other live charts use HiDPI canvas setup for
-//      sharper rendering on Retina / high-DPI displays.
+//    - Speedometer has a session browser (dropdown + Prev/Next) and linked
+//      views open for the currently selected session.
+//    - Performance over Date and Time shows all sessions by default and
+//      includes sleep-quality bars.
+//    - Response-Time Graph and other live charts use HiDPI canvas setup.
 //
 // 4) Trial detail / timing diagnostics
 //    - Trial Detail column names were clarified.
-//    - Trial log now records pacing deltas (Rate Change / Next Rate /
-//      Why Changed) and per-trial timing diagnostics for paced rounds.
+//    - Trial logs record pacing deltas and per-trial timing diagnostics.
 //
-// 5) Recovery / pacing defaults
-//    - Mode 1 restart after block uses blockRestartPercent (default 1.3).
-//    - Correct paced response uses correctSpeedupFactor (default 0.30) with
-//      min/max speedup on correct fixed at 50/200 ms.
-//    - Recovery inter-trial and resume-to-paced delays are now admin
-//      settings rather than unexplained hardcoded timeouts.
+// 5) Package consistency / cleanup
+//    - Contact text is standardized to thinkfastgmm@gmail.com.
+//    - Full Reset label matches actual behavior.
+//    - GMM FIREBIRD.png is cached in the service-worker app shell.
+//    - The app remains a single monolithic app.js.
 //
-// 6) Structural cleanup
-//    - Dead history-overlay code, stale legacy controls, duplicate startup
-//      boilerplate, and vestigial state fields were removed.
-//    - Overlay show/hide now discovers overlays from the DOM rather than
-//      relying on multiple mismatched hardcoded ID lists.
+// 6) Mode 4 integration
+//    - Mode 4 adds a sustained MBS phase after convergent adaptive pacing.
+//    - Mode 4 stores CSR, SBLP, SPI, sustained/final targets, and related
+//      session data for results, graphs, speedometer summaries, and CSV.
+//    - Failed non-triggered Mode 4 sessions leave SPI/SBLP empty.
 //
-// 7) V421 clean merge / package consistency
-//    - Unified package contact text to thinkfastgmm@gmail.com across
-//      Profile, About, Privacy, and Terms pages.
-//    - Added GMM FIREBIRD.png to the service-worker app shell so the
-//      Profile logo is available offline.
-//    - Aligned the Admin reset button text with the actual Full Reset
-//      behavior to remove label/action mismatch.
-//    - Refreshed package version references to V421.
-//    - Corrected stale changelog summary drift around the Mode 1
-//      block-restart default.
-//    - Hardened shared curtain/test-screen reset so Mode 1 and Mode 4
-//      cannot get stuck behind a partial curtain state after intro or
-//      phase transitions.
-//    - Fixed Mode 4 calibration progression to follow the same measured
-//      self-paced calibration flow as Mode 1 before branching later.
+// 7) Stabilization / fail-open flow
+//    - Curtain helpers are defensive cleanup only; live control flow should
+//      not depend on curtain behavior.
+//    - Start and finish handoffs are guarded with visible flow diagnostics.
+//    - Finish stages are COMPUTE, SAVE, RENDER, and SHOW.
 //
-// 8) V423 Mode 4 integration
-//    - Added Mode 4 sustained block-limit pacing triggered by convergent
-//      blocks that also fall below the configurable MBS threshold.
-//    - Added sustained-phase and final-phase tracking for results, graphs,
-//      speedometer summaries, and CSV export.
-//
-// 9) V426 mode 4 scoring clarification / audit cleanup
-//    - Fixed the non-Mode-4 terminal final-trial path so final trials are
-//      counted as actual presented final trials instead of correct-only trials.
-//    - Removed stale phase-name drift (`mode3_paced` -> `paced_fixed`) and
-//      stale total-test-time wording in comments/status text.
-//    - Standardized visible Mode 4 naming across session summaries.
-//
-// 10) V428 mode 4 session-target consistency / changelog cleanup
-//    - Stored the Mode 4 sustained-trial target and final-trial target in
-//      each saved result so historical SPI/CSR views do not drift if Admin
-//      settings are changed later.
-//    - Updated Mode 4 SPI rendering paths to use the saved session target
-//      count instead of current settings or the presented-count fallback.
-//    - Cleaned stale changelog drift around V426/V427 naming and the CSR=0
-//      SBLP rule.
-
-// 11) V429 failed Mode 4 metric cleanup
-//    - Prevented failed Mode 4 sessions that never trigger the sustained
-//      phase from storing a fallback adaptive CPI as SPI.
-//    - Failed non-triggered Mode 4 sessions now leave SPI and SBLP empty in
-//      saved results so historical summaries, Results pages, and session
-//      lists do not imply sustained scoring occurred when it did not.
-// 8) V448 stabilization reset
-//    - Removed the remaining ready-delay at test start so the first trial
-//      opens immediately with no animation and no intentional delay.
-//    - Kept curtain cleanup helpers only as defensive no-op state reset;
-//      live control flow no longer depends on curtain behavior.
-//    - Strengthened fail-open start/results handoff comments and visible
-//      phase diagnostics so smoke-test freeze points are easier to see.
+// 8) Recent rule updates
+//    - Admin max total test time default is 150000 ms.
+//    - Mode 4 final self-paced no-response is bounded by the overall max
+//      test time rather than a per-trial no-response timeout.
+//    - The overall timer is suspended during the sustained MBS segment and
+//      restarted when the first final self-paced trial is shown.
 // ═══════════════════════════════════════════════════
 
 const RELEASE = APP_VERSION.replace(/^V/i, "");
@@ -170,7 +126,7 @@ const DEFAULTS={
  wrongThresholdStop:4,
  maxTrialCount:180,
  maxPacedWrong:20,
- maxTestDurationMs:180000,
+ maxTestDurationMs:150000,
  minDurationMs:600,
  maxDurationMs:3500,
  initialUnusedCalibrationTrials:1,
@@ -206,7 +162,7 @@ const ADMIN_FIELDS=[
  ["minDurationMs","8. MP frame minimum duration (ms, default 600)","number"],
  ["maxDurationMs","9. MP frame maximum duration (ms, default 3500)","number"],
  ["machinePacedNoResponseMs","10. MP no-response timeout (ms, default 15000)","number"],
- ["maxTestDurationMs","11. Max total test time (ms, default 180000)","number"],
+ ["maxTestDurationMs","11. Max total test time (ms, default 150000)","number"],
  ["wrongWindowSize","12. Anti-spoof wrong window size (default 5)","number"],
  ["wrongThresholdStop","13. Anti-spoof max wrong in window (default 4)","number"],
  ["rollMeanWindow","14. Anti-spoof rolling mean window (default 10)","number"],
@@ -320,6 +276,7 @@ const state={
  totalTrials:0, totalResponses:0, totalCorrect:0, totalIncorrect:0,
  missedTrials:0, pacedErrors:0, recoveryErrors:0, rollMeanLog:[],
  testStartTime:null, trialTimer:null, absoluteNoResponseTimer:null, maxTestTimer:null,
+ maxTestRemainingMs:null, maxTestDeadlineMs:null,
  lastFiveAnswers:[], samnPerelli:null, subjectId:null,
  calibrationTrialIndex:0, calibrationRTs:[], calibrationErrors:0,
  pacedRTs:[], rtLog:[], lastFrameDuration:null,
@@ -429,7 +386,7 @@ function isMode3(){ return (settings.testMode||"mode1")==="mode3"; }
 function isMode4(){ return (settings.testMode||"mode1")==="mode4"; }
 function currentModeLabel(){ return isMode1() ? "CogSpeed Mode" : isMode2() ? "SPC Mode" : isMode3() ? "SPCMP Mode" : "Mode 4"; }
 function getEffectiveTimeFormat(){ return String(settings.timeFormat||"12") === "24" ? "24" : "12"; }
-function getSessionMaxDurationMs(){ return isMode2() ? (Number(settings.mode2MaxDurationMs)||120000) : isMode3() ? (Number(settings.mode3MaxDurationMs)||120000) : (Number(settings.maxTestDurationMs)||180000); }
+function getSessionMaxDurationMs(){ return isMode2() ? (Number(settings.mode2MaxDurationMs)||120000) : isMode3() ? (Number(settings.mode3MaxDurationMs)||120000) : (Number(settings.maxTestDurationMs)||150000); }
 
 // Timing diagnostics are observational only. They do NOT affect pacing or scoring.
 function beginFrameTiming(targetMs, phase){
@@ -529,7 +486,18 @@ function clearTimer(){
  state._trialTimerIsRaf=false;
 }
 function clearNoResponseTimer(){ if(state.absoluteNoResponseTimer) clearTimeout(state.absoluteNoResponseTimer); state.absoluteNoResponseTimer=null; }
-function clearMaxTestTimer(){ if(state.maxTestTimer) clearTimeout(state.maxTestTimer); state.maxTestTimer=null; }
+function clearMaxTestTimer(){ if(state.maxTestTimer) clearTimeout(state.maxTestTimer); state.maxTestTimer=null; state.maxTestDeadlineMs=null; }
+function suspendMaxTestTimer(){
+ const now=performance.now();
+ const remaining = state.maxTestDeadlineMs!=null ? Math.max(0, state.maxTestDeadlineMs-now) : (Number(state.maxTestRemainingMs)||0);
+ clearMaxTestTimer();
+ state.maxTestRemainingMs = remaining;
+}
+function resumeMaxTestTimer(){
+ const remaining = Math.max(0, Number(state.maxTestRemainingMs)||0);
+ if(remaining<=0) return;
+ armMaxTestTimer(remaining);
+}
 // Absolute "not responding" timer — keeps tests from hanging forever.
 // Calibration trial 1 uses calibrationFirstNoResponseMs (default 10s).
 // Later calibration trials use calibrationNoResponseMs (default 6s).
@@ -563,9 +531,12 @@ function armNoResponseTimer(){
   finish();
  }, ms);
 }
-function armMaxTestTimer(){
+function armMaxTestTimer(msOverride){
  clearMaxTestTimer();
- const ms=getSessionMaxDurationMs();
+ const baseMs = Number.isFinite(Number(msOverride)) ? Number(msOverride) : (state.maxTestRemainingMs!=null ? Number(state.maxTestRemainingMs) : getSessionMaxDurationMs());
+ const ms=Math.max(0, baseMs);
+ state.maxTestRemainingMs = ms;
+ state.maxTestDeadlineMs = performance.now()+ms;
  state.maxTestTimer=setTimeout(()=>{ state.endReason=(isMode2()||isMode3())?"Required test time reached":"Time limit reached"; finish(); },ms);
 }
 function noteAnyResponse(){
@@ -977,10 +948,15 @@ function recordAnswer(ok,isMiss){
 // ─── TERMINAL RECOVERY / MODE 4 BRANCH RULE ───────────────────
 // maybeTriggerTerminalRule(): fires when 2 consecutive block scores
 //  fall within qualifyingBlockGapMs (250ms) of each other.
-// Mode 1/2/3 path: enter terminal_recovery and finish after 2 final
+// Mode 1/2/3 path: enter terminal_recovery and finish after the final
 //  self-paced trials.
-// Mode 4 path: if adaptive MBS is below the Mode 4 threshold, branch to
-//  the sustained fixed-rate MBS segment; otherwise finish as Failed Test.
+// Mode 4 path: follow normal Mode 1 adaptive behavior until true
+//  convergence is reached. Adaptive-phase failure stops such as
+//  no-response timeout, max blocks, and other normal Mode 1 fail paths
+//  still apply before convergence. If convergence occurs and adaptive
+//  MBS is below the Mode 4 threshold, branch to the sustained fixed-rate
+//  MBS segment. Once the sustained segment starts, keep presenting the
+//  full sustained trial count before final self-paced trials.
 // avgLast2Blocks(): mean of the last 2 overload (block) durations.
 // ──────────────────────────────────────────────────────────────
 function avgLast2Blocks(){
@@ -1351,7 +1327,8 @@ function openTrial(kind){
  // Track overall test duration from very first trial
  if(state.testStartTime===null){
   state.testStartTime=performance.now();
-  armMaxTestTimer(); // wall clock covers entire test including calibration
+  state.maxTestRemainingMs = getSessionMaxDurationMs();
+  armMaxTestTimer(); // wall clock covers entire test including calibration unless suspended in Mode 4 sustained phase
  }
 
  state.previous=state.current;
@@ -1385,6 +1362,7 @@ function openTrial(kind){
   phaseLabel.textContent=`Fixed MP · ${Math.round(state.duration)}ms`;
   setStatus("Mode 3 fixed machine-paced");
  }else if(kind==="mode4_sustained"){
+  if(state.maxTestTimer) suspendMaxTestTimer();
   state.presentedRoundDuration = Math.round(state.duration);
   state.mode4SustainedPresented += 1;
   phaseLabel.textContent=`Mode 4 Sustained MBS · ${Math.round(state.duration)}ms`;
@@ -1402,10 +1380,11 @@ function openTrial(kind){
   setStatus(`Final SP — complete ${finalNeed} trials to finish`);
  }else if(kind==="mode4_final"){
   clearTimer();
+  if(state.mode4FinalTrialsPresented===0 && !state.maxTestTimer) resumeMaxTestTimer();
   state.duration=null; state.lastFrameDuration=null; state.presentedRoundDuration=null;
   const need=Math.max(1, Number(settings.mode4FinalTrialCount)||2);
   phaseLabel.textContent=`Mode 4 Final ${state.mode4FinalTrialsPresented+1}/${need}`;
-  setStatus(`Mode 4 final self-paced trials — ${state.mode4FinalTrialsPresented}/${need} completed`);
+  setStatus(`Mode 4 final self-paced trials — ${state.mode4FinalTrialsPresented}/${need} completed (overall max time still applies)`);
  }
 
  // Arm timers only after the display is fully rendered.
@@ -1431,8 +1410,10 @@ function openTrial(kind){
     }
     state._trialTimerIsRaf = true;
     state.trialTimer = requestAnimationFrame(checkFrame);
-   }else if(kind==="recovery" || kind==="terminal_recovery" || kind==="mode4_final"){
+   }else if(kind==="recovery" || kind==="terminal_recovery"){
     armNoResponseTimer();
+   }else if(kind==="mode4_final"){
+    clearNoResponseTimer();
    }
   });
  });
@@ -1471,13 +1452,14 @@ function finalizePendingPriorMiss(){
   state.lastFrameDuration = null;
   updateCPIDisplay(avgLast2Blocks());
 
+  if(maybeTriggerTerminalRule()) return true;
+
   const maxB = Math.max(2, Number(settings.maxBlockCount) || 6);
   if(state.overloads.length >= maxB){
    state.endReason = "ERRATIC RESPONSES — Retest";
    finish();
    return true;
   }
-  if(maybeTriggerTerminalRule()) return true;
 
   state.phase = "recovery";
   state.recoveryCorrectCompleted = 0;
@@ -3457,7 +3439,7 @@ function resetTrialStateOnly(){
  state.overloads=[]; state.recoveries=[]; state.recoveryCorrectCompleted=0;
  state.spCorrectStreak=0; state.spWrongCount=0; state.terminalBlockReason=null;
  state.totalTrials=0; state.endReason=""; state.totalResponses=0; state.pacedErrors=0; state.recoveryErrors=0;
- state.testStartTime=null; state.totalCorrect=0; state.totalIncorrect=0;
+ state.testStartTime=null; state.maxTestRemainingMs=null; state.maxTestDeadlineMs=null; state.totalCorrect=0; state.totalIncorrect=0;
  state.missedTrials=0; state.rollMeanLog=[]; state.lastFiveAnswers=[];
  state.calibrationTrialIndex=0; state.calibrationRTs=[]; state.calibrationErrors=0;
  state.pacedRTs=[]; state.rtLog=[]; state.lastFrameDuration=null; state.presentedRoundDuration=null;
@@ -3517,14 +3499,13 @@ function startOverFlow(){
 
 // ─── Ready signal then start ───
 // ─── READY HANDOFF / CURTAIN-NEUTRAL START ───────────────────
-// runGearSpinThenStart(): curtain-neutral, no-animation, no-delay start helper.
-// It clears any stale curtain state, reveals the live test screen,
-// clears old grid/probe/response content, and immediately opens the
-// first calibration trial through the provided callback.
-// No curtain animation, no gear-spin dependency, and no intentional
-// ready delay remain in this stabilization build.
-// hardResetCurtainState() and normalizeCurtainForTesting() remain as
-// defensive cleanup helpers for trial open and page reset paths.
+// runGearSpinThenStart(): curtain-neutral, fail-open 1-second gear-spin intro.
+// It clears any stale curtain state, reveals the live test screen, renders a
+// short decorative spinning-gear cue, then opens the first calibration trial.
+// The start path does NOT depend on animation callbacks or curtain state.
+// If anything goes wrong, the callback still runs after the fixed 1-second
+// handoff window. hardResetCurtainState() and normalizeCurtainForTesting()
+// remain as defensive cleanup helpers for trial open and page reset paths.
 // ──────────────────────────────────────────────────────────────
 
 let _curtainWatchdogTimer=null;
@@ -3573,19 +3554,41 @@ function armCurtainWatchdog(ms, fallback){
 function runGearSpinThenStart(callback) {
  hardResetCurtainState(false);
  const ts = $("testScreen"); if(ts) ts.classList.remove("hidden");
- stimGrid.innerHTML = "";
- probeCell.classList.remove("idle");
- probeInner.innerHTML = "";
- respGrid.innerHTML = "";
+ let completed=false;
+ const finishStart=()=>{
+  if(completed) return;
+  completed=true;
+  try{
+   hardResetCurtainState(false);
+   callback();
+  }catch(err){
+   console.error("runGearSpinThenStart failed", err);
+   try{ setStatus(`START FAILED — ${state.phase||"idle"}`); }catch(_e){}
+   try{ hardResetCurtainState(true); }catch(_e){}
+   try{ showOnly("fatigueOverlay"); }catch(_e){}
+  }
+ };
  try{
-  hardResetCurtainState(false);
-  callback();
+  stimGrid.innerHTML = "";
+  probeCell.classList.remove("idle","gspin-f","gspin-r","gidle-f","gidle-r");
+  probeInner.innerHTML = buildGearSVG(0,null,"probe","gspin-f");
+  respGrid.innerHTML = "";
+  for(let i=0;i<6;i++){
+   const cell=document.createElement("div");
+   cell.className="stim-cell";
+   cell.innerHTML=buildGearSVG(i+1,null,"large", i%2===0?"gspin-f":"gspin-r");
+   stimGrid.appendChild(cell);
+  }
+  for(let i=0;i<6;i++){
+   const btn=document.createElement("div");
+   btn.className="resp-btn";
+   btn.innerHTML=buildGearSVG(i+1,null,"large", i%2===0?"gspin-r":"gspin-f");
+   respGrid.appendChild(btn);
+  }
  }catch(err){
-  console.error("runGearSpinThenStart failed", err);
-  try{ setStatus(`START FAILED — ${state.phase||"idle"}`); }catch(_e){}
-  try{ hardResetCurtainState(true); }catch(_e){}
-  try{ showOnly("fatigueOverlay"); }catch(_e){}
+  console.error("runGearSpinThenStart intro render failed", err);
  }
+ setTimeout(finishStart, 1000);
 }
 
 // ─── START TEST ───
@@ -3593,7 +3596,7 @@ function runGearSpinThenStart(callback) {
 // Validates subjectId + samnPerelli, clears session state,
 // captures geo, then immediately opens the first calibration trial
 // through the curtain-neutral start helper.
-// In this stabilization build there is no animation and no ready delay.
+// This build uses a decorative 1-second spinning-gear intro with no separate visual buffer.
 // noteAnyResponse() begins only after the first trial is actually open.
 // ──────────────────────────────────────────────────────────────
 function startTest(){
