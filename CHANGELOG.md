@@ -1,8 +1,9 @@
-## V437 — Mode 4 calibration start freeze fix
-- Fixed a real Mode 4 start bug: calibration response handling was still branched only for Mode 1 / Mode 2 / Mode 3.
-- Because Mode 4 is the default mode and uses the Mode 1 calibration path, the first calibration tap could fail to advance the test and make the screen appear frozen after Start Test.
-- Mode 4 calibration now follows the same measured-calibration flow as Mode 1.
-- Refreshed visible/package version references to V437.
+## V438 — Shared curtain/test-screen freeze repair
+- Re-ran version/package alignment and active DOM wiring audit against the V436 Mode 4 line; no missing active DOM IDs or duplicate HTML IDs were found.
+- Fixed a shared curtain/test-screen reset bug that could leave Mode 1 and Mode 4 stuck on a partial transition screen during smoke testing.
+- Added a defensive curtain reset on trial open / start-page return / post-intro handoff so the shared transition layer cannot remain half-open between phases.
+- Fixed Mode 4 calibration progression so it now follows the same measured self-paced calibration flow as Mode 1 before branching later.
+- Refreshed live/package version references to V438 across `app.js`, `index.html`, `manifest.json`, `sw.js`, and the downloadable package folder.
 
 ## V436 — Focused audit cleanup + script-version alignment
 - Re-ran version/package alignment and active DOM wiring audit against the V435 line; no missing active DOM IDs or duplicate HTML IDs were found.

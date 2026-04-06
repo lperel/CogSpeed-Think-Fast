@@ -1,11 +1,11 @@
 // ═══════════════════════════════════════════════════
-// CogSpeed V437
+// CogSpeed V438
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V437";
+const APP_VERSION = "V438";
 
 // ═══════════════════════════════════════════════════
-// RECENT INTEGRATED PROGRAM CHANGES (through V437)
+// RECENT INTEGRATED PROGRAM CHANGES (through V438)
 // This block summarizes the major program updates that were merged into
 // the current main line so future edits do not have to reconstruct them
 // from one-off patch builds.
@@ -62,6 +62,11 @@ const APP_VERSION = "V437";
 //    - Refreshed package version references to V421.
 //    - Corrected stale changelog summary drift around the Mode 1
 //      block-restart default.
+//    - Hardened shared curtain/test-screen reset so Mode 1 and Mode 4
+//      cannot get stuck behind a partial curtain state after intro or
+//      phase transitions.
+//    - Fixed Mode 4 calibration progression to follow the same measured
+//      self-paced calibration flow as Mode 1 before branching later.
 //
 // 8) V423 Mode 4 integration
 //    - Added Mode 4 sustained block-limit pacing triggered by convergent
@@ -1226,6 +1231,7 @@ updateCPIDisplay(avg2); setProbeIdle();
 function openTrial(kind){
  clearTimer();
  clearNoResponseTimer();
+ normalizeCurtainForTesting();
 
  // Track overall test duration from very first trial
  if(state.testStartTime===null){
@@ -1250,7 +1256,8 @@ function openTrial(kind){
  if(kind==="calibration"){
   const total=isMode2()?(Number(settings.mode2TrialLimit)||150):isMode3()?((Number.isFinite(Number(settings.initialUnusedCalibrationTrials))?Number(settings.initialUnusedCalibrationTrials):1)+(Number(settings.mode3CalibrationTrials)||10)):((Number.isFinite(Number(settings.initialUnusedCalibrationTrials))?Number(settings.initialUnusedCalibrationTrials):1)+(Number(settings.initialMeasuredCalibrationTrials)||5)), idx=state.calibrationTrialIndex+1;
   phaseLabel.textContent=`Cal ${idx}/${total}`;
-  setStatus((isMode1()||isMode4())?(idx<=settings.initialUnusedCalibrationTrials?"Self-paced (unused)":"Self-paced (measured)"):"Self-paced");
+  const warmupLimit = Number.isFinite(Number(settings.initialUnusedCalibrationTrials)) ? Number(settings.initialUnusedCalibrationTrials) : 1;
+  setStatus((isMode1() || isMode4()) ? (idx<=warmupLimit?"Self-paced (unused)":"Self-paced (measured)") : "Self-paced");
  }else if(kind==="paced"){
   // Store the ACTUAL frame duration shown for this paced round.
   state.presentedRoundDuration = Math.round(state.duration);
@@ -3294,7 +3301,7 @@ function showResultsPage(){
   setTimeout(()=>{
    stopFX(); if(thinking) thinking.classList.add("hidden");
    renderSpeedometerOutcome(last);
-   endCurtainTransition();
+   normalizeCurtainForTesting();
  try{ updateStartPageLinks(); }catch(e){}
   },2000);
  },2000);
@@ -3354,7 +3361,7 @@ function resetSubjectSessionState(){
 function goToStartPage(){
  resetSubjectSessionState();
  ["thinkingOverlay","outcomeOverlay","testScreen"].forEach(id=>{ const el=$(id); if(el) el.classList.add("hidden"); });
- const curtain=$("curtain"); if(curtain) curtain.classList.remove("open");
+ normalizeCurtainForTesting();
  probeCell.classList.remove("gspin-f","gspin-r","gidle-f","gidle-r");
  stopFX(); setStatus("Ready"); showOnly("subjectOverlay");
  try{ updateStartPageLinks(); }catch(e){}
@@ -3369,7 +3376,7 @@ function startOverFlow(){
  const we=$("welcomeEmail"); if(we) we.textContent="";
  const hint=$("subjectHint"); if(hint) hint.textContent="Enter your email to begin.";
  setStatus("Reset. Enter Subject ID."); showOnly("subjectOverlay");
- endCurtainTransition();
+ normalizeCurtainForTesting();
 }
 
 // ─── Gear spin intro then start ───
@@ -3394,6 +3401,16 @@ function beginCurtainTransition(){
 }
 function endCurtainTransition(){
  document.body.classList.remove("curtain-active");
+}
+function normalizeCurtainForTesting(){
+ endCurtainTransition();
+ const curtain=$("curtain");
+ if(curtain){
+  curtain.classList.add("open");
+  curtain.style.transition = "none";
+  void curtain.offsetWidth;
+  curtain.style.transition = "";
+ }
 }
 
 function runGearSpinThenStart(callback) {
@@ -3429,8 +3446,11 @@ function runGearSpinThenStart(callback) {
   if(curtain) curtain.classList.add("open");
   setTimeout(()=>{
    setTimeout(()=>{
-    callback();
-    endCurtainTransition();
+    try{
+     callback();
+    }finally{
+     normalizeCurtainForTesting();
+    }
    }, 1000);
   }, 750);
  }, 40);
