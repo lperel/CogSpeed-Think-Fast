@@ -1,11 +1,11 @@
 // ═══════════════════════════════════════════════════
-// CogSpeed V447
+// CogSpeed V448
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V447";
+const APP_VERSION = "V448";
 
 // ═══════════════════════════════════════════════════
-// RECENT INTEGRATED PROGRAM CHANGES (through V447)
+// RECENT INTEGRATED PROGRAM CHANGES (through V448)
 // This block summarizes the major program updates that were merged into
 // the current main line so future edits do not have to reconstruct them
 // from one-off patch builds.
@@ -96,6 +96,13 @@ const APP_VERSION = "V447";
 //    - Failed non-triggered Mode 4 sessions now leave SPI and SBLP empty in
 //      saved results so historical summaries, Results pages, and session
 //      lists do not imply sustained scoring occurred when it did not.
+// 8) V448 stabilization reset
+//    - Removed the remaining ready-delay at test start so the first trial
+//      opens immediately with no animation and no intentional delay.
+//    - Kept curtain cleanup helpers only as defensive no-op state reset;
+//      live control flow no longer depends on curtain behavior.
+//    - Strengthened fail-open start/results handoff comments and visible
+//      phase diagnostics so smoke-test freeze points are easier to see.
 // ═══════════════════════════════════════════════════
 
 const RELEASE = APP_VERSION.replace(/^V/i, "");
@@ -1138,6 +1145,7 @@ function applyPacing(rt,correct){
 // Triggers gear spin outro → thinking box → outcome box → summary.
 // ──────────────────────────────────────────────────────────────
 function finish(){
+ try{ phaseLabel.textContent="FINISHING"; setStatus(`FINISHING — ${state.endReason||"Run complete"}`); }catch(e){}
  clearTimer(); clearNoResponseTimer(); clearMaxTestTimer();
  state.phase="finished";
  const avg2=avgLast2Blocks(), cps=avg2!=null?computeCPI(avg2):null;
@@ -3396,14 +3404,12 @@ function startOverFlow(){
 
 // ─── Ready signal then start ───
 // ─── READY HANDOFF / CURTAIN-NEUTRAL START ───────────────────
-// runGearSpinThenStart(): curtain-neutral start helper.
+// runGearSpinThenStart(): curtain-neutral, no-animation, no-delay start helper.
 // It clears any stale curtain state, reveals the live test screen,
-// clears old grid/probe/response content, then waits a short fixed
-// ready delay before opening the first calibration trial.
-// The delay is intentional: it gives the subject a brief perceptual
-// buffer so the test does not feel like it froze on the first frame.
-// No curtain animation, no gear-spin dependency, and no state advance
-// depends on animation callbacks here.
+// clears old grid/probe/response content, and immediately opens the
+// first calibration trial through the provided callback.
+// No curtain animation, no gear-spin dependency, and no intentional
+// ready delay remain in this stabilization build.
 // hardResetCurtainState() and normalizeCurtainForTesting() remain as
 // defensive cleanup helpers for trial open and page reset paths.
 // ──────────────────────────────────────────────────────────────
@@ -3458,20 +3464,27 @@ function runGearSpinThenStart(callback) {
  probeCell.classList.remove("idle");
  probeInner.innerHTML = "";
  respGrid.innerHTML = "";
- setTimeout(()=>{
+ try{
   hardResetCurtainState(false);
   callback();
- }, 200);
+ }catch(err){
+  console.error("runGearSpinThenStart failed", err);
+  try{ setStatus(`START FAILED — ${state.phase||"idle"}`); }catch(_e){}
+  try{ hardResetCurtainState(true); }catch(_e){}
+  try{ showOnly("fatigueOverlay"); }catch(_e){}
+ }
 }
 
 // ─── START TEST ───
 // ─── TEST START ───────────────────────────────────────────────
 // Validates subjectId + samnPerelli, clears session state,
-// captures geo, fires gear spin intro, then opens first trial.
-// noteAnyResponse() starts the no-response timer AFTER spin completes
-//  so the 10s calibration clock only runs when gears are visible.
+// captures geo, then immediately opens the first calibration trial
+// through the curtain-neutral start helper.
+// In this stabilization build there is no animation and no ready delay.
+// noteAnyResponse() begins only after the first trial is actually open.
 // ──────────────────────────────────────────────────────────────
 function startTest(){
+ try{ phaseLabel.textContent="STARTING"; }catch(e){}
  if(!state.subjectId){ showOnly("subjectOverlay"); setStatus("Enter Subject ID first"); return; }
  if(!state.samnPerelli){ showOnly("fatigueOverlay"); setStatus("Select fatigue rating first"); return; }
  const sid=state.subjectId, spf=state.samnPerelli, mode=settings.testMode||"mode1";

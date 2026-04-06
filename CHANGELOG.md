@@ -1,3 +1,10 @@
+## V448 — No-animation / no-delay stabilization build
+- Removed the remaining ready-delay from the curtain-neutral start path so the first trial opens immediately.
+- Kept curtain helpers only as defensive cleanup and error recovery; live test flow no longer depends on curtain timing.
+- Updated stale start-path comments to match the current monolithic no-animation behavior.
+- Added clearer visible phase diagnostics for smoke testing (`STARTING`, `FINISHING`).
+- Refreshed visible/package version references to V448.
+
 ## V447 — Ready-signal cleanup + stale comment fix
 - Rewrote the stale `runGearSpinThenStart()` comment block so it now describes the real curtain-neutral start path instead of the removed gear-spin / curtain animation behavior.
 - Kept `hardResetCurtainState()` and `normalizeCurtainForTesting()` as defensive cleanup helpers for trial-open and page-reset paths.
