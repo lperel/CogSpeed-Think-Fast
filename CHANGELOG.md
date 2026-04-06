@@ -1,3 +1,9 @@
+## V419 — Admin default updates
+- Changed default warm-up calibration trials from 2 to 1.
+- Changed default measured calibration trials from 7 to 5.
+- Changed default Mode 1 restart percent of block baseline from 1.2 to 1.3.
+- Updated corresponding Admin labels and related inline comments to match the new defaults.
+
 ## V418 — Audit clean merge + version/comment alignment
 - Re-ran a DOM/wiring audit against the active V417 line. No missing active DOM IDs were found in the live UI, and no duplicate element IDs were found in `index.html`.
 - Fixed stale version/comment drift so the top-of-file `app.js` header, integrated-change comment block, hidden status line, HTML title, script query string, manifest, and service worker all match V418.

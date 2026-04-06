@@ -2,7 +2,7 @@
 // CogSpeed V418
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V418";
+const APP_VERSION = "V419";
 
 // ═══════════════════════════════════════════════════
 // RECENT INTEGRATED PROGRAM CHANGES (through V418)
@@ -40,7 +40,7 @@ const APP_VERSION = "V418";
 //      Why Changed) and per-trial timing diagnostics for paced rounds.
 //
 // 5) Recovery / pacing defaults
-//    - Mode 1 restart after block uses blockRestartPercent (default 1.2).
+//    - Mode 1 restart after block uses blockRestartPercent (default 1.3).
 //    - Correct paced response uses correctSpeedupFactor (default 0.30) with
 //      min/max speedup on correct fixed at 50/200 ms.
 //    - Recovery inter-trial and resume-to-paced delays are now admin
@@ -96,7 +96,7 @@ const DEFAULTS={
  mode3MaxDurationMs:120000,
  mode3BaselineFactor:1.3,
  consecutiveMissesForBlock:2,
-  blockRestartPercent:1.2,
+  blockRestartPercent:1.3,
  wrongSlowdownMs:50,
  correctSpeedupFactor:0.30,
  minSpeedupOnCorrectMs:50,
@@ -118,8 +118,8 @@ const DEFAULTS={
  maxTestDurationMs:150000,
  minDurationMs:600,
  maxDurationMs:3500,
- initialUnusedCalibrationTrials:2,
- initialMeasuredCalibrationTrials:7,
+ initialUnusedCalibrationTrials:1,
+ initialMeasuredCalibrationTrials:5,
  initialPacedPercent:1.2,
  calibrationStopErrors:4,
  calibrationStopSlowMs:6000,
@@ -142,8 +142,8 @@ const ADMIN_FIELDS=[
  ["adminPasscode","1. Admin passcode","text"],
 
  // 2-16. Defaults used across all modes, ordered by use in the test
- ["initialUnusedCalibrationTrials","2. Warm-up calibration trials (default 2)","number"],
- ["initialMeasuredCalibrationTrials","3. Measured calibration trials (default 7)","number"],
+ ["initialUnusedCalibrationTrials","2. Warm-up calibration trials (default 1)","number"],
+ ["initialMeasuredCalibrationTrials","3. Measured calibration trials (default 5)","number"],
  ["calibrationFirstNoResponseMs","4. Calibration first-trial no-response (ms, default 10000)","number"],
  ["calibrationNoResponseMs","5. Calibration later-trial no-response (ms, default 6000)","number"],
  ["calibrationStopErrors","6. Calibration stop after N wrong (default 4)","number"],
@@ -163,7 +163,7 @@ const ADMIN_FIELDS=[
  // 18-29. Mode 1 settings, ordered by use
  ["initialPacedPercent","17. Mode 1 MP start: % of calibration avg (default 1.2)","number"],
  ["consecutiveMissesForBlock","18. Mode 1 misses to trigger block (default 2)","number"],
- ["blockRestartPercent","19. Mode 1 restart: % of block baseline (default 1.2)","number"],
+ ["blockRestartPercent","19. Mode 1 restart: % of block baseline (default 1.3)","number"],
  ["spRestartCorrectStreak","20. Mode 1 recovery correct streak to resume (default 2)","number"],
  ["spRestartWrongLimit","21. Mode 1 recovery max wrong before fail (default 3)","number"],
 ["wrongSlowdownMs","22. Mode 1 MP slowdown on wrong (ms, default 50)","number"],
@@ -868,7 +868,7 @@ function maybeTriggerTerminalRule(){
 function failCalibration(reason){ state.endReason=reason; finish(); }
 // ─── CALIBRATION — SELF-PACED ─────────────────────────────────
 // Warm-up trials:
-//   initialUnusedCalibrationTrials (default 2) are shown first and never used
+//   initialUnusedCalibrationTrials (default 1) are shown first and never used
 //   in averaging or measured-calibration counts.
 //
 // Measured calibration phase:
@@ -1359,7 +1359,7 @@ function handleTap(index,eventTimeStamp){
   flashBtn(index,ok); state.totalResponses+=1;
 
   const warmups = Number(settings.initialUnusedCalibrationTrials)||2;
-  const measuredTargetMode1 = Number(settings.initialMeasuredCalibrationTrials)||7;
+  const measuredTargetMode1 = Number(settings.initialMeasuredCalibrationTrials)||5;
   const includeInAverages = state.calibrationTrialIndex>=warmups;
 
   // Warm-up exclusion applies across all modes:
@@ -1452,9 +1452,9 @@ function handleTap(index,eventTimeStamp){
     // REQUIRED RESTART RULE:
     //   restartMs = blockBaselineMs × blockRestartPercent
     // blockBaselineMs is the paced baseline at the block point.
-    // blockRestartPercent defaults to 1.2, so restart is 20% slower than block baseline.
+    // blockRestartPercent defaults to 1.3, so restart is 30% slower than block baseline.
     const restartBaseMs=Number(state.blockRestartBaseline)||Number(state.blockDuration)||0;
-    const restartFactor=Number(settings.blockRestartPercent)||1.2;
+    const restartFactor=Number(settings.blockRestartPercent)||1.3;
     const slower=clamp(Math.round(restartBaseMs*restartFactor),settings.minDurationMs,settings.maxDurationMs);
     state.recoveries.push(slower); state.phase="paced"; state.duration=slower;
     state.spCorrectStreak=0; state.spWrongCount=0;
