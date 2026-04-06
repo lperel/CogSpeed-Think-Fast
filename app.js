@@ -1,11 +1,11 @@
 // ═══════════════════════════════════════════════════
-// CogSpeed V438
+// CogSpeed V441
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V438";
+const APP_VERSION = "V441";
 
 // ═══════════════════════════════════════════════════
-// RECENT INTEGRATED PROGRAM CHANGES (through V438)
+// RECENT INTEGRATED PROGRAM CHANGES (through V441)
 // This block summarizes the major program updates that were merged into
 // the current main line so future edits do not have to reconstruct them
 // from one-off patch builds.
@@ -456,7 +456,7 @@ function updateCPIDisplay(avg){
   return;
  }
  if(isMode4()){
-  const spi = state.mode4Triggered ? computeSPI(state.mode4SustainedCorrect, Number(settings.mode4SustainedTrialCount)||20) : (avg!=null?computeCPI(avg):null);
+  const spi = state.mode4Triggered ? computeSPI(state.mode4SustainedCorrect, Number(settings.mode4SustainedTrialCount)||20) : null;
   cpiOut.textContent=spi!=null?Number(spi).toFixed(0):"—";
   return;
  }

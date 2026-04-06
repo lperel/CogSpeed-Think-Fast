@@ -1,3 +1,21 @@
+## V441 — Focused audit cleanup + version/changelog alignment
+- Fixed a real live/package version drift bug where the hidden status line in `index.html` still showed `CogSpeed V439` instead of the active build.
+- Corrected stale changelog drift in the historical V434 entry where it incorrectly claimed live/package references were refreshed to `V436`; it now correctly states `V434`.
+- Refreshed live/package version references to V441 across `app.js`, `index.html`, `manifest.json`, `sw.js`, and the downloadable package folder.
+
+## V440 — Rebuilt as monolith package
+- Reconfirmed the delivered package uses a single integrated `app.js` rather than split runtime JS files.
+- Refreshed live/package version references to V440 across `app.js`, `index.html`, `manifest.json`, and `sw.js`.
+- Rebuilt the downloadable zip from the correct source tree with internal folder name `CogSpeed-V440`.
+- No intended functional scoring or flow changes in this rebuild; this is a packaging/structure reset to keep the app in one main script.
+
+## V439 — Focused audit cleanup + Mode 4 display / changelog alignment
+- Re-ran version/package alignment and active DOM wiring audit against the V438 line; no missing active DOM IDs or duplicate HTML IDs were found.
+- Fixed a real Mode 4 live-display bug where the CPI/SPI readout could fall back to an adaptive CPI-style value before the sustained phase had actually triggered.
+- Mode 4 now leaves the live CPI/SPI readout blank until the sustained phase is reached, which matches the saved-results rule for non-triggered Mode 4 sessions.
+- Corrected stale changelog drift by relabeling the older changelog-clarification entry to V434 and adding the missing V437 entry for the shared curtain / calibration repair.
+- Refreshed live/package version references to V439 across `app.js`, `index.html`, `manifest.json`, `sw.js`, and the downloadable package folder.
+
 ## V438 — Shared curtain/test-screen freeze repair
 - Re-ran version/package alignment and active DOM wiring audit against the V436 Mode 4 line; no missing active DOM IDs or duplicate HTML IDs were found.
 - Fixed a shared curtain/test-screen reset bug that could leave Mode 1 and Mode 4 stuck on a partial transition screen during smoke testing.
@@ -8,9 +26,16 @@
 ## V436 — Focused audit cleanup + script-version alignment
 - Re-ran version/package alignment and active DOM wiring audit against the V435 line; no missing active DOM IDs or duplicate HTML IDs were found.
 - Fixed a real package/version drift bug where `index.html` still loaded `app.js?v=434` even though the active build had moved forward, which could allow stale cached script reuse during smoke testing and deployment.
-- Refreshed live/package version references to V436 across `app.js`, `index.html`, `manifest.json`, `sw.js`, and the downloadable package folder.
+- Refreshed live/package version references to V434 across `app.js`, `index.html`, `manifest.json`, `sw.js`, and the downloadable package folder.
 
-## V436 — Focused audit cleanup + changelog clarification
+## V437 — Shared curtain/test-screen freeze repair
+- Re-ran version/package alignment and active DOM wiring audit against the V436 Mode 4 line; no missing active DOM IDs or duplicate HTML IDs were found.
+- Fixed a shared curtain/test-screen reset bug that could leave Mode 1 and Mode 4 stuck on a partial transition screen during smoke testing.
+- Added a defensive curtain reset on trial open / start-page return / post-intro handoff so the shared transition layer cannot remain half-open between phases.
+- Fixed Mode 4 calibration progression so it now follows the same measured self-paced calibration flow as Mode 1 before branching later.
+- Refreshed live/package version references to V437 across `app.js`, `index.html`, `manifest.json`, `sw.js`, and the downloadable package folder.
+
+## V434 — Focused audit cleanup + changelog clarification
 - Re-ran version/package alignment and active DOM wiring audit against the V433 line; no missing active DOM IDs or duplicate HTML IDs were found.
 - Verified that V430, V431, and V432 now appear only as historical entries inside `CHANGELOG.md`, not in the live UI, package version fields, or active code paths.
 - Added a changelog note clarifying that older version numbers below are retained intentionally as release history, not active program labels.
