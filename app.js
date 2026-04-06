@@ -1,11 +1,11 @@
 // ═══════════════════════════════════════════════════
-// CogSpeed V436
+// CogSpeed V437
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V436";
+const APP_VERSION = "V437";
 
 // ═══════════════════════════════════════════════════
-// RECENT INTEGRATED PROGRAM CHANGES (through V436)
+// RECENT INTEGRATED PROGRAM CHANGES (through V437)
 // This block summarizes the major program updates that were merged into
 // the current main line so future edits do not have to reconstruct them
 // from one-off patch builds.
@@ -1250,7 +1250,7 @@ function openTrial(kind){
  if(kind==="calibration"){
   const total=isMode2()?(Number(settings.mode2TrialLimit)||150):isMode3()?((Number.isFinite(Number(settings.initialUnusedCalibrationTrials))?Number(settings.initialUnusedCalibrationTrials):1)+(Number(settings.mode3CalibrationTrials)||10)):((Number.isFinite(Number(settings.initialUnusedCalibrationTrials))?Number(settings.initialUnusedCalibrationTrials):1)+(Number(settings.initialMeasuredCalibrationTrials)||5)), idx=state.calibrationTrialIndex+1;
   phaseLabel.textContent=`Cal ${idx}/${total}`;
-  setStatus(isMode1()?(idx<=settings.initialUnusedCalibrationTrials?"Self-paced (unused)":"Self-paced (measured)"):"Self-paced");
+  setStatus((isMode1()||isMode4())?(idx<=settings.initialUnusedCalibrationTrials?"Self-paced (unused)":"Self-paced (measured)"):"Self-paced");
  }else if(kind==="paced"){
   // Store the ACTUAL frame duration shown for this paced round.
   state.presentedRoundDuration = Math.round(state.duration);
@@ -1509,7 +1509,7 @@ function handleTap(index,eventTimeStamp){
 
   logTrial({phase:"calibration",rt,outcome:includeInAverages?(ok?"correct":"wrong"):"Warmup",responseIndex:index,counted:includeInAverages});
 
-  if(isMode1()){
+  if(isMode1() || isMode4()){
    if(!ok){
     state.calibrationErrors+=1; updateMetrics();
     const calWrongLimit=Math.max(1,Number(settings.calibrationStopErrors)||4);
