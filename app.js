@@ -1,11 +1,11 @@
 // ═══════════════════════════════════════════════════
-// CogSpeed V457
+// CogSpeed V458
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V457";
+const APP_VERSION = "V458";
 
 // ═══════════════════════════════════════════════════
-// RECENT INTEGRATED PROGRAM CHANGES (through V457)
+// RECENT INTEGRATED PROGRAM CHANGES (through V458)
 // This block summarizes the major program updates that were merged into
 // the current main line so future edits do not have to reconstruct them
 // from one-off patch builds.
@@ -59,6 +59,9 @@ const APP_VERSION = "V457";
 //      test time rather than a per-trial no-response timeout.
 //    - The overall timer is suspended during the sustained MBS segment and
 //      restarted when the first final self-paced trial is shown.
+//    - Mode 4 now enters the sustained MBS segment when convergent adaptive
+//      pacing is reached; it no longer requires adaptive MBS to be below a
+//      separate threshold before the sustained branch can start.
 // ═══════════════════════════════════════════════════
 
 const RELEASE = APP_VERSION.replace(/^V/i, "");
@@ -953,10 +956,10 @@ function recordAnswer(ok,isMiss){
 // Mode 4 path: follow normal Mode 1 adaptive behavior until true
 //  convergence is reached. Adaptive-phase failure stops such as
 //  no-response timeout, max blocks, and other normal Mode 1 fail paths
-//  still apply before convergence. If convergence occurs and adaptive
-//  MBS is below the Mode 4 threshold, branch to the sustained fixed-rate
-//  MBS segment. Once the sustained segment starts, keep presenting the
-//  full sustained trial count before final self-paced trials.
+//  still apply before convergence. If convergence occurs, branch to the
+//  sustained fixed-rate MBS segment using that converged adaptive MBS.
+//  Once the sustained segment starts, keep presenting the full sustained
+//  trial count before final self-paced trials.
 // avgLast2Blocks(): mean of the last 2 overload (block) durations.
 // ──────────────────────────────────────────────────────────────
 function avgLast2Blocks(){
@@ -970,26 +973,22 @@ function maybeTriggerTerminalRule(){
   const avg2 = avgLast2Blocks();
   state.terminalBlockReason=`Blocks ${n-1}&${n} within ${settings.qualifyingBlockGapMs}ms (${b1.toFixed(0)}ms,${b2.toFixed(0)}ms,diff=${diff.toFixed(0)}ms)`;
   if(isMode4()) {
-   if(avg2!=null && avg2 < (Number(settings.mode4MbsThresholdMs)||250)){
-    state.mode4Triggered = true;
-    state.mode4AdaptiveMbsMs = avg2;
-    state.mode4SustainedPresentationRateMs = avg2;
-    state.mode4SustainedPresented = 0;
-    state.mode4SustainedCorrect = 0;
-    state.mode4SustainedWrong = 0;
-    state.mode4SustainedMissed = 0;
-    state.mode4SustainedCorrectRTs = [];
-    state.mode4FinalTrialsPresented = 0;
-    state.mode4FinalCorrect = 0;
-    state.mode4FinalWrong = 0;
-    state.mode4FinalRTs = [];
-    state.phase = "mode4_sustained";
-    state.duration = avg2;
-    openTrial("mode4_sustained");
-    return true;
-   }
-   state.endReason = `FAILED: Mode 4 sustained phase not triggered — adaptive MBS ${avg2!=null?avg2.toFixed(1):"—"} ms was not below threshold ${(Number(settings.mode4MbsThresholdMs)||250).toFixed(0)} ms.`;
-   finish();
+   if(avg2==null) return false;
+   state.mode4Triggered = true;
+   state.mode4AdaptiveMbsMs = avg2;
+   state.mode4SustainedPresentationRateMs = avg2;
+   state.mode4SustainedPresented = 0;
+   state.mode4SustainedCorrect = 0;
+   state.mode4SustainedWrong = 0;
+   state.mode4SustainedMissed = 0;
+   state.mode4SustainedCorrectRTs = [];
+   state.mode4FinalTrialsPresented = 0;
+   state.mode4FinalCorrect = 0;
+   state.mode4FinalWrong = 0;
+   state.mode4FinalRTs = [];
+   state.phase = "mode4_sustained";
+   state.duration = avg2;
+   openTrial("mode4_sustained");
    return true;
   }
   state.phase="terminal_recovery"; state.recoveryCorrectCompleted=0; state.spCorrectStreak=0; state.spWrongCount=0;

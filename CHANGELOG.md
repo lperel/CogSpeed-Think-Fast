@@ -1,3 +1,8 @@
+## V458 — Mode 4 convergence branch cleanup
+- Mode 4 now enters the sustained MBS segment when adaptive convergence is reached, using the converged adaptive MBS directly as the sustained presentation rate.
+- Removed the extra adaptive-MBS-below-threshold gate that could incorrectly fail a converged Mode 4 session before the sustained segment started.
+- Refreshed live/package version references to V458.
+
 ## V457 — 1-second gear-spin intro restored safely
 - Restored a 1-second spinning-gear intro at test start with no separate visual buffer.
 - Kept the start path curtain-neutral and fail-open; the first calibration trial opens from a fixed timer rather than an animation callback.
