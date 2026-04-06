@@ -1,11 +1,11 @@
 // ═══════════════════════════════════════════════════
-// CogSpeed V446
+// CogSpeed V447
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V446";
+const APP_VERSION = "V447";
 
 // ═══════════════════════════════════════════════════
-// RECENT INTEGRATED PROGRAM CHANGES (through V446)
+// RECENT INTEGRATED PROGRAM CHANGES (through V447)
 // This block summarizes the major program updates that were merged into
 // the current main line so future edits do not have to reconstruct them
 // from one-off patch builds.
@@ -3394,15 +3394,18 @@ function startOverFlow(){
  normalizeCurtainForTesting();
 }
 
-// ─── Gear spin intro then start ───
-// ─── GEAR SPIN INTRO / OUTRO ──────────────────────────────────
-// runGearSpinThenStart(): closes curtain, reopens it visibly (0.75s),
-//  then keeps all gears visibly spinning for 1.0s before firing callback.
-// Outro spin triggered in showResultsPage() after test ends.
-// CURTAIN TRANSITION: left/right panels slide apart on open,
-//  slide closed on test end (CSS transform translateX).
-// During curtain motion, overlays/text are force-hidden to prevent
-// leaked text fragments from flashing on screen.
+// ─── Ready signal then start ───
+// ─── READY HANDOFF / CURTAIN-NEUTRAL START ───────────────────
+// runGearSpinThenStart(): curtain-neutral start helper.
+// It clears any stale curtain state, reveals the live test screen,
+// clears old grid/probe/response content, then waits a short fixed
+// ready delay before opening the first calibration trial.
+// The delay is intentional: it gives the subject a brief perceptual
+// buffer so the test does not feel like it froze on the first frame.
+// No curtain animation, no gear-spin dependency, and no state advance
+// depends on animation callbacks here.
+// hardResetCurtainState() and normalizeCurtainForTesting() remain as
+// defensive cleanup helpers for trial open and page reset paths.
 // ──────────────────────────────────────────────────────────────
 
 let _curtainWatchdogTimer=null;
@@ -3458,7 +3461,7 @@ function runGearSpinThenStart(callback) {
  setTimeout(()=>{
   hardResetCurtainState(false);
   callback();
- }, 20);
+ }, 200);
 }
 
 // ─── START TEST ───

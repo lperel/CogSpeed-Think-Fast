@@ -1,3 +1,9 @@
+## V447 — Ready-signal cleanup + stale comment fix
+- Rewrote the stale `runGearSpinThenStart()` comment block so it now describes the real curtain-neutral start path instead of the removed gear-spin / curtain animation behavior.
+- Kept `hardResetCurtainState()` and `normalizeCurtainForTesting()` as defensive cleanup helpers for trial-open and page-reset paths.
+- Added a short 200 ms ready delay before the first calibration trial opens so the test no longer snaps instantly into the first frame.
+- Refreshed visible/package version references to V447.
+
 ## V446 — Curtain-neutral stabilization + Mode 4 graph fixes
 - Removed remaining curtain-active CSS side effects from the live UI shell so the curtain cannot hide overlays or intercept results presentation.
 - Hardened `showResultsPage()` to hide the test screen, clear all overlays, and show the outcome/speedometer directly.
