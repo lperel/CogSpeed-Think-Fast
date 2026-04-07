@@ -1,11 +1,11 @@
 // ═══════════════════════════════════════════════════
-// CogSpeed V461
+// CogSpeed V462
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V461";
+const APP_VERSION = "V462";
 
 // ═══════════════════════════════════════════════════
-// RECENT INTEGRATED PROGRAM CHANGES (through V461)
+// RECENT INTEGRATED PROGRAM CHANGES (through V462)
 // This block summarizes the major program updates that were merged into
 // the current main line so future edits do not have to reconstruct them
 // from one-off patch builds.
@@ -62,6 +62,13 @@ const APP_VERSION = "V461";
 //    - Mode 4 now enters the sustained MBS segment when convergent adaptive
 //      pacing is reached; it no longer requires adaptive MBS to be below a
 //      separate threshold before the sustained branch can start.
+//    - Mode 4 Results Summary now separates self-paced calibration from
+//      adaptive paced and recovery errors, lists every block found, reports
+//      sustained correct-RT mean/SD, and renders a Mode 4 SPI capability
+//      table instead of falling back to the Mode 1-only CPI table logic.
+//    - Final self-paced Mode 4 result fields are saved directly into the
+//      session record and also have defensive rtLog-based fallbacks so older
+//      sessions can still render correct final-trial counts and mean RT.
 // ═══════════════════════════════════════════════════
 
 const RELEASE = APP_VERSION.replace(/^V/i, "");
@@ -1261,6 +1268,11 @@ function finish(){
    mode4SustainedWrong: state.mode4SustainedWrong,
    mode4SustainedMissed: state.mode4SustainedMissed,
    mode4FinalTrialsPresented: state.mode4FinalTrialsPresented,
+   mode4FinalCorrect: state.mode4FinalCorrect,
+   mode4FinalWrong: state.mode4FinalWrong,
+   mode4FinalMeanRtMs: state.mode4FinalRTs.length ? mean(state.mode4FinalRTs) : null,
+   mode4FinalSdRtMs: stdDev(state.mode4FinalRTs),
+   mode4SustainedCorrectSdMs: state.mode4SustainedCorrectRTs.length ? stdDev(state.mode4SustainedCorrectRTs) : null,
    rtLog:[...state.rtLog], endReason:state.endReason||"Run complete",
    time:new Date().toISOString(), geo:state.geo, timingQuality
   };
@@ -2850,50 +2862,52 @@ function isTestSuccess(r){
 // Combination lists are provided for correct, wrong, and all responses combined.
 
 function getCognitivePerformanceTableText(result){
- if((result.testMode||"mode1")!=="mode1") return "Not used in this mode.";
- const cpi = result.cognitivePerformanceIndex!=null ? Number(result.cognitivePerformanceIndex) : null;
+ const mode=(result.testMode||"mode1");
+ if(!["mode1","mode4"].includes(mode)) return "Not used in this mode.";
+ const score = mode==="mode4"
+  ? (result.sustainedProcessingIndex!=null ? Number(result.sustainedProcessingIndex) : null)
+  : (result.cognitivePerformanceIndex!=null ? Number(result.cognitivePerformanceIndex) : null);
  const actualSpfs = result.samnPerelli && result.samnPerelli.score!=null ? Number(result.samnPerelli.score) : null;
  const best = Number(settings.cpiBestMs)||DEFAULTS.cpiBestMs;
  const worst = Number(settings.cpiWorstMs)||DEFAULTS.cpiWorstMs;
  const span = worst - best;
- const cpiToMs = c => Math.round(best + ((100-c)/100)*span);
+ const scoreToMs = c => Math.round(best + ((100-c)/100)*span);
+ const metricLabel = mode==="mode4" ? "SPI" : "CPI";
+ const msLabel = mode==="mode4" ? "SBLP ref" : "MBS ref";
  const rows = [
-  {spfs:7,cpi:100,ms:cpiToMs(100),cap:"FUNCTIONING EXCEPTIONALLY WELL"},
-  {spfs:6,cpi:80,ms:cpiToMs(80),cap:"FUNCTIONING VERY WELL"},
-  {spfs:5,cpi:75,ms:cpiToMs(75),cap:"FUNCTIONING NORMALLY"},
-  {spfs:4,cpi:50,ms:cpiToMs(50),cap:"FUNCTIONING SLIGHTLY LESS THAN NORMAL"},
-  {spfs:3,cpi:25,ms:cpiToMs(25),cap:"FUNCTIONING STARTING TO SLOW"},
-  {spfs:2,cpi:11,ms:cpiToMs(11),cap:"DIFFICULT TO FUNCTION / BECOMING UNSAFE"},
-  {spfs:1,cpi:0,ms:cpiToMs(0),cap:"UNABLE TO FUNCTION / DEFINITELY UNSAFE"},
+  {spfs:7,score:100,ms:scoreToMs(100),cap:"FUNCTIONING EXCEPTIONALLY WELL"},
+  {spfs:6,score:80,ms:scoreToMs(80),cap:"FUNCTIONING VERY WELL"},
+  {spfs:5,score:75,ms:scoreToMs(75),cap:"FUNCTIONING NORMALLY"},
+  {spfs:4,score:50,ms:scoreToMs(50),cap:"FUNCTIONING SLIGHTLY LESS THAN NORMAL"},
+  {spfs:3,score:25,ms:scoreToMs(25),cap:"FUNCTIONING STARTING TO SLOW"},
+  {spfs:2,score:11,ms:scoreToMs(11),cap:"DIFFICULT TO FUNCTION / BECOMING UNSAFE"},
+  {spfs:1,score:0,ms:scoreToMs(0),cap:"UNABLE TO FUNCTION / DEFINITELY UNSAFE"},
  ];
  let nearestIdx = -1;
- if(cpi!=null){
+ if(score!=null){
   let bestDiff = Infinity;
   rows.forEach((r,i)=>{
-   const d = Math.abs(cpi-r.cpi);
-   if(d < bestDiff){
-    bestDiff = d;
-    nearestIdx = i;
-   }
+   const d = Math.abs(score-r.score);
+   if(d < bestDiff){ bestDiff = d; nearestIdx = i; }
   });
  }
- const leftHeader = "Cognitive Performance Table";
+ const leftHeader = mode==="mode4" ? "Sustained Processing Table" : "Cognitive Performance Table";
  const rightHeader = "Cognitive Performance Capability *";
  const leftRows = rows.map((r,i)=>{
    const spfsLabel = (actualSpfs!=null && r.spfs===actualSpfs) ? `[SP-FS ${r.spfs}]` : `SP-FS ${r.spfs}`;
-   const mark = i===nearestIdx ? "  ← CPI" : "";
-   return `${spfsLabel}: CPI ${r.cpi.toString().padStart(3," ")} | ${r.ms} ms${mark}`;
- });
+   const mark = i===nearestIdx ? `  ← ${metricLabel}` : "";
+   return `${spfsLabel}: ${metricLabel} ${r.score.toString().padStart(3," ")} | ${msLabel} ${r.ms} ms${mark}`;
+  });
  const rightRows = rows.map(r=>r.cap);
  const leftWidth = Math.max(leftHeader.length, ...leftRows.map(s=>s.length));
  const gap = "   ";
  const lines = [];
  lines.push(leftHeader.padEnd(leftWidth, " ") + gap + rightHeader);
- for(let i=0;i<rows.length;i++){
-   lines.push(leftRows[i].padEnd(leftWidth, " ") + gap + rightRows[i]);
- }
+ for(let i=0;i<rows.length;i++) lines.push(leftRows[i].padEnd(leftWidth, " ") + gap + rightRows[i]);
  return lines.join("\n");
+
 }
+
 function buildRankedSummary(result){
  const el=$("rankedText"); if(!el) return;
  const hr="─────────────────────────";
@@ -2913,6 +2927,32 @@ function getTerminalRecoveryWrongCount(result){
  }catch(e){
   return 0;
  }
+}
+
+function getMode4FinalStats(result){
+ const log = Array.isArray(result?.rtLog) ? result.rtLog : [];
+ const finals = log.filter(r => r && r.phase==="mode4_final");
+ const fallbackCorrect = finals.filter(r => r.outcome==="correct").length;
+ const fallbackWrong = finals.filter(r => r.outcome==="wrong").length;
+ const fallbackRTs = finals.map(r => Number(r.rt)).filter(v => isFinite(v));
+ return {
+  presented: result?.mode4FinalTrialsPresented!=null ? Number(result.mode4FinalTrialsPresented) : finals.length,
+  correct: result?.mode4FinalCorrect!=null ? Number(result.mode4FinalCorrect) : fallbackCorrect,
+  wrong: result?.mode4FinalWrong!=null ? Number(result.mode4FinalWrong) : fallbackWrong,
+  meanRtMs: result?.mode4FinalMeanRtMs!=null ? Number(result.mode4FinalMeanRtMs) : (fallbackRTs.length ? mean(fallbackRTs) : null),
+  sdRtMs: result?.mode4FinalSdRtMs!=null ? Number(result.mode4FinalSdRtMs) : stdDev(fallbackRTs)
+ };
+}
+
+function getMode4SustainedCorrectStats(result){
+ const log = Array.isArray(result?.rtLog) ? result.rtLog : [];
+ const sustained = log.filter(r => r && r.phase==="mode4_sustained" && r.outcome==="correct");
+ const fallbackRTs = sustained.map(r => Number(r.rt)).filter(v => isFinite(v));
+ const derivedMean = fallbackRTs.length ? mean(fallbackRTs) : null;
+ return {
+  meanRtMs: result?.sustainedBlockLimitPerformanceMs!=null ? Number(result.sustainedBlockLimitPerformanceMs) : derivedMean,
+  sdRtMs: result?.mode4SustainedCorrectSdMs!=null ? Number(result.mode4SustainedCorrectSdMs) : stdDev(fallbackRTs)
+ };
 }
 
 function getResultsMetricExplanationText(result){
@@ -3019,6 +3059,10 @@ ${getResultsMetricExplanationText(result)}`;
   const adaptiveMbs=result.mode4AdaptiveMbsMs!=null?result.mode4AdaptiveMbsMs:result.averageLast2BlockingScoresMs;
   const spi=result.sustainedProcessingIndex;
   const sblp=result.sustainedBlockLimitPerformanceMs;
+  const blockList=result.blocks&&result.blocks.length?result.blocks.map((b,i)=>` Block ${i+1}: ${Number(b).toFixed(1)} ms`).join("\n"):" none";
+
+  const sustainedStats=getMode4SustainedCorrectStats(result);
+  const finalStats=getMode4FinalStats(result);
   el.textContent=
 `CogSpeed ${APP_VERSION} — ${modeName}
 ${hr}
@@ -3038,9 +3082,6 @@ SELF-PACED CALIBRATION
  Total self-paced responses: ${result.selfPacedResponseCount}
  Self-paced correct: ${result.selfPacedCorrect}
  Calibration wrong: ${result.calibrationErrors!=null?result.calibrationErrors:result.selfPacedWrong}
- Paced wrong:       ${result.pacedErrors!=null?result.pacedErrors:0}
- Recovery wrong:    ${result.recoveryErrors!=null?result.recoveryErrors:0}
- Total wrong:       ${result.totalIncorrect}
  Average calibration RT: ${result.calibrationAverageMs!=null?result.calibrationAverageMs.toFixed(1)+" ms":"—"}
  Self-paced RT SD: ${result.selfPacedResponseSdMs!=null?result.selfPacedResponseSdMs.toFixed(1)+" ms":"—"}
 ${hr}
@@ -3049,23 +3090,31 @@ ADAPTIVE MACHINE-PACED PHASE
  Average adaptive paced RT: ${result.pacedResponseMeanMs!=null?result.pacedResponseMeanMs.toFixed(1)+" ms":"—"}
  Paced RT SD: ${result.pacedResponseSdMs!=null?result.pacedResponseSdMs.toFixed(1)+" ms":"—"}
  Blocks found: ${result.blockCount||0}
+ Block scores:
+${blockList}
+ Adaptive paced wrong: ${result.pacedErrors!=null?result.pacedErrors:0}
+ Recovery wrong:      ${result.recoveryErrors!=null?result.recoveryErrors:0}
+ Total wrong overall: ${result.totalIncorrect}
 ${hr}
 MODE 4 SUSTAINED MBS PHASE
  Triggered: ${result.mode4Triggered?"Yes":"No"}
  Legacy threshold setting: ${result.mode4MbsThresholdMs!=null?result.mode4MbsThresholdMs+" ms (reference only; not used to gate sustained phase)":"—"}
  Sustained presentation rate: ${result.mode4SustainedPresentationRateMs!=null?result.mode4SustainedPresentationRateMs.toFixed(1)+" ms":"—"}
- Sustained trials presented: ${result.mode4SustainedPresented||0}
+ Sustained trials target / presented: ${result.mode4SustainedTargetCount!=null?result.mode4SustainedTargetCount:(result.mode4SustainedPresented||0)} / ${result.mode4SustainedPresented||0}
  CSR (Correct Sustained Responses): ${result.correctSustainedResponses!=null?result.correctSustainedResponses:(result.mode4SustainedCorrect||0)}
+ Sustained correct mean RT: ${sustainedStats.meanRtMs!=null?(Number(sustainedStats.meanRtMs)===0&&((result.correctSustainedResponses!=null?result.correctSustainedResponses:(result.mode4SustainedCorrect||0))===0)?"0 ms (CSR = 0)":Number(sustainedStats.meanRtMs).toFixed(1)+" ms"):"—"}
+ Sustained correct RT SD: ${sustainedStats.sdRtMs!=null?Number(sustainedStats.sdRtMs).toFixed(1)+" ms":"—"}
  Sustained wrong:   ${result.mode4SustainedWrong||0}
  Sustained missed:  ${result.mode4SustainedMissed||0}
  SBLP: ${sblp!=null?(Number(sblp)===0&&((result.correctSustainedResponses!=null?result.correctSustainedResponses:(result.mode4SustainedCorrect||0))===0)?"0 ms (CSR = 0)":sblp.toFixed(1)+" ms"):"—"}
  SPI: ${spi!=null?spi.toFixed(1)+" / 100":"—"}
 ${hr}
 FINAL SELF-PACED TRIALS
- Final self-paced trials target / presented: ${result.mode4FinalTrialTargetCount!=null?result.mode4FinalTrialTargetCount:(result.mode4FinalTrialsPresented||0)} / ${result.mode4FinalTrialsPresented||0}
- Final self-paced correct: ${result.mode4FinalCorrect||0}
- Final self-paced wrong:   ${result.mode4FinalWrong||0}
- Final self-paced mean RT: ${result.mode4FinalMeanRtMs!=null?result.mode4FinalMeanRtMs.toFixed(1)+" ms":"—"}
+ Final self-paced trials target / presented: ${result.mode4FinalTrialTargetCount!=null?result.mode4FinalTrialTargetCount:(finalStats.presented||0)} / ${finalStats.presented||0}
+ Final self-paced correct: ${finalStats.correct||0}
+ Final self-paced wrong:   ${finalStats.wrong||0}
+ Final self-paced mean RT: ${finalStats.meanRtMs!=null?Number(finalStats.meanRtMs).toFixed(1)+" ms":"—"}
+ Final self-paced RT SD:   ${finalStats.sdRtMs!=null?Number(finalStats.sdRtMs).toFixed(1)+" ms":"—"}
 ${hr}
 COGNITIVE PERFORMANCE TABLE
  ${getCognitivePerformanceTableText(result)}
@@ -5798,4 +5847,3 @@ $("refSleepBtn").onclick=()=>showSleepPrompt();
 
 $("tutorialExitSleepBtn").onclick=()=>showSleepPrompt();
 $("tutorialExitBackBtn").onclick=()=>goToStartPage();
-

@@ -1,8 +1,8 @@
-## V461 — Results-summary freeze fix + package-version alignment
+## V462 — Results-summary freeze fix + package-version alignment
 - Fixed a real results-page rendering bug where `getResultsMetricExplanationText()` referenced `hr` outside its scope, which could blank the screen and freeze the app when Speedometer opened Results Summary.
 - Hardened `openSummarySession()` with fail-open handling so a summary-rendering error now surfaces a visible message instead of leaving the user on a blank screen.
-- Corrected the remaining package drift bug by updating `manifest.json` from the stale `CogSpeed® V456` label to `CogSpeed® V461` so the packaged metadata matches the live build.
-- Refreshed live/package version references to V461 across `app.js`, `index.html`, `manifest.json`, `sw.js`, and the downloadable package folder.
+- Corrected the remaining package drift bug by updating `manifest.json` from the stale `CogSpeed® V456` label to `CogSpeed® V462` so the packaged metadata matches the live build.
+- Refreshed live/package version references to V462 across `app.js`, `index.html`, `manifest.json`, `sw.js`, and the downloadable package folder.
 
 ## V460 — Focused audit rebuild + Mode 4 success-path repair
 - Fixed a real Mode 4 Speedometer regression where valid sessions ending at the overall max test time after the sustained/final branch could be labeled **Test Failed** because success detection only recognized `convergent...` end reasons.
