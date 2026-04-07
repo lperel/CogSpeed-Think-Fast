@@ -1,8 +1,8 @@
-## V483 — audit rebuild / Mode 4 results reintegration
+## V484 — audit rebuild / Mode 4 results reintegration
 - Re-ran a focused audit on the editable V482 source tree and repaired missing Mode 4 results fields that had drifted out of the saved-result payload.
 - Restored Mode 4 saved fields for sustained correct mean/SD, final correct/wrong/mean RT, and split test-duration reporting (adaptive phase vs sustained+final).
 - Restored full adaptive block-score listing on the Mode 4 Results page and kept Results Summary fail-open behavior intact.
-- Refreshed live/package version references to V483.
+- Refreshed live/package version references to V484.
 
 ## V482 — Mode 4 summary/speedometer repair
 - Hardened Results Summary opening so a summary-render exception now shows a visible fallback instead of a blank frozen screen.

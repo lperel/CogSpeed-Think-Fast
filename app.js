@@ -2,10 +2,10 @@
 // CogSpeed V483
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V483";
+const APP_VERSION = "V484";
 
 // ═══════════════════════════════════════════════════
-// RECENT INTEGRATED PROGRAM CHANGES (through V483)
+// RECENT INTEGRATED PROGRAM CHANGES (through V484)
 // This block summarizes the major program updates that were merged into
 // the current main line so future edits do not have to reconstruct them
 // from one-off patch builds.
@@ -1279,6 +1279,7 @@ function finish(){
    rtLog:[...state.rtLog], endReason:state.endReason||"Run complete",
    time:new Date().toISOString(), geo:state.geo, timingQuality
   };
+  try{ result = augmentMode4ResultAnalytics(result); }catch(_mode4AugErr){ console.error("mode4 analytics augment failed", _mode4AugErr); }
   setActiveResultContext(result, null, "computed result");
   if(result.sleepSinceLastTest==="yes" && result.sleepLog){
    const wakeIso = deriveWakeDateTimeIso(result.sleepLog.wakeTime, result.time);
@@ -4893,3 +4894,237 @@ $("refSleepBtn").onclick=()=>showSleepPrompt();
 $("tutorialExitSleepBtn").onclick=()=>showSleepPrompt();
 $("tutorialExitBackBtn").onclick=()=>goToStartPage();
 
+
+
+// ═══════════════════════════════════════════════════════════════
+// V484 — Mode 4 sustained analytics integration
+// Adds full sustained-phase analysis helpers, persists the derived fields
+// into the saved result object, and renders the expanded Mode 4 summary.
+// These helpers are intentionally kept in the monolithic main script.
+// ═══════════════════════════════════════════════════════════════
+(function(){
+ const _buildSummaryOriginal = (typeof buildSummary === "function") ? buildSummary : null;
+ const _getCognitivePerformanceTableTextOriginal = (typeof getCognitivePerformanceTableText === "function") ? getCognitivePerformanceTableText : null;
+ const _getResultsMetricExplanationTextOriginal = (typeof getResultsMetricExplanationText === "function") ? getResultsMetricExplanationText : null;
+
+ function safeNum(v){ const n=Number(v); return Number.isFinite(n) ? n : null; }
+ function pct(part,total){ const p=Number(part)||0, t=Number(total)||0; return t>0 ? (p/t)*100 : null; }
+ function formatPct(v){ return v!=null ? `${v.toFixed(1)}%` : '—'; }
+ function formatMs(v){ return v!=null ? `${Number(v).toFixed(1)} ms` : '—'; }
+ function formatSignedMs(v){ return v!=null ? `${v>0?'+':''}${Number(v).toFixed(1)} ms` : '—'; }
+ function linearSlope(rows, valueFn){
+  const pts=[];
+  (rows||[]).forEach((r,i)=>{ const y=safeNum(valueFn(r)); if(y!=null) pts.push([i+1,y]); });
+  if(pts.length<2) return null;
+  const xs=pts.map(p=>p[0]), ys=pts.map(p=>p[1]);
+  const mx=mean(xs), my=mean(ys);
+  let num=0, den=0;
+  pts.forEach(([x,y])=>{ num += (x-mx)*(y-my); den += (x-mx)*(x-mx); });
+  return den>0 ? (num/den) : null;
+ }
+ function computeLongestStreak(rows, predicate){
+  let best=0, cur=0;
+  (rows||[]).forEach(r=>{ if(predicate(r)){ cur+=1; if(cur>best) best=cur; } else cur=0; });
+  return best;
+ }
+ function classifyMode4Recovery(finalVsSustainedMeanRtDiffMs, finalVsCalibrationMeanRtDiffMs, finalCorrect, finalWrong){
+  if(finalCorrect==null && finalWrong==null) return '—';
+  if((finalWrong||0) > (finalCorrect||0)) return 'Worse than baseline';
+  if(finalVsSustainedMeanRtDiffMs!=null && finalVsCalibrationMeanRtDiffMs!=null){
+   if(finalVsCalibrationMeanRtDiffMs <= 60) return 'Recovered strongly';
+   if(finalVsCalibrationMeanRtDiffMs <= 220) return 'Partially recovered';
+   if(finalVsSustainedMeanRtDiffMs <= 120) return 'Partially recovered';
+   return 'Little recovery';
+  }
+  if((finalCorrect||0) > 0 && (finalWrong||0)===0) return 'Partially recovered';
+  return 'Little recovery';
+ }
+ function classifySustainedErrorStyle(wrong, missed){
+  wrong=Number(wrong)||0; missed=Number(missed)||0;
+  if(wrong===0 && missed===0) return 'Clean';
+  if(wrong>0 && missed===0) return 'Wrong-dominant';
+  if(missed>0 && wrong===0) return 'Miss-dominant';
+  if(wrong > missed*1.5) return 'Wrong-dominant';
+  if(missed > wrong*1.5) return 'Miss-dominant';
+  return 'Mixed';
+ }
+ function classifySustainedStability(earlyMean, lateMean, earlyMissed, lateMissed){
+  const rtDelta = (lateMean!=null && earlyMean!=null) ? (lateMean-earlyMean) : null;
+  const missDelta = (lateMissed!=null && earlyMissed!=null) ? (lateMissed-earlyMissed) : null;
+  if(rtDelta!=null && rtDelta < -40 && (missDelta==null || missDelta<=0)) return 'Warm-up pattern';
+  if((rtDelta!=null && rtDelta > 100) || (missDelta!=null && missDelta >= 2)) return 'Marked decline';
+  if((rtDelta!=null && rtDelta > 35) || (missDelta!=null && missDelta >= 1)) return 'Mild decline';
+  return 'Stable';
+ }
+ function getMode4SustainedAnalytics(result){
+  if(!result || result.testMode!=="mode4") return null;
+  const rtLog = Array.isArray(result.rtLog) ? result.rtLog : [];
+  const sustainedRows = rtLog.filter(r=>r && String(r.phase||'').indexOf('mode4_sustained')===0);
+  const sustainedPresented = result.mode4SustainedPresented!=null ? Number(result.mode4SustainedPresented)||0 : sustainedRows.length;
+  const targetCount = Math.max(1, Number(result.mode4SustainedTargetCount)||10);
+  const correctRows = sustainedRows.filter(r=>r.outcome==='correct' && r.rt!=null);
+  const wrongRows = sustainedRows.filter(r=>r.outcome==='wrong');
+  const missedRows = sustainedRows.filter(r=>r.outcome==='missed');
+  const correctRTs = correctRows.map(r=>Number(r.rt)).filter(Number.isFinite);
+  const frameMs = safeNum(result.mode4SustainedPresentationRateMs);
+  const margins = correctRows.map(r=>{
+   const dur=safeNum(r.durationMs)||frameMs;
+   const rt=safeNum(r.rt);
+   return (dur!=null && rt!=null) ? (dur-rt) : null;
+  }).filter(v=>v!=null);
+  const wrong = result.mode4SustainedWrong!=null ? Number(result.mode4SustainedWrong)||0 : wrongRows.length;
+  const missed = result.mode4SustainedMissed!=null ? Number(result.mode4SustainedMissed)||0 : missedRows.length;
+  const csr = result.mode4SustainedCorrect!=null ? Number(result.mode4SustainedCorrect)||0 : correctRows.length;
+  const half = Math.ceil(sustainedRows.length/2) || Math.ceil(targetCount/2);
+  const earlyRows = sustainedRows.slice(0, half);
+  const lateRows = sustainedRows.slice(half);
+  const correctStats = rows=>{
+   const cr = rows.filter(r=>r.outcome==='correct' && r.rt!=null).map(r=>Number(r.rt)).filter(Number.isFinite);
+   const miss = rows.filter(r=>r.outcome==='missed').length;
+   const corr = rows.filter(r=>r.outcome==='correct').length;
+   const margs = rows.filter(r=>r.outcome==='correct' && r.rt!=null).map(r=>{
+    const dur=safeNum(r.durationMs)||frameMs, rt=safeNum(r.rt); return (dur!=null && rt!=null) ? (dur-rt) : null;
+   }).filter(v=>v!=null);
+   return {
+    correct:corr,
+    missed:miss,
+    meanRt: cr.length?mean(cr):null,
+    rtSd: stdDev(cr),
+    meanMargin: margs.length?mean(margs):null
+   };
+  };
+  const early = correctStats(earlyRows), late = correctStats(lateRows);
+  const finalRows = rtLog.filter(r=>r && r.phase==='mode4_final');
+  const finalCorrectRows = finalRows.filter(r=>r.outcome==='correct' && r.rt!=null);
+  const finalWrongRows = finalRows.filter(r=>r.outcome==='wrong');
+  const finalRTs = finalRows.filter(r=>r.rt!=null).map(r=>Number(r.rt)).filter(Number.isFinite);
+  const finalMean = result.mode4FinalMeanRtMs!=null ? safeNum(result.mode4FinalMeanRtMs) : (finalRTs.length?mean(finalRTs):null);
+  const calibrationMean = safeNum(result.calibrationAverageMs);
+  const sustainedMean = result.mode4SustainedCorrectMeanRtMs!=null ? safeNum(result.mode4SustainedCorrectMeanRtMs) : (correctRTs.length?mean(correctRTs):null);
+  const sustainedSd = result.mode4SustainedCorrectRtSdMs!=null ? safeNum(result.mode4SustainedCorrectRtSdMs) : stdDev(correctRTs);
+  const adaptiveMbs = safeNum(result.mode4AdaptiveMbsMs!=null ? result.mode4AdaptiveMbsMs : result.averageLast2BlockingScoresMs);
+  const mode4Cpi = frameMs!=null ? Math.max(0, Math.min(100, computeCPI(frameMs))) : null;
+  const analytics = {
+   mode4SustainedTargetCount: targetCount,
+   mode4SustainedPresented: sustainedPresented,
+   mode4SustainedCorrect: csr,
+   mode4SustainedWrong: wrong,
+   mode4SustainedMissed: missed,
+   mode4SustainedPercentCorrect: pct(csr, sustainedPresented),
+   mode4SustainedPercentWrong: pct(wrong, sustainedPresented),
+   mode4SustainedPercentMissed: pct(missed, sustainedPresented),
+   mode4SustainedCorrectMeanRtMs: sustainedMean,
+   mode4SustainedCorrectRtSdMs: sustainedSd,
+   mode4SustainedMeanMarginMs: margins.length?mean(margins):null,
+   mode4SustainedMarginSdMs: stdDev(margins),
+   mode4SustainedMinMarginMs: margins.length?Math.min(...margins):null,
+   mode4SustainedMarginLt100Count: margins.filter(v=>v<100).length,
+   mode4SustainedMarginLt50Count: margins.filter(v=>v<50).length,
+   mode4SustainedMarginLt25Count: margins.filter(v=>v<25).length,
+   mode4SustainedWrongMissRatio: missed>0 ? (wrong/missed) : (wrong>0 ? null : 0),
+   mode4SustainedErrorStyle: classifySustainedErrorStyle(wrong, missed),
+   mode4SustainedEarlyCorrect: early.correct,
+   mode4SustainedLateCorrect: late.correct,
+   mode4SustainedEarlyMissed: early.missed,
+   mode4SustainedLateMissed: late.missed,
+   mode4SustainedEarlyMeanRtMs: early.meanRt,
+   mode4SustainedLateMeanRtMs: late.meanRt,
+   mode4SustainedEarlyRtSdMs: early.rtSd,
+   mode4SustainedLateRtSdMs: late.rtSd,
+   mode4SustainedEarlyMeanMarginMs: early.meanMargin,
+   mode4SustainedLateMeanMarginMs: late.meanMargin,
+   mode4SustainedRtSlope: linearSlope(correctRows, r=>r.rt),
+   mode4SustainedMarginSlope: linearSlope(correctRows, r=>{
+    const dur=safeNum(r.durationMs)||frameMs, rt=safeNum(r.rt); return (dur!=null&&rt!=null)?(dur-rt):null;
+   }),
+   mode4SustainedLongestCorrectStreak: computeLongestStreak(sustainedRows, r=>r.outcome==='correct'),
+   mode4SustainedLongestWrongStreak: computeLongestStreak(sustainedRows, r=>r.outcome==='wrong'),
+   mode4SustainedLongestMissStreak: computeLongestStreak(sustainedRows, r=>r.outcome==='missed'),
+   mode4SustainedLongestNonCorrectStreak: computeLongestStreak(sustainedRows, r=>r.outcome!=='correct'),
+   mode4AdaptiveToSustainedGapMs: (frameMs!=null && sustainedMean!=null) ? (frameMs - sustainedMean) : ((adaptiveMbs!=null && sustainedMean!=null) ? (adaptiveMbs - sustainedMean) : null),
+   mode4FinalCorrect: result.mode4FinalCorrect!=null ? Number(result.mode4FinalCorrect)||0 : finalCorrectRows.length,
+   mode4FinalWrong: result.mode4FinalWrong!=null ? Number(result.mode4FinalWrong)||0 : finalWrongRows.length,
+   mode4FinalMeanRtMs: finalMean,
+   mode4FinalRtSdMs: result.mode4FinalRtSdMs!=null ? safeNum(result.mode4FinalRtSdMs) : stdDev(finalRTs),
+   mode4FinalVsSustainedMeanRtDiffMs: (finalMean!=null && sustainedMean!=null) ? (finalMean - sustainedMean) : null,
+   mode4FinalVsCalibrationMeanRtDiffMs: (finalMean!=null && calibrationMean!=null) ? (finalMean - calibrationMean) : null,
+   mode4RecoveryStatusLabel: classifyMode4Recovery((finalMean!=null && sustainedMean!=null)?(finalMean - sustainedMean):null,(finalMean!=null && calibrationMean!=null)?(finalMean - calibrationMean):null,result.mode4FinalCorrect!=null?Number(result.mode4FinalCorrect)||0:finalCorrectRows.length,result.mode4FinalWrong!=null?Number(result.mode4FinalWrong)||0:finalWrongRows.length),
+   mode4SustainedStabilityLabel: classifySustainedStability(early.meanRt, late.meanRt, early.missed, late.missed),
+   mode4CognitivePerformanceIndexFromCsr: mode4Cpi,
+   mode4SustainedCompositeScore: (()=>{
+    const acc = targetCount>0 ? (csr/targetCount) : 0;
+    const speed = (frameMs!=null && sustainedMean!=null && frameMs>0) ? clamp((frameMs - sustainedMean)/frameMs, 0, 1) : 0;
+    const varPenalty = sustainedSd!=null && frameMs!=null && frameMs>0 ? clamp(1 - (sustainedSd/frameMs), 0, 1) : 0;
+    const availability = sustainedPresented>0 ? clamp(1 - ((missed||0)/sustainedPresented), 0, 1) : 0;
+    return Math.round(((acc*0.45)+(speed*0.20)+(varPenalty*0.20)+(availability*0.15))*100);
+   })()
+  };
+  return analytics;
+ }
+ function augmentMode4ResultAnalytics(result){
+  if(!result || result.testMode!=="mode4") return result;
+  const analytics = getMode4SustainedAnalytics(result);
+  return analytics ? Object.assign(result, analytics) : result;
+ }
+ window.augmentMode4ResultAnalytics = augmentMode4ResultAnalytics;
+
+ function getMode4CognitivePerformanceTableText(result){
+  const target = Math.max(1, Number(result && result.mode4SustainedTargetCount)||10);
+  const csr = Number(result && (result.correctSustainedResponses!=null ? result.correctSustainedResponses : result.mode4SustainedCorrect));
+  const cpi = Number.isFinite(Number(result && result.mode4CognitivePerformanceIndexFromCsr)) ? Number(result.mode4CognitivePerformanceIndexFromCsr) : (target>0 && Number.isFinite(csr) ? (csr/target)*100 : null);
+  const lines=['MODE 4 CPI / CSR REFERENCE TABLE'];
+  const steps = Math.min(target,10);
+  for(let i=steps;i>=0;i--){
+   const refCsr = Math.round((i/steps)*target);
+   const refCpi = Math.round((refCsr/target)*100);
+   const arrow = (Number.isFinite(csr) && refCsr===Math.max(0, Math.min(target, Math.round(csr)))) ? '  ← actual CSR' : '';
+   lines.push(` CPI ${String(refCpi).padStart(3,' ')} = CSR ${String(refCsr).padStart(2,' ')}${arrow}`);
+  }
+  if(cpi!=null) lines.push(` Actual CPI from CSR: ${cpi.toFixed(1)} / 100`);
+  return lines.join('\n');
+ }
+
+ getCognitivePerformanceTableText = function(result){
+  if(result && result.testMode==='mode4') return getMode4CognitivePerformanceTableText(result);
+  return _getCognitivePerformanceTableTextOriginal ? _getCognitivePerformanceTableTextOriginal(result) : 'Cognitive performance table unavailable.';
+ };
+
+ getResultsMetricExplanationText = function(result){
+  const base = _getResultsMetricExplanationTextOriginal ? String(_getResultsMetricExplanationTextOriginal(result)||'') : '';
+  if(!result || result.testMode!=='mode4') return base;
+  const hr='\n─────────────────────────\n';
+  return `${base}${hr}MODE 4 SUSTAINED METRICS\n CSR = Correct Sustained Responses.\n SBLP = mean RT on correct sustained trials at the fixed sustained rate.\n SPI = 0–100 sustained score based on CSR.\n Mean margin = sustained frame duration minus correct RT on sustained trials.\n Early vs late sustained change compares the first half of sustained trials with the second half.\n Recovery status compares final self-paced performance to sustained and calibration performance.`;
+ };
+
+ buildSummary = function(result){
+  if(!result || result.testMode!=='mode4'){
+   if(_buildSummaryOriginal) return _buildSummaryOriginal(result);
+   const el=$('summaryText'); if(el) el.textContent='No summary available.';
+   return;
+  }
+  result = augmentMode4ResultAnalytics(result);
+  const el=$('summaryText'); if(!el) return;
+  const hr='─────────────────────────';
+  const modeName = formatModeTag(result.testMode);
+  const spf = result && result.samnPerelli && result.samnPerelli.score!=null ? result.samnPerelli.score : '—';
+  const geoStr = result && result.geo && result.geo.address ? result.geo.address : '—';
+  const adaptiveMbs = safeNum(result.mode4AdaptiveMbsMs!=null ? result.mode4AdaptiveMbsMs : result.averageLast2BlockingScoresMs);
+  const blockList = (result.blocks&&result.blocks.length) ? result.blocks.map((b,i)=>` Block ${i+1}: ${Number(b).toFixed(0)} ms`).join('\n') : ' none';
+  const adaptiveDur = result.mode4AdaptivePhaseDurationMs!=null ? result.mode4AdaptivePhaseDurationMs : null;
+  const sustainedFinalDur = result.mode4SustainedPlusFinalDurationMs!=null ? result.mode4SustainedPlusFinalDurationMs : null;
+  const totalDur = result.testDurationMs!=null ? result.testDurationMs : ((adaptiveDur!=null && sustainedFinalDur!=null) ? (adaptiveDur+sustainedFinalDur) : null);
+  const formatSleep = ()=> typeof formatSleepLine === 'function' ? formatSleepLine(result) : '';
+  const formatSleepSince = ()=> typeof formatTimeSinceLastSleepLine === 'function' ? (formatTimeSinceLastSleepLine(result)||'') : '';
+  const wrongMissRatio = result.mode4SustainedWrongMissRatio!=null ? result.mode4SustainedWrongMissRatio.toFixed(2) : '—';
+  const adaptiveConfirm = (()=>{
+   const gap=result.mode4AdaptiveToSustainedGapMs;
+   if(gap!=null && result.mode4SustainedPercentMissed!=null){
+    if(gap>=35 && result.mode4SustainedPercentMissed<=10) return 'Confirmed';
+    if(gap>=10 && result.mode4SustainedPercentMissed<=20) return 'Borderline';
+    return 'Not sustained well';
+   }
+   return '—';
+  })();
+  el.textContent = `CogSpeed ${APP_VERSION} — ${modeName}\n${hr}\nTest Mode:  ${modeName}\nSession:    ${result.sessionNumber!=null?result.sessionNumber:'—'}\nSubject ID: ${result.subjectId||'—'}\nDate / Time: ${result.time?new Date(result.time).toLocaleString():'—'}\nTotal TEST duration: ${formatDuration(totalDur)}\nCalibration start → end of adaptive paced trials: ${formatDuration(adaptiveDur)}\nSustained + final duration: ${formatDuration(sustainedFinalDur)}\nDuration check (2 + 3 = 1): ${(adaptiveDur!=null && sustainedFinalDur!=null && totalDur!=null) ? formatDuration(adaptiveDur+sustainedFinalDur) : '—'}\nLocation: ${geoStr}\n${hr}\nFATIGUE (SP-FS)\n Pre-test rating: ${spf}\n${formatSleep()}\n${formatSleepSince()}\n${hr}\nSELF-PACED CALIBRATION\n Total self-paced responses: ${result.selfPacedResponseCount||0}\n Self-paced correct: ${result.selfPacedCorrect||0}\n Calibration wrong: ${result.calibrationErrors!=null?result.calibrationErrors:(result.selfPacedWrong||0)}\n Average calibration RT: ${formatMs(result.calibrationAverageMs)}\n Self-paced RT SD: ${formatMs(result.selfPacedResponseSdMs)}\n${hr}\nADAPTIVE MACHINE-PACED PHASE\n Block scores:\n${blockList}\n Adaptive MBS: ${formatMs(adaptiveMbs)}\n Average adaptive paced RT: ${formatMs(result.pacedResponseMeanMs)}\n Paced RT SD: ${formatMs(result.pacedResponseSdMs)}\n Blocks found: ${result.blockCount||0}\n${hr}\nMODE 4 SUSTAINED MBS PHASE\n Triggered: ${result.mode4Triggered?'Yes':'No'}\n Sustained target / presented: ${result.mode4SustainedTargetCount||0} / ${result.mode4SustainedPresented||0}\n Sustained presentation rate: ${formatMs(result.mode4SustainedPresentationRateMs)}\n CSR (Correct Sustained Responses): ${result.mode4SustainedCorrect||0}\n Sustained wrong: ${result.mode4SustainedWrong||0}\n Sustained missed: ${result.mode4SustainedMissed||0}\n Sustained % correct: ${formatPct(result.mode4SustainedPercentCorrect)}\n Sustained % wrong: ${formatPct(result.mode4SustainedPercentWrong)}\n Sustained % missed: ${formatPct(result.mode4SustainedPercentMissed)}\n SBLP (mean correct sustained RT): ${formatMs(result.mode4SustainedCorrectMeanRtMs)}\n Sustained correct RT SD: ${formatMs(result.mode4SustainedCorrectRtSdMs)}\n Mean margin to frame: ${formatMs(result.mode4SustainedMeanMarginMs)}\n Margin SD: ${formatMs(result.mode4SustainedMarginSdMs)}\n Minimum margin: ${formatMs(result.mode4SustainedMinMarginMs)}\n Margin <100 ms: ${result.mode4SustainedMarginLt100Count!=null?result.mode4SustainedMarginLt100Count:'—'}\n Margin <50 ms: ${result.mode4SustainedMarginLt50Count!=null?result.mode4SustainedMarginLt50Count:'—'}\n Margin <25 ms: ${result.mode4SustainedMarginLt25Count!=null?result.mode4SustainedMarginLt25Count:'—'}\n Wrong / miss ratio: ${wrongMissRatio}\n Error style: ${result.mode4SustainedErrorStyle||'—'}\n Early sustained correct: ${result.mode4SustainedEarlyCorrect!=null?result.mode4SustainedEarlyCorrect:'—'}\n Late sustained correct: ${result.mode4SustainedLateCorrect!=null?result.mode4SustainedLateCorrect:'—'}\n Early sustained missed: ${result.mode4SustainedEarlyMissed!=null?result.mode4SustainedEarlyMissed:'—'}\n Late sustained missed: ${result.mode4SustainedLateMissed!=null?result.mode4SustainedLateMissed:'—'}\n Early sustained mean RT: ${formatMs(result.mode4SustainedEarlyMeanRtMs)}\n Late sustained mean RT: ${formatMs(result.mode4SustainedLateMeanRtMs)}\n Early sustained RT SD: ${formatMs(result.mode4SustainedEarlyRtSdMs)}\n Late sustained RT SD: ${formatMs(result.mode4SustainedLateRtSdMs)}\n Early mean margin: ${formatMs(result.mode4SustainedEarlyMeanMarginMs)}\n Late mean margin: ${formatMs(result.mode4SustainedLateMeanMarginMs)}\n Sustained RT slope: ${formatSignedMs(result.mode4SustainedRtSlope)} per trial\n Sustained margin slope: ${formatSignedMs(result.mode4SustainedMarginSlope)} per trial\n Longest correct streak: ${result.mode4SustainedLongestCorrectStreak!=null?result.mode4SustainedLongestCorrectStreak:'—'}\n Longest wrong streak: ${result.mode4SustainedLongestWrongStreak!=null?result.mode4SustainedLongestWrongStreak:'—'}\n Longest miss streak: ${result.mode4SustainedLongestMissStreak!=null?result.mode4SustainedLongestMissStreak:'—'}\n Longest non-correct streak: ${result.mode4SustainedLongestNonCorrectStreak!=null?result.mode4SustainedLongestNonCorrectStreak:'—'}\n Sustained stability: ${result.mode4SustainedStabilityLabel||'—'}\n SPI: ${result.sustainedProcessingIndex!=null ? result.sustainedProcessingIndex.toFixed(1)+' / 100' : '—'}\n Sustained composite score: ${result.mode4SustainedCompositeScore!=null ? result.mode4SustainedCompositeScore+' / 100' : '—'}\n${hr}\nADAPTIVE VS SUSTAINED COMPARISON\n Adaptive MBS: ${formatMs(adaptiveMbs)}\n Sustained correct mean RT: ${formatMs(result.mode4SustainedCorrectMeanRtMs)}\n Adaptive-to-sustained gap: ${formatSignedMs(result.mode4AdaptiveToSustainedGapMs)}\n Sustained confirmation: ${adaptiveConfirm}\n${hr}\nFINAL SELF-PACED PHASE\n Final self-paced target / presented: ${result.mode4FinalTrialTargetCount!=null?result.mode4FinalTrialTargetCount:(result.mode4FinalTrialsPresented||0)} / ${result.mode4FinalTrialsPresented||0}\n Final self-paced correct: ${result.mode4FinalCorrect!=null?result.mode4FinalCorrect:'—'}\n Final self-paced wrong: ${result.mode4FinalWrong!=null?result.mode4FinalWrong:'—'}\n Final self-paced mean RT: ${formatMs(result.mode4FinalMeanRtMs)}\n Final self-paced RT SD: ${formatMs(result.mode4FinalRtSdMs)}\n Final vs sustained mean RT: ${formatSignedMs(result.mode4FinalVsSustainedMeanRtDiffMs)}\n Final vs calibration mean RT: ${formatSignedMs(result.mode4FinalVsCalibrationMeanRtDiffMs)}\n Recovery status: ${result.mode4RecoveryStatusLabel||'—'}\n${hr}\nCOGNITIVE PERFORMANCE TABLE\n ${getMode4CognitivePerformanceTableText(result)}\n${hr}\nEND REASON\n ${result.endReason||'Run complete'}${getResultsMetricExplanationText(result)}`;
+ };
+})();
