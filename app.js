@@ -1,11 +1,11 @@
 // ═══════════════════════════════════════════════════
-// CogSpeed V459
+// CogSpeed V460
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V459";
+const APP_VERSION = "V460";
 
 // ═══════════════════════════════════════════════════
-// RECENT INTEGRATED PROGRAM CHANGES (through V459)
+// RECENT INTEGRATED PROGRAM CHANGES (through V460)
 // This block summarizes the major program updates that were merged into
 // the current main line so future edits do not have to reconstruct them
 // from one-off patch builds.
@@ -107,7 +107,7 @@ const DEFAULTS={
  mode3MaxDurationMs:120000,
  mode3BaselineFactor:1.3,
  mode4MbsThresholdMs:250,
- mode4SustainedTrialCount:20,
+ mode4SustainedTrialCount:10,
  mode4FinalTrialCount:2,
  consecutiveMissesForBlock:2,
   blockRestartPercent:1.3,
@@ -202,7 +202,7 @@ const ADMIN_FIELDS=[
  ["mode3PacedTrialLimit","37. Mode 3 fixed machine-paced trial limit (default 140)","number"],
  ["mode3MaxDurationMs","38. Mode 3 total duration ms (default 120000)","number"],
  ["mode4MbsThresholdMs","39. Mode 4 legacy MBS threshold (reference only; not used to gate sustained phase, default 250)","number"],
- ["mode4SustainedTrialCount","40. Mode 4 sustained trials at MBS (default 20)","number"],
+ ["mode4SustainedTrialCount","40. Mode 4 sustained trials at MBS (default 10)","number"],
  ["mode4FinalTrialCount","41. Mode 4 final self-paced trials (default 2)","number"],
  ["deviceBenchmarkEnabled","42. Device benchmark (0=off, 1=on)","number"],
  ["lateResponseThresholdMs","43. Late response reassignment threshold (ms, default 600)","number"],
@@ -472,7 +472,7 @@ function updateCPIDisplay(avg){
   return;
  }
  if(isMode4()){
-  const spi = state.mode4Triggered ? computeSPI(state.mode4SustainedCorrect, Number(settings.mode4SustainedTrialCount)||20) : null;
+  const spi = state.mode4Triggered ? computeSPI(state.mode4SustainedCorrect, Number(settings.mode4SustainedTrialCount)||10) : null;
   cpiOut.textContent=spi!=null?Number(spi).toFixed(0):"—";
   return;
  }
@@ -1214,7 +1214,7 @@ function finish(){
   const blockDiff=state.overloads.length>=2?state.overloads[state.overloads.length-1]-state.overloads[state.overloads.length-2]:null;
   const testDurMs=state.testStartTime!=null?performance.now()-state.testStartTime:null;
   const mode4SblpMs = getMode4SblpMsFromState();
-  const mode4SustainedTargetCount = Math.max(1, Number(settings.mode4SustainedTrialCount)||20);
+  const mode4SustainedTargetCount = Math.max(1, Number(settings.mode4SustainedTrialCount)||10);
   const modeMetricMs = isMode2() ? (state.selfPacedRTs.length?mean(state.selfPacedRTs):null) : isMode3() ? (state.pacedRTs.length?mean(state.pacedRTs):(state.fixedPacedBaseline||null)) : isMode4() ? (state.mode4Triggered ? mode4SblpMs : avg2) : avg2;
   const modeCPI = (isMode2()||isMode3()) ? null : isMode4() ? (state.mode4Triggered ? computeSPI(state.mode4SustainedCorrect, mode4SustainedTargetCount) : null) : (modeMetricMs!=null ? computeCPI(modeMetricMs) : cps);
   const timingQuality={
@@ -1253,7 +1253,7 @@ function finish(){
    correctSustainedResponses: isMode4() ? getMode4CsrCountFromState() : null,
    mode4AdaptiveMbsMs: state.mode4AdaptiveMbsMs,
    mode4MbsThresholdMs: Number(settings.mode4MbsThresholdMs)||250,
-   mode4SustainedTargetCount: isMode4() ? Math.max(1, Number(settings.mode4SustainedTrialCount)||20) : null,
+   mode4SustainedTargetCount: isMode4() ? Math.max(1, Number(settings.mode4SustainedTrialCount)||10) : null,
    mode4FinalTrialTargetCount: isMode4() ? Math.max(1, Number(settings.mode4FinalTrialCount)||2) : null,
    mode4SustainedPresentationRateMs: state.mode4SustainedPresentationRateMs,
    mode4SustainedPresented: state.mode4SustainedPresented,
@@ -1513,7 +1513,7 @@ if(state.phase==="mode4_sustained"){
    state.missedTrials+=1;
    state.mode4SustainedMissed+=1;
   }
-  const limit=Math.max(1, Number(settings.mode4SustainedTrialCount)||20);
+  const limit=Math.max(1, Number(settings.mode4SustainedTrialCount)||10);
   if(state.mode4SustainedPresented >= limit){
    state.phase="mode4_final";
    state.mode4FinalTrialsPresented=0;
@@ -1756,7 +1756,7 @@ function handleTap(index,eventTimeStamp){
  if(state.phase==="mode4_sustained"){
   const rt=getSafeTrialRtMs(eventTimeStamp);
   const timingSummary = harvestActiveFrameTiming(performance.now());
-  const limit=Math.max(1, Number(settings.mode4SustainedTrialCount)||20);
+  const limit=Math.max(1, Number(settings.mode4SustainedTrialCount)||10);
   if(state.current&&!state.current.resolved&&trialMatches(state.current,index)){
    state.current.resolved=true; state.totalResponses+=1; state.totalCorrect+=1; state.mode4SustainedCorrect+=1; state.pacedRTs.push(rt); state.mode4SustainedCorrectRTs.push(rt);
    logTrial({phase:"mode4_sustained",rt,outcome:"correct",responseIndex:index,timing:timingSummary,pacing:{nextRateMs:state.duration,rateChangeMs:0,rateChangeReason:"Mode 4 sustained fixed MBS"}});
@@ -1782,7 +1782,7 @@ function handleTap(index,eventTimeStamp){
   logTrial({phase:"mode4_final",rt,outcome:ok?"correct":"wrong",responseIndex:index});
   const need=Math.max(1, Number(settings.mode4FinalTrialCount)||2);
   if(state.mode4FinalTrialsPresented>=need){
-   state.endReason=`Mode 4 sustained MBS segment complete. Presented ${Math.max(1, Number(settings.mode4SustainedTrialCount)||20)} sustained trial(s) at ${state.mode4SustainedPresentationRateMs!=null?Math.round(state.mode4SustainedPresentationRateMs):"—"} ms, CSR ${state.mode4SustainedCorrect||0}, and ${need} final self-paced trial(s).`;
+   state.endReason=`Mode 4 sustained MBS segment complete. Presented ${Math.max(1, Number(settings.mode4SustainedTrialCount)||10)} sustained trial(s) at ${state.mode4SustainedPresentationRateMs!=null?Math.round(state.mode4SustainedPresentationRateMs):"—"} ms, CSR ${state.mode4SustainedCorrect||0}, and ${need} final self-paced trial(s).`;
    finish(); return;
   }
   openTrial("mode4_final");
@@ -2828,7 +2828,10 @@ function updateStartPageLinks(){
  }
 }
 
-function isTestSuccess(r){ return (r||"").toLowerCase().startsWith("convergent"); }
+function isTestSuccess(r){
+ const s=(r||"").toLowerCase();
+ return s.startsWith("convergent") || s==="time limit reached" || s.includes("sustained mbs segment complete") || s.includes("final self-paced trial");
+}
 
 // ─── Summary ───
 // ─── SUMMARY TEST RESULTS ─────────────────────────────────────
@@ -4734,7 +4737,7 @@ const _spsel=$("speedometerSessionSelect"); if(_spsel) _spsel.onchange=()=>openS
 const _spprev=$("speedometerPrevBtn"); if(_spprev) _spprev.onclick=()=>{ const s=$("speedometerSessionSelect"); if(!s||!s.options.length) return; s.selectedIndex=Math.max(0, s.selectedIndex-1); if(s.onchange) s.onchange(); };
 const _spnext=$("speedometerNextBtn"); if(_spnext) _spnext.onclick=()=>{ const s=$("speedometerSessionSelect"); if(!s||!s.options.length) return; s.selectedIndex=Math.min(s.options.length-1, s.selectedIndex+1); if(s.onchange) s.onchange(); };
 const _spm4=$("speedometerMode4ToggleBtn"); if(_spm4) _spm4.onclick=()=>{ state.speedometerMode4Metric = String(state.speedometerMode4Metric||"spi").toLowerCase()==="csr" ? "spi" : "csr"; openSpeedometerSession(getSpeedometerSelectedIndex()); };
-const _orb=$("outcomeResultsBtn"); if(_orb) _orb.onclick=()=>{ $("outcomeOverlay").classList.add("hidden"); stopSpeedometer(); openSummarySession(getSpeedometerSelectedIndex()); setTestingQuiet(false); };
+const _orb=$("outcomeResultsBtn"); if(_orb) _orb.onclick=()=>{ $("outcomeOverlay").classList.add("hidden"); stopSpeedometer(); const idx=getSpeedometerSelectedIndex(); const activeIdx=(state.activeSessionIndex!=null && Number.isFinite(Number(state.activeSessionIndex))) ? Number(state.activeSessionIndex) : null; openSummarySession(activeIdx!=null ? activeIdx : idx); setTestingQuiet(false); };
 const _sadmin=$("speedAdminBtn"); if(_sadmin) _sadmin.onclick=()=>openAdminFromOverlay("outcomeOverlay");
 $("summaryAdminBtn").onclick=()=>openAdminFromOverlay("summaryOverlay");
 // ─── Init ───

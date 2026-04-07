@@ -1,3 +1,10 @@
+## V460 — Focused audit rebuild + Mode 4 success-path repair
+- Fixed a real Mode 4 Speedometer regression where valid sessions ending at the overall max test time after the sustained/final branch could be labeled **Test Failed** because success detection only recognized `convergent...` end reasons.
+- Hardened the Speedometer **View Results** handoff so it prefers the active result/session context before falling back to the selector index.
+- Changed the default Mode 4 sustained-trial target from **20** to **10** and updated the Admin label, runtime fallbacks, and saved-result target fields to match.
+- Corrected remaining package drift by updating `manifest.json` to **CogSpeed® V460** so the live app shell and packaged metadata match.
+- Re-ran live/package version alignment for `app.js`, `index.html`, `manifest.json`, `sw.js`, and the downloadable package folder while keeping the app monolithic.
+
 ## V459 — Audit clean rebuild + stale-drift cleanup
 - Re-ran a focused V458 code audit against the active monolithic source tree. All jQuery-style `$("id")` references in `app.js` map to real elements in `index.html`, and no duplicate HTML IDs were found in the live UI.
 - Fixed a real package/version drift bug where `manifest.json` still identified the app as `CogSpeed® V456` even though the live build, HTML shell, script query string, and service worker had moved forward.
