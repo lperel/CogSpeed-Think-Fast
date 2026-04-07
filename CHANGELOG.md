@@ -1,25 +1,16 @@
-## V467 — Focused audit rebuild / package-version alignment
-- Re-ran a focused V466 audit against the live monolith and package tree.
-- Fixed a real package/version drift bug: the delivered V466 source tree and zip were still stamped `V464` across `app.js`, `index.html`, `manifest.json`, and `sw.js`.
-- Restored the requested Mode 4 sustained-trial default to `10` in the live defaults, Admin label, and Mode 4 fallback calculations.
-- Rechecked active DOM wiring against `index.html`; no missing active IDs or duplicate HTML IDs were found.
-- Reconfirmed the app remains a single monolithic `app.js`.
-- Rebuilt the downloadable package from the corrected V467 source tree.
+## V469 — Focused audit cleanup / package rebuild
+- Audited the delivered V468 monolith for live/package drift, DOM wiring, and static regression risk.
+- Fixed a real results-state bug where `isTestSuccess()` contained corrupted backspace characters in the failed-state regex guards instead of `\b`, which could misclassify explicit `FAILED` / `Failed` terminal reasons.
+- Clarified the stale Mode 4 Admin/results wording for `mode4MbsThresholdMs` so it is labeled as a legacy reference field rather than an active sustained-phase gate.
+- Refreshed live/package version references to V469 across `app.js`, `index.html`, `manifest.json`, and `sw.js`.
+- Rebuilt the downloadable package from the corrected V469 source tree and kept the app monolithic.
 
-## V466 — Results Summary blank-screen freeze repair
-- Fixed a real results-page crash where `getResultsMetricExplanationText()` referenced `hr` without defining it, which could blank the Results page and freeze the UI when opening Results Summary.
-- Kept the Mode 4 timing additions from V465 and refreshed live/package version references to V466.
-
-## V464 — Missed markers on all applicable response graphs
-- Added missed-trial markers to the Presentation Rate vs Response Time graph so misses are visible there as well as on the Response-Time graph for applicable modes.
-- Kept missed markers plotted at the presented frame duration and added a legend item for missed trials on the overlaid same-mode chart.
-- Refreshed live/package version references to V464 across `app.js`, `index.html`, `manifest.json`, and `sw.js`.
-
-## V463 — Speedometer pair toggle + missed markers on response graph
-- Changed the Mode 4 Speedometer toggle so it switches between **CSR / SBLP** and **CPI / MBS** pair views instead of the prior mixed SPI/CSR behavior.
-- Changed the default Mode 4 sustained-trial count to **10** in both the live defaults and the Admin label so the visible settings match the intended default.
-- Added visible missed-trial markers to the Response-Time Graph for Mode 3 and Mode 4 sessions, instead of only plotting misses in Mode 1.
-- Refreshed live/package version references to V463 across `app.js`, `index.html`, `manifest.json`, and `sw.js`.
+## V468 — Full package rebuild from the verified working source tree
+- Rebuilt the app from the actual editable source files in the current tree rather than relying on stale prior package labels.
+- Fixed the Speedometer success classifier so valid completed sessions are no longer restricted to end reasons starting with "Convergent".
+- Fixed the Results Summary render crash by defining the divider used in metric explanations and added fail-open summary rendering.
+- Restored Mode 4 sustained-trial default to 10 in live defaults, Admin label, and fallback calculations.
+- Refreshed live/package version references to V468 across `app.js`, `index.html`, `manifest.json`, and `sw.js`.
 
 ## V458 — Mode 4 convergence branch cleanup
 - Mode 4 now enters the sustained MBS segment when adaptive convergence is reached, using the converged adaptive MBS directly as the sustained presentation rate.
