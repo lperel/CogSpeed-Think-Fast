@@ -1,3 +1,8 @@
+## V465 — Mode 4 results timing breakdown
+- Added three Mode 4 results-page timing lines: total test duration, duration from calibration start to end of paced trials, and sustained-plus-final-trials duration.
+- Computed the Mode 4 timing breakdown so the paced-phase duration plus sustained/final duration equals the total test duration.
+- Saved the new Mode 4 timing fields into the result payload for summary rendering and future exports.
+
 ## V464 — Missed markers on all applicable response graphs
 - Added missed-trial markers to the Presentation Rate vs Response Time graph so misses are visible there as well as on the Response-Time graph for applicable modes.
 - Kept missed markers plotted at the presented frame duration and added a legend item for missed trials on the overlaid same-mode chart.

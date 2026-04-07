@@ -1,8 +1,8 @@
 // ═══════════════════════════════════════════════════
-// CogSpeed V464
+// CogSpeed V465
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V464";
+const APP_VERSION = "V465";
 
 // ═══════════════════════════════════════════════════
 // RECENT INTEGRATED PROGRAM CHANGES (through V464)
@@ -299,6 +299,7 @@ const state={
  mode4SustainedPresented:0, mode4SustainedCorrect:0, mode4SustainedWrong:0, mode4SustainedMissed:0,
  mode4SustainedCorrectRTs:[], mode4FinalTrialsPresented:0,
  mode4FinalCorrect:0, mode4FinalWrong:0, mode4FinalRTs:[],
+ mode4SustainedStartedAt:null,
  speedometerMode4Metric:"csr"
  // pendingPriorMiss:
  //   stores the immediately previous paced frame when it LOOKED like a miss at frame end,
@@ -989,6 +990,7 @@ function maybeTriggerTerminalRule(){
    state.mode4FinalCorrect = 0;
    state.mode4FinalWrong = 0;
    state.mode4FinalRTs = [];
+   state.mode4SustainedStartedAt = null;
    state.phase = "mode4_sustained";
    state.duration = avg2;
    openTrial("mode4_sustained");
@@ -1218,6 +1220,11 @@ function finish(){
   const testDurMs=state.testStartTime!=null?performance.now()-state.testStartTime:null;
   const mode4SblpMs = getMode4SblpMsFromState();
   const mode4SustainedTargetCount = Math.max(1, Number(settings.mode4SustainedTrialCount)||10);
+  const mode4SustainedCorrectSdMs = state.mode4SustainedCorrectRTs.length>1 ? stdDev(state.mode4SustainedCorrectRTs) : null;
+  const mode4FinalMeanRtMs = state.mode4FinalRTs.length ? mean(state.mode4FinalRTs) : null;
+  const mode4FinalSdRtMs = state.mode4FinalRTs.length>1 ? stdDev(state.mode4FinalRTs) : null;
+  const mode4PreSustainedDurationMs = (isMode4() && testDurMs!=null && state.mode4SustainedStartedAt!=null && state.testStartTime!=null) ? Math.max(0, Math.min(testDurMs, state.mode4SustainedStartedAt - state.testStartTime)) : (isMode4() ? testDurMs : null);
+  const mode4SustainedPlusFinalDurationMs = (isMode4() && testDurMs!=null) ? Math.max(0, testDurMs - (mode4PreSustainedDurationMs||0)) : null;
   const modeMetricMs = isMode2() ? (state.selfPacedRTs.length?mean(state.selfPacedRTs):null) : isMode3() ? (state.pacedRTs.length?mean(state.pacedRTs):(state.fixedPacedBaseline||null)) : isMode4() ? (state.mode4Triggered ? mode4SblpMs : avg2) : avg2;
   const modeCPI = (isMode2()||isMode3()) ? null : isMode4() ? (state.mode4Triggered ? computeSPI(state.mode4SustainedCorrect, mode4SustainedTargetCount) : null) : (modeMetricMs!=null ? computeCPI(modeMetricMs) : cps);
   const timingQuality={
@@ -1263,7 +1270,15 @@ function finish(){
    mode4SustainedCorrect: state.mode4SustainedCorrect,
    mode4SustainedWrong: state.mode4SustainedWrong,
    mode4SustainedMissed: state.mode4SustainedMissed,
+   mode4SustainedCorrectMeanRtMs: isMode4() && state.mode4Triggered ? mode4SblpMs : null,
+   mode4SustainedCorrectSdRtMs: isMode4() && state.mode4Triggered ? mode4SustainedCorrectSdMs : null,
    mode4FinalTrialsPresented: state.mode4FinalTrialsPresented,
+   mode4FinalCorrect: state.mode4FinalCorrect,
+   mode4FinalWrong: state.mode4FinalWrong,
+   mode4FinalMeanRtMs,
+   mode4FinalSdRtMs,
+   mode4PreSustainedDurationMs,
+   mode4SustainedPlusFinalDurationMs,
    rtLog:[...state.rtLog], endReason:state.endReason||"Run complete",
    time:new Date().toISOString(), geo:state.geo, timingQuality
   };
@@ -1364,6 +1379,7 @@ function openTrial(kind){
   phaseLabel.textContent=`Fixed MP · ${Math.round(state.duration)}ms`;
   setStatus("Mode 3 fixed machine-paced");
  }else if(kind==="mode4_sustained"){
+  if(state.mode4SustainedStartedAt==null && state.testStartTime!=null) state.mode4SustainedStartedAt = performance.now();
   if(state.maxTestTimer) suspendMaxTestTimer();
   state.presentedRoundDuration = Math.round(state.duration);
   state.mode4SustainedPresented += 1;
@@ -3033,7 +3049,9 @@ Test Mode:  ${formatModeTag(result.testMode)}
 Session:    ${result.sessionNumber!=null?result.sessionNumber:"—"}
 Subject ID:  ${result.subjectId}
 Date / Time:  ${new Date(result.time).toLocaleString()}
-Test duration: ${formatDuration(result.testDurationMs)}
+Total TEST duration (start to finish): ${formatDuration(result.testDurationMs)}
+Duration from start of calibration to end of paced trials: ${formatDuration(result.mode4PreSustainedDurationMs)}
+Total time of Sustained trials + final self-paced trials: ${formatDuration(result.mode4SustainedPlusFinalDurationMs)}
 Location:   ${geoStr}
 ${hr}
 FATIGUE (S-PF)
@@ -3065,6 +3083,8 @@ MODE 4 SUSTAINED MBS PHASE
  CSR (Correct Sustained Responses): ${result.correctSustainedResponses!=null?result.correctSustainedResponses:(result.mode4SustainedCorrect||0)}
  Sustained wrong:   ${result.mode4SustainedWrong||0}
  Sustained missed:  ${result.mode4SustainedMissed||0}
+ Sustained correct mean RT: ${result.mode4SustainedCorrectMeanRtMs!=null?result.mode4SustainedCorrectMeanRtMs.toFixed(1)+" ms":"—"}
+ Sustained correct RT SD: ${result.mode4SustainedCorrectSdRtMs!=null?result.mode4SustainedCorrectSdRtMs.toFixed(1)+" ms":"—"}
  SBLP: ${sblp!=null?(Number(sblp)===0&&((result.correctSustainedResponses!=null?result.correctSustainedResponses:(result.mode4SustainedCorrect||0))===0)?"0 ms (CSR = 0)":sblp.toFixed(1)+" ms"):"—"}
  SPI: ${spi!=null?spi.toFixed(1)+" / 100":"—"}
 ${hr}
@@ -3460,7 +3480,7 @@ function resetTrialStateOnly(){
  state.activeFrameTiming=null; state.frameOvershootLog=[]; state.rafIntervalLog=[];
  state.mode4Triggered=false; state.mode4AdaptiveMbsMs=null; state.mode4SustainedPresentationRateMs=null;
  state.mode4SustainedPresented=0; state.mode4SustainedCorrect=0; state.mode4SustainedWrong=0; state.mode4SustainedMissed=0;
- state.mode4SustainedCorrectRTs=[]; state.mode4FinalTrialsPresented=0; state.mode4FinalCorrect=0; state.mode4FinalWrong=0; state.mode4FinalRTs=[]; state.speedometerMode4Metric="csr";
+ state.mode4SustainedCorrectRTs=[]; state.mode4FinalTrialsPresented=0; state.mode4FinalCorrect=0; state.mode4FinalWrong=0; state.mode4FinalRTs=[]; state.mode4SustainedStartedAt=null; state.speedometerMode4Metric="csr";
  updateCPIDisplay(null); updateMetrics(); setProbeIdle(); setTestingQuiet(false);
 }
 function resetPretestEntryState(){
