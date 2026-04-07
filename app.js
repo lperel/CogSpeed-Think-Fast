@@ -1,11 +1,11 @@
 // ═══════════════════════════════════════════════════
-// CogSpeed V460
+// CogSpeed V461
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V460";
+const APP_VERSION = "V461";
 
 // ═══════════════════════════════════════════════════
-// RECENT INTEGRATED PROGRAM CHANGES (through V460)
+// RECENT INTEGRATED PROGRAM CHANGES (through V461)
 // This block summarizes the major program updates that were merged into
 // the current main line so future edits do not have to reconstruct them
 // from one-off patch builds.
@@ -2916,6 +2916,7 @@ function getTerminalRecoveryWrongCount(result){
 }
 
 function getResultsMetricExplanationText(result){
+ const hr="─────────────────────────";
  const mode=(result&&result.testMode)||"mode1";
  const usesMode1Metrics = mode==="mode1";
  const usesMode4Metrics = mode==="mode4";
@@ -3362,10 +3363,20 @@ function openSummarySession(idx){
  const ctx = resolveResultContext(null, idx, "summary session");
  if(!ctx.result) return;
  const clamped = Number.isFinite(Number(ctx.index)) ? Math.max(0, Math.min(state.history.length-1, Number(ctx.index))) : null;
- if(clamped!=null) syncSummarySessionSelect(clamped);
- buildSummary(ctx.result);
- applySummarySourceDiagnostic(ctx.result, clamped, ctx.source);
- $("summaryOverlay").classList.remove("hidden");
+ try{
+  if(clamped!=null) syncSummarySessionSelect(clamped);
+  buildSummary(ctx.result);
+  applySummarySourceDiagnostic(ctx.result, clamped, ctx.source);
+  $("summaryOverlay").classList.remove("hidden");
+ }catch(err){
+  console.error("openSummarySession failed", err);
+  const el=$("summaryText");
+  if(el) el.textContent = `Results rendering error
+${String(err && err.message || err)}`;
+  const ov=$("summaryOverlay");
+  if(ov) ov.classList.remove("hidden");
+  setStatus("Results rendering error");
+ }
 }
 
 function getSpeedometerSelectedIndex(){
