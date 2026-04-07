@@ -1,11 +1,11 @@
 // ═══════════════════════════════════════════════════
-// CogSpeed V462
+// CogSpeed V464
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V462";
+const APP_VERSION = "V464";
 
 // ═══════════════════════════════════════════════════
-// RECENT INTEGRATED PROGRAM CHANGES (through V462)
+// RECENT INTEGRATED PROGRAM CHANGES (through V464)
 // This block summarizes the major program updates that were merged into
 // the current main line so future edits do not have to reconstruct them
 // from one-off patch builds.
@@ -62,13 +62,9 @@ const APP_VERSION = "V462";
 //    - Mode 4 now enters the sustained MBS segment when convergent adaptive
 //      pacing is reached; it no longer requires adaptive MBS to be below a
 //      separate threshold before the sustained branch can start.
-//    - Mode 4 Results Summary now separates self-paced calibration from
-//      adaptive paced and recovery errors, lists every block found, reports
-//      sustained correct-RT mean/SD, and renders a Mode 4 SPI capability
-//      table instead of falling back to the Mode 1-only CPI table logic.
-//    - Final self-paced Mode 4 result fields are saved directly into the
-//      session record and also have defensive rtLog-based fallbacks so older
-//      sessions can still render correct final-trial counts and mean RT.
+// 9) Graph visibility update
+//    - Missed-trial markers are shown on the Presentation Rate vs Response
+//      Time graph as well as the Response-Time graph for applicable modes.
 // ═══════════════════════════════════════════════════
 
 const RELEASE = APP_VERSION.replace(/^V/i, "");
@@ -208,7 +204,7 @@ const ADMIN_FIELDS=[
  ["mode3BaselineFactor","36. Mode 3 MP baseline factor from cal avg (default 1.3)","number"],
  ["mode3PacedTrialLimit","37. Mode 3 fixed machine-paced trial limit (default 140)","number"],
  ["mode3MaxDurationMs","38. Mode 3 total duration ms (default 120000)","number"],
- ["mode4MbsThresholdMs","39. Mode 4 legacy MBS threshold (reference only; not used to gate sustained phase, default 250)","number"],
+ ["mode4MbsThresholdMs","39. Mode 4 MBS threshold to start sustained phase (ms, default 250)","number"],
  ["mode4SustainedTrialCount","40. Mode 4 sustained trials at MBS (default 10)","number"],
  ["mode4FinalTrialCount","41. Mode 4 final self-paced trials (default 2)","number"],
  ["deviceBenchmarkEnabled","42. Device benchmark (0=off, 1=on)","number"],
@@ -303,7 +299,7 @@ const state={
  mode4SustainedPresented:0, mode4SustainedCorrect:0, mode4SustainedWrong:0, mode4SustainedMissed:0,
  mode4SustainedCorrectRTs:[], mode4FinalTrialsPresented:0,
  mode4FinalCorrect:0, mode4FinalWrong:0, mode4FinalRTs:[],
- speedometerMode4Metric:"spi"
+ speedometerMode4Metric:"csr"
  // pendingPriorMiss:
  //   stores the immediately previous paced frame when it LOOKED like a miss at frame end,
  //   but is still inside the late-response grace rule window.
@@ -1268,11 +1264,6 @@ function finish(){
    mode4SustainedWrong: state.mode4SustainedWrong,
    mode4SustainedMissed: state.mode4SustainedMissed,
    mode4FinalTrialsPresented: state.mode4FinalTrialsPresented,
-   mode4FinalCorrect: state.mode4FinalCorrect,
-   mode4FinalWrong: state.mode4FinalWrong,
-   mode4FinalMeanRtMs: state.mode4FinalRTs.length ? mean(state.mode4FinalRTs) : null,
-   mode4FinalSdRtMs: stdDev(state.mode4FinalRTs),
-   mode4SustainedCorrectSdMs: state.mode4SustainedCorrectRTs.length ? stdDev(state.mode4SustainedCorrectRTs) : null,
    rtLog:[...state.rtLog], endReason:state.endReason||"Run complete",
    time:new Date().toISOString(), geo:state.geo, timingQuality
   };
@@ -2078,6 +2069,11 @@ function drawModeResultChart(canvas,result){
   : [];
  const mode1Responses = result.testMode==="mode1" ? mode1Trials.filter(e=>e.rt!=null) : [];
  const mode1Misses = result.testMode==="mode1" ? mode1Trials.filter(e=>e.phase==="missed") : [];
+ const missPhasesByMode = {
+  mode1:["missed"],
+  mode3:["paced_fixed_missed"],
+  mode4:["missed","mode4_sustained_missed"]
+ };
 
  const includedPhasesByMode = {
   mode2:["calibration"],
@@ -2103,6 +2099,9 @@ function drawModeResultChart(canvas,result){
     : result.testMode==="mode4"
       ? sequence.filter(e=>e.durationMs!=null && ["paced","paced_wrong","paced_late_correct","paced_late_wrong","missed","mode4_sustained","mode4_sustained_wrong","mode4_sustained_missed"].includes(e.phase))
       : [];
+ const missEntries = result.testMode==="mode1"
+  ? mode1Misses
+  : sequence.filter(e=>e.durationMs!=null && (missPhasesByMode[result.testMode]||[]).includes(e.phase));
 
  if(!pts.length && !presentedSeries.length){
   ctx.fillStyle="#d7e7f8"; ctx.font=(isFull?"bold 20px":"bold 13px")+" sans-serif"; ctx.textAlign="center";
@@ -2112,7 +2111,7 @@ function drawModeResultChart(canvas,result){
  const combinedVals = [
   ...pts.map(p=>p.rt),
   ...presentedSeries.map(p=>p.durationMs),
-  ...mode1Misses.map(p=>p.durationMs)
+  ...missEntries.map(p=>p.durationMs)
  ].filter(v=>v!=null && isFinite(v));
  const maxRT=Math.ceil(Math.max(...combinedVals,1000)/250)*250;
  const minRT=Math.max(0,Math.floor(Math.min(...combinedVals)/250)*250);
@@ -2213,9 +2212,9 @@ function drawModeResultChart(canvas,result){
   ctx.beginPath(); ctx.arc(x,y, isFull?5:3.5,0,Math.PI*2); ctx.fill();
  });
 
- if(result.testMode==="mode1"){
-  mode1Misses.forEach((e)=>{
-   const x=xO(mode1Trials.indexOf(e)), y=yO(e.durationMs);
+ if(missEntries.length){
+  missEntries.forEach((e)=>{
+   const x=xO(idxOfEntry(e)), y=yO(e.durationMs);
    const s=isFull?6:4;
    ctx.strokeStyle="#ffd166";
    ctx.lineWidth=isFull?2.5:2;
@@ -2249,7 +2248,7 @@ function drawModeResultChart(canvas,result){
   ctx.fillStyle="#ffd5dc";
   ctx.fillText("Wrong RT", lx+28, ly3+4);
 
-  if(result.testMode==="mode1"){
+  if(missEntries.length){
    const ly4 = ly3 + (isFull?20:16);
    const s=isFull?4:3;
    ctx.strokeStyle="#ffd166";
@@ -2840,10 +2839,7 @@ function updateStartPageLinks(){
  }
 }
 
-function isTestSuccess(r){
- const s=(r||"").toLowerCase();
- return s.startsWith("convergent") || s==="time limit reached" || s.includes("sustained mbs segment complete") || s.includes("final self-paced trial");
-}
+function isTestSuccess(r){ return (r||"").toLowerCase().startsWith("convergent"); }
 
 // ─── Summary ───
 // ─── SUMMARY TEST RESULTS ─────────────────────────────────────
@@ -2862,52 +2858,50 @@ function isTestSuccess(r){
 // Combination lists are provided for correct, wrong, and all responses combined.
 
 function getCognitivePerformanceTableText(result){
- const mode=(result.testMode||"mode1");
- if(!["mode1","mode4"].includes(mode)) return "Not used in this mode.";
- const score = mode==="mode4"
-  ? (result.sustainedProcessingIndex!=null ? Number(result.sustainedProcessingIndex) : null)
-  : (result.cognitivePerformanceIndex!=null ? Number(result.cognitivePerformanceIndex) : null);
+ if((result.testMode||"mode1")!=="mode1") return "Not used in this mode.";
+ const cpi = result.cognitivePerformanceIndex!=null ? Number(result.cognitivePerformanceIndex) : null;
  const actualSpfs = result.samnPerelli && result.samnPerelli.score!=null ? Number(result.samnPerelli.score) : null;
  const best = Number(settings.cpiBestMs)||DEFAULTS.cpiBestMs;
  const worst = Number(settings.cpiWorstMs)||DEFAULTS.cpiWorstMs;
  const span = worst - best;
- const scoreToMs = c => Math.round(best + ((100-c)/100)*span);
- const metricLabel = mode==="mode4" ? "SPI" : "CPI";
- const msLabel = mode==="mode4" ? "SBLP ref" : "MBS ref";
+ const cpiToMs = c => Math.round(best + ((100-c)/100)*span);
  const rows = [
-  {spfs:7,score:100,ms:scoreToMs(100),cap:"FUNCTIONING EXCEPTIONALLY WELL"},
-  {spfs:6,score:80,ms:scoreToMs(80),cap:"FUNCTIONING VERY WELL"},
-  {spfs:5,score:75,ms:scoreToMs(75),cap:"FUNCTIONING NORMALLY"},
-  {spfs:4,score:50,ms:scoreToMs(50),cap:"FUNCTIONING SLIGHTLY LESS THAN NORMAL"},
-  {spfs:3,score:25,ms:scoreToMs(25),cap:"FUNCTIONING STARTING TO SLOW"},
-  {spfs:2,score:11,ms:scoreToMs(11),cap:"DIFFICULT TO FUNCTION / BECOMING UNSAFE"},
-  {spfs:1,score:0,ms:scoreToMs(0),cap:"UNABLE TO FUNCTION / DEFINITELY UNSAFE"},
+  {spfs:7,cpi:100,ms:cpiToMs(100),cap:"FUNCTIONING EXCEPTIONALLY WELL"},
+  {spfs:6,cpi:80,ms:cpiToMs(80),cap:"FUNCTIONING VERY WELL"},
+  {spfs:5,cpi:75,ms:cpiToMs(75),cap:"FUNCTIONING NORMALLY"},
+  {spfs:4,cpi:50,ms:cpiToMs(50),cap:"FUNCTIONING SLIGHTLY LESS THAN NORMAL"},
+  {spfs:3,cpi:25,ms:cpiToMs(25),cap:"FUNCTIONING STARTING TO SLOW"},
+  {spfs:2,cpi:11,ms:cpiToMs(11),cap:"DIFFICULT TO FUNCTION / BECOMING UNSAFE"},
+  {spfs:1,cpi:0,ms:cpiToMs(0),cap:"UNABLE TO FUNCTION / DEFINITELY UNSAFE"},
  ];
  let nearestIdx = -1;
- if(score!=null){
+ if(cpi!=null){
   let bestDiff = Infinity;
   rows.forEach((r,i)=>{
-   const d = Math.abs(score-r.score);
-   if(d < bestDiff){ bestDiff = d; nearestIdx = i; }
+   const d = Math.abs(cpi-r.cpi);
+   if(d < bestDiff){
+    bestDiff = d;
+    nearestIdx = i;
+   }
   });
  }
- const leftHeader = mode==="mode4" ? "Sustained Processing Table" : "Cognitive Performance Table";
+ const leftHeader = "Cognitive Performance Table";
  const rightHeader = "Cognitive Performance Capability *";
  const leftRows = rows.map((r,i)=>{
    const spfsLabel = (actualSpfs!=null && r.spfs===actualSpfs) ? `[SP-FS ${r.spfs}]` : `SP-FS ${r.spfs}`;
-   const mark = i===nearestIdx ? `  ← ${metricLabel}` : "";
-   return `${spfsLabel}: ${metricLabel} ${r.score.toString().padStart(3," ")} | ${msLabel} ${r.ms} ms${mark}`;
-  });
+   const mark = i===nearestIdx ? "  ← CPI" : "";
+   return `${spfsLabel}: CPI ${r.cpi.toString().padStart(3," ")} | ${r.ms} ms${mark}`;
+ });
  const rightRows = rows.map(r=>r.cap);
  const leftWidth = Math.max(leftHeader.length, ...leftRows.map(s=>s.length));
  const gap = "   ";
  const lines = [];
  lines.push(leftHeader.padEnd(leftWidth, " ") + gap + rightHeader);
- for(let i=0;i<rows.length;i++) lines.push(leftRows[i].padEnd(leftWidth, " ") + gap + rightRows[i]);
+ for(let i=0;i<rows.length;i++){
+   lines.push(leftRows[i].padEnd(leftWidth, " ") + gap + rightRows[i]);
+ }
  return lines.join("\n");
-
 }
-
 function buildRankedSummary(result){
  const el=$("rankedText"); if(!el) return;
  const hr="─────────────────────────";
@@ -2929,34 +2923,7 @@ function getTerminalRecoveryWrongCount(result){
  }
 }
 
-function getMode4FinalStats(result){
- const log = Array.isArray(result?.rtLog) ? result.rtLog : [];
- const finals = log.filter(r => r && r.phase==="mode4_final");
- const fallbackCorrect = finals.filter(r => r.outcome==="correct").length;
- const fallbackWrong = finals.filter(r => r.outcome==="wrong").length;
- const fallbackRTs = finals.map(r => Number(r.rt)).filter(v => isFinite(v));
- return {
-  presented: result?.mode4FinalTrialsPresented!=null ? Number(result.mode4FinalTrialsPresented) : finals.length,
-  correct: result?.mode4FinalCorrect!=null ? Number(result.mode4FinalCorrect) : fallbackCorrect,
-  wrong: result?.mode4FinalWrong!=null ? Number(result.mode4FinalWrong) : fallbackWrong,
-  meanRtMs: result?.mode4FinalMeanRtMs!=null ? Number(result.mode4FinalMeanRtMs) : (fallbackRTs.length ? mean(fallbackRTs) : null),
-  sdRtMs: result?.mode4FinalSdRtMs!=null ? Number(result.mode4FinalSdRtMs) : stdDev(fallbackRTs)
- };
-}
-
-function getMode4SustainedCorrectStats(result){
- const log = Array.isArray(result?.rtLog) ? result.rtLog : [];
- const sustained = log.filter(r => r && r.phase==="mode4_sustained" && r.outcome==="correct");
- const fallbackRTs = sustained.map(r => Number(r.rt)).filter(v => isFinite(v));
- const derivedMean = fallbackRTs.length ? mean(fallbackRTs) : null;
- return {
-  meanRtMs: result?.sustainedBlockLimitPerformanceMs!=null ? Number(result.sustainedBlockLimitPerformanceMs) : derivedMean,
-  sdRtMs: result?.mode4SustainedCorrectSdMs!=null ? Number(result.mode4SustainedCorrectSdMs) : stdDev(fallbackRTs)
- };
-}
-
 function getResultsMetricExplanationText(result){
- const hr="─────────────────────────";
  const mode=(result&&result.testMode)||"mode1";
  const usesMode1Metrics = mode==="mode1";
  const usesMode4Metrics = mode==="mode4";
@@ -3059,10 +3026,6 @@ ${getResultsMetricExplanationText(result)}`;
   const adaptiveMbs=result.mode4AdaptiveMbsMs!=null?result.mode4AdaptiveMbsMs:result.averageLast2BlockingScoresMs;
   const spi=result.sustainedProcessingIndex;
   const sblp=result.sustainedBlockLimitPerformanceMs;
-  const blockList=result.blocks&&result.blocks.length?result.blocks.map((b,i)=>` Block ${i+1}: ${Number(b).toFixed(1)} ms`).join("\n"):" none";
-
-  const sustainedStats=getMode4SustainedCorrectStats(result);
-  const finalStats=getMode4FinalStats(result);
   el.textContent=
 `CogSpeed ${APP_VERSION} — ${modeName}
 ${hr}
@@ -3082,6 +3045,9 @@ SELF-PACED CALIBRATION
  Total self-paced responses: ${result.selfPacedResponseCount}
  Self-paced correct: ${result.selfPacedCorrect}
  Calibration wrong: ${result.calibrationErrors!=null?result.calibrationErrors:result.selfPacedWrong}
+ Paced wrong:       ${result.pacedErrors!=null?result.pacedErrors:0}
+ Recovery wrong:    ${result.recoveryErrors!=null?result.recoveryErrors:0}
+ Total wrong:       ${result.totalIncorrect}
  Average calibration RT: ${result.calibrationAverageMs!=null?result.calibrationAverageMs.toFixed(1)+" ms":"—"}
  Self-paced RT SD: ${result.selfPacedResponseSdMs!=null?result.selfPacedResponseSdMs.toFixed(1)+" ms":"—"}
 ${hr}
@@ -3090,31 +3056,23 @@ ADAPTIVE MACHINE-PACED PHASE
  Average adaptive paced RT: ${result.pacedResponseMeanMs!=null?result.pacedResponseMeanMs.toFixed(1)+" ms":"—"}
  Paced RT SD: ${result.pacedResponseSdMs!=null?result.pacedResponseSdMs.toFixed(1)+" ms":"—"}
  Blocks found: ${result.blockCount||0}
- Block scores:
-${blockList}
- Adaptive paced wrong: ${result.pacedErrors!=null?result.pacedErrors:0}
- Recovery wrong:      ${result.recoveryErrors!=null?result.recoveryErrors:0}
- Total wrong overall: ${result.totalIncorrect}
 ${hr}
 MODE 4 SUSTAINED MBS PHASE
  Triggered: ${result.mode4Triggered?"Yes":"No"}
- Legacy threshold setting: ${result.mode4MbsThresholdMs!=null?result.mode4MbsThresholdMs+" ms (reference only; not used to gate sustained phase)":"—"}
+ MBS threshold: ${result.mode4MbsThresholdMs!=null?result.mode4MbsThresholdMs+" ms":"—"}
  Sustained presentation rate: ${result.mode4SustainedPresentationRateMs!=null?result.mode4SustainedPresentationRateMs.toFixed(1)+" ms":"—"}
- Sustained trials target / presented: ${result.mode4SustainedTargetCount!=null?result.mode4SustainedTargetCount:(result.mode4SustainedPresented||0)} / ${result.mode4SustainedPresented||0}
+ Sustained trials presented: ${result.mode4SustainedPresented||0}
  CSR (Correct Sustained Responses): ${result.correctSustainedResponses!=null?result.correctSustainedResponses:(result.mode4SustainedCorrect||0)}
- Sustained correct mean RT: ${sustainedStats.meanRtMs!=null?(Number(sustainedStats.meanRtMs)===0&&((result.correctSustainedResponses!=null?result.correctSustainedResponses:(result.mode4SustainedCorrect||0))===0)?"0 ms (CSR = 0)":Number(sustainedStats.meanRtMs).toFixed(1)+" ms"):"—"}
- Sustained correct RT SD: ${sustainedStats.sdRtMs!=null?Number(sustainedStats.sdRtMs).toFixed(1)+" ms":"—"}
  Sustained wrong:   ${result.mode4SustainedWrong||0}
  Sustained missed:  ${result.mode4SustainedMissed||0}
  SBLP: ${sblp!=null?(Number(sblp)===0&&((result.correctSustainedResponses!=null?result.correctSustainedResponses:(result.mode4SustainedCorrect||0))===0)?"0 ms (CSR = 0)":sblp.toFixed(1)+" ms"):"—"}
  SPI: ${spi!=null?spi.toFixed(1)+" / 100":"—"}
 ${hr}
 FINAL SELF-PACED TRIALS
- Final self-paced trials target / presented: ${result.mode4FinalTrialTargetCount!=null?result.mode4FinalTrialTargetCount:(finalStats.presented||0)} / ${finalStats.presented||0}
- Final self-paced correct: ${finalStats.correct||0}
- Final self-paced wrong:   ${finalStats.wrong||0}
- Final self-paced mean RT: ${finalStats.meanRtMs!=null?Number(finalStats.meanRtMs).toFixed(1)+" ms":"—"}
- Final self-paced RT SD:   ${finalStats.sdRtMs!=null?Number(finalStats.sdRtMs).toFixed(1)+" ms":"—"}
+ Final self-paced trials target / presented: ${result.mode4FinalTrialTargetCount!=null?result.mode4FinalTrialTargetCount:(result.mode4FinalTrialsPresented||0)} / ${result.mode4FinalTrialsPresented||0}
+ Final self-paced correct: ${result.mode4FinalCorrect||0}
+ Final self-paced wrong:   ${result.mode4FinalWrong||0}
+ Final self-paced mean RT: ${result.mode4FinalMeanRtMs!=null?result.mode4FinalMeanRtMs.toFixed(1)+" ms":"—"}
 ${hr}
 COGNITIVE PERFORMANCE TABLE
  ${getCognitivePerformanceTableText(result)}
@@ -3412,20 +3370,10 @@ function openSummarySession(idx){
  const ctx = resolveResultContext(null, idx, "summary session");
  if(!ctx.result) return;
  const clamped = Number.isFinite(Number(ctx.index)) ? Math.max(0, Math.min(state.history.length-1, Number(ctx.index))) : null;
- try{
-  if(clamped!=null) syncSummarySessionSelect(clamped);
-  buildSummary(ctx.result);
-  applySummarySourceDiagnostic(ctx.result, clamped, ctx.source);
-  $("summaryOverlay").classList.remove("hidden");
- }catch(err){
-  console.error("openSummarySession failed", err);
-  const el=$("summaryText");
-  if(el) el.textContent = `Results rendering error
-${String(err && err.message || err)}`;
-  const ov=$("summaryOverlay");
-  if(ov) ov.classList.remove("hidden");
-  setStatus("Results rendering error");
- }
+ if(clamped!=null) syncSummarySessionSelect(clamped);
+ buildSummary(ctx.result);
+ applySummarySourceDiagnostic(ctx.result, clamped, ctx.source);
+ $("summaryOverlay").classList.remove("hidden");
 }
 
 function getSpeedometerSelectedIndex(){
@@ -3512,7 +3460,7 @@ function resetTrialStateOnly(){
  state.activeFrameTiming=null; state.frameOvershootLog=[]; state.rafIntervalLog=[];
  state.mode4Triggered=false; state.mode4AdaptiveMbsMs=null; state.mode4SustainedPresentationRateMs=null;
  state.mode4SustainedPresented=0; state.mode4SustainedCorrect=0; state.mode4SustainedWrong=0; state.mode4SustainedMissed=0;
- state.mode4SustainedCorrectRTs=[]; state.mode4FinalTrialsPresented=0; state.mode4FinalCorrect=0; state.mode4FinalWrong=0; state.mode4FinalRTs=[]; state.speedometerMode4Metric="spi";
+ state.mode4SustainedCorrectRTs=[]; state.mode4FinalTrialsPresented=0; state.mode4FinalCorrect=0; state.mode4FinalWrong=0; state.mode4FinalRTs=[]; state.speedometerMode4Metric="csr";
  updateCPIDisplay(null); updateMetrics(); setProbeIdle(); setTestingQuiet(false);
 }
 function resetPretestEntryState(){
@@ -3817,7 +3765,8 @@ function drawRateRtChart(canvas, sessions, selectedSessionIndex){
      trial:i+1,
      rt:(e && e.rt!=null && Number.isFinite(Number(e.rt))) ? Number(e.rt) : null,
      dur:inferDuration(e),
-     outcome:e ? e.outcome : null
+     outcome:e ? e.outcome : null,
+     phase:e ? e.phase : null
    }))
    .filter(e=>e.dur!=null || e.rt!=null);
   return {...session, _preparedLog:log};
@@ -3897,6 +3846,17 @@ function drawRateRtChart(canvas, sessions, selectedSessionIndex){
    ctx.beginPath(); ctx.arc(x,y,isSelected?2.8:2.0,0,Math.PI*2); ctx.fill();
   });
 
+  session._preparedLog.forEach((p)=>{
+   const missed = p.outcome==="missed" || /missed/.test(String(p.phase||""));
+   if(!missed || p.dur==null) return;
+   const x=xOf(p.trial), y=yOf(p.dur);
+   const s=isSelected?4.2:3.1;
+   ctx.strokeStyle=isSelected ? "#ffd166" : "rgba(255,209,102,0.42)";
+   ctx.lineWidth=isSelected?2.1:1.4;
+   ctx.beginPath(); ctx.moveTo(x-s,y-s); ctx.lineTo(x+s,y+s); ctx.stroke();
+   ctx.beginPath(); ctx.moveTo(x+s,y-s); ctx.lineTo(x-s,y+s); ctx.stroke();
+  });
+
   const last = session._preparedLog[session._preparedLog.length-1];
   if(last){
    const lx=xOf(last.trial);
@@ -3913,6 +3873,7 @@ function drawRateRtChart(canvas, sessions, selectedSessionIndex){
  ctx.fillStyle="#ff9f40"; ctx.fillText("■ Presentation rate", PAD.left, PAD.top+12);
  ctx.fillStyle="#7fd7ff"; ctx.fillText("■ Response time", PAD.left+120, PAD.top+12);
  ctx.fillStyle="#ff4466"; ctx.fillText("● Wrong response", PAD.left+230, PAD.top+12);
+ ctx.fillStyle="#ffd166"; ctx.fillText("✕ Missed trial", PAD.left+355, PAD.top+12);
 
  if(selected){
   ctx.fillStyle="#ffffff";
@@ -4796,8 +4757,8 @@ const _ssnext=$("summaryNextBtn"); if(_ssnext) _ssnext.onclick=()=>{ const s=$("
 const _spsel=$("speedometerSessionSelect"); if(_spsel) _spsel.onchange=()=>openSpeedometerSession(Number(_spsel.value));
 const _spprev=$("speedometerPrevBtn"); if(_spprev) _spprev.onclick=()=>{ const s=$("speedometerSessionSelect"); if(!s||!s.options.length) return; s.selectedIndex=Math.max(0, s.selectedIndex-1); if(s.onchange) s.onchange(); };
 const _spnext=$("speedometerNextBtn"); if(_spnext) _spnext.onclick=()=>{ const s=$("speedometerSessionSelect"); if(!s||!s.options.length) return; s.selectedIndex=Math.min(s.options.length-1, s.selectedIndex+1); if(s.onchange) s.onchange(); };
-const _spm4=$("speedometerMode4ToggleBtn"); if(_spm4) _spm4.onclick=()=>{ state.speedometerMode4Metric = String(state.speedometerMode4Metric||"spi").toLowerCase()==="csr" ? "spi" : "csr"; openSpeedometerSession(getSpeedometerSelectedIndex()); };
-const _orb=$("outcomeResultsBtn"); if(_orb) _orb.onclick=()=>{ $("outcomeOverlay").classList.add("hidden"); stopSpeedometer(); const idx=getSpeedometerSelectedIndex(); const activeIdx=(state.activeSessionIndex!=null && Number.isFinite(Number(state.activeSessionIndex))) ? Number(state.activeSessionIndex) : null; openSummarySession(activeIdx!=null ? activeIdx : idx); setTestingQuiet(false); };
+const _spm4=$("speedometerMode4ToggleBtn"); if(_spm4) _spm4.onclick=()=>{ state.speedometerMode4Metric = String(state.speedometerMode4Metric||"csr").toLowerCase()==="csr" ? "cpi" : "csr"; openSpeedometerSession(getSpeedometerSelectedIndex()); };
+const _orb=$("outcomeResultsBtn"); if(_orb) _orb.onclick=()=>{ $("outcomeOverlay").classList.add("hidden"); stopSpeedometer(); openSummarySession(getSpeedometerSelectedIndex()); setTestingQuiet(false); };
 const _sadmin=$("speedAdminBtn"); if(_sadmin) _sadmin.onclick=()=>openAdminFromOverlay("outcomeOverlay");
 $("summaryAdminBtn").onclick=()=>openAdminFromOverlay("summaryOverlay");
 // ─── Init ───
@@ -4940,24 +4901,26 @@ function renderSpfGaugeForResult(result){
 }
 
 function getMode4SpeedometerMetric(result){
- const pref = String(state.speedometerMode4Metric||"spi").toLowerCase()==="csr" ? "csr" : "spi";
+ const pref = String(state.speedometerMode4Metric||"csr").toLowerCase()==="cpi" ? "cpi" : "csr";
  const csr = Number(result && (result.correctSustainedResponses!=null ? result.correctSustainedResponses : result.mode4SustainedCorrect));
  const spi = Number(result && result.sustainedProcessingIndex);
  const sblp = Number(result && result.sustainedBlockLimitPerformanceMs);
- const total = Math.max(1, Number(result && result.mode4SustainedTargetCount) || 20);
+ const cpi = Number(result && result.cognitivePerformanceIndex);
+ const mbs = Number(result && result.averageLast2BlockingScoresMs);
+ const total = Math.max(1, Number(result && result.mode4SustainedTargetCount) || 10);
  if(pref==="csr"){
   return {
    score: Number.isFinite(csr) ? Math.max(0, Math.min(100, computeSPI(csr, total))) : 0,
-   metric: Number.isFinite(csr) ? csr : 0,
+   metric: Number.isFinite(sblp) ? sblp : null,
    scoreLabel:"CSR",
-   metricLabel:"CSR"
+   metricLabel:"SBLP"
   };
  }
  return {
-  score: Number.isFinite(spi) ? Math.max(0, Math.min(100, spi)) : 0,
-  metric: Number.isFinite(sblp) ? sblp : null,
-  scoreLabel:"SPI",
-  metricLabel:"SBLP"
+  score: Number.isFinite(cpi) ? Math.max(0, Math.min(100, cpi)) : (Number.isFinite(spi) ? Math.max(0, Math.min(100, spi)) : 0),
+  metric: Number.isFinite(mbs) ? mbs : null,
+  scoreLabel:"CPI",
+  metricLabel:"MBS"
  };
 }
 
@@ -4989,7 +4952,7 @@ function renderSpeedometerOutcome(result, sessionIndex){
  if(mode4Toggle){
   if(result && result.testMode==="mode4" && result.mode4Triggered){
    mode4Toggle.classList.remove("hidden");
-   mode4Toggle.textContent = String(state.speedometerMode4Metric||"spi").toLowerCase()==="csr" ? "Show SPI / SBLP" : "Show CSR";
+   mode4Toggle.textContent = String(state.speedometerMode4Metric||"csr").toLowerCase()==="csr" ? "Show CPI / MBS" : "Show CSR / SBLP";
   }else{
    mode4Toggle.classList.add("hidden");
   }
@@ -5847,3 +5810,4 @@ $("refSleepBtn").onclick=()=>showSleepPrompt();
 
 $("tutorialExitSleepBtn").onclick=()=>showSleepPrompt();
 $("tutorialExitBackBtn").onclick=()=>goToStartPage();
+

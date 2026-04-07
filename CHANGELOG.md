@@ -1,22 +1,13 @@
-## V462 — Results-summary freeze fix + package-version alignment
-- Fixed a real results-page rendering bug where `getResultsMetricExplanationText()` referenced `hr` outside its scope, which could blank the screen and freeze the app when Speedometer opened Results Summary.
-- Hardened `openSummarySession()` with fail-open handling so a summary-rendering error now surfaces a visible message instead of leaving the user on a blank screen.
-- Corrected the remaining package drift bug by updating `manifest.json` from the stale `CogSpeed® V456` label to `CogSpeed® V462` so the packaged metadata matches the live build.
-- Refreshed live/package version references to V462 across `app.js`, `index.html`, `manifest.json`, `sw.js`, and the downloadable package folder.
+## V464 — Missed markers on all applicable response graphs
+- Added missed-trial markers to the Presentation Rate vs Response Time graph so misses are visible there as well as on the Response-Time graph for applicable modes.
+- Kept missed markers plotted at the presented frame duration and added a legend item for missed trials on the overlaid same-mode chart.
+- Refreshed live/package version references to V464 across `app.js`, `index.html`, `manifest.json`, and `sw.js`.
 
-## V460 — Focused audit rebuild + Mode 4 success-path repair
-- Fixed a real Mode 4 Speedometer regression where valid sessions ending at the overall max test time after the sustained/final branch could be labeled **Test Failed** because success detection only recognized `convergent...` end reasons.
-- Hardened the Speedometer **View Results** handoff so it prefers the active result/session context before falling back to the selector index.
-- Changed the default Mode 4 sustained-trial target from **20** to **10** and updated the Admin label, runtime fallbacks, and saved-result target fields to match.
-- Corrected remaining package drift by updating `manifest.json` to **CogSpeed® V460** so the live app shell and packaged metadata match.
-- Re-ran live/package version alignment for `app.js`, `index.html`, `manifest.json`, `sw.js`, and the downloadable package folder while keeping the app monolithic.
-
-## V459 — Audit clean rebuild + stale-drift cleanup
-- Re-ran a focused V458 code audit against the active monolithic source tree. All jQuery-style `$("id")` references in `app.js` map to real elements in `index.html`, and no duplicate HTML IDs were found in the live UI.
-- Fixed a real package/version drift bug where `manifest.json` still identified the app as `CogSpeed® V456` even though the live build, HTML shell, script query string, and service worker had moved forward.
-- Refreshed live/package version references to V459 across `app.js`, `index.html`, `manifest.json`, `sw.js`, and the downloadable package folder.
-- Clarified stale Mode 4 wording by marking the legacy `mode4MbsThresholdMs` admin/result field as reference-only, because the sustained segment is now entered on convergence and is no longer gated by that threshold.
-- Kept the app monolithic, folded the audit cleanup into the main line, and rebuilt the downloadable zip from the correct V459 source tree.
+## V463 — Speedometer pair toggle + missed markers on response graph
+- Changed the Mode 4 Speedometer toggle so it switches between **CSR / SBLP** and **CPI / MBS** pair views instead of the prior mixed SPI/CSR behavior.
+- Changed the default Mode 4 sustained-trial count to **10** in both the live defaults and the Admin label so the visible settings match the intended default.
+- Added visible missed-trial markers to the Response-Time Graph for Mode 3 and Mode 4 sessions, instead of only plotting misses in Mode 1.
+- Refreshed live/package version references to V463 across `app.js`, `index.html`, `manifest.json`, and `sw.js`.
 
 ## V458 — Mode 4 convergence branch cleanup
 - Mode 4 now enters the sustained MBS segment when adaptive convergence is reached, using the converged adaptive MBS directly as the sustained presentation rate.
