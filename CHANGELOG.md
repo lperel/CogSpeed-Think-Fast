@@ -1,3 +1,7 @@
+## V492 — Startup diagnostic banner
+- Added a visible startup diagnostic banner on the start page showing the loaded app version, the active app.js script URL, the service-worker release, and whether the explicit deregister helper attached to window successfully.
+- Refreshed live/package version references to V492.
+
 ## V491 — Verified packaged rebuild + explicit SW dev helpers
 - Added explicit dev-tools helpers to the packaged app: `cogspeedDeregisterServiceWorkers()`, `cogspeedClearCachesOnly()`, `cogspeedDevReset()`, plus compatibility aliases.
 - Rebuilt and verified the packaged zip directly from the V491 source folder before release.

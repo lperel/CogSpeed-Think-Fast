@@ -2,7 +2,7 @@
 // CogSpeed V490
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V491";
+const APP_VERSION = "V492";
 
 // ═══════════════════════════════════════════════════
 // RECENT INTEGRATED PROGRAM CHANGES (through V490)
@@ -323,6 +323,24 @@ function syncReleaseUI(){
  if(statusLine) statusLine.textContent = `CogSpeed ${APP_VERSION}`;
 }
 syncReleaseUI();
+
+function getLoadedScriptUrl(){
+ try{
+  const cur=document.currentScript;
+  if(cur&&cur.src) return cur.src;
+  const scripts=[...document.scripts].map(s=>s.src).filter(Boolean);
+  const hit=scripts.find(s=>/app\.js(\?|$)/.test(s));
+  return hit||"(inline/unknown)";
+ }catch(e){ return "(unavailable)"; }
+}
+function updateStartupDiagnosticBanner(){
+ const el=$("startupDiagnosticBanner"); if(!el) return;
+ const swRelease=(typeof RELEASE!=="undefined"&&RELEASE!=null)?String(RELEASE):"—";
+ const helperOk=typeof window.cogspeedDeregisterServiceWorkers === "function";
+ const scriptUrl=getLoadedScriptUrl();
+ el.textContent=`Loaded ${APP_VERSION} | Script: ${scriptUrl} | SW: ${swRelease} | Deregister helper: ${helperOk?"OK":"MISSING"}`;
+ el.style.display='block';
+}
 
 function formatActiveResultSource(result, sessionIndex, sourceHint){
  const idx = Number.isFinite(Number(sessionIndex)) ? Number(sessionIndex) : (result && Array.isArray(state.history) ? state.history.indexOf(result) : -1);
@@ -3875,6 +3893,7 @@ window.cogspeedDevReset = cogspeedDevReset;
 window.cogspeedResetter = cogspeedResetter;
 window.cogspeedClearSWCache = cogspeedClearSWCache;
 window.cogspeedFullDevReset = cogspeedFullDevReset;
+updateStartupDiagnosticBanner();
 
 
 $("summaryRankedBtn").onclick=()=>{ const selected=state.history[getSummarySelectedIndex()]; if(!selected) return; buildRankedSummary(selected); $("summaryOverlay").classList.add("hidden"); $("rankedOverlay").classList.remove("hidden"); };
