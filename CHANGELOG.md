@@ -1,3 +1,8 @@
+## V491 — Verified packaged rebuild + explicit SW dev helpers
+- Added explicit dev-tools helpers to the packaged app: `cogspeedDeregisterServiceWorkers()`, `cogspeedClearCachesOnly()`, `cogspeedDevReset()`, plus compatibility aliases.
+- Rebuilt and verified the packaged zip directly from the V491 source folder before release.
+- Refreshed live/package version references to V491 across `app.js`, `index.html`, `manifest.json`, and `sw.js`.
+
 ## V490 — Service worker helpers restored
 - Restored explicit dev-tools service-worker helpers in the live app source and packaged build: `cogspeedDeregisterServiceWorkers()`, `cogspeedClearCachesOnly()`, and `cogspeedDevReset()`.
 - Kept service-worker registration active in the live app and refreshed live/package version references to V490.

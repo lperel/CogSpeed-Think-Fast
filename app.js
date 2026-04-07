@@ -2,7 +2,7 @@
 // CogSpeed V490
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V490";
+const APP_VERSION = "V491";
 
 // ═══════════════════════════════════════════════════
 // RECENT INTEGRATED PROGRAM CHANGES (through V490)
@@ -3837,6 +3837,44 @@ if ("serviceWorker" in navigator) {
   try{ wireResponseGraphControls(); }catch(err){}
  });
 }
+
+async function cogspeedDeregisterServiceWorkers(){
+ if (!("serviceWorker" in navigator)) return {ok:true, removed:0, supported:false};
+ const regs = await navigator.serviceWorker.getRegistrations();
+ const results = await Promise.all(regs.map(async r => {
+  try{ return (await r.unregister()) ? 1 : 0; }catch(e){ return 0; }
+ }));
+ return {ok:true, removed:results.reduce((a,b)=>a+b,0), supported:true};
+}
+async function cogspeedClearCachesOnly(){
+ if (!("caches" in window)) return {ok:true, removed:0, supported:false};
+ const keys = await caches.keys();
+ const results = await Promise.all(keys.map(async k => {
+  try{ return (await caches.delete(k)) ? 1 : 0; }catch(e){ return 0; }
+ }));
+ return {ok:true, removed:results.reduce((a,b)=>a+b,0), supported:true};
+}
+async function cogspeedDevReset(){
+ const sw = await cogspeedDeregisterServiceWorkers();
+ const cache = await cogspeedClearCachesOnly();
+ return {ok:true, serviceWorkersRemoved:sw.removed||0, cachesRemoved:cache.removed||0};
+}
+async function cogspeedResetter(){ return cogspeedDevReset(); }
+async function cogspeedClearSWCache(){ return cogspeedClearCachesOnly(); }
+async function cogspeedFullDevReset(){
+ const result = await cogspeedDevReset();
+ try{
+  const keep = new Set(['cogspeed_version']);
+  Object.keys(localStorage).forEach(k=>{ if(k.startsWith('cogspeed_')||k.startsWith('cogblock_')){ if(!keep.has(k)) localStorage.removeItem(k); } });
+ }catch(e){}
+ return result;
+}
+window.cogspeedDeregisterServiceWorkers = cogspeedDeregisterServiceWorkers;
+window.cogspeedClearCachesOnly = cogspeedClearCachesOnly;
+window.cogspeedDevReset = cogspeedDevReset;
+window.cogspeedResetter = cogspeedResetter;
+window.cogspeedClearSWCache = cogspeedClearSWCache;
+window.cogspeedFullDevReset = cogspeedFullDevReset;
 
 
 $("summaryRankedBtn").onclick=()=>{ const selected=state.history[getSummarySelectedIndex()]; if(!selected) return; buildRankedSummary(selected); $("summaryOverlay").classList.add("hidden"); $("rankedOverlay").classList.remove("hidden"); };
