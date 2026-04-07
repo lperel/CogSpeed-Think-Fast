@@ -1,3 +1,10 @@
+## V459 — Audit clean rebuild + stale-drift cleanup
+- Re-ran a focused V458 code audit against the active monolithic source tree. All jQuery-style `$("id")` references in `app.js` map to real elements in `index.html`, and no duplicate HTML IDs were found in the live UI.
+- Fixed a real package/version drift bug where `manifest.json` still identified the app as `CogSpeed® V456` even though the live build, HTML shell, script query string, and service worker had moved forward.
+- Refreshed live/package version references to V459 across `app.js`, `index.html`, `manifest.json`, `sw.js`, and the downloadable package folder.
+- Clarified stale Mode 4 wording by marking the legacy `mode4MbsThresholdMs` admin/result field as reference-only, because the sustained segment is now entered on convergence and is no longer gated by that threshold.
+- Kept the app monolithic, folded the audit cleanup into the main line, and rebuilt the downloadable zip from the correct V459 source tree.
+
 ## V458 — Mode 4 convergence branch cleanup
 - Mode 4 now enters the sustained MBS segment when adaptive convergence is reached, using the converged adaptive MBS directly as the sustained presentation rate.
 - Removed the extra adaptive-MBS-below-threshold gate that could incorrectly fail a converged Mode 4 session before the sustained segment started.

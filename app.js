@@ -1,11 +1,11 @@
 // ═══════════════════════════════════════════════════
-// CogSpeed V458
+// CogSpeed V459
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V458";
+const APP_VERSION = "V459";
 
 // ═══════════════════════════════════════════════════
-// RECENT INTEGRATED PROGRAM CHANGES (through V458)
+// RECENT INTEGRATED PROGRAM CHANGES (through V459)
 // This block summarizes the major program updates that were merged into
 // the current main line so future edits do not have to reconstruct them
 // from one-off patch builds.
@@ -201,7 +201,7 @@ const ADMIN_FIELDS=[
  ["mode3BaselineFactor","36. Mode 3 MP baseline factor from cal avg (default 1.3)","number"],
  ["mode3PacedTrialLimit","37. Mode 3 fixed machine-paced trial limit (default 140)","number"],
  ["mode3MaxDurationMs","38. Mode 3 total duration ms (default 120000)","number"],
- ["mode4MbsThresholdMs","39. Mode 4 MBS threshold to start sustained phase (ms, default 250)","number"],
+ ["mode4MbsThresholdMs","39. Mode 4 legacy MBS threshold (reference only; not used to gate sustained phase, default 250)","number"],
  ["mode4SustainedTrialCount","40. Mode 4 sustained trials at MBS (default 20)","number"],
  ["mode4FinalTrialCount","41. Mode 4 final self-paced trials (default 2)","number"],
  ["deviceBenchmarkEnabled","42. Device benchmark (0=off, 1=on)","number"],
@@ -3048,7 +3048,7 @@ ADAPTIVE MACHINE-PACED PHASE
 ${hr}
 MODE 4 SUSTAINED MBS PHASE
  Triggered: ${result.mode4Triggered?"Yes":"No"}
- MBS threshold: ${result.mode4MbsThresholdMs!=null?result.mode4MbsThresholdMs+" ms":"—"}
+ Legacy threshold setting: ${result.mode4MbsThresholdMs!=null?result.mode4MbsThresholdMs+" ms (reference only; not used to gate sustained phase)":"—"}
  Sustained presentation rate: ${result.mode4SustainedPresentationRateMs!=null?result.mode4SustainedPresentationRateMs.toFixed(1)+" ms":"—"}
  Sustained trials presented: ${result.mode4SustainedPresented||0}
  CSR (Correct Sustained Responses): ${result.correctSustainedResponses!=null?result.correctSustainedResponses:(result.mode4SustainedCorrect||0)}
