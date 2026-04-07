@@ -1,11 +1,11 @@
 // ═══════════════════════════════════════════════════
-// CogSpeed V486
+// CogSpeed V487
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V486";
+const APP_VERSION = "V487";
 
 // ═══════════════════════════════════════════════════
-// RECENT INTEGRATED PROGRAM CHANGES (through V486)
+// RECENT INTEGRATED PROGRAM CHANGES (through V487)
 // This block summarizes the major program updates that were merged into
 // the current main line so future edits do not have to reconstruct them
 // from one-off patch builds.
@@ -2828,7 +2828,34 @@ function updateStartPageLinks(){
  }
 }
 
-function isTestSuccess(r){ return (r||"").toLowerCase().startsWith("convergent"); }
+function isTestSuccess(resultOrReason){
+ const result = (resultOrReason && typeof resultOrReason === "object") ? resultOrReason : null;
+ const reason = String(result ? (result.endReason||"") : (resultOrReason||"")).trim();
+ const low = reason.toLowerCase();
+ if(!reason) return false;
+ const explicitFailPhrases = [
+  "failed",
+  "retest",
+  "need more practice",
+  "practice!",
+  "erratic responses",
+  "not responding in time",
+  "no response",
+  "rolling mean below threshold",
+  "too many wrong",
+  "wrong-tap limit",
+  "calibration avg rt limit"
+ ];
+ if(explicitFailPhrases.some(s => low.includes(s))) return false;
+ if(low.startsWith("convergent blocks")) return true;
+ if(low.startsWith("required responses reached")) return true;
+ if(low.startsWith("required test time reached")) return true;
+ if(low.startsWith("mode 4 sustained mbs segment complete")) return true;
+ if(low.startsWith("time limit reached")){
+  return !!(result && result.testMode==="mode4" && result.mode4Triggered);
+ }
+ return false;
+}
 
 // ─── Summary ───
 // ─── SUMMARY TEST RESULTS ─────────────────────────────────────
@@ -2913,6 +2940,7 @@ function getTerminalRecoveryWrongCount(result){
 }
 
 function getResultsMetricExplanationText(result){
+ const hr="─────────────────────────";
  const mode=(result&&result.testMode)||"mode1";
  const usesMode1Metrics = mode==="mode1";
  const usesMode4Metrics = mode==="mode4";
@@ -3359,10 +3387,19 @@ function openSummarySession(idx){
  const ctx = resolveResultContext(null, idx, "summary session");
  if(!ctx.result) return;
  const clamped = Number.isFinite(Number(ctx.index)) ? Math.max(0, Math.min(state.history.length-1, Number(ctx.index))) : null;
- if(clamped!=null) syncSummarySessionSelect(clamped);
- buildSummary(ctx.result);
- applySummarySourceDiagnostic(ctx.result, clamped, ctx.source);
- $("summaryOverlay").classList.remove("hidden");
+ try{
+  if(clamped!=null) syncSummarySessionSelect(clamped);
+  buildSummary(ctx.result);
+  applySummarySourceDiagnostic(ctx.result, clamped, ctx.source);
+  $("summaryOverlay").classList.remove("hidden");
+ }catch(err){
+  const el=$("summaryText");
+  if(el){
+   el.textContent = `CogSpeed ${APP_VERSION}\nResults summary render fallback\nReason: ${ctx.result.endReason||"Run complete"}\nError: ${err&&err.message?err.message:err}`;
+  }
+  try{ if(clamped!=null) syncSummarySessionSelect(clamped); }catch(e){}
+  $("summaryOverlay").classList.remove("hidden");
+ }
 }
 
 function getSpeedometerSelectedIndex(){
@@ -4930,17 +4967,19 @@ function renderSpfGaugeForResult(result){
 }
 
 function getMode4SpeedometerMetric(result){
- const pref = String(state.speedometerMode4Metric||"spi").toLowerCase()==="csr" ? "csr" : "spi";
+ const pref = String(state.speedometerMode4Metric||"spi").toLowerCase()==="cpi" ? "cpi" : "spi";
  const csr = Number(result && (result.correctSustainedResponses!=null ? result.correctSustainedResponses : result.mode4SustainedCorrect));
  const spi = Number(result && result.sustainedProcessingIndex);
  const sblp = Number(result && result.sustainedBlockLimitPerformanceMs);
  const total = Math.max(1, Number(result && result.mode4SustainedTargetCount) || 20);
- if(pref==="csr"){
+ if(pref==="cpi"){
+  const cpi = Number.isFinite(csr) ? Math.max(0, Math.min(100, (csr/Math.max(1,total))*100)) : 0;
+  const mbs = Number(result && (result.averageLast2BlockingScoresMs!=null ? result.averageLast2BlockingScoresMs : result.mode4AdaptiveMbsMs));
   return {
-   score: Number.isFinite(csr) ? Math.max(0, Math.min(100, computeSPI(csr, total))) : 0,
-   metric: Number.isFinite(csr) ? csr : 0,
-   scoreLabel:"CSR",
-   metricLabel:"CSR"
+   score: cpi,
+   metric: Number.isFinite(mbs) ? mbs : null,
+   scoreLabel:"CPI",
+   metricLabel:"MBS"
   };
  }
  return {
@@ -4957,7 +4996,7 @@ function renderSpeedometerOutcome(result, sessionIndex){
  syncOutcomeStatusText(result);
  if(!outcome || !canvas) return;
  outcome.classList.remove("hidden");
- const success = !!(result && isTestSuccess(result.endReason));
+ const success = !!(result && isTestSuccess(result));
  let cps = success && result ? Math.max(0, Math.min(100, result.cognitivePerformanceIndex||0)) : 0;
  let mbs = result && result.averageLast2BlockingScoresMs!=null ? result.averageLast2BlockingScoresMs : null;
  let scoreLabel = "CPI";
@@ -4979,7 +5018,7 @@ function renderSpeedometerOutcome(result, sessionIndex){
  if(mode4Toggle){
   if(result && result.testMode==="mode4" && result.mode4Triggered){
    mode4Toggle.classList.remove("hidden");
-   mode4Toggle.textContent = String(state.speedometerMode4Metric||"spi").toLowerCase()==="csr" ? "Show SPI / SBLP" : "Show CSR";
+   mode4Toggle.textContent = String(state.speedometerMode4Metric||"spi").toLowerCase()==="cpi" ? "Show SPI / CSR / SBLP" : "Show CPI / MBS";
   }else{
    mode4Toggle.classList.add("hidden");
   }
@@ -4993,7 +5032,7 @@ function renderSpeedometerOutcome(result, sessionIndex){
 function syncOutcomeStatusText(result){
  const ot=$("outcomeText"), orr=$("outcomeReasonText");
  if(!ot) return;
- const ok = !!(result && isTestSuccess(result.endReason));
+ const ok = !!(result && isTestSuccess(result));
  ot.textContent = ok ? "Success!" : "Failed";
  ot.className = "outcome-text " + (ok ? "success" : "failed");
  if(orr) orr.textContent = (result && result.endReason) ? result.endReason : "Run complete";

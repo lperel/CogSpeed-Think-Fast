@@ -1,3 +1,9 @@
+## V487 — Success classification + results fail-open repair
+- Replaced the stale success classifier so intended completed sessions are no longer mislabeled as failed merely because the end reason does not start with "Convergent".
+- Hardened Results Summary opening with a visible fallback so summary render errors no longer blank/freeze the UI.
+- Fixed the results metric explanation helper so it defines its divider locally.
+- Refreshed live/package version references to V487.
+
 ## V486 — Explicit service-worker deregister helpers
 - Added standalone dev-tools helpers for explicit service-worker and cache cleanup:
   - `cogspeedDeregisterServiceWorkers()`
