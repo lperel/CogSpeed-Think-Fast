@@ -1,3 +1,11 @@
+## V486 — Explicit service-worker deregister helpers
+- Added standalone dev-tools helpers for explicit service-worker and cache cleanup:
+  - `cogspeedDeregisterServiceWorkers()`
+  - `cogspeedClearCachesOnly()`
+  - `cogspeedDevReset()`
+- Kept compatibility aliases `cogspeedResetter()`, `cogspeedClearSWCache()`, and `cogspeedFullDevReset()`.
+- Updated live/package version references to V486 across `app.js`, `index.html`, `manifest.json`, and `sw.js`.
+
 ## V485 — Actual editable-files rebuild + dev resetter restore
 - Rebuilt from the actual editable root source files rather than from a prior zip claim.
 - Restored dev-tools reset helpers on `window` for service-worker/cache cleanup: `cogspeedResetter()`, `cogspeedClearSWCache()`, and `cogspeedFullDevReset()`.

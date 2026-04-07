@@ -1,11 +1,11 @@
 // ═══════════════════════════════════════════════════
-// CogSpeed V485
+// CogSpeed V486
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V485";
+const APP_VERSION = "V486";
 
 // ═══════════════════════════════════════════════════
-// RECENT INTEGRATED PROGRAM CHANGES (through V485)
+// RECENT INTEGRATED PROGRAM CHANGES (through V486)
 // This block summarizes the major program updates that were merged into
 // the current main line so future edits do not have to reconstruct them
 // from one-off patch builds.
@@ -4775,6 +4775,23 @@ async function devResetSWAndCaches(options={}){
  if(opts.reload!==false) setTimeout(()=>location.reload(), 80);
  return true;
 }
+window.cogspeedDeregisterServiceWorkers=async()=>{
+ try{
+  if(!('serviceWorker' in navigator)) return true;
+  const regs=await navigator.serviceWorker.getRegistrations();
+  await Promise.all(regs.map(r=>r.unregister().catch(()=>false)));
+  return true;
+ }catch(e){ console.warn('cogspeedDeregisterServiceWorkers failed', e); return false; }
+};
+window.cogspeedClearCachesOnly=async()=>{
+ try{
+  if(!(window.caches && caches.keys)) return true;
+  const keys=await caches.keys();
+  await Promise.all(keys.filter(k=>/^cogspeed-/i.test(k)||/^workbox/i.test(k)).map(k=>caches.delete(k).catch(()=>false)));
+  return true;
+ }catch(e){ console.warn('cogspeedClearCachesOnly failed', e); return false; }
+};
+window.cogspeedDevReset=(options)=>devResetSWAndCaches(options);
 window.cogspeedResetter=(options)=>devResetSWAndCaches(options);
 window.cogspeedClearSWCache=(options)=>devResetSWAndCaches(options);
 window.cogspeedFullDevReset=()=>devResetSWAndCaches({reload:true, clearProfile:true});
