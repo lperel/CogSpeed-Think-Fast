@@ -1,10 +1,7 @@
-## V470 — Mode 4 results, speedometer, and table cleanup
-- Added three Mode 4 results timing lines: total test duration, calibration-to-end-of-adaptive-paced duration, and sustained-plus-final duration; the last two are saved so they sum to the total duration.
-- Expanded Mode 4 results to list all adaptive block scores and the average of the last two adaptive blocks.
-- Updated the Mode 4 speedometer toggle to switch between SPI on the dial with CSR/SBLP metric boxes, and CPI on the dial with MBS support.
-- Rebuilt the Mode 4 cognitive performance table around CSR using the sustained-trial target count, with the default 10-trial scale mapping CPI 0→CSR 0 and CPI 100→CSR 10.
-- Fixed the Results metric explanation helper so it no longer references an undefined divider variable.
-- Refreshed live/package version references to V470 and restored the default Mode 4 sustained-trial count to 10 across the live code and Admin label.
+## V471 — Success classification rebuild
+- Rebuilt from the latest editable source tree and replaced the old `startsWith("convergent")` success classifier with a broader valid-terminal-outcome rule.
+- Valid completed sessions now show **Success!** unless the end reason is an explicit failure or retest state such as `FAILED ...`, `Retest`, `NEED MORE PRACTICE`, or `ERRATIC RESPONSES`.
+- Refreshed live/package version references to V471 across `app.js`, `index.html`, `manifest.json`, and `sw.js`.
 
 ## V458 — Mode 4 convergence branch cleanup
 - Mode 4 now enters the sustained MBS segment when adaptive convergence is reached, using the converged adaptive MBS directly as the sustained presentation rate.
