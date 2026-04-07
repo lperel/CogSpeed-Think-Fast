@@ -1,22 +1,46 @@
-## V487 — Success classification + results fail-open repair
-- Replaced the stale success classifier so intended completed sessions are no longer mislabeled as failed merely because the end reason does not start with "Convergent".
-- Hardened Results Summary opening with a visible fallback so summary render errors no longer blank/freeze the UI.
-- Fixed the results metric explanation helper so it defines its divider locally.
-- Refreshed live/package version references to V487.
+## V490 — Service worker helpers restored
+- Restored explicit dev-tools service-worker helpers in the live app source and packaged build: `cogspeedDeregisterServiceWorkers()`, `cogspeedClearCachesOnly()`, and `cogspeedDevReset()`.
+- Kept service-worker registration active in the live app and refreshed live/package version references to V490.
+- Added compatibility aliases `cogspeedResetter()`, `cogspeedClearSWCache()`, and `cogspeedFullDevReset()`.
 
-## V486 — Explicit service-worker deregister helpers
-- Added standalone dev-tools helpers for explicit service-worker and cache cleanup:
-  - `cogspeedDeregisterServiceWorkers()`
-  - `cogspeedClearCachesOnly()`
-  - `cogspeedDevReset()`
-- Kept compatibility aliases `cogspeedResetter()`, `cogspeedClearSWCache()`, and `cogspeedFullDevReset()`.
-- Updated live/package version references to V486 across `app.js`, `index.html`, `manifest.json`, and `sw.js`.
+## V489 — Clean rebuild from preserved V483 reference
+- Restored full Mode 4 Results Summary block list on the Results page.
+- Restored the three Mode 4 timing summary lines: total test duration, calibration-to-end-of-adaptive duration, and sustained-plus-final duration.
+- Added a Mode 4 cognitive performance table using CSR-derived CPI against the sustained target count.
+- Repaired the Results Summary renderer with a local divider definition and a clean buildSummary implementation.
+- Kept the Mode 4 speedometer toggle on SPI-on-dial with CSR/SBLP boxes vs CPI-on-dial with MBS box.
+- Rebuilt from the preserved V483 source tree and refreshed all package version references to V489.
 
-## V485 — Actual editable-files rebuild + dev resetter restore
-- Rebuilt from the actual editable root source files rather than from a prior zip claim.
-- Restored dev-tools reset helpers on `window` for service-worker/cache cleanup: `cogspeedResetter()`, `cogspeedClearSWCache()`, and `cogspeedFullDevReset()`.
-- Updated live/package version references to V485 across `app.js`, `index.html`, `manifest.json`, and `sw.js`.
-- Restored the Mode 4 sustained-trial default to 10 in defaults and Admin wording.
+## V483 — audit rebuild / Mode 4 results reintegration
+- Re-ran a focused audit on the editable V482 source tree and repaired missing Mode 4 results fields that had drifted out of the saved-result payload.
+- Restored Mode 4 saved fields for sustained correct mean/SD, final correct/wrong/mean RT, and split test-duration reporting (adaptive phase vs sustained+final).
+- Restored full adaptive block-score listing on the Mode 4 Results page and kept Results Summary fail-open behavior intact.
+- Refreshed live/package version references to V483.
+
+## V482 — Mode 4 summary/speedometer repair
+- Hardened Results Summary opening so a summary-render exception now shows a visible fallback instead of a blank frozen screen.
+- Reworked the Mode 4 Speedometer toggle to switch between SPI-on-dial with CSR/SBLP boxes and CPI-on-dial with MBS box.
+- Added a CSR-based Mode 4 cognitive performance table in Results instead of the old "Not used in this mode." placeholder.
+- Refreshed live/package version references to V482.
+
+## V481 — cleanup rebuild from editable files
+- Fixed stale top-of-file `app.js` header drift so the visible build line and integrated-change banner now match V481.
+- Removed the remaining calibration-section mixed wrong-count lines from the packaged Results text paths, so SELF-PACED CALIBRATION no longer includes paced/recovery wrong counts in Mode 2 or Mode 3.
+- Refreshed live/package version references to V481 across `app.js`, `index.html`, `manifest.json`, `sw.js`, and the downloadable package folder.
+
+## V479 — Success classifier cleanup + sustained-default fix
+- Replaced the fragile success/fail regex checks with plain explicit terminal-outcome matching so valid completions show Success and failure/retest states remain Failed.
+- Restored the Mode 4 sustained-trial default to 10 in live defaults, Admin label, and fallback calculations.
+- Fixed the Results metric explanation helper to define its divider locally.
+- Cleaned the Mode 4 SELF-PACED CALIBRATION section so it no longer mixes paced/recovery wrong counts into calibration results.
+- Refreshed live/package version references to V479 across `app.js`, `index.html`, `manifest.json`, and `sw.js`.
+
+## V478 — Success/fail terminal-outcome classifier repair
+- Replaced the old `startsWith("convergent")` success test with an explicit valid-terminal-outcome rule.
+- Successful sessions now require a known intended completion outcome such as convergent completion, Mode 4 sustained/final completion, or required-response / required-time completion in the self-paced and fixed-paced modes.
+- Explicit failure / retest states now remain failed, including fail, retest, practice, not-responding, wrong-limit, rolling-threshold, and similar terminal outcomes.
+- Mode 4 `Time limit reached` is treated as success only when the sustained segment has occurred and the final self-paced branch has begun.
+- Refreshed live/package version references to V478 across `app.js`, `index.html`, `manifest.json`, and `sw.js`.
 
 ## V458 — Mode 4 convergence branch cleanup
 - Mode 4 now enters the sustained MBS segment when adaptive convergence is reached, using the converged adaptive MBS directly as the sustained presentation rate.
