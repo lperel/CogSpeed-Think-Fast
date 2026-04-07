@@ -1,7 +1,14 @@
-## V465 — Mode 4 results timing breakdown
-- Added three Mode 4 results-page timing lines: total test duration, duration from calibration start to end of paced trials, and sustained-plus-final-trials duration.
-- Computed the Mode 4 timing breakdown so the paced-phase duration plus sustained/final duration equals the total test duration.
-- Saved the new Mode 4 timing fields into the result payload for summary rendering and future exports.
+## V467 — Focused audit rebuild / package-version alignment
+- Re-ran a focused V466 audit against the live monolith and package tree.
+- Fixed a real package/version drift bug: the delivered V466 source tree and zip were still stamped `V464` across `app.js`, `index.html`, `manifest.json`, and `sw.js`.
+- Restored the requested Mode 4 sustained-trial default to `10` in the live defaults, Admin label, and Mode 4 fallback calculations.
+- Rechecked active DOM wiring against `index.html`; no missing active IDs or duplicate HTML IDs were found.
+- Reconfirmed the app remains a single monolithic `app.js`.
+- Rebuilt the downloadable package from the corrected V467 source tree.
+
+## V466 — Results Summary blank-screen freeze repair
+- Fixed a real results-page crash where `getResultsMetricExplanationText()` referenced `hr` without defining it, which could blank the Results page and freeze the UI when opening Results Summary.
+- Kept the Mode 4 timing additions from V465 and refreshed live/package version references to V466.
 
 ## V464 — Missed markers on all applicable response graphs
 - Added missed-trial markers to the Presentation Rate vs Response Time graph so misses are visible there as well as on the Response-Time graph for applicable modes.
