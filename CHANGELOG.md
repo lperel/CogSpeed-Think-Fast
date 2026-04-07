@@ -1,3 +1,10 @@
+## V501 — Results / speedometer recovery cleanup
+- Restored Mode 4 adaptive block difference on Results and rebuilt the block section with explicit average-of-last-2 and difference lines.
+- Recomputed Mode 4 sustained/final counts from rtLog at finish so Results match Trial Detail for wrong/missed/final counts.
+- Rebuilt the Mode 4 cognitive performance table as a two-column CSR-to-CPI reference table and restored the Speedometer metric windows.
+- Fixed the Response-Time Graph page by restoring the missing chart renderer and wiring it to saved session rtLog data.
+- Corrected Mode 4 CPI to derive from adaptive MBS while SPI remains CSR-based.
+
 ## V500 — Recovery baseline rebuild
 - Rebuilt from one verified editable source tree as a new recovery baseline.
 - Restored explicit service-worker dev helpers in `app.js`: deregister, clear caches, and dev reset aliases.
