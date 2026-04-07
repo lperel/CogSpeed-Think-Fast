@@ -1,3 +1,46 @@
+## V477 — Editable-tree cleanup rebuild
+- Rebuilt from the actual editable root source files rather than relying on prior zip claims.
+- Aligned live/package version markers to V477 across `app.js`, `index.html`, `manifest.json`, and `sw.js`.
+- Confirmed the Results metric explanation helper defines its divider locally and no longer depends on an undefined `hr` variable.
+- Confirmed the Mode 4 `SELF-PACED CALIBRATION` results block no longer mixes paced/recovery wrong counts.
+- Kept the app monolithic in one `app.js` and rebuilt the downloadable package from the corrected source tree.
+
+## V476 — Actual-source rebuild / version alignment cleanup
+- Rebuilt from the editable root source files and re-ran a focused audit on the monolithic V475 line.
+- Fixed the remaining live/package version drift by aligning `app.js`, `index.html`, `manifest.json`, and `sw.js` to V476.
+- Verified the Mode 4 results summary divider fix is present in the editable source tree and kept the cleaned SELF-PACED CALIBRATION section for Mode 4 results.
+- Re-checked active DOM wiring and rebuilt the downloadable package from the verified root source tree.
+
+## V475 — Actual-source cleanup rebuild
+- Rebuilt from the actual editable source files and re-ran a focused audit against the monolithic V474 line.
+- Fixed stale version/header drift in `app.js` by aligning the visible header, integrated-change banner, and live build version on V475.
+- Refreshed live/package version references to V475 across `app.js`, `index.html`, `manifest.json`, and `sw.js`.
+- Cleaned the Mode 4 Results text so the SELF-PACED CALIBRATION section no longer mixes in paced/recovery wrong counts.
+- Re-checked active DOM wiring and rebuilt the downloadable package from the verified root source tree.
+
+## V474 — Audit rebuild from actual editable files
+- Re-ran a focused audit against the actual editable source files in `/mnt/data` rather than relying on an older packaged zip line.
+- Fixed stale header/comment drift in `app.js` so the visible version header and integrated-change banner now match the live V474 build.
+- Refreshed live/package version references to V474 across `app.js`, `index.html`, `manifest.json`, and `sw.js`.
+- Re-checked active DOM wiring: no duplicate HTML IDs were found in `index.html`, and no active `$(...)` DOM references in `app.js` point to missing IDs.
+- Re-checked the monolithic script with a syntax pass and rebuilt the downloadable package from the verified editable source tree.
+
+## V473 — audit rebuild / Mode 4 results + speedometer consistency cleanup
+- Re-ran a focused code audit on the delivered V472 monolith and rebuilt the package from the verified editable source tree.
+- Fixed stale drift where Mode 4 sustained default values and fallbacks still used 20 instead of the requested 10 in live defaults, admin labeling, and calculations.
+- Fixed Mode 4 result persistence so adaptive CPI/MBS remain separate from sustained SPI/SBLP/CSR metrics; the Speedometer CPI/MBS toggle now uses adaptive CPI + adaptive MBS, while SPI mode uses SPI with CSR and SBLP boxes.
+- Added Mode 4 Results timing lines for total duration, calibration-to-end-of-adaptive duration, and sustained-plus-final duration, with the split summing to total duration.
+- Expanded Mode 4 Results to list all adaptive block scores, show sustained correct RT SD, and show final self-paced mean RT from the saved result object.
+- Rebuilt the Mode 4 cognitive performance table around CSR using the sustained target count (default 10), while preserving the Mode 1 CPI/MBS table.
+- Updated comments and labels to mark the Mode 4 MBS threshold field as a legacy reference field rather than an active sustained-entry gate.
+- Refreshed live/package version references to V473 across app.js, index.html, manifest.json, and sw.js.
+
+## V472 — Results render fix + Mode 4 speedometer toggle cleanup
+- Fixed the blank Results-page freeze by defining the summary divider inside `getResultsMetricExplanationText()` and by hardening `openSummarySession()` with a visible fallback render path.
+- Updated the Mode 4 Speedometer toggle to switch between **SPI on dial with CSR + SBLP in boxes** and **CPI on dial with MBS in a box**.
+- Added visible Speedometer metric boxes for Mode 4 so the toggle now matches the requested display behavior.
+- Refreshed live/package version references to V472.
+
 ## V471 — Success classification rebuild
 - Rebuilt from the latest editable source tree and replaced the old `startsWith("convergent")` success classifier with a broader valid-terminal-outcome rule.
 - Valid completed sessions now show **Success!** unless the end reason is an explicit failure or retest state such as `FAILED ...`, `Retest`, `NEED MORE PRACTICE`, or `ERRATIC RESPONSES`.
