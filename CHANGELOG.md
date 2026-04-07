@@ -1,16 +1,10 @@
-## V469 — Focused audit cleanup / package rebuild
-- Audited the delivered V468 monolith for live/package drift, DOM wiring, and static regression risk.
-- Fixed a real results-state bug where `isTestSuccess()` contained corrupted backspace characters in the failed-state regex guards instead of `\b`, which could misclassify explicit `FAILED` / `Failed` terminal reasons.
-- Clarified the stale Mode 4 Admin/results wording for `mode4MbsThresholdMs` so it is labeled as a legacy reference field rather than an active sustained-phase gate.
-- Refreshed live/package version references to V469 across `app.js`, `index.html`, `manifest.json`, and `sw.js`.
-- Rebuilt the downloadable package from the corrected V469 source tree and kept the app monolithic.
-
-## V468 — Full package rebuild from the verified working source tree
-- Rebuilt the app from the actual editable source files in the current tree rather than relying on stale prior package labels.
-- Fixed the Speedometer success classifier so valid completed sessions are no longer restricted to end reasons starting with "Convergent".
-- Fixed the Results Summary render crash by defining the divider used in metric explanations and added fail-open summary rendering.
-- Restored Mode 4 sustained-trial default to 10 in live defaults, Admin label, and fallback calculations.
-- Refreshed live/package version references to V468 across `app.js`, `index.html`, `manifest.json`, and `sw.js`.
+## V470 — Mode 4 results, speedometer, and table cleanup
+- Added three Mode 4 results timing lines: total test duration, calibration-to-end-of-adaptive-paced duration, and sustained-plus-final duration; the last two are saved so they sum to the total duration.
+- Expanded Mode 4 results to list all adaptive block scores and the average of the last two adaptive blocks.
+- Updated the Mode 4 speedometer toggle to switch between SPI on the dial with CSR/SBLP metric boxes, and CPI on the dial with MBS support.
+- Rebuilt the Mode 4 cognitive performance table around CSR using the sustained-trial target count, with the default 10-trial scale mapping CPI 0→CSR 0 and CPI 100→CSR 10.
+- Fixed the Results metric explanation helper so it no longer references an undefined divider variable.
+- Refreshed live/package version references to V470 and restored the default Mode 4 sustained-trial count to 10 across the live code and Admin label.
 
 ## V458 — Mode 4 convergence branch cleanup
 - Mode 4 now enters the sustained MBS segment when adaptive convergence is reached, using the converged adaptive MBS directly as the sustained presentation rate.
