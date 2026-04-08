@@ -1,3 +1,8 @@
+## V516 — Results total trial presentations
+- Added `Total trial presentations` to Results pages, using the saved `rtLog` length when available so the count includes all self-paced and machine-paced presentations.
+- Added safe fallbacks for older sessions when `rtLog` is unavailable.
+- Refreshed visible/package version references to V516.
+
 ## V515 — Outcome false-fail classification fix
 - Rebuilt from the V513 baseline as a one-change-at-a-time fix for false **Failed** outcomes on otherwise successful runs.
 - Hardened `isTestSuccess()` so explicit fail/retest states still fail, while valid completed Mode 4 max-time outcomes succeed when the sustained branch actually occurred.

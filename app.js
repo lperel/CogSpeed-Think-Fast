@@ -1,8 +1,8 @@
 // ═══════════════════════════════════════════════════
-// CogSpeed V515
+// CogSpeed V516
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V515";
+const APP_VERSION = "V516";
 
 // ═══════════════════════════════════════════════════
 // RECENT INTEGRATED PROGRAM CHANGES (through V488)
@@ -381,6 +381,20 @@ function setFlowDiagnostic(label,statusText){
  try{ if(statusText!=null) setStatus(statusText); }catch(e){}
 }
 function formatDuration(ms){ if(ms==null) return "—"; const s=Math.round(ms/1000),m=Math.floor(s/60); return m>0?`${m}m ${s%60}s`:`${s}s`; }
+function computeTotalTrialPresentations(result){
+ const logCount = Array.isArray(result&&result.rtLog) ? result.rtLog.length : 0;
+ if(logCount>0) return logCount;
+ const mode = (result&&result.testMode)||"mode1";
+ const selfPaced = Number(result&&result.selfPacedResponseCount)||0;
+ const pacedPresented = Number(result&&result.fixedPacedPresented)||0;
+ const pacedDerived = Math.max(0,(Number(result&&result.pacedResponseCount)||0)+(Number(result&&result.pacedErrors)||0)+(Number(result&&result.missedTrials)||0));
+ if(mode==="mode4"){
+  return selfPaced + (Number(result&&result.mode4SustainedPresented)||0) + (Number(result&&result.mode4FinalTrialsPresented)||0) + Math.max(pacedPresented,pacedDerived,Number(result&&result.totalTrials)||0);
+ }
+ if(mode==="mode3") return selfPaced + Math.max(pacedPresented,pacedDerived);
+ if(mode==="mode2") return selfPaced;
+ return selfPaced + Math.max(Number(result&&result.totalTrials)||0,pacedDerived);
+}
 // Mode helpers centralize mode checks so start / finish / summary logic
 // can switch cleanly between CogSpeed, SPC, and SPCMP behavior.
 function isMode1(){ return (settings.testMode||"mode1")==="mode1"; }
@@ -2789,6 +2803,7 @@ Test Mode:  ${formatModeTag(result.testMode)}
 Session:    ${result.sessionNumber!=null?result.sessionNumber:"—"}
 Subject ID:  ${result.subjectId}
 Date / Time:  ${new Date(result.time).toLocaleString()}
+Total trial presentations: ${computeTotalTrialPresentations(result)}
 Test duration: ${formatDuration(result.testDurationMs)}
 Location:   ${geoStr}
 ${hr}
@@ -2823,6 +2838,7 @@ Test Mode:  ${formatModeTag(result.testMode)}
 Session:    ${result.sessionNumber!=null?result.sessionNumber:"—"}
 Subject ID:  ${result.subjectId}
 Date / Time:  ${new Date(result.time).toLocaleString()}
+Total trial presentations: ${computeTotalTrialPresentations(result)}
 Test duration: ${formatDuration(result.testDurationMs)}
 Location:   ${geoStr}
 ${hr}
@@ -2871,6 +2887,7 @@ Test Mode:  ${formatModeTag(result.testMode)}
 Session:    ${result.sessionNumber!=null?result.sessionNumber:"—"}
 Subject ID:  ${result.subjectId}
 Date / Time:  ${new Date(result.time).toLocaleString()}
+Total trial presentations: ${computeTotalTrialPresentations(result)}
 Total TEST duration: ${formatDuration(timing.totalMs)}
 Calibration → end of adaptive paced trials: ${formatDuration(timing.adaptiveMs)}
 Sustained + final self-paced duration: ${formatDuration(timing.sustainedFinalMs)}
@@ -2936,6 +2953,7 @@ Test Mode:  ${formatModeTag(result.testMode)}
 Session:    ${result.sessionNumber!=null?result.sessionNumber:"—"}
 Subject ID:  ${result.subjectId}
 Date / Time:  ${new Date(result.time).toLocaleString()}
+Total trial presentations: ${computeTotalTrialPresentations(result)}
 Test duration: ${formatDuration(result.testDurationMs)}
 Location:   ${geoStr}
 ${hr}
