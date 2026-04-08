@@ -1,3 +1,8 @@
+## V525 — Sustained phase background toned down again
+- Reduced the Sustained phase gear-page background from `#b8b8b8` to `#a6a6a6` to avoid a startling bright-phase transition.
+- Left Calibration and Adaptive backgrounds unchanged.
+- Refreshed live/package version references to V525.
+
 ## V524 — Sustained phase background toned down
 - Reduced the sustained-phase gear-page background from a near-white light gray to a softer medium-light gray for better comfort and less glare.
 - Kept calibration and adaptive backgrounds unchanged.
