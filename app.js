@@ -2,10 +2,10 @@
 // CogSpeed V518
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V522";
+const APP_VERSION = "V523";
 
 // ═══════════════════════════════════════════════════
-// RECENT INTEGRATED PROGRAM CHANGES (through V488)
+// RECENT INTEGRATED PROGRAM CHANGES (through V523)
 // This block summarizes the major program updates that were merged into
 // the current main line so future edits do not have to reconstruct them
 // from one-off patch builds.
@@ -322,6 +322,18 @@ function syncReleaseUI(){
  if(statusLine) statusLine.textContent = `CogSpeed ${APP_VERSION}`;
 }
 syncReleaseUI();
+
+function getPhaseBackgroundColor(){
+ const phase=String(state.phase||"");
+ if(phase==="calibration") return "#8f8f8f";
+ if(phase==="mode4_sustained"||phase==="mode4_final") return "#cfcfcf";
+ return "#6e6e6e";
+}
+function applyPhaseBackground(){
+ const ts=$("testScreen");
+ if(!ts) return;
+ try{ ts.style.setProperty("background", getPhaseBackgroundColor(), "important"); }catch(e){}
+}
 
 function formatActiveResultSource(result, sessionIndex, sourceHint){
  const idx = Number.isFinite(Number(sessionIndex)) ? Number(sessionIndex) : (result && Array.isArray(state.history) ? state.history.indexOf(result) : -1);
@@ -840,6 +852,7 @@ function darken(hex,amt){ const n=parseInt(hex.slice(1),16),r=Math.max(0,(n>>16)
 // ──────────────────────────────────────────────────────────────
 function renderTrial(trial){
  const ts=$("testScreen"); if(ts) ts.classList.remove("hidden");
+ applyPhaseBackground();
  stimGrid.innerHTML="";
  for(let i=0;i<6;i++){
   const cell=document.createElement("div");
@@ -871,6 +884,7 @@ function flashBtn(index,ok){
  setTimeout(()=>btns[index].classList.remove(cls),200);
 }
 function setProbeIdle(){
+ applyPhaseBackground();
  probeCell.classList.add("idle");
  probeInner.innerHTML="";
  stimGrid.innerHTML="";
@@ -2740,15 +2754,17 @@ function getCognitivePerformanceTableText(result){
    mode1Bands.forEach(b=>{ const d=Math.abs(rowCpi-b.cpi); if(d<bestDiff){ bestDiff=d; band=b; } });
    rows.push({spfs:band.spfs, csr:n, cpi:rowCpi, cap:band.cap, mark:(csr===n)?"← YOUR SCORE":""});
   }
-  const headers=["SP-FS","CSR","CPI","DESCRIPTION OF PERFORMANCE"];
+  const actualSpfs = result.samnPerelli && result.samnPerelli.score!=null ? Number(result.samnPerelli.score) : null;
+  const headers=["[SP-FS]","CSR","CPI","DESCRIPTION OF PERFORMANCE"];
+  const spfsDisplay = v => (actualSpfs!=null && Number(v)===actualSpfs) ? `▶${v}◀` : String(v);
   const widths=[
-   Math.max(headers[0].length, ...rows.map(r=>String(r.spfs).length)),
+   Math.max(headers[0].length, ...rows.map(r=>spfsDisplay(r.spfs).length)),
    Math.max(headers[1].length, ...rows.map(r=>String(r.csr).length)),
    Math.max(headers[2].length, ...rows.map(r=>String(r.cpi).length)),
    Math.max(headers[3].length, ...rows.map(r=>r.cap.length)),
   ];
   const headerLine=`${headers[0].padEnd(widths[0])} | ${headers[1].padEnd(widths[1])} | ${headers[2].padEnd(widths[2])} | ${headers[3]}`;
-  const body=rows.map(r=>`${String(r.spfs).padEnd(widths[0])} | ${String(r.csr).padStart(widths[1])} | ${String(r.cpi).padStart(widths[2])} | ${r.cap}${r.mark?`  ${r.mark}`:""}`);
+  const body=rows.map(r=>`${spfsDisplay(r.spfs).padEnd(widths[0])} | ${String(r.csr).padStart(widths[1])} | ${String(r.cpi).padStart(widths[2])} | ${r.cap}${r.mark?`  ${r.mark}`:""}`);
   return ["Mode 4 Cognitive Performance Table (CSR → CPI)",headerLine,...body].join("\n");
  }
  if(mode!=="mode1") return "Not used in this mode.";
@@ -3475,6 +3491,7 @@ function hardResetCurtainState(hideTestScreen=false){
   }
   ts.style.pointerEvents="auto";
  }
+ applyPhaseBackground();
 }
 function beginCurtainTransition(){
  hardResetCurtainState(false);

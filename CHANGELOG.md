@@ -1,3 +1,9 @@
+## V523 — Mode 4 phase background cues + SP-FS emphasis
+- Added modest phase background colors on the gear page: calibration medium gray, adaptive current gray, sustained light gray.
+- Kept the visual change background-only with no timing, scoring, or layout changes.
+- Updated the Mode 4 cognitive performance table so the SP-FS column/header is visually emphasized and the current SP-FS row is highlighted.
+- Refreshed visible/package version references to V523.
+
 ## V522 — Mode 4 cognitive table columns
 - Added dynamic SP-FS and description-of-performance columns to the Mode 2 CogSpeed Sustained cognitive performance table so it scales when the sustained-trial target changes.
 - Kept the table mapped from CSR to CPI with the user score flagged.
