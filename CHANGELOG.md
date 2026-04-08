@@ -1,3 +1,67 @@
+## V527 — Extended sustained-phase analysis metrics
+
+### New metrics (Mode 2 CogSpeed Sustained)
+Added `computeMode4SustainedAnalysis()`, a dedicated post-run function that
+derives eleven new performance metrics from `rtLog` sustained-phase entries.
+No changes to trial engine, timing logic, or MBS convergence algorithm.
+
+New result fields and CSV columns:
+- **SBLP SD** (`sustainedBlockLimitPerformanceSdMs`) — SD of correct sustained
+  RTs; intraindividual variability at the MBS rate.
+- **SBLP P90** (`sustainedCorrectRtP90Ms`) — 90th-percentile correct RT;
+  conservative ceiling vs. mean.
+- **SBLP Max** (`sustainedCorrectRtMaxMs`) — maximum correct RT in the segment.
+- **SPI first/second half** (`sustainedFirstHalfSpi`, `sustainedSecondHalfSpi`)
+  — CSR rate split at the midpoint of presented sustained trials.
+- **SPI decay** (`sustainedSpiDecay`) — first-half minus second-half SPI;
+  positive values indicate within-segment decompensation.
+- **RT slope** (`sustainedRtSlopeMsPerTrial`) — OLS slope of correct RT vs.
+  trial position (requires ≥3 correct responses); positive = slowing.
+- **Omission rate** (`sustainedOmissionRate`) — missed / presented (0–1).
+- **Commission rate** (`sustainedCommissionRate`) — wrong / presented (0–1).
+- **Error profile** (`sustainedErrorProfile`) — categorical label:
+  `clean` | `omission_dominant` | `commission_dominant` | `mixed`.
+- **SPR** (`sustainedProcessingReserve`) — (1 − SBLP / MBS) × 100; RT
+  headroom remaining below the timing window at the subject's MBS rate.
+
+All new fields are `null` when the sustained phase was not triggered or when
+there is insufficient data (e.g. RT slope requires ≥3 correct responses).
+All fields are included in CSV export and results text. Metric explanations
+block updated to define all new terms.
+
+### Bug fixes found during post-delivery review (V527)
+- **`sustainedOmissionRate` return guard** — spurious `sblpSd != null ||`
+  condition on the omissionRate return line was a copy-paste artifact and
+  removed. Logic is now simply `omissionRate != null ? ... : null`.
+- **Dead variable `n2`** — `const n2 = pos.length` in the OLS slope block
+  was declared but never used; removed.
+- **P90 index formula wrong for N ≤ 10** — `Math.floor(N * 0.9)` returns
+  index N−1 (the maximum) for any N ≤ 10, making `sustainedCorrectRtP90Ms`
+  identical to `sustainedCorrectRtMaxMs` at the default trial count of 10.
+  Fixed to nearest-rank formula: `Math.max(0, Math.ceil(N * 0.9) − 1)`,
+  which correctly returns the 9th of 10 values (90th percentile).
+- **No backfill for pre-V527 history results** — `buildSummary()` renders
+  stored results as-is; old Mode 2 sessions had no new fields and would
+  display "—" for all 11 metrics. Added lazy-recompute block matching the
+  existing `mode4TimingSummary` pattern: when a pre-V527 result is opened
+  with `rtLog` present, all new fields are computed on-the-fly via
+  `computeMode4SustainedAnalysis()` before rendering.
+
+### Bug fixes (carried from V526 review)
+- `@keyframes probePulseG` added to the `buildTutGearGridAnimated()` injected
+  style block. Tutorial probe pulse animation was silently failing.
+- `ensureGearImageStyles()` fallback CSS updated: `#6e6e6e` → `#7d7d7d` to
+  match the V526 adaptive-phase color and eliminate a potential flash on initial
+  render before `applyPhaseBackground()` runs.
+
+### Cosmetic / consistency fixes (carried from V526 review)
+- `index.html` Cloudflare email obfuscation replaced with plain
+  `mailto:thinkfastgmm@gmail.com` anchor (recurring issue from Cloudflare
+  Pages rewriting; treat as permanent patch on each deploy).
+- `index.html` static `versionBadge` text corrected `V523` → `V527`
+  (dynamically overwritten at runtime but kept in sync for consistency).
+- `app.js` header banner corrected `V518` → `V527`.
+
 ## V526 — Phase background tone adjustment
 - Lightened the adaptive-phase gear-page background from `#6e6e6e` to `#7d7d7d`.
 - Darkened the sustained/final-phase gear-page background from `#a6a6a6` to `#979797`.

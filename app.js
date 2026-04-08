@@ -1,11 +1,11 @@
 // ═══════════════════════════════════════════════════
-// CogSpeed V518
+// CogSpeed V527
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V526";
+const APP_VERSION = "V527";
 
 // ═══════════════════════════════════════════════════
-// RECENT INTEGRATED PROGRAM CHANGES (through V523)
+// RECENT INTEGRATED PROGRAM CHANGES (through V527)
 // This block summarizes the major program updates that were merged into
 // the current main line so future edits do not have to reconstruct them
 // from one-off patch builds.
@@ -62,6 +62,20 @@ const APP_VERSION = "V526";
 //    - Mode 4 now enters the sustained MBS segment when convergent adaptive
 //      pacing is reached; it no longer requires adaptive MBS to be below a
 //      separate threshold before the sustained branch can start.
+//
+// 9) V527 — Extended sustained-phase analysis (computeMode4SustainedAnalysis)
+//    - Eleven new metrics derived from rtLog after finish(): SBLP SD, SBLP P90,
+//      SBLP Max, SPI first/second half, SPI decay, RT slope (OLS), omission
+//      rate, commission rate, error profile, and SPR (Sustained Processing
+//      Reserve: headroom between mean correct RT and the MBS window).
+//    - All new fields null-safe; RT slope requires ≥3 correct responses.
+//    - buildSummary() lazy-recomputes new fields for pre-V527 history results
+//      that have rtLog present, matching the mode4TimingSummary pattern.
+//    - CSV export expanded from 47 to 58 columns.
+//    - Bug fixes: @keyframes probePulseG added (tutorial probe pulse was
+//      broken); ensureGearImageStyles fallback color corrected (#6e6e6e →
+//      #7d7d7d); CF email obfuscation patched in index.html; versionBadge
+//      static text updated; header banner corrected V518 → V527.
 // ═══════════════════════════════════════════════════
 
 const RELEASE = APP_VERSION.replace(/^V/i, "");
@@ -700,7 +714,7 @@ function ensureGearImageStyles(){
  const st=document.createElement("style");
  st.id="gearImageStyles";
  st.textContent=`
-  #testScreen{background:#6e6e6e!important;}
+  #testScreen{background:#7d7d7d!important;}
   .gear-img-wrap{
    position:relative;
    width:100%;
@@ -1296,6 +1310,14 @@ function finish(){
    mode4FinalMeanRtMs: state.mode4FinalRTs.length?mean(state.mode4FinalRTs):null,
    mode4CpiFromCsr: isMode4() && state.mode4Triggered ? modeCPI : null,
    mode4TimingSummary: isMode4() ? computeMode4TimingSummary({rtLog:[...state.rtLog], testDurationMs:testDurMs}) : null,
+   ...(isMode4() && state.mode4Triggered ? computeMode4SustainedAnalysis(state.rtLog, state.mode4SustainedPresentationRateMs, Number(settings.mode4SustainedTrialCount)||10) : {
+    sustainedBlockLimitPerformanceSdMs:null, sustainedOmissionRate:null,
+    sustainedCommissionRate:null, sustainedErrorProfile:null,
+    sustainedProcessingReserve:null, sustainedFirstHalfSpi:null,
+    sustainedSecondHalfSpi:null, sustainedSpiDecay:null,
+    sustainedRtSlopeMsPerTrial:null, sustainedCorrectRtP90Ms:null,
+    sustainedCorrectRtMaxMs:null
+   }),
    rtLog:[...state.rtLog], endReason:state.endReason||"Run complete",
    time:new Date().toISOString(), geo:state.geo, timingQuality
   };
@@ -2293,7 +2315,7 @@ function csvCell(v){
 function exportCSV(){
  const h=state.history; if(!h.length){setStatus("No history to export."); return;}
  const cols=["session","testMode","subjectId","date","samnPerelli","calibAvgMs","blocks",
-  "avgLast2Ms","blockDiffMs","cpi","totalTaps","correct","wrong","missed","sblpMs","spi","csr","mode4Target","mode4RateMs","mode4Presented","mode4Correct","mode4Wrong","mode4Missed","mode4FinalTarget","mode4FinalTrials","mode4FinalCorrect","mode4FinalWrong","mode4FinalMeanRtMs",
+  "avgLast2Ms","blockDiffMs","cpi","totalTaps","correct","wrong","missed","sblpMs","sblpSdMs","sblpP90Ms","sblpMaxMs","spi","spiFirstHalf","spiSecondHalf","spiDecay","rtSlopeMsPerTrial","omissionRate","commissionRate","errorProfile","spr","csr","mode4Target","mode4RateMs","mode4Presented","mode4Correct","mode4Wrong","mode4Missed","mode4FinalTarget","mode4FinalTrials","mode4FinalCorrect","mode4FinalWrong","mode4FinalMeanRtMs",
   "sleepSinceLastTest","sleepBedtime","sleepWakeTime","sleepWakeDateTimeIso","sleepDurationMinutes","sleepQualityLabel","sleepQualityScore",
   "pacedCorrect","pacedWrong","spRestartWrong","meanPacedRtMs","pacedRtSd",
   "avgFrameOvershootMs","maxFrameOvershootMs","avgRafIntervalMs","maxRafIntervalMs",
@@ -2311,7 +2333,18 @@ function exportCSV(){
   r.cognitivePerformanceIndex!=null?r.cognitivePerformanceIndex.toFixed(1):"",
   r.totalResponses||0, r.totalCorrect||0, r.totalIncorrect||0, r.missedTrials||0,
   r.sustainedBlockLimitPerformanceMs!=null?r.sustainedBlockLimitPerformanceMs.toFixed(1):"",
+  r.sustainedBlockLimitPerformanceSdMs!=null?r.sustainedBlockLimitPerformanceSdMs.toFixed(1):"",
+  r.sustainedCorrectRtP90Ms!=null?r.sustainedCorrectRtP90Ms.toFixed(1):"",
+  r.sustainedCorrectRtMaxMs!=null?r.sustainedCorrectRtMaxMs.toFixed(1):"",
   r.sustainedProcessingIndex!=null?r.sustainedProcessingIndex.toFixed(1):"",
+  r.sustainedFirstHalfSpi!=null?r.sustainedFirstHalfSpi.toFixed(1):"",
+  r.sustainedSecondHalfSpi!=null?r.sustainedSecondHalfSpi.toFixed(1):"",
+  r.sustainedSpiDecay!=null?r.sustainedSpiDecay.toFixed(1):"",
+  r.sustainedRtSlopeMsPerTrial!=null?r.sustainedRtSlopeMsPerTrial.toFixed(3):"",
+  r.sustainedOmissionRate!=null?(r.sustainedOmissionRate*100).toFixed(1)+"":"",
+  r.sustainedCommissionRate!=null?(r.sustainedCommissionRate*100).toFixed(1)+"":"",
+  r.sustainedErrorProfile||"",
+  r.sustainedProcessingReserve!=null?r.sustainedProcessingReserve.toFixed(1):"",
   r.correctSustainedResponses!=null?r.correctSustainedResponses:"",
   r.mode4SustainedTargetCount!=null?r.mode4SustainedTargetCount:"",
   r.mode4SustainedPresentationRateMs!=null?r.mode4SustainedPresentationRateMs.toFixed(1):"",
@@ -2835,7 +2868,15 @@ RESULTS METRIC EXPLANATIONS
  CPI (Cognitive Processing Index) = normalized 0 - 100 index based on MBS.${usesMode1Metrics||usesMode4Metrics?"":" Not used in this mode."}
  CSR (Correct Sustained Responses) = number of correct sustained responses in the Mode 4 sustained segment.${usesMode4Metrics?"":" Not used in this mode."}
  SBLP (Sustained Blocking Limit Performance) = average RT of correct sustained responses during Mode 4 sustained segment, but defined as 0 when CSR = 0.${usesMode4Metrics?"":" Not used in this mode."}
- SPI (Sustained Processing Index) = normalized 0 - 100 index based on CSR.${usesMode4Metrics?"":" Not used in this mode."}`;
+ SBLP SD = standard deviation of correct sustained RTs; intraindividual variability at MBS.${usesMode4Metrics?"":" Not used in this mode."}
+ SBLP P90 = 90th-percentile correct sustained RT; conservative ceiling estimate.${usesMode4Metrics?"":" Not used in this mode."}
+ SPI (Sustained Processing Index) = normalized 0 - 100 index based on CSR.${usesMode4Metrics?"":" Not used in this mode."}
+ SPI decay = first-half SPI minus second-half SPI; positive values indicate within-segment degradation.${usesMode4Metrics?"":" Not used in this mode."}
+ RT slope = OLS slope of correct RT vs trial position (ms/trial); positive = slowing (decompensation).${usesMode4Metrics?"":" Not used in this mode."}
+ Omission rate = missed / presented; pure speed-failure proportion.${usesMode4Metrics?"":" Not used in this mode."}
+ Commission rate = wrong / presented; speed-accuracy tradeoff proportion.${usesMode4Metrics?"":" Not used in this mode."}
+ Error profile = categorical: clean / omission_dominant / commission_dominant / mixed.${usesMode4Metrics?"":" Not used in this mode."}
+ SPR (Sustained Processing Reserve) = (1 - SBLP / MBS) x 100; RT headroom below the timing window.${usesMode4Metrics?"":" Not used in this mode."}`;
 }
 
 
@@ -2949,6 +2990,10 @@ ${getResultsMetricExplanationText(result)}`;
   const sblp=result.sustainedBlockLimitPerformanceMs;
   const csr=result.correctSustainedResponses!=null?result.correctSustainedResponses:(result.mode4SustainedCorrect||0);
   const timing=result.mode4TimingSummary||computeMode4TimingSummary(result);
+  // Backfill new V527 sustained metrics for results stored before V527
+  if(result.mode4Triggered && result.sustainedFirstHalfSpi==null && Array.isArray(result.rtLog)){
+   Object.assign(result, computeMode4SustainedAnalysis(result.rtLog, result.mode4SustainedPresentationRateMs, result.mode4SustainedTargetCount||10));
+  }
   const mode4Cpi=result.mode4CpiFromCsr!=null?result.mode4CpiFromCsr:(Number.isFinite(Number(csr))?computeSPI(Number(csr), Math.max(1, Number(result.mode4SustainedTargetCount)||10)):null);
   const adaptiveCounts=computeMode4AdaptiveCounts(result);
   el.textContent=
@@ -2997,7 +3042,18 @@ MODE 4 SUSTAINED MBS PHASE
  Sustained wrong:   ${result.mode4SustainedWrong||0}
  Sustained missed:  ${result.mode4SustainedMissed||0}
  SBLP: ${sblp!=null?(Number(sblp)===0&&csr===0?"0 ms (CSR = 0)":sblp.toFixed(1)+" ms"):"—"}
+ SBLP SD: ${result.sustainedBlockLimitPerformanceSdMs!=null?result.sustainedBlockLimitPerformanceSdMs.toFixed(1)+" ms":"—"}
+ SBLP P90: ${result.sustainedCorrectRtP90Ms!=null?result.sustainedCorrectRtP90Ms.toFixed(1)+" ms":"—"}
+ SBLP Max: ${result.sustainedCorrectRtMaxMs!=null?result.sustainedCorrectRtMaxMs.toFixed(1)+" ms":"—"}
  SPI: ${spi!=null?spi.toFixed(1)+" / 100":"—"}
+ SPI first half: ${result.sustainedFirstHalfSpi!=null?result.sustainedFirstHalfSpi.toFixed(1)+" / 100":"—"}
+ SPI second half: ${result.sustainedSecondHalfSpi!=null?result.sustainedSecondHalfSpi.toFixed(1)+" / 100":"—"}
+ SPI decay: ${result.sustainedSpiDecay!=null?(result.sustainedSpiDecay>0?"+":"")+result.sustainedSpiDecay.toFixed(1)+" pts (positive = degrading)":"—"}
+ RT slope: ${result.sustainedRtSlopeMsPerTrial!=null?(result.sustainedRtSlopeMsPerTrial>0?"+":"")+result.sustainedRtSlopeMsPerTrial.toFixed(2)+" ms/trial":"—"}
+ Omission rate: ${result.sustainedOmissionRate!=null?(result.sustainedOmissionRate*100).toFixed(1)+"%":"—"}
+ Commission rate: ${result.sustainedCommissionRate!=null?(result.sustainedCommissionRate*100).toFixed(1)+"%":"—"}
+ Error profile: ${result.sustainedErrorProfile||"—"}
+ SPR (Processing Reserve): ${result.sustainedProcessingReserve!=null?result.sustainedProcessingReserve.toFixed(1)+"%":"—"}
  CPI from CSR: ${mode4Cpi!=null?mode4Cpi.toFixed(1):"—"}
 ${hr}
 FINAL SELF-PACED TRIALS
@@ -3293,6 +3349,120 @@ function syncSummarySessionSelect(selectedIdx){
  if(s.options.length) s.value = String(wanted);
 }
 
+
+// ─── Mode 4 Sustained Phase Analysis (V527) ───────────────────
+// Computes extended sustained-phase metrics from rtLog.
+// All values are null when the sustained phase was not triggered
+// or when insufficient data exist for the computation.
+// Fields produced:
+//  sustainedBlockLimitPerformanceSdMs — SD of correct sustained RTs
+//  sustainedOmissionRate  — missed / presented (0–1)
+//  sustainedCommissionRate — wrong / presented (0–1)
+//  sustainedErrorProfile  — "clean"|"omission_dominant"|"commission_dominant"|"mixed"
+//  sustainedProcessingReserve — (1 − SBLP/MBS) × 100; headroom below window
+//  sustainedFirstHalfSpi  — CSR rate in trials 1..⌊N/2⌋ × 100
+//  sustainedSecondHalfSpi — CSR rate in trials ⌊N/2⌋+1..N × 100
+//  sustainedSpiDecay      — firstHalfSpi − secondHalfSpi (positive = degrading)
+//  sustainedRtSlopeMsPerTrial — OLS slope of correct RT vs trial position (ms/trial)
+//  sustainedCorrectRtP90Ms — 90th-percentile correct RT
+//  sustainedCorrectRtMaxMs — maximum correct RT
+// ──────────────────────────────────────────────────────────────
+function computeMode4SustainedAnalysis(rtLog, mbsRateMs, targetCount){
+ const entries = Array.isArray(rtLog) ? rtLog : [];
+ const sustained = entries.filter(e =>
+  e.phase==="mode4_sustained" ||
+  e.phase==="mode4_sustained_wrong" ||
+  e.phase==="mode4_sustained_missed"
+ );
+ if(!sustained.length) return {
+  sustainedBlockLimitPerformanceSdMs:null,
+  sustainedOmissionRate:null, sustainedCommissionRate:null,
+  sustainedErrorProfile:null, sustainedProcessingReserve:null,
+  sustainedFirstHalfSpi:null, sustainedSecondHalfSpi:null,
+  sustainedSpiDecay:null, sustainedRtSlopeMsPerTrial:null,
+  sustainedCorrectRtP90Ms:null, sustainedCorrectRtMaxMs:null
+ };
+
+ const correctEntries = sustained.filter(e => e.phase==="mode4_sustained" && Number.isFinite(Number(e.rt)));
+ const correctRTs = correctEntries.map(e => Number(e.rt));
+ const presented = sustained.length;
+ const wrongCount  = sustained.filter(e => e.phase==="mode4_sustained_wrong").length;
+ const missedCount = sustained.filter(e => e.phase==="mode4_sustained_missed").length;
+ const mbs = Number(mbsRateMs) || 0;
+
+ // SD of correct sustained RTs
+ const sblpSd = correctRTs.length >= 2 ? stdDev(correctRTs) : null;
+
+ // Omission / commission rates
+ const omissionRate   = presented > 0 ? missedCount / presented : null;
+ const commissionRate = presented > 0 ? wrongCount  / presented : null;
+
+ // Error profile — categorical characterization of error type
+ let errorProfile = null;
+ if(presented > 0){
+  const totalErrors = wrongCount + missedCount;
+  if(totalErrors === 0) errorProfile = "clean";
+  else if(wrongCount === 0) errorProfile = "omission_dominant";
+  else if(missedCount === 0) errorProfile = "commission_dominant";
+  else errorProfile = (wrongCount / totalErrors >= 0.6) ? "commission_dominant"
+                    : (missedCount / totalErrors >= 0.6) ? "omission_dominant"
+                    : "mixed";
+ }
+
+ // Sustained Processing Reserve — headroom between mean correct RT and MBS window
+ const sblpMean = correctRTs.length > 0 ? mean(correctRTs) : null;
+ const spr = (mbs > 0 && sblpMean != null) ? (1 - sblpMean / mbs) * 100 : null;
+
+ // First-half / second-half SPI and decay index
+ let firstHalfSpi = null, secondHalfSpi = null, spiDecay = null;
+ if(sustained.length >= 2){
+  const half = Math.floor(sustained.length / 2);
+  const fh = sustained.slice(0, half);
+  const sh = sustained.slice(half);
+  const fhCorrect = fh.filter(e => e.phase==="mode4_sustained").length;
+  const shCorrect = sh.filter(e => e.phase==="mode4_sustained").length;
+  firstHalfSpi  = (fhCorrect / Math.max(1, fh.length)) * 100;
+  secondHalfSpi = (shCorrect / Math.max(1, sh.length)) * 100;
+  spiDecay = firstHalfSpi - secondHalfSpi;
+ }
+
+ // RT trend slope — OLS regression of correct RT against trial position
+ let rtSlopeMsPerTrial = null;
+ if(correctEntries.length >= 3){
+  const pos = correctEntries.map((_, i) => i + 1);
+  const rts = correctRTs;
+  const mp = mean(pos), mr = mean(rts);
+  const num = pos.reduce((s, x, i) => s + (x - mp) * (rts[i] - mr), 0);
+  const den = pos.reduce((s, x)    => s + (x - mp) ** 2, 0);
+  rtSlopeMsPerTrial = den > 0 ? num / den : null;
+ }
+
+ // P90 and max correct RT
+ let correctRtP90Ms = null, correctRtMaxMs = null;
+ if(correctRTs.length > 0){
+  const sorted = [...correctRTs].sort((a, b) => a - b);
+  correctRtMaxMs = sorted[sorted.length - 1];
+  const p90idx = Math.max(0, Math.ceil(sorted.length * 0.9) - 1);
+  correctRtP90Ms = sorted[p90idx];
+ }
+
+ const r = v => v != null ? Number(v.toFixed(2)) : null;
+ const r1 = v => v != null ? Number(v.toFixed(1)) : null;
+ const r3 = v => v != null ? Number(v.toFixed(3)) : null;
+ return {
+  sustainedBlockLimitPerformanceSdMs: r(sblpSd),
+  sustainedOmissionRate:              omissionRate != null ? Number(omissionRate.toFixed(4)) : null,
+  sustainedCommissionRate:            commissionRate != null ? Number(commissionRate.toFixed(4)) : null,
+  sustainedErrorProfile:              errorProfile,
+  sustainedProcessingReserve:         r(spr),
+  sustainedFirstHalfSpi:              r1(firstHalfSpi),
+  sustainedSecondHalfSpi:             r1(secondHalfSpi),
+  sustainedSpiDecay:                  r1(spiDecay),
+  sustainedRtSlopeMsPerTrial:         r3(rtSlopeMsPerTrial),
+  sustainedCorrectRtP90Ms:            r1(correctRtP90Ms),
+  sustainedCorrectRtMaxMs:            r1(correctRtMaxMs)
+ };
+}
 
 function computeMode4TimingSummary(result){
  const entries=Array.isArray(result&&result.rtLog)?result.rtLog:[];
@@ -3941,6 +4111,10 @@ function buildTutProbe(pulsing){
 
 function buildTutGearGridAnimated(showPatterns){
  let html = `<style>
+  @keyframes probePulseG {
+   0%,100% { transform:scale(1); opacity:1; }
+   50% { transform:scale(1.06); opacity:.82; }
+  }
   @keyframes tutPairFlash {
    0%, 16.666% { border-color:#7fd7ff; filter:drop-shadow(0 0 10px rgba(127,215,255,0.95)); box-shadow:0 0 16px rgba(127,215,255,0.30) inset; opacity:1; }
    20%, 100% { border-color:transparent; filter:none; box-shadow:none; opacity:.72; }
