@@ -1,3 +1,8 @@
+## V520 — Response-Time Graph phase demarcation
+- Added a vertical dashed line to demarcate the machine-paced adaptive phase from the sustained phase on the Response-Time Graph in Mode 4.
+- Added a matching phase-break legend item on the graph.
+- Refreshed live/package version references to V520.
+
 ## V519 — Mode 4 adaptive results counts
 - Added Right Responses, Wrong Responses, and Missed Responses at the top of the Mode 4 Adaptive Machine-Paced Phase results block.
 - Derived those adaptive counts from adaptive-phase rtLog entries so they exclude sustained and final-phase events.

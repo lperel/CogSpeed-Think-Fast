@@ -2,7 +2,7 @@
 // CogSpeed V518
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V519";
+const APP_VERSION = "V520";
 
 // ═══════════════════════════════════════════════════
 // RECENT INTEGRATED PROGRAM CHANGES (through V488)
@@ -2032,13 +2032,30 @@ function drawRTScatterChart(canvas,rtLog,blocks,meanRT,sdRT){
   ctx.fillText(`${v}ms`,PAD.left-3,y+3);
  });
  const colorMap={correct:"#00ff88",wrong:"#ff4466",missed:"#888",paced:"#00ff88",paced_wrong:"#ff4466","paced_late_correct":"#ffff00","paced_late_wrong":"#ff8800",calibration:"#88aaff",recovery:"#ffaa00",terminal_recovery:"#ff88ff",mode4_sustained:"#57ff9f",mode4_sustained_wrong:"#ff6b81",mode4_final:"#7fd7ff"};
- const pts=rtLog.map((e,i)=>e&&e.rt!=null?{e,x:xO(i),y:yO(e.rt)}:null).filter(Boolean);
+ const pts=rtLog.map((e,i)=>e&&e.rt!=null?{e,index:i,x:xO(i),y:yO(e.rt)}:null).filter(Boolean);
  if(pts.length){
   ctx.strokeStyle="rgba(127,215,255,0.55)";
   ctx.lineWidth=1.5;
   ctx.beginPath();
   pts.forEach((p,i)=>{ if(i===0) ctx.moveTo(p.x,p.y); else ctx.lineTo(p.x,p.y); });
   ctx.stroke();
+ }
+ const sustainedStartIndex = rtLog.findIndex(e=>{
+  const ph = String(e&&e.phase||"").toLowerCase();
+  return ph==="mode4_sustained" || ph==="mode4_sustained_wrong" || ph==="mode4_sustained_missed" || ph==="mode4_final";
+ });
+ if(sustainedStartIndex>0){
+  const step = (n>1 ? cW/(n-1) : 0);
+  const demarcX = xO(sustainedStartIndex) - (step/2);
+  ctx.save();
+  ctx.strokeStyle="rgba(255,255,255,0.75)";
+  ctx.lineWidth=1.5;
+  ctx.setLineDash([6,4]);
+  ctx.beginPath(); ctx.moveTo(demarcX, PAD.top); ctx.lineTo(demarcX, PAD.top+cH); ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.fillStyle="#d7e7f8"; ctx.font="10px sans-serif"; ctx.textAlign="center"; ctx.textBaseline="bottom";
+  ctx.fillText("Sustained phase", demarcX, PAD.top-4);
+  ctx.restore();
  }
  pts.forEach(p=>{
   ctx.fillStyle=colorMap[p.e.phase]||colorMap[p.e.outcome]||"#aaa";
@@ -2056,7 +2073,8 @@ function drawRTScatterChart(canvas,rtLog,blocks,meanRT,sdRT){
   {label:"Correct", color:"#00ff88"},
   {label:"Wrong", color:"#ff4466"},
   {label:"Missed", color:"#888888"},
-  {label:"Mean RT", color:"rgba(127,215,255,0.85)", line:true}
+  {label:"Mean RT", color:"rgba(127,215,255,0.85)", line:true},
+  {label:"Phase break", color:"rgba(255,255,255,0.75)", line:true}
  ];
  let lx=PAD.left, ly=H-14;
  ctx.font="10px sans-serif"; ctx.textAlign="left"; ctx.textBaseline="middle";
