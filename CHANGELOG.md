@@ -1,3 +1,9 @@
+## V526 — Phase background tone adjustment
+- Lightened the adaptive-phase gear-page background from `#6e6e6e` to `#7d7d7d`.
+- Darkened the sustained/final-phase gear-page background from `#a6a6a6` to `#979797`.
+- Kept calibration background unchanged at `#8f8f8f`.
+- No logic, timing, scoring, or layout changes.
+
 ## V525 — Sustained phase background toned down again
 - Reduced the Sustained phase gear-page background from `#b8b8b8` to `#a6a6a6` to avoid a startling bright-phase transition.
 - Left Calibration and Adaptive backgrounds unchanged.
