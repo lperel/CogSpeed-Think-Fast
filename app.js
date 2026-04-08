@@ -1,8 +1,8 @@
 // ═══════════════════════════════════════════════════
-// CogSpeed V507
+// CogSpeed V508
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V507";
+const APP_VERSION = "V508";
 
 // ═══════════════════════════════════════════════════
 // RECENT INTEGRATED PROGRAM CHANGES (through V488)
@@ -2000,17 +2000,15 @@ function drawRTScatterChart(canvas,rtLog,blocks,meanRT,sdRT){
  if(!cfg) return;
  const {ctx,W,H} = cfg;
  ctx.clearRect(0,0,W,H); ctx.fillStyle="#081321"; ctx.fillRect(0,0,W,H);
- const PAD={top:20,right:20,bottom:30,left:48},cW=W-PAD.left-PAD.right,cH=H-PAD.top-PAD.bottom;
+ const PAD={top:20,right:20,bottom:42,left:48},cW=W-PAD.left-PAD.right,cH=H-PAD.top-PAD.bottom;
  const rts=rtLog.filter(e=>e.rt!=null).map(e=>e.rt);
  if(!rts.length) return;
  const maxRT=Math.ceil(Math.max(...rts,1000)/500)*500;
  const minRT=Math.max(0,Math.floor(Math.min(...rts)/500)*500);
  const n=rtLog.length;
  function xO(i){ return PAD.left+(i/(n-1||1))*cW; }
- // REVERSED: smaller RT → smaller y → higher on chart
  function yO(v){ return PAD.top+((v-minRT)/((maxRT-minRT)||1))*cH; }
  ctx.strokeStyle="rgba(79,111,153,0.2)"; ctx.lineWidth=1;
- // Gridlines and labels — larger ms at bottom, smaller at top
  [250,500,750,1000,1500,2000,2500,3000].filter(v=>v>=minRT&&v<=maxRT+100).forEach(v=>{
   const y=yO(v);
   ctx.beginPath(); ctx.moveTo(PAD.left,y); ctx.lineTo(PAD.left+cW,y); ctx.stroke();
@@ -2018,13 +2016,45 @@ function drawRTScatterChart(canvas,rtLog,blocks,meanRT,sdRT){
   ctx.fillText(`${v}ms`,PAD.left-3,y+3);
  });
  const colorMap={correct:"#00ff88",wrong:"#ff4466",missed:"#888",paced:"#00ff88",paced_wrong:"#ff4466","paced_late_correct":"#ffff00","paced_late_wrong":"#ff8800",calibration:"#88aaff",recovery:"#ffaa00",terminal_recovery:"#ff88ff",mode4_sustained:"#57ff9f",mode4_sustained_wrong:"#ff6b81",mode4_final:"#7fd7ff"};
- rtLog.forEach((e,i)=>{
-  if(e.rt==null) return;
-  ctx.fillStyle=colorMap[e.phase]||colorMap[e.outcome]||"#aaa";
-  ctx.beginPath(); ctx.arc(xO(i),yO(e.rt),3,0,Math.PI*2); ctx.fill();
+ const pts=rtLog.map((e,i)=>e&&e.rt!=null?{e,x:xO(i),y:yO(e.rt)}:null).filter(Boolean);
+ if(pts.length){
+  ctx.strokeStyle="rgba(127,215,255,0.55)";
+  ctx.lineWidth=1.5;
+  ctx.beginPath();
+  pts.forEach((p,i)=>{ if(i===0) ctx.moveTo(p.x,p.y); else ctx.lineTo(p.x,p.y); });
+  ctx.stroke();
+ }
+ pts.forEach(p=>{
+  ctx.fillStyle=colorMap[p.e.phase]||colorMap[p.e.outcome]||"#aaa";
+  ctx.beginPath(); ctx.arc(p.x,p.y,3,0,Math.PI*2); ctx.fill();
+  ctx.strokeStyle="rgba(8,19,33,0.9)"; ctx.lineWidth=1; ctx.stroke();
  });
- if(meanRT){ ctx.strokeStyle="rgba(127,215,255,0.6)"; ctx.lineWidth=1.5; ctx.setLineDash([4,3]); ctx.beginPath(); ctx.moveTo(PAD.left,yO(meanRT)); ctx.lineTo(PAD.left+cW,yO(meanRT)); ctx.stroke(); ctx.setLineDash([]); }
- ctx.fillStyle="#7fa0c0"; ctx.font="9px sans-serif"; ctx.textAlign="center"; ctx.fillText("Trial →",PAD.left+cW/2,H-2);
+ if(meanRT){
+  ctx.strokeStyle="rgba(127,215,255,0.85)";
+  ctx.lineWidth=1.5;
+  ctx.setLineDash([4,3]);
+  ctx.beginPath(); ctx.moveTo(PAD.left,yO(meanRT)); ctx.lineTo(PAD.left+cW,yO(meanRT)); ctx.stroke();
+  ctx.setLineDash([]);
+ }
+ const legendItems=[
+  {label:"Correct", color:"#00ff88"},
+  {label:"Wrong", color:"#ff4466"},
+  {label:"Missed", color:"#888888"},
+  {label:"Mean RT", color:"rgba(127,215,255,0.85)", line:true}
+ ];
+ let lx=PAD.left, ly=H-14;
+ ctx.font="10px sans-serif"; ctx.textAlign="left"; ctx.textBaseline="middle";
+ legendItems.forEach(item=>{
+  if(item.line){
+   ctx.strokeStyle=item.color; ctx.lineWidth=1.5; ctx.beginPath(); ctx.moveTo(lx,ly); ctx.lineTo(lx+12,ly); ctx.stroke();
+  }else{
+   ctx.fillStyle=item.color; ctx.beginPath(); ctx.arc(lx+6,ly,3,0,Math.PI*2); ctx.fill();
+  }
+  ctx.fillStyle="#9fb9d6"; ctx.fillText(item.label, lx+16, ly);
+  lx += 16 + ctx.measureText(item.label).width + 18;
+ });
+ ctx.fillStyle="#7fa0c0"; ctx.font="9px sans-serif"; ctx.textAlign="center"; ctx.textBaseline="alphabetic";
+ ctx.fillText("Trial →",PAD.left+cW/2,H-26);
 }
 
 // Mode 2 / Mode 3 result chart:

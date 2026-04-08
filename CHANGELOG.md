@@ -1,4 +1,9 @@
-## V507 — Response-Time Graph blank-screen repair
+## V508 — RT graph lines + legend
+- Added connected lines to the Response-Time Graph.
+- Added an on-chart legend for Correct, Wrong, Missed, and Mean RT.
+- Refreshed live/package version references to V508.
+
+## V508 — Response-Time Graph blank-screen repair
 - Restored the missing `drawModeResultChart()` function in the packaged app so the Response-Time Graph renders instead of failing with a blank graph path.
 - Kept the V506 UI sizing changes intact and rebuilt from that base as a narrow graph-only fix.
 - Refreshed live/package version references to V507.
