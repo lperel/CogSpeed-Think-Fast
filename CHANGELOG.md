@@ -1,7 +1,8 @@
-## V514 — Visible mode rename pass
-- Renamed visible mode labels only, without changing internal mode keys or behavior.
-- New visible names: Mode 1 CogSpeed Adaptive, Mode 2 CogSpeed Sustained, Mode 3 Self-paced, and Mode 4 Machine-Paced.
-- Updated visible labels across Speedometer, graphs, results, Trial Detail Log, and mode selectors.
+## V515 — Outcome false-fail classification fix
+- Rebuilt from the V513 baseline as a one-change-at-a-time fix for false **Failed** outcomes on otherwise successful runs.
+- Hardened `isTestSuccess()` so explicit fail/retest states still fail, while valid completed Mode 4 max-time outcomes succeed when the sustained branch actually occurred.
+- Updated Speedometer/outcome rendering to pass the full result object into the success classifier, not only the raw end-reason string.
+- Refreshed live/package version references to V515.
 
 ## V513 — Mode 4 speedometer scoring fix
 - Fixed Mode 4 Speedometer CPI view so it uses adaptive MBS normalized through the CPI formula instead of a CSR-based score.
