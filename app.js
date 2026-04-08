@@ -2,7 +2,7 @@
 // CogSpeed V536
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V536";
+const APP_VERSION = "V538";
 
 // ═══════════════════════════════════════════════════
 // RECENT INTEGRATED PROGRAM CHANGES (through V527)
@@ -2058,29 +2058,63 @@ function drawRTScatterChart(canvas,rtLog,blocks,meanRT,sdRT){
  if(!cfg) return;
  const {ctx,W,H} = cfg;
  ctx.clearRect(0,0,W,H); ctx.fillStyle="#081321"; ctx.fillRect(0,0,W,H);
- const PAD={top:20,right:20,bottom:42,left:48},cW=W-PAD.left-PAD.right,cH=H-PAD.top-PAD.bottom;
- const rts=rtLog.filter(e=>e.rt!=null).map(e=>e.rt);
- if(!rts.length) return;
- const maxRT=Math.ceil(Math.max(...rts,1000)/500)*500;
- const minRT=Math.max(0,Math.floor(Math.min(...rts)/500)*500);
+ const PAD={top:22,right:20,bottom:54,left:52},cW=W-PAD.left-PAD.right,cH=H-PAD.top-PAD.bottom;
+ function inferDisplayMs(e){
+  if(!e||typeof e!=="object") return null;
+  if(e.rt!=null && Number.isFinite(Number(e.rt))) return Number(e.rt);
+  for(const key of ["durationMs","duration","roundDuration","presentedRoundDuration","baselineMs"]){
+   if(e[key]!=null && Number.isFinite(Number(e[key]))) return Number(e[key]);
+  }
+  return null;
+ }
+ function isMissLike(e){
+  const phase=String(e&&e.phase||"").toLowerCase();
+  const outcome=String(e&&e.outcome||"").toLowerCase();
+  return phase.includes("miss") || outcome.includes("miss") || outcome.includes("no response");
+ }
+ const values=rtLog.map(e=>inferDisplayMs(e)).filter(v=>v!=null);
+ if(!values.length) return;
+ const maxRT=Math.ceil(Math.max(...values,1000)/500)*500;
+ const minRT=Math.max(0,Math.floor(Math.min(...values)/500)*500);
  const n=rtLog.length;
  function xO(i){ return PAD.left+(i/(n-1||1))*cW; }
  function yO(v){ return PAD.top+((v-minRT)/((maxRT-minRT)||1))*cH; }
- ctx.strokeStyle="rgba(79,111,153,0.2)"; ctx.lineWidth=1;
- [250,500,750,1000,1500,2000,2500,3000].filter(v=>v>=minRT&&v<=maxRT+100).forEach(v=>{
+ ctx.strokeStyle="rgba(79,111,153,0.22)"; ctx.lineWidth=1;
+ [250,500,750,1000,1500,2000,2500,3000,3500,4000].filter(v=>v>=minRT&&v<=maxRT+100).forEach(v=>{
   const y=yO(v);
   ctx.beginPath(); ctx.moveTo(PAD.left,y); ctx.lineTo(PAD.left+cW,y); ctx.stroke();
-  ctx.fillStyle="#7fa0c0"; ctx.font="9px sans-serif"; ctx.textAlign="right";
-  ctx.fillText(`${v}ms`,PAD.left-3,y+3);
+  ctx.fillStyle="#8fb0cf"; ctx.font="10px sans-serif"; ctx.textAlign="right";
+  ctx.fillText(`${v}ms`,PAD.left-4,y+3);
  });
- const colorMap={correct:"#00ff88",wrong:"#ff4466",missed:"#888",paced:"#00ff88",paced_wrong:"#ff4466","paced_late_correct":"#ffff00","paced_late_wrong":"#ff8800",calibration:"#88aaff",recovery:"#ffaa00",terminal_recovery:"#ff88ff",mode4_sustained:"#57ff9f",mode4_sustained_wrong:"#ff6b81",mode4_final:"#7fd7ff"};
- const pts=rtLog.map((e,i)=>e&&e.rt!=null?{e,index:i,x:xO(i),y:yO(e.rt)}:null).filter(Boolean);
- if(pts.length){
+ const colorMap={correct:"#00ff88",wrong:"#ff4466",missed:"#888888",paced:"#00ff88",paced_wrong:"#ff4466","paced_late_correct":"#ffff00","paced_late_wrong":"#ff8800",calibration:"#88aaff",recovery:"#ffaa00",terminal_recovery:"#ff88ff",mode4_sustained:"#57ff9f",mode4_sustained_wrong:"#ff6b81",mode4_final:"#7fd7ff"};
+ const points=rtLog.map((e,i)=>{
+  const ms=inferDisplayMs(e);
+  if(ms==null) return null;
+  return {e,index:i,x:xO(i),y:yO(ms),ms,missLike:isMissLike(e)};
+ }).filter(Boolean);
+ const rtLinePts=rtLog.map((e,i)=>e&&e.rt!=null&&Number.isFinite(Number(e.rt))?{x:xO(i),y:yO(Number(e.rt))}:null).filter(Boolean);
+ if(rtLinePts.length){
   ctx.strokeStyle="rgba(127,215,255,0.55)";
   ctx.lineWidth=1.5;
   ctx.beginPath();
-  pts.forEach((p,i)=>{ if(i===0) ctx.moveTo(p.x,p.y); else ctx.lineTo(p.x,p.y); });
+  rtLinePts.forEach((p,i)=>{ if(i===0) ctx.moveTo(p.x,p.y); else ctx.lineTo(p.x,p.y); });
   ctx.stroke();
+ }
+ function drawPhaseBreak(x,label){
+  ctx.save();
+  ctx.strokeStyle="rgba(255,255,255,0.78)";
+  ctx.lineWidth=1.5;
+  ctx.setLineDash([6,4]);
+  ctx.beginPath(); ctx.moveTo(x, PAD.top); ctx.lineTo(x, PAD.top+cH); ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.fillStyle="#d7e7f8"; ctx.font="11px sans-serif"; ctx.textAlign="center"; ctx.textBaseline="bottom";
+  ctx.fillText(label, x, PAD.top-5);
+  ctx.restore();
+ }
+ const calibrationEndIndex = rtLog.findIndex(e=>String(e&&e.phase||"").toLowerCase()!=="calibration");
+ if(calibrationEndIndex>0){
+  const step=(n>1?cW/(n-1):0);
+  drawPhaseBreak(xO(calibrationEndIndex)-(step/2), "End calibration");
  }
  const sustainedStartIndex = rtLog.findIndex(e=>{
   const ph = String(e&&e.phase||"").toLowerCase();
@@ -2088,49 +2122,56 @@ function drawRTScatterChart(canvas,rtLog,blocks,meanRT,sdRT){
  });
  if(sustainedStartIndex>0){
   const step = (n>1 ? cW/(n-1) : 0);
-  const demarcX = xO(sustainedStartIndex) - (step/2);
-  ctx.save();
-  ctx.strokeStyle="rgba(255,255,255,0.75)";
-  ctx.lineWidth=1.5;
-  ctx.setLineDash([6,4]);
-  ctx.beginPath(); ctx.moveTo(demarcX, PAD.top); ctx.lineTo(demarcX, PAD.top+cH); ctx.stroke();
-  ctx.setLineDash([]);
-  ctx.fillStyle="#d7e7f8"; ctx.font="10px sans-serif"; ctx.textAlign="center"; ctx.textBaseline="bottom";
-  ctx.fillText("Sustained phase", demarcX, PAD.top-4);
-  ctx.restore();
+  drawPhaseBreak(xO(sustainedStartIndex) - (step/2), "Sustained phase");
  }
- pts.forEach(p=>{
-  ctx.fillStyle=colorMap[p.e.phase]||colorMap[p.e.outcome]||"#aaa";
-  ctx.beginPath(); ctx.arc(p.x,p.y,3,0,Math.PI*2); ctx.fill();
-  ctx.strokeStyle="rgba(8,19,33,0.9)"; ctx.lineWidth=1; ctx.stroke();
+ points.forEach(p=>{
+  const fill=colorMap[p.e.phase]||colorMap[p.e.outcome]||"#aaa";
+  if(p.missLike){
+   ctx.strokeStyle=fill; ctx.lineWidth=2;
+   ctx.beginPath(); ctx.moveTo(p.x-4,p.y-4); ctx.lineTo(p.x+4,p.y+4); ctx.moveTo(p.x+4,p.y-4); ctx.lineTo(p.x-4,p.y+4); ctx.stroke();
+  }else{
+   ctx.fillStyle=fill;
+   ctx.beginPath(); ctx.arc(p.x,p.y,3.5,0,Math.PI*2); ctx.fill();
+   ctx.strokeStyle="rgba(8,19,33,0.9)"; ctx.lineWidth=1; ctx.stroke();
+  }
  });
  if(meanRT){
+  ctx.save();
   ctx.strokeStyle="rgba(127,215,255,0.85)";
   ctx.lineWidth=1.5;
   ctx.setLineDash([4,3]);
   ctx.beginPath(); ctx.moveTo(PAD.left,yO(meanRT)); ctx.lineTo(PAD.left+cW,yO(meanRT)); ctx.stroke();
-  ctx.setLineDash([]);
+  ctx.restore();
  }
  const legendItems=[
-  {label:"Correct", color:"#00ff88"},
-  {label:"Wrong", color:"#ff4466"},
-  {label:"Missed", color:"#888888"},
-  {label:"Mean RT", color:"rgba(127,215,255,0.85)", line:true},
-  {label:"Phase break", color:"rgba(255,255,255,0.75)", line:true}
+  {label:"Correct", color:"#00ff88", marker:"dot"},
+  {label:"Wrong", color:"#ff4466", marker:"dot"},
+  {label:"Missed", color:"#888888", marker:"x"},
+  {label:"Calibration", color:"#88aaff", marker:"dot"},
+  {label:"Final self-paced", color:"#7fd7ff", marker:"dot"},
+  {label:"Mean RT", color:"rgba(127,215,255,0.85)", marker:"line-dashed"},
+  {label:"Phase break", color:"rgba(255,255,255,0.75)", marker:"line-dashed2"}
  ];
- let lx=PAD.left, ly=H-14;
- ctx.font="10px sans-serif"; ctx.textAlign="left"; ctx.textBaseline="middle";
+ let lx=PAD.left, ly=H-18;
+ ctx.font="12px sans-serif"; ctx.textAlign="left"; ctx.textBaseline="middle";
  legendItems.forEach(item=>{
-  if(item.line){
-   ctx.strokeStyle=item.color; ctx.lineWidth=1.5; ctx.beginPath(); ctx.moveTo(lx,ly); ctx.lineTo(lx+12,ly); ctx.stroke();
+  if(item.marker==="line-dashed" || item.marker==="line-dashed2"){
+   ctx.save();
+   ctx.strokeStyle=item.color; ctx.lineWidth=1.5;
+   ctx.setLineDash(item.marker==="line-dashed"?[4,3]:[6,4]);
+   ctx.beginPath(); ctx.moveTo(lx,ly); ctx.lineTo(lx+16,ly); ctx.stroke();
+   ctx.restore();
+  }else if(item.marker==="x"){
+   ctx.strokeStyle=item.color; ctx.lineWidth=2;
+   ctx.beginPath(); ctx.moveTo(lx+3,ly-4); ctx.lineTo(lx+11,ly+4); ctx.moveTo(lx+11,ly-4); ctx.lineTo(lx+3,ly+4); ctx.stroke();
   }else{
-   ctx.fillStyle=item.color; ctx.beginPath(); ctx.arc(lx+6,ly,3,0,Math.PI*2); ctx.fill();
+   ctx.fillStyle=item.color; ctx.beginPath(); ctx.arc(lx+7,ly,3.5,0,Math.PI*2); ctx.fill();
   }
-  ctx.fillStyle="#9fb9d6"; ctx.fillText(item.label, lx+16, ly);
-  lx += 16 + ctx.measureText(item.label).width + 18;
+  ctx.fillStyle="#b8d0e6"; ctx.fillText(item.label, lx+20, ly);
+  lx += 20 + ctx.measureText(item.label).width + 18;
  });
- ctx.fillStyle="#7fa0c0"; ctx.font="9px sans-serif"; ctx.textAlign="center"; ctx.textBaseline="alphabetic";
- ctx.fillText("Trial →",PAD.left+cW/2,H-26);
+ ctx.fillStyle="#8fb0cf"; ctx.font="10px sans-serif"; ctx.textAlign="center"; ctx.textBaseline="alphabetic";
+ ctx.fillText("Trial →",PAD.left+cW/2,H-30);
 }
 
 // Mode 2 / Mode 3 result chart:

@@ -1,3 +1,17 @@
+## V538 — Results modal nearly full-height on phones
+- Adjusted the Results Summary modal layout to use nearly the full phone viewport height.
+- Removed the extra top/bottom margin around the Results modal and changed it to full dynamic viewport height.
+- Slightly tightened Results modal vertical padding so more report text is visible before scrolling.
+- No scoring, timing, response-handling, or test-behavior changes.
+
+## V537 — Response-Time Graph legend and phase-break clarification
+- Added a dashed phase-break marker at the end of calibration on the Response-Time Graph.
+- Kept the sustained-phase break marker and labeled both breaks directly on the chart.
+- Missed trials now render as gray X markers even when no RT is recorded, using the displayed frame-duration fallback.
+- Expanded the legend to label Calibration and Final self-paced blue markers explicitly.
+- Mean RT now renders as a dashed line sample in the legend instead of a solid line.
+- Increased legend and axis label type slightly for readability.
+
 ## V536 — Clean CDI rebuild on approved V534/V529 baseline
 - Rebuilt from the approved V534 baseline while preserving the approved V529/V533/V534 fixes and defaults.
 - Added CDI (Cognitive Degradation Index) as a derived sustained-mode metric only; no trial, pacing, scoring, or response-handling logic changes.
