@@ -1,3 +1,9 @@
+## V512 — Adaptive machine-paced results block reorder
+- Reordered the Mode 4 Adaptive Machine-Paced Phase results block to show average adaptive paced RT, paced RT SD, block count, full block list, MBS, block difference for MBS, and CPI in that order.
+- Clarified MBS wording as the average of the last 2 consecutive blocks less than 250 ms apart.
+- Added explicit Block difference for MBS and CPI lines under the block list.
+- Refreshed live/package version references to V512.
+
 ## V511 — Speedometer SPI metric label fix
 - In Mode 4 SPI view, the speedometer now shows **SBLP** as the dial-side metric instead of incorrectly showing **MBS**.
 - CPI view continues to show **MBS**.

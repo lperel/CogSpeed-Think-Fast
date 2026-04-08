@@ -1,8 +1,8 @@
 // ═══════════════════════════════════════════════════
-// CogSpeed V511
+// CogSpeed V512
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V511";
+const APP_VERSION = "V512";
 
 // ═══════════════════════════════════════════════════
 // RECENT INTEGRATED PROGRAM CHANGES (through V488)
@@ -2880,11 +2880,13 @@ SELF-PACED CALIBRATION
  Self-paced RT SD: ${result.selfPacedResponseSdMs!=null?result.selfPacedResponseSdMs.toFixed(1)+" ms":"—"}
 ${hr}
 ADAPTIVE MACHINE-PACED PHASE
- Adaptive MBS: ${adaptiveMbs!=null?adaptiveMbs.toFixed(1)+" ms":"—"}
  Average adaptive paced RT: ${result.pacedResponseMeanMs!=null?result.pacedResponseMeanMs.toFixed(1)+" ms":"—"}
  Paced RT SD: ${result.pacedResponseSdMs!=null?result.pacedResponseSdMs.toFixed(1)+" ms":"—"}
  Blocks found: ${result.blockCount||0}
 ${getMode4BlockListText(result)}
+ MBS: ${adaptiveMbs!=null?adaptiveMbs.toFixed(1)+" ms":"—"} (Average of last 2 consecutive blocks less than 250 ms difference)
+ Block difference for MBS: ${result.blockScoreDifferenceMs!=null?result.blockScoreDifferenceMs.toFixed(1)+" ms":"—"}
+ CPI: ${adaptiveMbs!=null?computeCPI(adaptiveMbs).toFixed(1)+" / 100":"—"}
 ${hr}
 MODE 4 SUSTAINED MBS PHASE
  Triggered: ${result.mode4Triggered?"Yes":"No"}
