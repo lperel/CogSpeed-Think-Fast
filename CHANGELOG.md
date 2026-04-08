@@ -1,3 +1,13 @@
+## V540 — Speedometer dial face unobstructed
+- Removed the needle-tip MBS/SBLP LCD window from the Speedometer so the dial value is no longer blocked.
+- Kept the surrounding Speedometer metric cards/toggles intact for MBS, CSR, and SBLP.
+- No changes to trial logic, pacing, scoring, or results calculations.
+
+## V539 — Sustained table score labels clarified
+- Updated the Mode 2 CogSpeed Sustained cognitive performance table so the matching row now shows the actual labeled values: **CSR X | CPI Y** instead of only **← YOUR SCORE**.
+- Updated the table heading to the visible mode name: **Mode 2 CogSpeed Sustained Cognitive Performance Table (CSR → CPI)**.
+- No scoring, timing, response-handling, or test-behavior changes.
+
 ## V538 — Results modal nearly full-height on phones
 - Adjusted the Results Summary modal layout to use nearly the full phone viewport height.
 - Removed the extra top/bottom margin around the Results modal and changed it to full dynamic viewport height.

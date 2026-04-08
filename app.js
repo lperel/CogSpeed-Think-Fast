@@ -2,7 +2,7 @@
 // CogSpeed V536
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V538";
+const APP_VERSION = "V540";
 
 // ═══════════════════════════════════════════════════
 // RECENT INTEGRATED PROGRAM CHANGES (through V527)
@@ -2842,7 +2842,8 @@ function getCognitivePerformanceTableText(result){
    const rowCpi=Math.round((n/target)*100);
    let band=mode1Bands[0], bestDiff=Infinity;
    mode1Bands.forEach(b=>{ const d=Math.abs(rowCpi-b.cpi); if(d<bestDiff){ bestDiff=d; band=b; } });
-   rows.push({spfs:band.spfs, csr:n, cpi:rowCpi, cap:band.cap, mark:(csr===n)?"← YOUR SCORE":""});
+   const scoreLabel=(csr===n)?`← YOUR SCORES: CSR ${n} | CPI ${rowCpi}`:"";
+   rows.push({spfs:band.spfs, csr:n, cpi:rowCpi, cap:band.cap, mark:scoreLabel});
   }
   const actualSpfs = result.samnPerelli && result.samnPerelli.score!=null ? Number(result.samnPerelli.score) : null;
   const headers=["[SP-FS]","CSR","CPI","DESCRIPTION OF PERFORMANCE"];
@@ -2855,7 +2856,7 @@ function getCognitivePerformanceTableText(result){
   ];
   const headerLine=`${headers[0].padEnd(widths[0])} | ${headers[1].padEnd(widths[1])} | ${headers[2].padEnd(widths[2])} | ${headers[3]}`;
   const body=rows.map(r=>`${spfsDisplay(r.spfs).padEnd(widths[0])} | ${String(r.csr).padStart(widths[1])} | ${String(r.cpi).padStart(widths[2])} | ${r.cap}${r.mark?`  ${r.mark}`:""}`);
-  return ["Mode 4 Cognitive Performance Table (CSR → CPI)",headerLine,...body].join("\n");
+  return ["Mode 2 CogSpeed Sustained Cognitive Performance Table (CSR → CPI)",headerLine,...body].join("\n");
  }
  if(mode!=="mode1") return "Not used in this mode.";
  const cpi = result.cognitivePerformanceIndex!=null ? Number(result.cognitivePerformanceIndex) : null;
@@ -3326,25 +3327,9 @@ function drawSpeedometer(canvas, scoreValue, blockMs, success, showBlock, scoreL
  ctx.strokeStyle="rgba(255,255,255,0.22)"; ctx.lineWidth=R*0.007; ctx.stroke();
  ctx.restore();
 
- // ── 9. Block ms box at needle tip (shown after sweep completes) ──
- if(showBlock && blockMs!=null && success){
-  const tipR = R*0.99;
-  const bx=cx+tipR*Math.cos(na), by=cy+tipR*Math.sin(na);
-  const label = `${String(blockLabel||"MBS")}: ${Math.round(blockMs)}${String(blockLabel||"MBS")==="CSR"?"":" ms"}`;
-  const fs=R*0.092;
-  ctx.font=`bold ${fs.toFixed(1)}px monospace`;
-  const tw=ctx.measureText(label).width+R*0.15, th=fs*1.6;
-  let bxL=bx-tw/2, byT=by-th/2;
-  bxL=Math.max(3,Math.min(bxL,W-tw-3));
-  byT=Math.max(3,Math.min(byT,H-th-3));
-  // Dark green LCD box
-  ctx.fillStyle="#0c2808";
-  roundRect(ctx,bxL,byT,tw,th,5); ctx.fill();
-  ctx.strokeStyle="#2a7020"; ctx.lineWidth=1.5;
-  roundRect(ctx,bxL,byT,tw,th,5); ctx.stroke();
-  ctx.fillStyle="#44ff44"; ctx.textAlign="center"; ctx.textBaseline="middle";
-  ctx.fillText(label, bxL+tw/2, byT+th/2);
- }
+ // ── 9. Needle-tip MBS/SBLP box intentionally disabled ──
+ // Per V540, keep the dial face unobstructed on the Speedometer.
+ // Supporting metrics remain available in the surrounding Speedometer cards.
 
  // ── 10. Center hub ──
  const hubGr = ctx.createRadialGradient(cx-R*0.022,cy-R*0.022,0, cx,cy,R*0.092);
