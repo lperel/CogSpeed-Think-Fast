@@ -1,3 +1,11 @@
+## V531 — Admin mode-label cleanup (actual field labels fixed)
+- Corrected the Admin page field labels for items 33–41 so they match the visible renamed modes.
+- Mode 2 fields now read as Mode 2 CogSpeed Sustained.
+- Mode 3 fields now read as Mode 3 Self-Paced Calibration.
+- Mode 4 fields now remain Mode 4 Fixed Machine-Paced.
+- Updated Admin dropdown/support label maps to the same ordering.
+- No scoring, timing, or mode-logic changes.
+
 ## V530 — Admin mode-label consistency cleanup
 - Rolled forward the approved V528 wording fix so sustained completion text reads **Mode 2 CogSpeed Sustained complete...**
 - Rolled forward the approved V529 success-classifier fix so that renamed sustained completions are treated as **Success** instead of **Failed**.

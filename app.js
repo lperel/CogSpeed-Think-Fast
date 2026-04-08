@@ -2,7 +2,7 @@
 // CogSpeed V527
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V530";
+const APP_VERSION = "V531";
 
 // ═══════════════════════════════════════════════════
 // RECENT INTEGRATED PROGRAM CHANGES (through V527)
@@ -107,9 +107,9 @@ const STORAGE_PREFIX = `cogspeed_v${RELEASE}`;
 // ═══════════════════════════════════════════════════════════════
 // THREE TEST MODES
 // mode1 = original adaptive CogSpeed test
-// mode2 = Mode 3 Self-Paced Calibration
-// mode3 = Mode 4 Fixed Machine-Paced
-// mode4 = Mode 2 CogSpeed Sustained
+// mode2 = Mode 2 CogSpeed Sustained
+// mode3 = Mode 3 Self-Paced Calibration
+// mode4 = Mode 4 Fixed Machine-Paced
 // Internal keys remain mode1/mode2/mode3/mode4 for compatibility.
 // ═══════════════════════════════════════════════════════════════
 const DEFAULTS={
@@ -207,15 +207,17 @@ const ADMIN_FIELDS=[
  ["cpiBestMs","31. Mode 1 CPI best ms anchor (default 800)","number"],
  ["cpiWorstMs","32. Mode 1 CPI worst ms anchor (default 3000)","number"],
 
- // 33-34. Mode 3 Self-Paced Calibration settings, ordered by use
- ["mode2TrialLimit","33. Mode 3 self-paced trial limit (default 150)","number"],
- ["mode2MaxDurationMs","34. Mode 3 total duration ms (default 120000)","number"],
+ // 33-34. Mode 2 CogSpeed Sustained settings, ordered by use
+ ["mode2TrialLimit","33. Mode 2 sustained trial limit (default 150)","number"],
+ ["mode2MaxDurationMs","34. Mode 2 total duration ms (default 120000)","number"],
 
- // 35-38. Mode 4 Fixed Machine-Paced settings, ordered by use
- ["mode3CalibrationTrials","35. Mode 4 self-paced calibration trials (default 10)","number"],
- ["mode3BaselineFactor","36. Mode 4 MP baseline factor from cal avg (default 1.3)","number"],
- ["mode3PacedTrialLimit","37. Mode 4 fixed machine-paced trial limit (default 140)","number"],
- ["mode3MaxDurationMs","38. Mode 4 total duration ms (default 120000)","number"],
+ // 35-38. Mode 3 Self-Paced Calibration settings, ordered by use
+ ["mode3CalibrationTrials","35. Mode 3 self-paced calibration trials (default 10)","number"],
+ ["mode3BaselineFactor","36. Mode 3 MP baseline factor from cal avg (default 1.3)","number"],
+ ["mode3PacedTrialLimit","37. Mode 3 fixed machine-paced trial limit (default 140)","number"],
+ ["mode3MaxDurationMs","38. Mode 3 total duration ms (default 120000)","number"],
+
+ // 39-41. Mode 4 Fixed Machine-Paced settings, ordered by use
  ["mode4MbsThresholdMs","39. Mode 4 MBS threshold to start sustained phase (ms, default 250)","number"],
  ["mode4SustainedTrialCount","40. Mode 4 sustained trials at MBS (default 10)","number"],
  ["mode4FinalTrialCount","41. Mode 4 final self-paced trials (default 2)","number"],
@@ -1996,7 +1998,7 @@ function renderAdmin(){
   r.style.cssText="display:grid;grid-template-columns:1fr 140px;gap:8px;align-items:center;margin-bottom:8px";
   let controlHTML="";
   if(String(t).startsWith("select:")){
-   const selectLabels={mode1:"Mode 1 CogSpeed Adaptive",mode2:"Mode 3 Self-Paced Calibration",mode3:"Mode 4 Fixed Machine-Paced",mode4:"Mode 2 CogSpeed Sustained"};
+   const selectLabels={mode1:"Mode 1 CogSpeed Adaptive",mode2:"Mode 2 CogSpeed Sustained",mode3:"Mode 3 Self-Paced Calibration",mode4:"Mode 4 Fixed Machine-Paced"};
    const opts=String(t).slice(7).split("|").map(v=>`<option value="${v}" ${String(settings[k])===v?"selected":""}>${selectLabels[v]||v}</option>`).join("");
    controlHTML=`<select id="adm_${k}" style="padding:9px;border:1px solid var(--edge);border-radius:10px;background:#0a1629;color:var(--text);font-size:14px;width:100%">${opts}</select>`;
   }else{
@@ -2156,7 +2158,7 @@ function getResponseGraphPhaseLegendText(result){
 }
 
 function formatModeTag(mode){
- const labels={mode1:"Mode 1 CogSpeed Adaptive",mode2:"Mode 3 Self-Paced Calibration",mode3:"Mode 4 Fixed Machine-Paced",mode4:"Mode 2 CogSpeed Sustained"};
+ const labels={mode1:"Mode 1 CogSpeed Adaptive",mode2:"Mode 2 CogSpeed Sustained",mode3:"Mode 3 Self-Paced Calibration",mode4:"Mode 4 Fixed Machine-Paced"};
  return labels[mode||"mode1"] || (mode||"mode1").replace("mode","Test Mode ");
 }
 
