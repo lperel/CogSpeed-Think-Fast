@@ -1,3 +1,9 @@
+## V517 — Speedometer Mode 4 metric windows restored
+- Restored visible Mode 4 speedometer metric windows for both views.
+- CPI view now always shows the MBS window.
+- SPI view now always shows the SBLP window alongside CSR.
+- Refreshed live/package version references to V517.
+
 ## V516 — Results total trial presentations
 - Added `Total trial presentations` to Results pages, using the saved `rtLog` length when available so the count includes all self-paced and machine-paced presentations.
 - Added safe fallbacks for older sessions when `rtLog` is unavailable.

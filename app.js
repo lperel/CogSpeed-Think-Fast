@@ -1,8 +1,8 @@
 // ═══════════════════════════════════════════════════
-// CogSpeed V516
+// CogSpeed V517
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V516";
+const APP_VERSION = "V517";
 
 // ═══════════════════════════════════════════════════
 // RECENT INTEGRATED PROGRAM CHANGES (through V488)
@@ -4823,6 +4823,7 @@ function renderMode4SpeedometerBoxes(metric){
  const boxes = metric && Array.isArray(metric.boxes) ? metric.boxes : [];
  if(!boxes.length){ wrap.innerHTML=""; wrap.classList.add("hidden"); return; }
  wrap.classList.remove("hidden");
+ wrap.style.display = "grid";
  wrap.innerHTML = boxes.map(b=>`<div class="summary-card"><div class="summary-card-label">${b.label}</div><div class="summary-card-val" style="font-size:20px">${b.value}</div></div>`).join("");
 }
 
@@ -4838,7 +4839,8 @@ function renderSpeedometerOutcome(result, sessionIndex){
  let scoreLabel = "CPI";
  let metricLabel = "MBS";
  let mode4MetricBoxes = null;
- if(result && result.testMode==="mode4" && result.mode4Triggered){
+ const isMode4Speedometer = !!(result && result.testMode==="mode4");
+ if(isMode4Speedometer){
   const mode4Metric = getMode4SpeedometerMetric(result);
   cps = success ? mode4Metric.score : 0;
   if(success){
@@ -4865,14 +4867,14 @@ function renderSpeedometerOutcome(result, sessionIndex){
  applySpeedometerSourceDiagnostic(result, idx>=0?idx:null, state.activeResultSource);
  const mode4Toggle=$("speedometerMode4ToggleBtn");
  if(mode4Toggle){
-  if(result && result.testMode==="mode4" && result.mode4Triggered){
+  if(isMode4Speedometer){
    mode4Toggle.classList.remove("hidden");
    mode4Toggle.textContent = String(state.speedometerMode4Metric||"spi").toLowerCase()==="cpi" ? "Show SPI / CSR / SBLP" : "Show CPI / MBS";
   }else{
    mode4Toggle.classList.add("hidden");
   }
  }
- renderMode4SpeedometerBoxes(result && result.testMode==="mode4" && result.mode4Triggered ? {boxes:mode4MetricBoxes||[]} : null);
+ renderMode4SpeedometerBoxes(isMode4Speedometer ? {boxes:mode4MetricBoxes||[]} : null);
  stopSpeedometer();
  setTimeout(()=>animateSpeedometer(canvas, cps, mbs, success, scoreLabel, metricLabel), 80);
  renderSpfGaugeForResult(result);
