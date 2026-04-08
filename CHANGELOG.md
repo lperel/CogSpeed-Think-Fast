@@ -1,3 +1,8 @@
+## V518 — Mode 4 adaptive results counts
+- Added Right Responses, Wrong Responses, and Missed Responses at the top of the Mode 4 Adaptive Machine-Paced Phase results block.
+- Derived those adaptive counts from adaptive-phase rtLog entries so they exclude sustained and final-phase events.
+- Refreshed live/package version references to V518.
+
 ## V517 — Speedometer Mode 4 metric windows restored
 - Restored visible Mode 4 speedometer metric windows for both views.
 - CPI view now always shows the MBS window.

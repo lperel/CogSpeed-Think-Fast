@@ -1,8 +1,8 @@
 // ═══════════════════════════════════════════════════
-// CogSpeed V517
+// CogSpeed V518
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V517";
+const APP_VERSION = "V518";
 
 // ═══════════════════════════════════════════════════
 // RECENT INTEGRATED PROGRAM CHANGES (through V488)
@@ -2784,6 +2784,22 @@ RESULTS METRIC EXPLANATIONS
  SPI (Sustained Processing Index) = normalized 0 - 100 index based on CSR.${usesMode4Metrics?"":" Not used in this mode."}`;
 }
 
+
+function computeMode4AdaptiveCounts(result){
+ const log = Array.isArray(result&&result.rtLog) ? result.rtLog : [];
+ const adaptive = log.filter(r => ["paced","paced_wrong","paced_late_correct","paced_late_wrong","missed"].includes(r.phase));
+ if(adaptive.length){
+  const correct = adaptive.filter(r => r.outcome === "correct").length;
+  const wrong = adaptive.filter(r => r.outcome === "wrong").length;
+  const missed = adaptive.filter(r => r.outcome === "missed").length;
+  return {correct, wrong, missed};
+ }
+ const correct = Math.max(0, Number(result&&result.pacedResponseCount)||0);
+ const wrong = Math.max(0, Number(result&&result.pacedErrors)||0);
+ const missed = Math.max(0, Number(result&&result.missedTrials)||0) - Math.max(0, Number(result&&result.mode4SustainedMissed)||0);
+ return {correct, wrong, missed: Math.max(0, missed)};
+}
+
 function buildSummary(result){
  const el=$("summaryText"); if(!el) return;
  const hr="─────────────────────────";
@@ -2880,6 +2896,7 @@ ${getResultsMetricExplanationText(result)}`;
   const csr=result.correctSustainedResponses!=null?result.correctSustainedResponses:(result.mode4SustainedCorrect||0);
   const timing=result.mode4TimingSummary||computeMode4TimingSummary(result);
   const mode4Cpi=result.mode4CpiFromCsr!=null?result.mode4CpiFromCsr:(Number.isFinite(Number(csr))?computeSPI(Number(csr), Math.max(1, Number(result.mode4SustainedTargetCount)||10)):null);
+  const adaptiveCounts=computeMode4AdaptiveCounts(result);
   el.textContent=
 `CogSpeed ${APP_VERSION} — ${modeName}
 ${hr}
@@ -2907,6 +2924,9 @@ SELF-PACED CALIBRATION
  Self-paced RT SD: ${result.selfPacedResponseSdMs!=null?result.selfPacedResponseSdMs.toFixed(1)+" ms":"—"}
 ${hr}
 ADAPTIVE MACHINE-PACED PHASE
+ Right Responses: ${adaptiveCounts.correct}
+ Wrong Responses: ${adaptiveCounts.wrong}
+ Missed Responses: ${adaptiveCounts.missed}
  Average adaptive paced RT: ${result.pacedResponseMeanMs!=null?result.pacedResponseMeanMs.toFixed(1)+" ms":"—"}
  Paced RT SD: ${result.pacedResponseSdMs!=null?result.pacedResponseSdMs.toFixed(1)+" ms":"—"}
  Blocks found: ${result.blockCount||0}
