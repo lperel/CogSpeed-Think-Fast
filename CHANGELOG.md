@@ -1,3 +1,8 @@
+## V504 — Scoring correction rebuild from V503
+- Fixed Mode 4 scoring drift where CPI values had been incorrectly derived from CSR/SPI logic instead of the adaptive MBS / CPI formula.
+- Restored Mode 4 CPI handling on results, Speedometer, and exports so CPI is based on the adaptive MBS path while SPI remains CSR-based.
+- Refreshed live/package version references to V504.
+
 ## V503 — Narrow rebuild from approved V500 baseline
 - Started from the last user-approved working package (V500) as the master source.
 - Reduced Speedometer size and top placement so it no longer sits off-screen.

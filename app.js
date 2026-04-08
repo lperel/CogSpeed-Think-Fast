@@ -1,11 +1,11 @@
 // ═══════════════════════════════════════════════════
-// CogSpeed V503
+// CogSpeed V504
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V503";
+const APP_VERSION = "V504";
 
 // ═══════════════════════════════════════════════════
-// RECENT INTEGRATED PROGRAM CHANGES (through V503)
+// RECENT INTEGRATED PROGRAM CHANGES (through V504)
 // This block summarizes the major program updates that were merged into
 // the current main line so future edits do not have to reconstruct them
 // from one-off patch builds.
@@ -1216,7 +1216,7 @@ function finish(){
   const mode4SblpMs = getMode4SblpMsFromState();
   const mode4SustainedTargetCount = Math.max(1, Number(settings.mode4SustainedTrialCount)||10);
   const modeMetricMs = isMode2() ? (state.selfPacedRTs.length?mean(state.selfPacedRTs):null) : isMode3() ? (state.pacedRTs.length?mean(state.pacedRTs):(state.fixedPacedBaseline||null)) : isMode4() ? (state.mode4Triggered ? mode4SblpMs : avg2) : avg2;
-  const modeCPI = (isMode2()||isMode3()) ? null : isMode4() ? (state.mode4Triggered ? computeSPI(state.mode4SustainedCorrect, mode4SustainedTargetCount) : null) : (modeMetricMs!=null ? computeCPI(modeMetricMs) : cps);
+  const modeCPI = (isMode2()||isMode3()) ? null : isMode4() ? ((state.mode4AdaptiveMbsMs!=null || avg2!=null) ? computeCPI(state.mode4AdaptiveMbsMs!=null ? state.mode4AdaptiveMbsMs : avg2) : null) : (modeMetricMs!=null ? computeCPI(modeMetricMs) : cps);
   const timingQuality={
    avgFrameOvershootMs: state.frameOvershootLog.length ? Number(mean(state.frameOvershootLog).toFixed(2)) : null,
    maxFrameOvershootMs: state.frameOvershootLog.length ? Number(Math.max(...state.frameOvershootLog).toFixed(2)) : null,
@@ -1264,7 +1264,7 @@ function finish(){
    mode4FinalCorrect: state.mode4FinalCorrect,
    mode4FinalWrong: state.mode4FinalWrong,
    mode4FinalMeanRtMs: state.mode4FinalRTs.length?mean(state.mode4FinalRTs):null,
-   mode4CpiFromCsr: isMode4() && state.mode4Triggered ? computeSPI(state.mode4SustainedCorrect, mode4SustainedTargetCount) : null,
+   mode4CpiFromCsr: isMode4() ? ((state.mode4AdaptiveMbsMs!=null || avg2!=null) ? computeCPI(state.mode4AdaptiveMbsMs!=null ? state.mode4AdaptiveMbsMs : avg2) : null) : null,
    mode4TimingSummary: isMode4() ? computeMode4TimingSummary({rtLog:[...state.rtLog], testDurationMs:testDurMs}) : null,
    rtLog:[...state.rtLog], endReason:state.endReason||"Run complete",
    time:new Date().toISOString(), geo:state.geo, timingQuality
@@ -2650,7 +2650,7 @@ function getCognitivePerformanceTableText(result){
  if(mode==="mode4"){
   const target=Math.max(1, Number(result.mode4SustainedTargetCount)||Number(settings.mode4SustainedTrialCount)||10);
   const spi=Number(result.sustainedProcessingIndex);
-  const cpi=Number(result.mode4CpiFromCsr!=null?result.mode4CpiFromCsr:result.sustainedProcessingIndex);
+  const cpi=Number(result.mode4CpiFromCsr!=null?result.mode4CpiFromCsr:(result.mode4AdaptiveMbsMs!=null?computeCPI(Number(result.mode4AdaptiveMbsMs)):NaN));
   const csr=Number(result.correctSustainedResponses!=null?result.correctSustainedResponses:result.mode4SustainedCorrect);
   const score=Number.isFinite(spi)?spi:(Number.isFinite(cpi)?cpi:null);
   const rows=[
@@ -2845,7 +2845,7 @@ ${getResultsMetricExplanationText(result)}`;
   const finalWrong=result.mode4FinalWrong!=null?result.mode4FinalWrong:derivedMode4.finalWrong;
   const finalMeanRt=result.mode4FinalMeanRtMs!=null?result.mode4FinalMeanRtMs:derivedMode4.finalMeanRtMs;
   const timing=result.mode4TimingSummary||computeMode4TimingSummary(result);
-  const mode4Cpi=result.mode4CpiFromCsr!=null?Number(result.mode4CpiFromCsr):computeSPI(Number(csr)||0, Math.max(1, Number(result.mode4SustainedTargetCount)||10));
+  const mode4Cpi=result.mode4CpiFromCsr!=null?Number(result.mode4CpiFromCsr):(adaptiveMbs!=null?computeCPI(Number(adaptiveMbs)):null);
   const diffStr=formatBlockDifference(result.blockScoreDifferenceMs);
   const adaptiveCounts=deriveAdaptiveCounts(result);
   el.textContent=
@@ -4812,7 +4812,7 @@ function getMode4SpeedometerMetric(result){
  const sblp = Number(result && result.sustainedBlockLimitPerformanceMs);
  const total = Math.max(1, Number(result && result.mode4SustainedTargetCount) || 10);
  const mbs = Number(result && (result.mode4AdaptiveMbsMs!=null ? result.mode4AdaptiveMbsMs : result.averageLast2BlockingScoresMs));
- const mode4Cpi = Number(result && (result.mode4CpiFromCsr!=null ? result.mode4CpiFromCsr : computeSPI(csr,total)));
+ const mode4Cpi = Number(result && (result.mode4CpiFromCsr!=null ? result.mode4CpiFromCsr : (Number.isFinite(mbs) ? computeCPI(mbs) : null)));
  if(pref==="cpi"){
   return {
    score:Number.isFinite(mode4Cpi)?Math.max(0,Math.min(100,mode4Cpi)):0,
@@ -5619,7 +5619,7 @@ function formatLastPerfTimeText(){
   if(!h.length) return "No performance-over-time history available.";
   const rows = h.map((r,i)=>{
     const when = r.time ? new Date(r.time).toLocaleString() : `Session ${i+1}`;
-    const cpi = r.testMode==="mode4" && r.sustainedProcessingIndex!=null ? Math.round(Number(r.sustainedProcessingIndex)) : (r.cognitivePerformanceIndex!=null ? Math.round(Number(r.cognitivePerformanceIndex)) : "—");
+    const cpi = r.testMode==="mode4" ? (r.mode4CpiFromCsr!=null ? Math.round(Number(r.mode4CpiFromCsr)) : (r.mode4AdaptiveMbsMs!=null ? Math.round(computeCPI(Number(r.mode4AdaptiveMbsMs))) : "—")) : (r.cognitivePerformanceIndex!=null ? Math.round(Number(r.cognitivePerformanceIndex)) : "—");
     const mbs = r.testMode==="mode4" ? (r.correctSustainedResponses!=null ? `${Math.round(Number(r.correctSustainedResponses))} CSR` : (r.sustainedBlockLimitPerformanceMs!=null ? Math.round(Number(r.sustainedBlockLimitPerformanceMs))+" ms" : "—")) : (r.averageLast2BlockingScoresMs!=null ? Math.round(Number(r.averageLast2BlockingScoresMs))+" ms" : "—");
     const spf = r.samnPerelli && r.samnPerelli.score!=null ? r.samnPerelli.score : "—";
     const sleep = r.sleepLog && r.sleepLog.qualityLabel ? r.sleepLog.qualityLabel : (r.sleepSinceLastTest==="no" ? "No sleep since last test" : "—");
