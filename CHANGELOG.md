@@ -1,8 +1,14 @@
-## V505 — Simple UI recovery from V500
+## V506 — Results screen width cleanup
+- Narrowed the full-page Results overlay to a centered readable panel instead of edge-to-edge width.
+- Kept the Results page at full vertical height while reducing excessive horizontal spread.
+- Enabled pre-wrap rendering in the Results text panel so long lines fit the narrower layout more naturally.
+- Refreshed live/package version references to V506.
+
+## V506 — Simple UI recovery from V500
 - Built from the V500 reference line with only narrow UI fixes.
 - Resized the Speedometer overlay so it no longer rides off the top of the screen.
 - Expanded the Results page overlay to full vertical viewport height with a full-height results text area.
-- Refreshed live/package version references to V505.
+- Refreshed live/package version references to V506.
 
 ## V500 — Recovery baseline rebuild
 - Rebuilt from one verified editable source tree as a new recovery baseline.
