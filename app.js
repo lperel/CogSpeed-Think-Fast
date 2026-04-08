@@ -2,7 +2,7 @@
 // CogSpeed V518
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V521";
+const APP_VERSION = "V522";
 
 // ═══════════════════════════════════════════════════
 // RECENT INTEGRATED PROGRAM CHANGES (through V488)
@@ -2722,15 +2722,34 @@ function getCognitivePerformanceTableText(result){
  const mode=(result&&result.testMode)||"mode1";
  if(mode==="mode4"){
   const target=Math.max(1, Number(result.mode4SustainedTargetCount)||Number(settings.mode4SustainedTrialCount)||10);
-  const csr=Number(result.correctSustainedResponses!=null?result.correctSustainedResponses:result.mode4SustainedCorrect);
-  const cpi=Number.isFinite(csr)?Math.max(0,Math.min(100,computeSPI(csr,target))):null;
+  const csrRaw=(result&&result.correctSustainedResponses!=null)?result.correctSustainedResponses:(result?result.mode4SustainedCorrect:null);
+  const csr=Number.isFinite(Number(csrRaw))?Number(csrRaw):null;
+  const mode1Bands=[
+   {spfs:7,cpi:100,cap:"FUNCTIONING EXCEPTIONALLY WELL"},
+   {spfs:6,cpi:80,cap:"FUNCTIONING VERY WELL"},
+   {spfs:5,cpi:75,cap:"FUNCTIONING NORMALLY"},
+   {spfs:4,cpi:50,cap:"FUNCTIONING SLIGHTLY LESS THAN NORMAL"},
+   {spfs:3,cpi:25,cap:"FUNCTIONING STARTING TO SLOW"},
+   {spfs:2,cpi:11,cap:"DIFFICULT TO FUNCTION / BECOMING UNSAFE"},
+   {spfs:1,cpi:0,cap:"UNABLE TO FUNCTION / DEFINITELY UNSAFE"},
+  ];
   const rows=[];
   for(let n=target;n>=0;n--){
    const rowCpi=Math.round((n/target)*100);
-   const mark=(csr===n)?"  ← YOUR SCORE":"";
-   rows.push(`CSR ${String(n).padStart(2," ")} | CPI ${String(rowCpi).padStart(3," ")}${mark}`);
+   let band=mode1Bands[0], bestDiff=Infinity;
+   mode1Bands.forEach(b=>{ const d=Math.abs(rowCpi-b.cpi); if(d<bestDiff){ bestDiff=d; band=b; } });
+   rows.push({spfs:band.spfs, csr:n, cpi:rowCpi, cap:band.cap, mark:(csr===n)?"← YOUR SCORE":""});
   }
-  return ["Mode 4 Cognitive Performance Table (CSR → CPI)",...rows].join("\n");
+  const headers=["SP-FS","CSR","CPI","DESCRIPTION OF PERFORMANCE"];
+  const widths=[
+   Math.max(headers[0].length, ...rows.map(r=>String(r.spfs).length)),
+   Math.max(headers[1].length, ...rows.map(r=>String(r.csr).length)),
+   Math.max(headers[2].length, ...rows.map(r=>String(r.cpi).length)),
+   Math.max(headers[3].length, ...rows.map(r=>r.cap.length)),
+  ];
+  const headerLine=`${headers[0].padEnd(widths[0])} | ${headers[1].padEnd(widths[1])} | ${headers[2].padEnd(widths[2])} | ${headers[3]}`;
+  const body=rows.map(r=>`${String(r.spfs).padEnd(widths[0])} | ${String(r.csr).padStart(widths[1])} | ${String(r.cpi).padStart(widths[2])} | ${r.cap}${r.mark?`  ${r.mark}`:""}`);
+  return ["Mode 4 Cognitive Performance Table (CSR → CPI)",headerLine,...body].join("\n");
  }
  if(mode!=="mode1") return "Not used in this mode.";
  const cpi = result.cognitivePerformanceIndex!=null ? Number(result.cognitivePerformanceIndex) : null;

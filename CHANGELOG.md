@@ -1,3 +1,7 @@
+## V522 — Mode 4 cognitive table columns
+- Added dynamic SP-FS and description-of-performance columns to the Mode 2 CogSpeed Sustained cognitive performance table so it scales when the sustained-trial target changes.
+- Kept the table mapped from CSR to CPI with the user score flagged.
+
 ## V521 — Admin test-mode dropdown labels renamed
 - Changed the Admin page **Test mode** dropdown to use the new visible mode names.
 - Kept **Mode 2 CogSpeed Sustained** (`mode4`) as the default selected mode.
