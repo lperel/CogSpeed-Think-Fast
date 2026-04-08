@@ -2,7 +2,7 @@
 // CogSpeed V518
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V518";
+const APP_VERSION = "V519";
 
 // ═══════════════════════════════════════════════════
 // RECENT INTEGRATED PROGRAM CHANGES (through V488)
@@ -401,7 +401,7 @@ function isMode1(){ return (settings.testMode||"mode1")==="mode1"; }
 function isMode2(){ return (settings.testMode||"mode1")==="mode2"; }
 function isMode3(){ return (settings.testMode||"mode1")==="mode3"; }
 function isMode4(){ return (settings.testMode||"mode1")==="mode4"; }
-function currentModeLabel(){ return isMode1() ? "CogSpeed Mode" : isMode2() ? "SPC Mode" : isMode3() ? "SPCMP Mode" : "Mode 4"; }
+function currentModeLabel(){ return isMode1() ? "Mode 1 CogSpeed Adaptive" : isMode2() ? "Mode 3 Self-paced" : isMode3() ? "Mode 4 Machine-Paced" : "Mode 2 CogSpeed Sustained"; }
 function getEffectiveTimeFormat(){ return String(settings.timeFormat||"12") === "24" ? "24" : "12"; }
 function getSessionMaxDurationMs(){ return isMode2() ? (Number(settings.mode2MaxDurationMs)||120000) : isMode3() ? (Number(settings.mode3MaxDurationMs)||120000) : (Number(settings.maxTestDurationMs)||150000); }
 
@@ -2100,7 +2100,7 @@ function getResponseGraphPhaseLegendText(result){
 }
 
 function formatModeTag(mode){
- const labels={mode1:"Test Mode 1",mode2:"Test Mode 2",mode3:"Test Mode 3",mode4:"Test Mode 4"};
+ const labels={mode1:"Mode 1 CogSpeed Adaptive",mode2:"Mode 3 Self-paced",mode3:"Mode 4 Machine-Paced",mode4:"Mode 2 CogSpeed Sustained"};
  return labels[mode||"mode1"] || (mode||"mode1").replace("mode","Test Mode ");
 }
 
@@ -2752,7 +2752,7 @@ function getCognitivePerformanceTableText(result){
 function buildRankedSummary(result){
  const el=$("rankedText"); if(!el) return;
  const hr="─────────────────────────";
- const modeName = result.testMode==="mode2" ? "SPC Mode" : result.testMode==="mode3" ? "SPCMP Mode" : result.testMode==="mode4" ? "Mode 4" : "CogSpeed Mode";
+ const modeName = result.testMode==="mode2" ? "Mode 3 Self-paced" : result.testMode==="mode3" ? "Mode 4 Machine-Paced" : result.testMode==="mode4" ? "Mode 2 CogSpeed Sustained" : "Mode 1 CogSpeed Adaptive";
  el.textContent =
 `CogSpeed ${APP_VERSION} — ${modeName}
 ${hr}
@@ -2810,7 +2810,7 @@ function buildSummary(result){
    ?(result.geo.address||`${result.geo.latitude.toFixed(5)}, ${result.geo.longitude.toFixed(5)}`)+` (±${Math.round(result.geo.accuracy_m)}m)`
    :result.geo.status;
  }
- const modeName = result.testMode==="mode2" ? "SPC Mode" : result.testMode==="mode3" ? "SPCMP Mode" : result.testMode==="mode4" ? "Mode 4" : "CogSpeed Mode";
+ const modeName = result.testMode==="mode2" ? "Mode 3 Self-paced" : result.testMode==="mode3" ? "Mode 4 Machine-Paced" : result.testMode==="mode4" ? "Mode 2 CogSpeed Sustained" : "Mode 1 CogSpeed Adaptive";
  if(result.testMode==="mode2"){
   el.textContent=
 `CogSpeed ${APP_VERSION} — ${modeName}
@@ -2871,7 +2871,7 @@ SELF-PACED CALIBRATION
  Average calibration RT: ${result.calibrationAverageMs!=null?result.calibrationAverageMs.toFixed(1)+" ms":"—"}
 Self-paced RT SD: ${result.selfPacedResponseSdMs!=null?result.selfPacedResponseSdMs.toFixed(1)+" ms":"—"}
 ${hr}
-FIXED MACHINE-PACED PHASE (SPCMP)
+FIXED MACHINE-PACED PHASE (Mode 4 Machine-Paced)
  Machine-paced baseline: ${result.fixedPacedBaselineMs!=null?result.fixedPacedBaselineMs.toFixed(1)+" ms":"—"}
  Average machine-paced RT: ${result.pacedResponseMeanMs!=null?result.pacedResponseMeanMs.toFixed(1)+" ms":"—"}
  Machine-paced RT SD: ${result.pacedResponseSdMs!=null?result.pacedResponseSdMs.toFixed(1)+" ms":"—"}
