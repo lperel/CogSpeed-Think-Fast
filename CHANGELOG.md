@@ -1,3 +1,13 @@
+## V514 — Visible mode rename pass
+- Renamed visible mode labels only, without changing internal mode keys or behavior.
+- New visible names: Mode 1 CogSpeed Adaptive, Mode 2 CogSpeed Sustained, Mode 3 Self-paced, and Mode 4 Machine-Paced.
+- Updated visible labels across Speedometer, graphs, results, Trial Detail Log, and mode selectors.
+
+## V513 — Mode 4 speedometer scoring fix
+- Fixed Mode 4 Speedometer CPI view so it uses adaptive MBS normalized through the CPI formula instead of a CSR-based score.
+- Fixed saved Mode 4 SPI so it remains CSR-based while CPI remains MBS-based.
+- Refreshed live/package version references to V513.
+
 ## V512 — Adaptive machine-paced results block reorder
 - Reordered the Mode 4 Adaptive Machine-Paced Phase results block to show average adaptive paced RT, paced RT SD, block count, full block list, MBS, block difference for MBS, and CPI in that order.
 - Clarified MBS wording as the average of the last 2 consecutive blocks less than 250 ms apart.
