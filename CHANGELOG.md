@@ -1,3 +1,9 @@
+## V532 — Admin visible-to-internal mode mapping corrected
+- Corrected the Admin Test mode dropdown labels to match the actual internal mode mapping without changing runtime behavior.
+- Corrected Admin settings labels 33–41 so each label now matches the internal mode it actually controls: mode2 settings display as Mode 3, mode3 settings display as Mode 4, and mode4 settings display as Mode 2.
+- Updated nearby mode-mapping comments in `app.js` to match the real compatibility mapping.
+- No scoring, timing, or mode-logic changes.
+
 ## V531 — Admin mode-label cleanup (actual field labels fixed)
 - Corrected the Admin page field labels for items 33–41 so they match the visible renamed modes.
 - Mode 2 fields now read as Mode 2 CogSpeed Sustained.
