@@ -1,3 +1,10 @@
+## V534 — Admin defaults reorder + default-value updates
+- Changed **Mode 1 CPI worst ms anchor** default from **3000** to **2400** in `DEFAULTS`, Admin text, and fallback references.
+- Changed **Mode 2 sustained trials at MBS** default from **10** to **20** in `DEFAULTS`, Admin text, and fallback references.
+- Reordered the Admin defaults so the mode-specific sections now appear in visible mode order **Mode 1 → Mode 2 → Mode 3 → Mode 4**.
+- Kept each mode section ordered by how the settings are used during the test flow.
+- Preserved the V533 Admin cleanup that hides raw internal setting keys.
+
 ## V533 — Admin internal key line removed
 - Removed the raw internal setting-key line (for example `mode2TrialLimit`, `mode3CalibrationTrials`, `mode4MbsThresholdMs`) from each Admin setting row.
 - Kept the visible Admin labels from V532, but stopped exposing legacy internal key names that made the page appear mislinked.
