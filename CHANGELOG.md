@@ -1,3 +1,8 @@
+## V510 — Speedometer Mode 4 metric windows
+- Speedometer Mode 4 toggle now shows CPI with MBS in a window, or SPI with CSR and SBLP in windows.
+- Added visible Mode 4 summary metric cards under the speedometer toggle.
+- Refreshed live/package version references to V510.
+
 ## V509 — Calibration total-wrong cleanup
 - Results Summary self-paced calibration sections now keep `Total wrong` limited to calibration wrongs so later paced errors do not appear inside the calibration block.
 - Refreshed live/package version references to V509.

@@ -1,8 +1,8 @@
 // ═══════════════════════════════════════════════════
-// CogSpeed V509
+// CogSpeed V510
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V509";
+const APP_VERSION = "V510";
 
 // ═══════════════════════════════════════════════════
 // RECENT INTEGRATED PROGRAM CHANGES (through V488)
@@ -4767,12 +4767,34 @@ function getMode4SpeedometerMetric(result){
  const spi = Number(result && result.sustainedProcessingIndex);
  const sblp = Number(result && result.sustainedBlockLimitPerformanceMs);
  const total = Math.max(1, Number(result && result.mode4SustainedTargetCount) || 10);
- const mode4Cpi = Number(result && (result.mode4CpiFromCsr!=null ? result.mode4CpiFromCsr : computeSPI(csr,total)));
  const mbs = Number(result && (result.mode4AdaptiveMbsMs!=null ? result.mode4AdaptiveMbsMs : result.averageLast2BlockingScoresMs));
+ const cpiRaw = Number(result && result.cognitivePerformanceIndex);
+ const cpi = Number.isFinite(cpiRaw) ? cpiRaw : (Number.isFinite(mbs) ? computeCPI(mbs) : null);
  if(pref==="cpi"){
-  return { score:Number.isFinite(mode4Cpi)?Math.max(0,Math.min(100,mode4Cpi)):0, metric:Number.isFinite(mbs)?mbs:null, scoreLabel:"CPI", metricLabel:"MBS" };
+  return {
+   score:Number.isFinite(cpi)?Math.max(0,Math.min(100,cpi)):0,
+   scoreLabel:"CPI",
+   boxes:[{label:"MBS", value:Number.isFinite(mbs)?`${Number(mbs).toFixed(1)} ms`:"—"}]
+  };
  }
- return { score:Number.isFinite(spi)?Math.max(0,Math.min(100,spi)):0, metric:Number.isFinite(sblp)?sblp:null, scoreLabel:"SPI", metricLabel:"SBLP" };
+ const spiScore = Number.isFinite(spi) ? Math.max(0,Math.min(100,spi)) : computeSPI(Number.isFinite(csr)?csr:0,total);
+ return {
+  score:spiScore,
+  scoreLabel:"SPI",
+  boxes:[
+   {label:"CSR", value:Number.isFinite(csr)?String(Math.round(csr)):"—"},
+   {label:"SBLP", value:Number.isFinite(sblp)?`${Number(sblp).toFixed(1)} ms`:"—"}
+  ]
+ };
+}
+
+function renderMode4SpeedometerBoxes(metric){
+ const wrap = $("speedometerMode4Metrics");
+ if(!wrap) return;
+ const boxes = metric && Array.isArray(metric.boxes) ? metric.boxes : [];
+ if(!boxes.length){ wrap.innerHTML=""; wrap.classList.add("hidden"); return; }
+ wrap.classList.remove("hidden");
+ wrap.innerHTML = boxes.map(b=>`<div class="summary-card"><div class="summary-card-label">${b.label}</div><div class="summary-card-val" style="font-size:20px">${b.value}</div></div>`).join("");
 }
 
 function renderSpeedometerOutcome(result, sessionIndex){
@@ -4786,12 +4808,14 @@ function renderSpeedometerOutcome(result, sessionIndex){
  let mbs = result && result.averageLast2BlockingScoresMs!=null ? result.averageLast2BlockingScoresMs : null;
  let scoreLabel = "CPI";
  let metricLabel = "MBS";
+ let mode4MetricBoxes = null;
  if(result && result.testMode==="mode4" && result.mode4Triggered){
   const mode4Metric = getMode4SpeedometerMetric(result);
   cps = success ? mode4Metric.score : 0;
-  mbs = success ? mode4Metric.metric : null;
+  mbs = success ? (Number(result && (result.mode4AdaptiveMbsMs!=null ? result.mode4AdaptiveMbsMs : result.averageLast2BlockingScoresMs)) || null) : null;
   scoreLabel = mode4Metric.scoreLabel;
-  metricLabel = mode4Metric.metricLabel;
+  metricLabel = "MBS";
+  mode4MetricBoxes = mode4Metric.boxes || null;
  }
  const wrap = $("speedometerWrap");
  if(wrap) canvas.style.width = wrap.offsetWidth + "px";
@@ -4808,6 +4832,7 @@ function renderSpeedometerOutcome(result, sessionIndex){
    mode4Toggle.classList.add("hidden");
   }
  }
+ renderMode4SpeedometerBoxes(result && result.testMode==="mode4" && result.mode4Triggered ? {boxes:mode4MetricBoxes||[]} : null);
  stopSpeedometer();
  setTimeout(()=>animateSpeedometer(canvas, cps, mbs, success, scoreLabel, metricLabel), 80);
  renderSpfGaugeForResult(result);
