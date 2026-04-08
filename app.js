@@ -2,7 +2,7 @@
 // CogSpeed V527
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V532";
+const APP_VERSION = "V533";
 
 // ═══════════════════════════════════════════════════
 // RECENT INTEGRATED PROGRAM CHANGES (through V527)
@@ -2004,7 +2004,7 @@ function renderAdmin(){
   }else{
    controlHTML=`<input id="adm_${k}" type="${t}" value="${settings[k]}" style="padding:9px;border:1px solid var(--edge);border-radius:10px;background:#0a1629;color:var(--text);font-size:14px;width:100%">`;
   }
-  r.innerHTML=`<label style="font-size:14px;color:var(--text)">${l}<div style="font-size:11px;color:var(--muted)">${k}</div></label>${controlHTML}`;
+  r.innerHTML=`<label style="font-size:14px;color:var(--text)">${l}</label>${controlHTML}`;
   w.appendChild(r);
  }
 }

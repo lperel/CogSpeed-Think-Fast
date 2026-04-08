@@ -1,3 +1,8 @@
+## V533 — Admin internal key line removed
+- Removed the raw internal setting-key line (for example `mode2TrialLimit`, `mode3CalibrationTrials`, `mode4MbsThresholdMs`) from each Admin setting row.
+- Kept the visible Admin labels from V532, but stopped exposing legacy internal key names that made the page appear mislinked.
+- No scoring, timing, runtime mode logic, or sustained-behavior changes.
+
 ## V532 — Admin visible-to-internal mode mapping corrected
 - Corrected the Admin Test mode dropdown labels to match the actual internal mode mapping without changing runtime behavior.
 - Corrected Admin settings labels 33–41 so each label now matches the internal mode it actually controls: mode2 settings display as Mode 3, mode3 settings display as Mode 4, and mode4 settings display as Mode 2.
