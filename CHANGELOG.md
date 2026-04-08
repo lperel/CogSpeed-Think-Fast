@@ -1,3 +1,8 @@
+## V511 — Speedometer SPI metric label fix
+- In Mode 4 SPI view, the speedometer now shows **SBLP** as the dial-side metric instead of incorrectly showing **MBS**.
+- CPI view continues to show **MBS**.
+- Refreshed live/package version references to V511.
+
 ## V510 — Speedometer Mode 4 metric windows
 - Speedometer Mode 4 toggle now shows CPI with MBS in a window, or SPI with CSR and SBLP in windows.
 - Added visible Mode 4 summary metric cards under the speedometer toggle.

@@ -1,8 +1,8 @@
 // ═══════════════════════════════════════════════════
-// CogSpeed V510
+// CogSpeed V511
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V510";
+const APP_VERSION = "V511";
 
 // ═══════════════════════════════════════════════════
 // RECENT INTEGRATED PROGRAM CHANGES (through V488)
@@ -4812,9 +4812,20 @@ function renderSpeedometerOutcome(result, sessionIndex){
  if(result && result.testMode==="mode4" && result.mode4Triggered){
   const mode4Metric = getMode4SpeedometerMetric(result);
   cps = success ? mode4Metric.score : 0;
-  mbs = success ? (Number(result && (result.mode4AdaptiveMbsMs!=null ? result.mode4AdaptiveMbsMs : result.averageLast2BlockingScoresMs)) || null) : null;
+  if(success){
+   if(String(mode4Metric.scoreLabel||"SPI")==="SPI"){
+    mbs = Number(result && result.sustainedBlockLimitPerformanceMs);
+    metricLabel = "SBLP";
+   }else{
+    mbs = Number(result && (result.mode4AdaptiveMbsMs!=null ? result.mode4AdaptiveMbsMs : result.averageLast2BlockingScoresMs));
+    metricLabel = "MBS";
+   }
+   if(!Number.isFinite(mbs)) mbs = null;
+  }else{
+   mbs = null;
+   metricLabel = String(mode4Metric.scoreLabel||"SPI")==="SPI" ? "SBLP" : "MBS";
+  }
   scoreLabel = mode4Metric.scoreLabel;
-  metricLabel = "MBS";
   mode4MetricBoxes = mode4Metric.boxes || null;
  }
  const wrap = $("speedometerWrap");
