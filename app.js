@@ -1,8 +1,8 @@
 // ═══════════════════════════════════════════════════
-// CogSpeed V506
+// CogSpeed V507
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V506";
+const APP_VERSION = "V507";
 
 // ═══════════════════════════════════════════════════
 // RECENT INTEGRATED PROGRAM CHANGES (through V488)
@@ -2036,6 +2036,13 @@ function drawRTScatterChart(canvas,rtLog,blocks,meanRT,sdRT){
 // - full graph shows session number once in subtitle
 // - smaller ms = better performance and graphs higher
 // - avoid duplicate mode / SP-FS labels on full graph
+
+function drawModeResultChart(canvas, result){
+ const log=Array.isArray(result&&result.rtLog)?result.rtLog:[];
+ const meanRT=result&&result.allResponseMeanMs!=null?result.allResponseMeanMs:(log.filter(e=>e&&e.rt!=null).length?mean(log.filter(e=>e&&e.rt!=null).map(e=>Number(e.rt))):null);
+ const blocks=result&&Array.isArray(result.blocks)?result.blocks:[];
+ drawRTScatterChart(canvas, log, blocks, meanRT, result&&result.allResponseSdMs!=null?result.allResponseSdMs:null);
+}
 
 function getResponseGraphPhaseLegendText(result){
  if(!result) return "Includes phases: none";

@@ -1,3 +1,8 @@
+## V507 — Response-Time Graph blank-screen repair
+- Restored the missing `drawModeResultChart()` function in the packaged app so the Response-Time Graph renders instead of failing with a blank graph path.
+- Kept the V506 UI sizing changes intact and rebuilt from that base as a narrow graph-only fix.
+- Refreshed live/package version references to V507.
+
 ## V506 — Results screen width cleanup
 - Narrowed the full-page Results overlay to a centered readable panel instead of edge-to-edge width.
 - Kept the Results page at full vertical height while reducing excessive horizontal spread.
