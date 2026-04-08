@@ -2,7 +2,7 @@
 // CogSpeed V518
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V520";
+const APP_VERSION = "V521";
 
 // ═══════════════════════════════════════════════════
 // RECENT INTEGRATED PROGRAM CHANGES (through V488)
@@ -1959,7 +1959,8 @@ function renderAdmin(){
   r.style.cssText="display:grid;grid-template-columns:1fr 140px;gap:8px;align-items:center;margin-bottom:8px";
   let controlHTML="";
   if(String(t).startsWith("select:")){
-   const opts=String(t).slice(7).split("|").map(v=>`<option value="${v}" ${String(settings[k])===v?"selected":""}>${v}</option>`).join("");
+   const selectLabels={mode1:"Mode 1 CogSpeed Adaptive",mode2:"Mode 3 Self-paced",mode3:"Mode 4 Machine-Paced",mode4:"Mode 2 CogSpeed Sustained"};
+   const opts=String(t).slice(7).split("|").map(v=>`<option value="${v}" ${String(settings[k])===v?"selected":""}>${selectLabels[v]||v}</option>`).join("");
    controlHTML=`<select id="adm_${k}" style="padding:9px;border:1px solid var(--edge);border-radius:10px;background:#0a1629;color:var(--text);font-size:14px;width:100%">${opts}</select>`;
   }else{
    controlHTML=`<input id="adm_${k}" type="${t}" value="${settings[k]}" style="padding:9px;border:1px solid var(--edge);border-radius:10px;background:#0a1629;color:var(--text);font-size:14px;width:100%">`;

@@ -1,3 +1,8 @@
+## V521 — Admin test-mode dropdown labels renamed
+- Changed the Admin page **Test mode** dropdown to use the new visible mode names.
+- Kept **Mode 2 CogSpeed Sustained** (`mode4`) as the default selected mode.
+- No logic or scoring changes; display-label update only.
+
 ## V520 — Response-Time Graph phase demarcation
 - Added a vertical dashed line to demarcate the machine-paced adaptive phase from the sustained phase on the Response-Time Graph in Mode 4.
 - Added a matching phase-break legend item on the graph.
