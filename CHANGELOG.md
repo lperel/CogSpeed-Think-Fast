@@ -1,3 +1,8 @@
+## V524 — Sustained phase background toned down
+- Reduced the sustained-phase gear-page background from a near-white light gray to a softer medium-light gray for better comfort and less glare.
+- Kept calibration and adaptive backgrounds unchanged.
+- Refreshed live/package version references to V524.
+
 ## V523 — Mode 4 phase background cues + SP-FS emphasis
 - Added modest phase background colors on the gear page: calibration medium gray, adaptive current gray, sustained light gray.
 - Kept the visual change background-only with no timing, scoring, or layout changes.

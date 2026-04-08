@@ -2,7 +2,7 @@
 // CogSpeed V518
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V523";
+const APP_VERSION = "V524";
 
 // ═══════════════════════════════════════════════════
 // RECENT INTEGRATED PROGRAM CHANGES (through V523)
@@ -326,7 +326,7 @@ syncReleaseUI();
 function getPhaseBackgroundColor(){
  const phase=String(state.phase||"");
  if(phase==="calibration") return "#8f8f8f";
- if(phase==="mode4_sustained"||phase==="mode4_final") return "#cfcfcf";
+ if(phase==="mode4_sustained"||phase==="mode4_final") return "#b8b8b8";
  return "#6e6e6e";
 }
 function applyPhaseBackground(){
