@@ -1,3 +1,8 @@
+## V541 — RT graph legend labels clarified
+- Added explicit legend labels for orange and yellow RT graph markers: Recovery, Late correct, and Late wrong.
+- Kept existing labels for Calibration, Final self-paced, Correct, Wrong, Missed, Mean RT, and Phase break.
+- Updated legend layout to wrap across rows when needed so labels remain visible on narrower screens.
+
 ## V540 — Speedometer dial face unobstructed
 - Removed the needle-tip MBS/SBLP LCD window from the Speedometer so the dial value is no longer blocked.
 - Kept the surrounding Speedometer metric cards/toggles intact for MBS, CSR, and SBLP.

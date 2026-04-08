@@ -2,7 +2,7 @@
 // CogSpeed V536
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V540";
+const APP_VERSION = "V541";
 
 // ═══════════════════════════════════════════════════
 // RECENT INTEGRATED PROGRAM CHANGES (through V527)
@@ -2148,13 +2148,23 @@ function drawRTScatterChart(canvas,rtLog,blocks,meanRT,sdRT){
   {label:"Wrong", color:"#ff4466", marker:"dot"},
   {label:"Missed", color:"#888888", marker:"x"},
   {label:"Calibration", color:"#88aaff", marker:"dot"},
+  {label:"Recovery", color:"#ffaa00", marker:"dot"},
+  {label:"Late correct", color:"#ffff00", marker:"dot"},
+  {label:"Late wrong", color:"#ff8800", marker:"dot"},
   {label:"Final self-paced", color:"#7fd7ff", marker:"dot"},
   {label:"Mean RT", color:"rgba(127,215,255,0.85)", marker:"line-dashed"},
   {label:"Phase break", color:"rgba(255,255,255,0.75)", marker:"line-dashed2"}
  ];
- let lx=PAD.left, ly=H-18;
  ctx.font="12px sans-serif"; ctx.textAlign="left"; ctx.textBaseline="middle";
+ const legendRowGap = 16;
+ const legendRight = PAD.left + cW;
+ let lx=PAD.left, ly=H-34;
  legendItems.forEach(item=>{
+  const itemWidth = 20 + ctx.measureText(item.label).width + 18;
+  if(lx>PAD.left && lx + itemWidth > legendRight){
+   lx = PAD.left;
+   ly += legendRowGap;
+  }
   if(item.marker==="line-dashed" || item.marker==="line-dashed2"){
    ctx.save();
    ctx.strokeStyle=item.color; ctx.lineWidth=1.5;
@@ -2166,12 +2176,13 @@ function drawRTScatterChart(canvas,rtLog,blocks,meanRT,sdRT){
    ctx.beginPath(); ctx.moveTo(lx+3,ly-4); ctx.lineTo(lx+11,ly+4); ctx.moveTo(lx+11,ly-4); ctx.lineTo(lx+3,ly+4); ctx.stroke();
   }else{
    ctx.fillStyle=item.color; ctx.beginPath(); ctx.arc(lx+7,ly,3.5,0,Math.PI*2); ctx.fill();
+   ctx.strokeStyle="rgba(8,19,33,0.9)"; ctx.lineWidth=1; ctx.stroke();
   }
   ctx.fillStyle="#b8d0e6"; ctx.fillText(item.label, lx+20, ly);
-  lx += 20 + ctx.measureText(item.label).width + 18;
+  lx += itemWidth;
  });
  ctx.fillStyle="#8fb0cf"; ctx.font="10px sans-serif"; ctx.textAlign="center"; ctx.textBaseline="alphabetic";
- ctx.fillText("Trial →",PAD.left+cW/2,H-30);
+ ctx.fillText("Trial →",PAD.left+cW/2,H-4);
 }
 
 // Mode 2 / Mode 3 result chart:
