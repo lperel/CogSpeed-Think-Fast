@@ -1,3 +1,9 @@
+## V536 — Clean CDI rebuild on approved V534/V529 baseline
+- Rebuilt from the approved V534 baseline while preserving the approved V529/V533/V534 fixes and defaults.
+- Added CDI (Cognitive Degradation Index) as a derived sustained-mode metric only; no trial, pacing, scoring, or response-handling logic changes.
+- CDI now appears in Mode 2 CogSpeed Sustained Results Summary, metric explanations, and CSV export.
+- Preserved approved defaults and admin cleanups, including CPI worst anchor = 2400, Mode 2 sustained trial count default = 20, visible mode ordering, and hidden raw admin keys.
+
 ## V534 — Admin defaults reorder + default-value updates
 - Changed **Mode 1 CPI worst ms anchor** default from **3000** to **2400** in `DEFAULTS`, Admin text, and fallback references.
 - Changed **Mode 2 sustained trials at MBS** default from **10** to **20** in `DEFAULTS`, Admin text, and fallback references.

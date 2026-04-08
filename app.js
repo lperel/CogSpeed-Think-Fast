@@ -1,8 +1,8 @@
 // ═══════════════════════════════════════════════════
-// CogSpeed V527
+// CogSpeed V536
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V534";
+const APP_VERSION = "V536";
 
 // ═══════════════════════════════════════════════════
 // RECENT INTEGRATED PROGRAM CHANGES (through V527)
@@ -1268,6 +1268,16 @@ function finish(){
    avgRafIntervalMs: state.rafIntervalLog.length ? Number(mean(state.rafIntervalLog).toFixed(2)) : null,
    maxRafIntervalMs: state.rafIntervalLog.length ? Number(Math.max(...state.rafIntervalLog).toFixed(2)) : null
   };
+  const sustainedAnalysis = (isMode4() && state.mode4Triggered)
+   ? computeMode4SustainedAnalysis(state.rtLog, state.mode4SustainedPresentationRateMs, Number(settings.mode4SustainedTrialCount)||20)
+   : {
+    sustainedBlockLimitPerformanceSdMs:null, sustainedOmissionRate:null,
+    sustainedCommissionRate:null, sustainedErrorProfile:null,
+    sustainedProcessingReserve:null, sustainedFirstHalfSpi:null,
+    sustainedSecondHalfSpi:null, sustainedSpiDecay:null,
+    sustainedRtSlopeMsPerTrial:null, sustainedCorrectRtP90Ms:null,
+    sustainedCorrectRtMaxMs:null
+   };
   result={
    sessionNumber: state.history.length + 1,
    testMode: state.activeMode||settings.testMode||"mode1",
@@ -1311,14 +1321,7 @@ function finish(){
    mode4FinalMeanRtMs: state.mode4FinalRTs.length?mean(state.mode4FinalRTs):null,
    mode4CpiFromCsr: isMode4() && state.mode4Triggered ? modeCPI : null,
    mode4TimingSummary: isMode4() ? computeMode4TimingSummary({rtLog:[...state.rtLog], testDurationMs:testDurMs}) : null,
-   ...(isMode4() && state.mode4Triggered ? computeMode4SustainedAnalysis(state.rtLog, state.mode4SustainedPresentationRateMs, Number(settings.mode4SustainedTrialCount)||20) : {
-    sustainedBlockLimitPerformanceSdMs:null, sustainedOmissionRate:null,
-    sustainedCommissionRate:null, sustainedErrorProfile:null,
-    sustainedProcessingReserve:null, sustainedFirstHalfSpi:null,
-    sustainedSecondHalfSpi:null, sustainedSpiDecay:null,
-    sustainedRtSlopeMsPerTrial:null, sustainedCorrectRtP90Ms:null,
-    sustainedCorrectRtMaxMs:null
-   }),
+   ...sustainedAnalysis,
    rtLog:[...state.rtLog], endReason:state.endReason||"Run complete",
    time:new Date().toISOString(), geo:state.geo, timingQuality
   };
@@ -1327,6 +1330,7 @@ function finish(){
    const wakeIso = deriveWakeDateTimeIso(result.sleepLog.wakeTime, result.time);
    if(wakeIso) result.sleepLog.wakeDateTimeIso = wakeIso;
   }
+  Object.assign(result, computeCDISummary(result));
  }catch(err){
   console.error("finish compute failed", err);
   failOpenResultsHandoff(result, "COMPUTE", err);
@@ -2320,6 +2324,7 @@ function exportCSV(){
   "sleepSinceLastTest","sleepBedtime","sleepWakeTime","sleepWakeDateTimeIso","sleepDurationMinutes","sleepQualityLabel","sleepQualityScore",
   "pacedCorrect","pacedWrong","spRestartWrong","meanPacedRtMs","pacedRtSd",
   "avgFrameOvershootMs","maxFrameOvershootMs","avgRafIntervalMs","maxRafIntervalMs",
+  "cdi","cdiClass","cdiPattern","cdiVarRisk","cdiOmitRisk","cdiDecayRisk","cdiSlopeRisk","cdiSprRisk","cdiCommRisk",
   "testDurationMs","endReason","location"];
  const rows=h.map((r,i)=>[
   i+1,
@@ -2364,6 +2369,15 @@ function exportCSV(){
   r.timingQuality?.maxFrameOvershootMs!=null?r.timingQuality.maxFrameOvershootMs.toFixed(2):"",
   r.timingQuality?.avgRafIntervalMs!=null?r.timingQuality.avgRafIntervalMs.toFixed(2):"",
   r.timingQuality?.maxRafIntervalMs!=null?r.timingQuality.maxRafIntervalMs.toFixed(2):"",
+  r.cdi!=null?r.cdi:"",
+  r.cdiClass||"",
+  r.cdiPattern||"",
+  r.cdiVarRisk!=null?r.cdiVarRisk.toFixed(1):"",
+  r.cdiOmitRisk!=null?r.cdiOmitRisk.toFixed(1):"",
+  r.cdiDecayRisk!=null?r.cdiDecayRisk.toFixed(1):"",
+  r.cdiSlopeRisk!=null?r.cdiSlopeRisk.toFixed(1):"",
+  r.cdiSprRisk!=null?r.cdiSprRisk.toFixed(1):"",
+  r.cdiCommRisk!=null?r.cdiCommRisk.toFixed(1):"",
   r.testDurationMs!=null?Math.round(r.testDurationMs):"",
   r.endReason||"",
   (r.geo&&r.geo.address)||""
@@ -2878,7 +2892,10 @@ RESULTS METRIC EXPLANATIONS
  Omission rate = missed / presented; pure speed-failure proportion.${usesMode4Metrics?"":" Not used in this mode."}
  Commission rate = wrong / presented; speed-accuracy tradeoff proportion.${usesMode4Metrics?"":" Not used in this mode."}
  Error profile = categorical: clean / omission_dominant / commission_dominant / mixed.${usesMode4Metrics?"":" Not used in this mode."}
- SPR (Sustained Processing Reserve) = (1 - SBLP / MBS) x 100; RT headroom below the timing window.${usesMode4Metrics?"":" Not used in this mode."}`;
+ SPR (Sustained Processing Reserve) = (1 - SBLP / MBS) x 100; RT headroom below the timing window.${usesMode4Metrics?"":" Not used in this mode."}
+ CDI (Cognitive Degradation Index) = weighted sustained-phase degradation score from 0-100 using variability, omissions, fade, slope, reserve, and commissions; higher = more degraded.${usesMode4Metrics?"":" Not used in this mode."}
+ CDI class = Minimal / Mild / Moderate / Marked / Severe degradation.${usesMode4Metrics?"":" Not used in this mode."}
+ CDI pattern = simple descriptive flag: Omission-dominant / Commission-dominant / Fading / Highly variable / Low reserve / Stable sustained pattern.${usesMode4Metrics?"":" Not used in this mode."}`;
 }
 
 
@@ -2996,6 +3013,9 @@ ${getResultsMetricExplanationText(result)}`;
   if(result.mode4Triggered && result.sustainedFirstHalfSpi==null && Array.isArray(result.rtLog)){
    Object.assign(result, computeMode4SustainedAnalysis(result.rtLog, result.mode4SustainedPresentationRateMs, result.mode4SustainedTargetCount||10));
   }
+  if(result.mode4Triggered && result.cdi==null){
+   Object.assign(result, computeCDISummary(result));
+  }
   const mode4Cpi=result.mode4CpiFromCsr!=null?result.mode4CpiFromCsr:(Number.isFinite(Number(csr))?computeSPI(Number(csr), Math.max(1, Number(result.mode4SustainedTargetCount)||10)):null);
   const adaptiveCounts=computeMode4AdaptiveCounts(result);
   el.textContent=
@@ -3056,6 +3076,10 @@ MODE 4 SUSTAINED MBS PHASE
  Commission rate: ${result.sustainedCommissionRate!=null?(result.sustainedCommissionRate*100).toFixed(1)+"%":"—"}
  Error profile: ${result.sustainedErrorProfile||"—"}
  SPR (Processing Reserve): ${result.sustainedProcessingReserve!=null?result.sustainedProcessingReserve.toFixed(1)+"%":"—"}
+ CDI: ${result.cdi!=null?result.cdi+" / 100":"—"}
+ CDI class: ${result.cdiClass||"—"}
+ CDI pattern: ${result.cdiPattern||"—"}
+ CDI risks — Variability: ${result.cdiVarRisk!=null?result.cdiVarRisk.toFixed(1):"—"}, Omission: ${result.cdiOmitRisk!=null?result.cdiOmitRisk.toFixed(1):"—"}, Fade: ${result.cdiDecayRisk!=null?result.cdiDecayRisk.toFixed(1):"—"}, Slope: ${result.cdiSlopeRisk!=null?result.cdiSlopeRisk.toFixed(1):"—"}, Reserve: ${result.cdiSprRisk!=null?result.cdiSprRisk.toFixed(1):"—"}, Commission: ${result.cdiCommRisk!=null?result.cdiCommRisk.toFixed(1):"—"}
  CPI from CSR: ${mode4Cpi!=null?mode4Cpi.toFixed(1):"—"}
 ${hr}
 FINAL SELF-PACED TRIALS
@@ -3463,6 +3487,63 @@ function computeMode4SustainedAnalysis(rtLog, mbsRateMs, targetCount){
   sustainedRtSlopeMsPerTrial:         r3(rtSlopeMsPerTrial),
   sustainedCorrectRtP90Ms:            r1(correctRtP90Ms),
   sustainedCorrectRtMaxMs:            r1(correctRtMaxMs)
+ };
+}
+
+
+function clampCdiScore(v){ return Math.max(0, Math.min(100, v)); }
+function safeCdiNum(v){ return Number.isFinite(Number(v)) ? Number(v) : null; }
+function cdiVarRisk(sdMs){ const v=safeCdiNum(sdMs); if(v==null) return null; return clampCdiScore(100*(v-40)/(220-40)); }
+function cdiOmitRisk(omissionRate){ const v=safeCdiNum(omissionRate); if(v==null) return null; return clampCdiScore(100*v); }
+function cdiDecayRisk(spiDecay){ const v=safeCdiNum(spiDecay); if(v==null) return null; return clampCdiScore(100*v/40); }
+function cdiSlopeRisk(rtSlopeMsPerTrial){ const v=safeCdiNum(rtSlopeMsPerTrial); if(v==null) return null; return clampCdiScore(100*v/40); }
+function cdiSprRisk(spr){ const v=safeCdiNum(spr); if(v==null) return null; return clampCdiScore(100*(25-v)/25); }
+function cdiCommRisk(commissionRate){ const v=safeCdiNum(commissionRate); if(v==null) return null; return clampCdiScore(100*v); }
+function classifyCDI(cdi){
+ if(cdi==null) return null;
+ if(cdi < 20) return "Minimal degradation";
+ if(cdi < 40) return "Mild degradation";
+ if(cdi < 60) return "Moderate degradation";
+ if(cdi < 80) return "Marked degradation";
+ return "Severe degradation";
+}
+function classifyCDIPattern(result){
+ const omit = safeCdiNum(result&&result.sustainedOmissionRate) ?? 0;
+ const comm = safeCdiNum(result&&result.sustainedCommissionRate) ?? 0;
+ const decay = safeCdiNum(result&&result.sustainedSpiDecay) ?? 0;
+ const slope = safeCdiNum(result&&result.sustainedRtSlopeMsPerTrial) ?? 0;
+ const sd = safeCdiNum(result&&result.sustainedBlockLimitPerformanceSdMs) ?? 0;
+ const spr = safeCdiNum(result&&result.sustainedProcessingReserve);
+ if(omit >= 0.25 && omit > comm) return "Omission-dominant";
+ if(comm >= 0.20 && comm >= omit) return "Commission-dominant";
+ if(decay >= 15 || slope >= 15) return "Fading";
+ if(sd >= 120) return "Highly variable";
+ if(spr != null && spr <= 5) return "Low reserve";
+ return "Stable sustained pattern";
+}
+function computeCDISummary(result){
+ if(!result || result.testMode!=="mode4" || !result.mode4Triggered) return {
+  cdi:null, cdiClass:null, cdiPattern:null,
+  cdiVarRisk:null, cdiOmitRisk:null, cdiDecayRisk:null, cdiSlopeRisk:null, cdiSprRisk:null, cdiCommRisk:null
+ };
+ const varRisk = cdiVarRisk(result.sustainedBlockLimitPerformanceSdMs);
+ const omitRisk = cdiOmitRisk(result.sustainedOmissionRate);
+ const decayRisk = cdiDecayRisk(result.sustainedSpiDecay);
+ const slopeRisk = cdiSlopeRisk(result.sustainedRtSlopeMsPerTrial);
+ const sprRisk = cdiSprRisk(result.sustainedProcessingReserve);
+ const commRisk = cdiCommRisk(result.sustainedCommissionRate);
+ const parts = [[varRisk,0.30],[omitRisk,0.25],[decayRisk,0.20],[slopeRisk,0.10],[sprRisk,0.10],[commRisk,0.05]].filter(([v])=>v!=null);
+ const cdi = parts.length < 4 ? null : Math.round(parts.reduce((s,[v,w])=>s+v*w,0) / parts.reduce((s,[,w])=>s+w,0));
+ return {
+  cdi,
+  cdiClass: classifyCDI(cdi),
+  cdiPattern: cdi!=null ? classifyCDIPattern(result) : null,
+  cdiVarRisk: varRisk!=null ? Number(varRisk.toFixed(1)) : null,
+  cdiOmitRisk: omitRisk!=null ? Number(omitRisk.toFixed(1)) : null,
+  cdiDecayRisk: decayRisk!=null ? Number(decayRisk.toFixed(1)) : null,
+  cdiSlopeRisk: slopeRisk!=null ? Number(slopeRisk.toFixed(1)) : null,
+  cdiSprRisk: sprRisk!=null ? Number(sprRisk.toFixed(1)) : null,
+  cdiCommRisk: commRisk!=null ? Number(commRisk.toFixed(1)) : null
  };
 }
 
