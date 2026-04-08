@@ -1,17 +1,8 @@
-## V504 — Scoring correction rebuild from V503
-- Fixed Mode 4 scoring drift where CPI values had been incorrectly derived from CSR/SPI logic instead of the adaptive MBS / CPI formula.
-- Restored Mode 4 CPI handling on results, Speedometer, and exports so CPI is based on the adaptive MBS path while SPI remains CSR-based.
-- Refreshed live/package version references to V504.
-
-## V503 — Narrow rebuild from approved V500 baseline
-- Started from the last user-approved working package (V500) as the master source.
-- Reduced Speedometer size and top placement so it no longer sits off-screen.
-- Expanded Results Summary overlay to full usable vertical height.
-- Clarified Mode 4 Adaptive MBS wording to state it is the average of the last 2 qualifying blocks within 250 ms.
-- Fixed Mode 4 CPI to derive from CSR using the same 0–100 mapping as SPI at the sustained target count.
-- Restored Mode 4 Speedometer metric windows for SPI (CSR + SBLP) and CPI (MBS).
-- Upgraded the Mode 4 cognitive performance table to real columns including bold SP-FS / SPI-CPI / CSR / Capability headings.
-- Upgraded the Response-Time graph to connect dots and show a legend.
+## V505 — Simple UI recovery from V500
+- Built from the V500 reference line with only narrow UI fixes.
+- Resized the Speedometer overlay so it no longer rides off the top of the screen.
+- Expanded the Results page overlay to full vertical viewport height with a full-height results text area.
+- Refreshed live/package version references to V505.
 
 ## V500 — Recovery baseline rebuild
 - Rebuilt from one verified editable source tree as a new recovery baseline.
