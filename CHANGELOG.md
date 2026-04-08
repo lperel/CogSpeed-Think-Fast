@@ -1,7 +1,7 @@
-## V528 — Mode 2 Speedometer completion wording fix
-- Fixed the stale Speedometer completion sentence for the renamed sustained mode.
-- Changed the completion text from `Mode 4 sustained MBS segment complete...` to `Mode 2 CogSpeed Sustained complete...`.
-- Kept scoring, timing, and mode logic unchanged.
+## V529 — Mode 2 sustained completion recognized as success
+- Updated `isTestSuccess()` to recognize the renamed completion phrase `Mode 2 CogSpeed Sustained complete...` as a success state.
+- One-change rebuild only; no scoring, timing, mode logic, or sustained-phase behavior changes.
+- Refreshed visible/package version references to V529.
 
 ## V527 — Extended sustained-phase analysis metrics
 

@@ -1,11 +1,11 @@
 // ═══════════════════════════════════════════════════
-// CogSpeed V528
+// CogSpeed V529
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V528";
+const APP_VERSION = "V529";
 
 // ═══════════════════════════════════════════════════
-// RECENT INTEGRATED PROGRAM CHANGES (through V528)
+// RECENT INTEGRATED PROGRAM CHANGES (through V529)
 // This block summarizes the major program updates that were merged into
 // the current main line so future edits do not have to reconstruct them
 // from one-off patch builds.
@@ -1839,7 +1839,7 @@ function handleTap(index,eventTimeStamp){
   logTrial({phase:"mode4_final",rt,outcome:ok?"correct":"wrong",responseIndex:index});
   const need=Math.max(1, Number(settings.mode4FinalTrialCount)||2);
   if(state.mode4FinalTrialsPresented>=need){
-   state.endReason=`Mode 2 CogSpeed Sustained complete. Presented ${Math.max(1, Number(settings.mode4SustainedTrialCount)||10)} sustained trial(s) at ${state.mode4SustainedPresentationRateMs!=null?Math.round(state.mode4SustainedPresentationRateMs):"—"} ms, CSR ${state.mode4SustainedCorrect||0}, and ${need} final self-paced trial(s).`;
+   state.endReason=`Mode 4 sustained MBS segment complete. Presented ${Math.max(1, Number(settings.mode4SustainedTrialCount)||10)} sustained trial(s) at ${state.mode4SustainedPresentationRateMs!=null?Math.round(state.mode4SustainedPresentationRateMs):"—"} ms, CSR ${state.mode4SustainedCorrect||0}, and ${need} final self-paced trial(s).`;
    finish(); return;
   }
   openTrial("mode4_final");
@@ -2735,6 +2735,7 @@ function isTestSuccess(resultOrReason){
  if(failHints.some(h=>lower.includes(h))) return false;
  if(lower.startsWith("convergent")) return true;
  if(lower.includes("mode 4 sustained mbs segment complete")) return true;
+ if(lower.includes("mode 2 cogspeed sustained complete")) return true;
  if(lower==="required responses reached") return true;
  if(lower==="required test time reached") return true;
  if(lower==="time limit reached"){
