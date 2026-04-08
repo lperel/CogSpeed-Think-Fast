@@ -1,3 +1,7 @@
+## V509 — Calibration total-wrong cleanup
+- Results Summary self-paced calibration sections now keep `Total wrong` limited to calibration wrongs so later paced errors do not appear inside the calibration block.
+- Refreshed live/package version references to V509.
+
 ## V508 — RT graph lines + legend
 - Added connected lines to the Response-Time Graph.
 - Added an on-chart legend for Correct, Wrong, Missed, and Mean RT.
