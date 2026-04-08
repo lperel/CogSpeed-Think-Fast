@@ -1,7 +1,8 @@
-## V529 — Mode 2 sustained completion recognized as success
-- Updated `isTestSuccess()` to recognize the renamed completion phrase `Mode 2 CogSpeed Sustained complete...` as a success state.
-- One-change rebuild only; no scoring, timing, mode logic, or sustained-phase behavior changes.
-- Refreshed visible/package version references to V529.
+## V530 — Admin mode-label consistency cleanup
+- Rolled forward the approved V528 wording fix so sustained completion text reads **Mode 2 CogSpeed Sustained complete...**
+- Rolled forward the approved V529 success-classifier fix so that renamed sustained completions are treated as **Success** instead of **Failed**.
+- Updated Admin-facing mode labels to stay consistent with the renamed display scheme: **Mode 1 CogSpeed Adaptive**, **Mode 2 CogSpeed Sustained**, **Mode 3 Self-Paced Calibration**, and **Mode 4 Fixed Machine-Paced**.
+- Cleaned nearby Admin field labels and related mode-name display strings for consistency only; no scoring, timing, or mode logic changes.
 
 ## V527 — Extended sustained-phase analysis metrics
 
