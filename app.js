@@ -1,11 +1,11 @@
 // ═══════════════════════════════════════════════════
-// CogSpeed V501
+// CogSpeed V503
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V501";
+const APP_VERSION = "V503";
 
 // ═══════════════════════════════════════════════════
-// RECENT INTEGRATED PROGRAM CHANGES (through V501)
+// RECENT INTEGRATED PROGRAM CHANGES (through V503)
 // This block summarizes the major program updates that were merged into
 // the current main line so future edits do not have to reconstruct them
 // from one-off patch builds.
@@ -472,7 +472,7 @@ function updateCPIDisplay(avg){
   return;
  }
  if(isMode4()){
-  const spi = state.mode4Triggered ? computeSPI(state.mode4SustainedCorrect, Number(settings.mode4SustainedTrialCount)||20) : null;
+  const spi = state.mode4Triggered ? computeSPI(state.mode4SustainedCorrect, Number(settings.mode4SustainedTrialCount)||DEFAULTS.mode4SustainedTrialCount||10) : null;
   cpiOut.textContent=spi!=null?Number(spi).toFixed(0):"—";
   return;
  }
@@ -1215,9 +1215,8 @@ function finish(){
   const testDurMs=state.testStartTime!=null?performance.now()-state.testStartTime:null;
   const mode4SblpMs = getMode4SblpMsFromState();
   const mode4SustainedTargetCount = Math.max(1, Number(settings.mode4SustainedTrialCount)||10);
-  const derivedMode4Counts = deriveMode4Counts({rtLog:[...state.rtLog]});
   const modeMetricMs = isMode2() ? (state.selfPacedRTs.length?mean(state.selfPacedRTs):null) : isMode3() ? (state.pacedRTs.length?mean(state.pacedRTs):(state.fixedPacedBaseline||null)) : isMode4() ? (state.mode4Triggered ? mode4SblpMs : avg2) : avg2;
-  const modeCPI = (isMode2()||isMode3()) ? null : isMode4() ? ((state.mode4AdaptiveMbsMs!=null || avg2!=null) ? computeCPI(state.mode4AdaptiveMbsMs!=null ? state.mode4AdaptiveMbsMs : avg2) : null) : (modeMetricMs!=null ? computeCPI(modeMetricMs) : cps);
+  const modeCPI = (isMode2()||isMode3()) ? null : isMode4() ? (state.mode4Triggered ? computeSPI(state.mode4SustainedCorrect, mode4SustainedTargetCount) : null) : (modeMetricMs!=null ? computeCPI(modeMetricMs) : cps);
   const timingQuality={
    avgFrameOvershootMs: state.frameOvershootLog.length ? Number(mean(state.frameOvershootLog).toFixed(2)) : null,
    maxFrameOvershootMs: state.frameOvershootLog.length ? Number(Math.max(...state.frameOvershootLog).toFixed(2)) : null,
@@ -1250,22 +1249,22 @@ function finish(){
    fixedPacedCorrect: state.fixedPacedCorrect, fixedPacedWrong: state.fixedPacedWrong,
    mode4Triggered: !!state.mode4Triggered,
    sustainedBlockLimitPerformanceMs: isMode4() && state.mode4Triggered ? mode4SblpMs : null,
-   sustainedProcessingIndex: isMode4() && state.mode4Triggered ? modeCPI : null,
-   correctSustainedResponses: isMode4() ? derivedMode4Counts.sustainedCorrect : null,
+   sustainedProcessingIndex: isMode4() && state.mode4Triggered ? computeSPI(derivedMode4Counts.sustainedCorrect, mode4SustainedTargetCount) : null,
+   correctSustainedResponses: isMode4() ? getMode4CsrCountFromState() : null,
    mode4AdaptiveMbsMs: state.mode4AdaptiveMbsMs,
    mode4MbsThresholdMs: Number(settings.mode4MbsThresholdMs)||250,
    mode4SustainedTargetCount: isMode4() ? Math.max(1, Number(settings.mode4SustainedTrialCount)||10) : null,
    mode4FinalTrialTargetCount: isMode4() ? Math.max(1, Number(settings.mode4FinalTrialCount)||2) : null,
    mode4SustainedPresentationRateMs: state.mode4SustainedPresentationRateMs,
    mode4SustainedPresented: state.mode4SustainedPresented,
-   mode4SustainedCorrect: derivedMode4Counts.sustainedCorrect,
-   mode4SustainedWrong: derivedMode4Counts.sustainedWrong,
-   mode4SustainedMissed: derivedMode4Counts.sustainedMissed,
+   mode4SustainedCorrect: state.mode4SustainedCorrect,
+   mode4SustainedWrong: state.mode4SustainedWrong,
+   mode4SustainedMissed: state.mode4SustainedMissed,
    mode4FinalTrialsPresented: state.mode4FinalTrialsPresented,
-   mode4FinalCorrect: derivedMode4Counts.finalCorrect,
-   mode4FinalWrong: derivedMode4Counts.finalWrong,
-   mode4FinalMeanRtMs: derivedMode4Counts.finalMeanRtMs,
-   mode4CpiFromCsr: isMode4() ? ((state.mode4AdaptiveMbsMs!=null || avg2!=null) ? computeCPI(state.mode4AdaptiveMbsMs!=null ? state.mode4AdaptiveMbsMs : avg2) : null) : null,
+   mode4FinalCorrect: state.mode4FinalCorrect,
+   mode4FinalWrong: state.mode4FinalWrong,
+   mode4FinalMeanRtMs: state.mode4FinalRTs.length?mean(state.mode4FinalRTs):null,
+   mode4CpiFromCsr: isMode4() && state.mode4Triggered ? computeSPI(state.mode4SustainedCorrect, mode4SustainedTargetCount) : null,
    mode4TimingSummary: isMode4() ? computeMode4TimingSummary({rtLog:[...state.rtLog], testDurationMs:testDurMs}) : null,
    rtLog:[...state.rtLog], endReason:state.endReason||"Run complete",
    time:new Date().toISOString(), geo:state.geo, timingQuality
@@ -2001,38 +2000,33 @@ function drawRTScatterChart(canvas,rtLog,blocks,meanRT,sdRT){
  if(!cfg) return;
  const {ctx,W,H} = cfg;
  ctx.clearRect(0,0,W,H); ctx.fillStyle="#081321"; ctx.fillRect(0,0,W,H);
- const PAD={top:20,right:20,bottom:30,left:48},cW=W-PAD.left-PAD.right,cH=H-PAD.top-PAD.bottom;
+ const PAD={top:34,right:20,bottom:30,left:48},cW=W-PAD.left-PAD.right,cH=H-PAD.top-PAD.bottom;
  const rts=rtLog.filter(e=>e.rt!=null).map(e=>e.rt);
  if(!rts.length) return;
  const maxRT=Math.ceil(Math.max(...rts,1000)/500)*500;
  const minRT=Math.max(0,Math.floor(Math.min(...rts)/500)*500);
  const n=rtLog.length;
  function xO(i){ return PAD.left+(i/(n-1||1))*cW; }
- // REVERSED: smaller RT → smaller y → higher on chart
  function yO(v){ return PAD.top+((v-minRT)/((maxRT-minRT)||1))*cH; }
  ctx.strokeStyle="rgba(79,111,153,0.2)"; ctx.lineWidth=1;
- // Gridlines and labels — larger ms at bottom, smaller at top
  [250,500,750,1000,1500,2000,2500,3000].filter(v=>v>=minRT&&v<=maxRT+100).forEach(v=>{
-  const y=yO(v);
-  ctx.beginPath(); ctx.moveTo(PAD.left,y); ctx.lineTo(PAD.left+cW,y); ctx.stroke();
-  ctx.fillStyle="#7fa0c0"; ctx.font="9px sans-serif"; ctx.textAlign="right";
-  ctx.fillText(`${v}ms`,PAD.left-3,y+3);
+  const y=yO(v); ctx.beginPath(); ctx.moveTo(PAD.left,y); ctx.lineTo(PAD.left+cW,y); ctx.stroke();
+  ctx.fillStyle="#7fa0c0"; ctx.font="9px sans-serif"; ctx.textAlign="right"; ctx.fillText(`${v}ms`,PAD.left-3,y+3);
  });
  const colorMap={correct:"#00ff88",wrong:"#ff4466",missed:"#888",paced:"#00ff88",paced_wrong:"#ff4466","paced_late_correct":"#ffff00","paced_late_wrong":"#ff8800",calibration:"#88aaff",recovery:"#ffaa00",terminal_recovery:"#ff88ff",mode4_sustained:"#57ff9f",mode4_sustained_wrong:"#ff6b81",mode4_final:"#7fd7ff"};
- rtLog.forEach((e,i)=>{
-  if(e.rt==null) return;
-  ctx.fillStyle=colorMap[e.phase]||colorMap[e.outcome]||"#aaa";
-  ctx.beginPath(); ctx.arc(xO(i),yO(e.rt),3,0,Math.PI*2); ctx.fill();
- });
+ ctx.strokeStyle="rgba(127,215,255,0.55)"; ctx.lineWidth=1.6; ctx.beginPath();
+ let started=false;
+ rtLog.forEach((e,i)=>{ if(e.rt==null){ started=false; return; } const x=xO(i), y=yO(e.rt); if(!started){ ctx.moveTo(x,y); started=true; } else ctx.lineTo(x,y); });
+ ctx.stroke();
+ rtLog.forEach((e,i)=>{ if(e.rt==null) return; ctx.fillStyle=colorMap[e.phase]||colorMap[e.outcome]||"#aaa"; ctx.beginPath(); ctx.arc(xO(i),yO(e.rt),3,0,Math.PI*2); ctx.fill(); });
  if(meanRT){ ctx.strokeStyle="rgba(127,215,255,0.6)"; ctx.lineWidth=1.5; ctx.setLineDash([4,3]); ctx.beginPath(); ctx.moveTo(PAD.left,yO(meanRT)); ctx.lineTo(PAD.left+cW,yO(meanRT)); ctx.stroke(); ctx.setLineDash([]); }
+ ctx.font="bold 10px sans-serif"; ctx.textAlign="left";
+ ctx.fillStyle="#7fd7ff"; ctx.fillText("━ Connected RT", PAD.left, 16);
+ ctx.fillStyle="#00ff88"; ctx.fillText("● Correct", PAD.left+108, 16);
+ ctx.fillStyle="#ff4466"; ctx.fillText("● Wrong", PAD.left+188, 16);
+ ctx.fillStyle="#888"; ctx.fillText("● Missed", PAD.left+262, 16);
+ ctx.fillStyle="#d7e7f8"; ctx.fillText("╌ Mean RT", PAD.left+344, 16);
  ctx.fillStyle="#7fa0c0"; ctx.font="9px sans-serif"; ctx.textAlign="center"; ctx.fillText("Trial →",PAD.left+cW/2,H-2);
-}
-
-function drawModeResultChart(canvas, result){
- const log=Array.isArray(result&&result.rtLog)?result.rtLog:[];
- const meanRT=result&&result.allResponseMeanMs!=null?result.allResponseMeanMs:(log.filter(e=>e&&e.rt!=null).length?mean(log.filter(e=>e&&e.rt!=null).map(e=>Number(e.rt))):null);
- const blocks=result&&Array.isArray(result.blocks)?result.blocks:[];
- drawRTScatterChart(canvas, log, blocks, meanRT, result&&result.allResponseSdMs!=null?result.allResponseSdMs:null);
 }
 
 // Mode 2 / Mode 3 result chart:
@@ -2648,17 +2642,37 @@ function isTestSuccess(r){
 
 function getCognitivePerformanceTableText(result){
  const mode=(result&&result.testMode)||"mode1";
+ const bold = s => String(s).split("").map(ch=>({
+  'A':'𝗔','B':'𝗕','C':'𝗖','D':'𝗗','E':'𝗘','F':'𝗙','G':'𝗚','H':'𝗛','I':'𝗜','J':'𝗝','K':'𝗞','L':'𝗟','M':'𝗠','N':'𝗡','O':'𝗢','P':'𝗣','Q':'𝗤','R':'𝗥','S':'𝗦','T':'𝗧','U':'𝗨','V':'𝗩','W':'𝗪','X':'𝗫','Y':'𝗬','Z':'𝗭',
+  '0':'𝟬','1':'𝟭','2':'𝟮','3':'𝟯','4':'𝟰','5':'𝟱','6':'𝟲','7':'𝟳','8':'𝟴','9':'𝟵','-':'-',' ':' '
+ }[ch.toUpperCase()]||ch)).join("");
+ const caps=(cpi)=> cpi>=90?"EXCEPTIONAL":cpi>=75?"VERY GOOD":cpi>=50?"ADEQUATE":cpi>=25?"SLOWING":"POOR";
  if(mode==="mode4"){
   const target=Math.max(1, Number(result.mode4SustainedTargetCount)||Number(settings.mode4SustainedTrialCount)||10);
+  const spi=Number(result.sustainedProcessingIndex);
+  const cpi=Number(result.mode4CpiFromCsr!=null?result.mode4CpiFromCsr:result.sustainedProcessingIndex);
   const csr=Number(result.correctSustainedResponses!=null?result.correctSustainedResponses:result.mode4SustainedCorrect);
-  const cpi=Number.isFinite(csr)?Math.max(0,Math.min(100,computeSPI(csr,target))):null;
-  const rows=[];
-  for(let n=target;n>=0;n--){
-   const rowCpi=Math.round((n/target)*100);
-   const mark=(csr===n)?"  ← YOUR SCORE":"";
-   rows.push(`CSR ${String(n).padStart(2," ")} | CPI ${String(rowCpi).padStart(3," ")}${mark}`);
-  }
-  return ["Mode 4 Cognitive Performance Table (CSR → CPI)",...rows].join("\n");
+  const score=Number.isFinite(spi)?spi:(Number.isFinite(cpi)?cpi:null);
+  const rows=[
+   {spfs:7, cpi:100},
+   {spfs:6, cpi:80},
+   {spfs:5, cpi:75},
+   {spfs:4, cpi:50},
+   {spfs:3, cpi:25},
+   {spfs:2, cpi:11},
+   {spfs:1, cpi:0},
+  ].map(r=>({...r, csr:(r.cpi/100)*target, capability:caps(r.cpi)}));
+  let nearestIdx=-1, bestDiff=Infinity;
+  rows.forEach((r,i)=>{ const d=Math.abs((score!=null?score:0)-r.cpi); if(d<bestDiff){ bestDiff=d; nearestIdx=i; } });
+  const header=`${bold('SP-FS').padEnd(8,' ')} | ${bold('CPI / SPI').padEnd(10,' ')} | ${bold('CSR').padEnd(6,' ')} | ${bold('Capability')}`;
+  const rule=`${'-'.repeat(8)}-+-${'-'.repeat(10)}-+-${'-'.repeat(6)}-+-${'-'.repeat(26)}`;
+  const lines=["Mode 4 Cognitive Performance Table (CSR ↔ CPI / SPI)", header, rule];
+  rows.forEach((r,i)=>{
+   const csrTxt=(Math.round(r.csr*10)/10).toFixed(r.csr%1?1:0).padEnd(6,' ');
+   const mark=i===nearestIdx?"  ← YOUR SCORE":"";
+   lines.push(`${String(r.spfs).padEnd(8,' ')} | ${String(r.cpi).padEnd(10,' ')} | ${csrTxt} | ${r.capability}${mark}`);
+  });
+  return lines.join("\n");
  }
  if(mode!=="mode1") return "Not used in this mode.";
  const cpi = result.cognitivePerformanceIndex!=null ? Number(result.cognitivePerformanceIndex) : null;
@@ -2681,12 +2695,13 @@ function getCognitivePerformanceTableText(result){
   let bestDiff = Infinity;
   rows.forEach((r,i)=>{ const d=Math.abs(cpi-r.cpi); if(d<bestDiff){bestDiff=d; nearestIdx=i;} });
  }
- const leftHeader = "Cognitive Performance Table";
- const rightHeader = "Cognitive Performance Capability *";
+ const leftHeader = `${bold('SP-FS').padEnd(8,' ')} | ${bold('CPI').padEnd(5,' ')} | ${bold('MS').padEnd(6,' ')}`;
+ const rightHeader = bold('Cognitive Performance Capability *');
  const leftRows = rows.map((r,i)=>{
-   const spfsLabel = (actualSpfs!=null && r.spfs===actualSpfs) ? `[SP-FS ${r.spfs}]` : `SP-FS ${r.spfs}`;
    const mark = i===nearestIdx ? "  ← CPI" : "";
-   return `${spfsLabel}: CPI ${r.cpi.toString().padStart(3," ")} | ${r.ms} ms${mark}`;
+   const row = `${String(r.spfs).padEnd(8,' ')} | ${String(r.cpi).padEnd(5,' ')} | ${String(r.ms).padEnd(6,' ')}`;
+   const actualMark = (actualSpfs!=null && r.spfs===actualSpfs) ? "  ← SP-FS" : "";
+   return `${row}${mark}${actualMark}`;
  });
  const rightRows = rows.map(r=>r.cap);
  const leftWidth = Math.max(leftHeader.length, ...leftRows.map(s=>s.length));
@@ -2724,11 +2739,11 @@ function getResultsMetricExplanationText(result){
  const usesMode4Metrics = mode==="mode4";
  return `${hr}
 RESULTS METRIC EXPLANATIONS
- MBS (Max Blocking Score) = Average in ms of last 2 blocks within 250 ms.${usesMode1Metrics||usesMode4Metrics?"":" Not used in this mode."}
+ MBS (Max Blocking Score) = average in ms of the last 2 qualifying blocks within 250 ms.${usesMode1Metrics||usesMode4Metrics?"":" Not used in this mode."}
  CPI (Cognitive Processing Index) = normalized 0 - 100 index based on MBS.${usesMode1Metrics||usesMode4Metrics?"":" Not used in this mode."}
  CSR (Correct Sustained Responses) = number of correct sustained responses in the Mode 4 sustained segment.${usesMode4Metrics?"":" Not used in this mode."}
- SBLP (Sustained Blocking Limit Performance) = average RT of correct sustained responses during Mode 4 sustained segment, but defined as 0 when CSR = 0.${usesMode4Metrics?"":" Not used in this mode."}
- SPI (Sustained Processing Index) = normalized 0 - 100 index based on CSR.${usesMode4Metrics?"":" Not used in this mode."}`;
+ SBLP (Sustained Blocking Limit Performance) = average RT of correct sustained responses during the Mode 4 sustained segment.${usesMode4Metrics?"":" Not used in this mode."}
+ SPI (Sustained Processing Index) = normalized 0 - 100 index based on CSR, using the same 0 - 100 scale shape as the Mode 4 CPI / CSR table.${usesMode4Metrics?"":" Not used in this mode."}`;
 }
 
 function buildSummary(result){
@@ -2820,19 +2835,19 @@ ${getResultsMetricExplanationText(result)}`;
  }
  if(result.testMode==="mode4"){
   const adaptiveMbs=result.mode4AdaptiveMbsMs!=null?result.mode4AdaptiveMbsMs:result.averageLast2BlockingScoresMs;
-  const spi=result.sustainedProcessingIndex;
-  const sblp=result.sustainedBlockLimitPerformanceMs;
   const derivedMode4=deriveMode4Counts(result);
   const csr=result.correctSustainedResponses!=null?result.correctSustainedResponses:derivedMode4.sustainedCorrect;
+  const spi=result.sustainedProcessingIndex!=null?Number(result.sustainedProcessingIndex):computeSPI(Number(csr)||0, Math.max(1, Number(result.mode4SustainedTargetCount)||10));
+  const sblp=result.sustainedBlockLimitPerformanceMs;
   const sustainedWrong=result.mode4SustainedWrong!=null?result.mode4SustainedWrong:derivedMode4.sustainedWrong;
   const sustainedMissed=result.mode4SustainedMissed!=null?result.mode4SustainedMissed:derivedMode4.sustainedMissed;
   const finalCorrect=result.mode4FinalCorrect!=null?result.mode4FinalCorrect:derivedMode4.finalCorrect;
   const finalWrong=result.mode4FinalWrong!=null?result.mode4FinalWrong:derivedMode4.finalWrong;
   const finalMeanRt=result.mode4FinalMeanRtMs!=null?result.mode4FinalMeanRtMs:derivedMode4.finalMeanRtMs;
   const timing=result.mode4TimingSummary||computeMode4TimingSummary(result);
-  const mode4Cpi=result.mode4CpiFromCsr!=null?result.mode4CpiFromCsr:(adaptiveMbs!=null?computeCPI(Number(adaptiveMbs)):null);
-  const avg2=result.averageLast2BlockingScoresMs;
+  const mode4Cpi=result.mode4CpiFromCsr!=null?Number(result.mode4CpiFromCsr):computeSPI(Number(csr)||0, Math.max(1, Number(result.mode4SustainedTargetCount)||10));
   const diffStr=formatBlockDifference(result.blockScoreDifferenceMs);
+  const adaptiveCounts=deriveAdaptiveCounts(result);
   el.textContent=
 `CogSpeed ${APP_VERSION} — ${modeName}
 ${hr}
@@ -2859,17 +2874,19 @@ SELF-PACED CALIBRATION
  Self-paced RT SD: ${result.selfPacedResponseSdMs!=null?result.selfPacedResponseSdMs.toFixed(1)+" ms":"—"}
 ${hr}
 ADAPTIVE MACHINE-PACED PHASE
- Adaptive MBS: ${adaptiveMbs!=null?adaptiveMbs.toFixed(1)+" ms":"—"}
- Average of last 2 blocks: ${avg2!=null?avg2.toFixed(1)+" ms":"—"}
+ Adaptive MBS (avg of last 2 qualifying blocks within 250 ms): ${adaptiveMbs!=null?adaptiveMbs.toFixed(1)+" ms":"—"}
  Block score difference: ${diffStr}
  Average adaptive paced RT: ${result.pacedResponseMeanMs!=null?result.pacedResponseMeanMs.toFixed(1)+" ms":"—"}
  Paced RT SD: ${result.pacedResponseSdMs!=null?result.pacedResponseSdMs.toFixed(1)+" ms":"—"}
  Blocks found: ${result.blockCount||0}
+ Adaptive paced correct: ${adaptiveCounts.correct}
+ Adaptive paced wrong:   ${adaptiveCounts.wrong}
+ Adaptive paced missed:  ${adaptiveCounts.missed}
 ${getMode4BlockListText(result)}
 ${hr}
 MODE 4 SUSTAINED MBS PHASE
  Triggered: ${result.mode4Triggered?"Yes":"No"}
- Sustained presentation rate: ${result.mode4SustainedPresentationRateMs!=null?result.mode4SustainedPresentationRateMs.toFixed(1)+" ms":"—"}
+ Sustained presentation rate (same MBS): ${result.mode4SustainedPresentationRateMs!=null?result.mode4SustainedPresentationRateMs.toFixed(1)+" ms":"—"}
  Sustained trials target / presented: ${result.mode4SustainedTargetCount!=null?result.mode4SustainedTargetCount:(Math.max(1, Number(settings.mode4SustainedTrialCount)||10))} / ${result.mode4SustainedPresented||0}
  CSR (Correct Sustained Responses): ${csr}
  Sustained wrong:   ${sustainedWrong}
@@ -3188,9 +3205,10 @@ function deriveMode4Counts(result){
   if(phase==="mode4_sustained"){
    if(outcome==="correct") out.sustainedCorrect += 1;
    else if(outcome==="wrong") out.sustainedWrong += 1;
+   else if(outcome==="missed" || outcome==="noresponse") out.sustainedMissed += 1;
   }else if(phase==="mode4_sustained_wrong"){
    out.sustainedWrong += 1;
-  }else if(phase==="mode4_sustained_missed" || outcome==="missed"){
+  }else if(phase==="mode4_sustained_missed"){
    out.sustainedMissed += 1;
   }else if(phase==="mode4_final"){
    if(outcome==="correct") out.finalCorrect += 1;
@@ -3198,10 +3216,27 @@ function deriveMode4Counts(result){
    if(e&&e.rt!=null && Number.isFinite(Number(e.rt))) out.finalRts.push(Number(e.rt));
   }
  });
+ const presented = Number(result&&result.mode4SustainedPresented);
+ if(Number.isFinite(presented) && presented>=0){
+  const implied = Math.max(0, presented - out.sustainedCorrect - out.sustainedWrong);
+  out.sustainedMissed = implied;
+ }
  out.finalMeanRtMs = out.finalRts.length ? mean(out.finalRts) : null;
  return out;
 }
-
+function deriveAdaptiveCounts(result){
+ const entries=Array.isArray(result&&result.rtLog)?result.rtLog:[];
+ const out={correct:0,wrong:0,missed:0};
+ entries.forEach(e=>{
+  const phase=String(e&&e.phase||"");
+  const outcome=String(e&&e.outcome||"").toLowerCase();
+  if(phase!=="paced") return;
+  if(outcome==="correct") out.correct += 1;
+  else if(outcome==="wrong") out.wrong += 1;
+  else if(outcome==="missed" || outcome==="noresponse") out.missed += 1;
+ });
+ return out;
+}
 function formatBlockDifference(diff){
  if(diff==null || !Number.isFinite(Number(diff))) return "—";
  const v=Number(diff);
@@ -3210,7 +3245,7 @@ function formatBlockDifference(diff){
 function getMode4BlockListText(result){
  const blocks=Array.isArray(result&&result.blocks)?result.blocks:[];
  if(!blocks.length) return " none";
- return blocks.map((b,i)=>` Block ${i+1}: ${Number(b).toFixed(0)} ms`).join("\n");
+ TEMPX
 }
 
 function openSummarySession(idx){
@@ -4773,11 +4808,11 @@ function renderSpfGaugeForResult(result){
 function getMode4SpeedometerMetric(result){
  const pref = String(state.speedometerMode4Metric||"spi").toLowerCase()==="cpi" ? "cpi" : "spi";
  const csr = Number(result && (result.correctSustainedResponses!=null ? result.correctSustainedResponses : result.mode4SustainedCorrect));
- const spi = Number(result && result.sustainedProcessingIndex);
+ const spi = Number(result && (result.sustainedProcessingIndex!=null ? result.sustainedProcessingIndex : computeSPI(csr, Math.max(1, Number(result && result.mode4SustainedTargetCount)||10))));
  const sblp = Number(result && result.sustainedBlockLimitPerformanceMs);
  const total = Math.max(1, Number(result && result.mode4SustainedTargetCount) || 10);
  const mbs = Number(result && (result.mode4AdaptiveMbsMs!=null ? result.mode4AdaptiveMbsMs : result.averageLast2BlockingScoresMs));
- const mode4Cpi = Number(result && (result.mode4CpiFromCsr!=null ? result.mode4CpiFromCsr : (Number.isFinite(mbs) ? computeCPI(mbs) : null)));
+ const mode4Cpi = Number(result && (result.mode4CpiFromCsr!=null ? result.mode4CpiFromCsr : computeSPI(csr,total)));
  if(pref==="cpi"){
   return {
    score:Number.isFinite(mode4Cpi)?Math.max(0,Math.min(100,mode4Cpi)):0,
@@ -4801,18 +4836,26 @@ function getMode4SpeedometerMetric(result){
 
 function updateSpeedometerMode4Boxes(boxes){
  const wrap=$("speedometerMode4Metrics");
- const l1=$("speedometerMetric1Label"), v1=$("speedometerMetric1Value");
- const l2=$("speedometerMetric2Label"), v2=$("speedometerMetric2Value");
+ const c1=$("speedometerMetric1Card"), l1=$("speedometerMetric1Label"), v1=$("speedometerMetric1Value");
+ const c2=$("speedometerMetric2Card"), l2=$("speedometerMetric2Label"), v2=$("speedometerMetric2Value");
  const c3=$("speedometerMetric3Card"), l3=$("speedometerMetric3Label"), v3=$("speedometerMetric3Value");
- if(!wrap||!l1||!v1||!l2||!v2||!c3||!l3||!v3) return;
+ if(!wrap||!c1||!l1||!v1||!c2||!l2||!v2||!c3||!l3||!v3) return;
  const items=Array.isArray(boxes)?boxes:[];
  wrap.classList.toggle("hidden", !items.length);
- const first=items[0]||{label:"—",value:"—"};
- const second=items[1]||{label:"—",value:"—"};
- l1.textContent=first.label; v1.textContent=first.value;
- l2.textContent=second.label; v2.textContent=second.value;
- if(items[2]){ c3.classList.remove("hidden"); l3.textContent=items[2].label; v3.textContent=items[2].value; }
- else { c3.classList.add("hidden"); l3.textContent="—"; v3.textContent="—"; }
+ const cards=[[c1,l1,v1],[c2,l2,v2],[c3,l3,v3]];
+ cards.forEach((triple,idx)=>{
+  const [card,labelEl,valEl]=triple;
+  const item=items[idx];
+  if(item){
+   card.classList.remove("hidden");
+   labelEl.textContent=item.label;
+   valEl.textContent=item.value;
+  }else{
+   card.classList.add("hidden");
+   labelEl.textContent="—";
+   valEl.textContent="—";
+  }
+ });
 }
 
 function renderSpeedometerOutcome(result, sessionIndex){
