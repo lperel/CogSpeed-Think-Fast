@@ -1,3 +1,14 @@
+## V582 — Intro one-shot fix + precise auto-advance
+- Set the Firebird intro close guard correctly by marking `introClosedOnce = true` inside `closeIntroOverlay()`, preventing re-arming after close.
+- Matched intro auto-advance timing to the GIF duration (~3340 ms).
+- Re-encoded the intro GIF with a finite loop count instead of infinite looping.
+
+## V581 — Firebird intro single-play fix
+- Re-saved the Firebird intro GIF without infinite looping so it plays once instead of repeating.
+- Tightened intro auto-advance to a one-shot timer based on the GIF duration.
+- Added a guard so the intro timer does not re-arm if the image load callback fires again.
+- Updated visible/package version references to V581.
+
 ## V580 — Firebird intro single-play timing fix
 - Adjusted Firebird intro timing to avoid the apparent second play before auto-advance.
 - Added a one-shot close guard so the intro cannot re-arm and re-close multiple times in the same opening.

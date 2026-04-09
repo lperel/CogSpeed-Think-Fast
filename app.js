@@ -2,7 +2,7 @@
 // CogSpeed ${APP_VERSION} source
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V580";
+const APP_VERSION = "V582";
 
 // ═══════════════════════════════════════════════════
 // RECENT INTEGRATED PROGRAM CHANGES (see CHANGELOG.md for current integrated history)
@@ -2907,7 +2907,7 @@ let introClosedOnce=false;
 function clearIntroAutoTimer(){ if(introAutoTimer){ clearTimeout(introAutoTimer); introAutoTimer=null; } }
 function armIntroAutoAdvance(){
  clearIntroAutoTimer();
- introAutoTimer=setTimeout(()=>closeIntroOverlay(), 3250);
+ introAutoTimer=setTimeout(()=>closeIntroOverlay(), 3340);
 }
 function openIntroOverlay(){
  const intro=$("introOverlay");
@@ -2924,13 +2924,14 @@ function closeIntroOverlay(){
  const subject=$("subjectOverlay");
  if(subject) subject.classList.remove("hidden");
  clearIntroAutoTimer();
+ introClosedOnce=true;
  setStatus("Ready");
  try{ updateStartPageLinks(); }catch(e){}
 }
 function initIntroAutoAdvance(){
  const introGif=$("introGif");
  const introOverlay=$("introOverlay");
- const restart=()=>{ if(!introClosedOnce && introOverlay && !introOverlay.classList.contains("hidden")) armIntroAutoAdvance(); };
+ const restart=()=>{ if(!introClosedOnce && !introAutoTimer && introOverlay && !introOverlay.classList.contains("hidden")) armIntroAutoAdvance(); };
  restart();
  if(introGif){
   introGif.addEventListener("load", restart);
