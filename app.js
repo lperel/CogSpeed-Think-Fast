@@ -2,7 +2,7 @@
 // CogSpeed V543
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V543";
+const APP_VERSION = "V545";
 
 // ═══════════════════════════════════════════════════
 // RECENT INTEGRATED PROGRAM CHANGES (through V527)
@@ -152,8 +152,8 @@ const DEFAULTS={
  initialPacedPercent:1.2,
  calibrationStopErrors:4,
  calibrationStopSlowMs:6000,
- cpiBestMs:800,
- cpiWorstMs:2400,
+ cpiBestMs:1000,
+ cpiWorstMs:2000,
  deviceBenchmarkEnabled:0,
  timeFormat:"12",
  lateResponseThresholdMs:600, // first response <600ms on next frame may belong to prior frame; a second >=600ms response belongs to current frame
@@ -204,8 +204,8 @@ const ADMIN_FIELDS=[
  ["qualifyingBlockGapMs","28. Mode 1 qualifying block max gap (ms, default 250)","number"],
  ["maxTrialCount","29. Mode 1 max paced trials (default 180)","number"],
  ["maxPacedWrong","30. Mode 1 max paced wrong before fail (default 20)","number"],
- ["cpiBestMs","31. Mode 1 CPI best ms anchor (default 800)","number"],
- ["cpiWorstMs","32. Mode 1 CPI worst ms anchor (default 2400)","number"],
+ ["cpiBestMs","31. Mode 1 CPI best ms anchor (default 1000)","number"],
+ ["cpiWorstMs","32. Mode 1 CPI worst ms anchor (default 2000)","number"],
 
  // 33-41. Modes 2-4, ordered by visible mode number and by use within each mode
  ["mode4MbsThresholdMs","33. Mode 2 MBS threshold to start sustained phase (ms, default 250)","number"],
@@ -488,7 +488,7 @@ function harvestActiveFrameTiming(actualAtMs){
 // ─── CPI ───
 // ─── CPI SCORE CALCULATION ────────────────────────────────────
 // Converts avg last 2 block durations (ms) to 0-100 CPI score.
-// Scale: cpiBestMs=800ms → CPI 100, cpiWorstMs=2400ms → CPI 0.
+// Scale: cpiBestMs=1000ms → CPI 100, cpiWorstMs=2000ms → CPI 0.
 // Source: Perelli (2026). Formula: (worst-ms)/(worst-best)*100
 // ──────────────────────────────────────────────────────────────
 function computeCPI(avgMs){
@@ -5750,7 +5750,7 @@ function drawPerformanceOverTimeChart(canvas,hist){
     return;
   }
 
-  const bestMs = Number(settings.cpiBestMs)||800;
+  const bestMs = Number(settings.cpiBestMs)||DEFAULTS.cpiBestMs;
   const worstMs = Number(settings.cpiWorstMs)||DEFAULTS.cpiWorstMs;
   const PAD = {top:72,right:76,bottom:n===1?82:112,left:126};
   const cW = W - PAD.left - PAD.right;

@@ -1,3 +1,15 @@
+## V545 — Mode 1 CPI anchor correction
+- Changed **Mode 1 CPI best ms anchor** default from **100** to **1000** in `DEFAULTS`, Admin text, and fallback references.
+- Kept **Mode 1 CPI worst ms anchor** at **2000**.
+- Updated the CPI scale comment and aligned the cognitive-performance table fallback to the new anchor through the shared settings/default path.
+- Updated visible/package version references to V545.
+
+## V544 — Mode 1 CPI anchor default update
+- Changed **Mode 1 CPI best ms anchor** default from **800** to **100** in `DEFAULTS`, Admin text, and fallback references.
+- Changed **Mode 1 CPI worst ms anchor** default from **2400** to **2000** in `DEFAULTS`, Admin text, and fallback references.
+- Updated the CPI scale comment and visible/package version references to V544.
+- No trial, pacing, response-handling, CPX, CDI, or other scoring-logic changes beyond the anchor defaults themselves.
+
 ## V543 — Controlled merge build on V541 baseline line
 - Repackaged the uploaded V542 CPX / FFS / divergence / disposition scoring branch as a controlled V543 build.
 - Preserved the later approved baseline-line defaults and UI features already present in the uploaded source, including CPI worst anchor = 2400, Mode 2 sustained trial count default = 20, and the V541 RT graph legend clarifications.
