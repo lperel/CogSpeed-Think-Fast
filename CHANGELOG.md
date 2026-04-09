@@ -1,3 +1,9 @@
+## V576 — Firebird intro smoothing pass
+- Rebuilt the Firebird intro GIF with more in-between frames for smoother motion.
+- Reduced the slow-feeling first hold and sped up the overall intro slightly.
+- Kept the exact original Firebird image as the final held frame on a padded canvas so the top is not cut off.
+- Shortened intro auto-advance timing to better match the faster GIF.
+
 ## V575 — Firebird intro smoothed and sped up
 - Rebuilt the Firebird intro GIF with more in-between frames for smoother motion.
 - Reduced the slow-feeling first hold and sped up overall playback.
