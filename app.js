@@ -2,7 +2,7 @@
 // CogSpeed V543
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V560";
+const APP_VERSION = "V561";
 
 // ═══════════════════════════════════════════════════
 // RECENT INTEGRATED PROGRAM CHANGES (through V527)
@@ -321,7 +321,7 @@ const state={
  mode4SustainedPresented:0, mode4SustainedCorrect:0, mode4SustainedWrong:0, mode4SustainedMissed:0,
  mode4SustainedCorrectRTs:[], mode4SustainedRollMeanLog:[], mode4PendingPriorMiss:null, mode4FinalTrialsPresented:0,
  mode4FinalCorrect:0, mode4FinalWrong:0, mode4FinalRTs:[],
- speedometerMode4Metric:"spi",
+ speedometerMode4Metric:"cpi",
  summaryVariant:"complete"
  // pendingPriorMiss:
  //   stores the immediately previous paced frame when it LOOKED like a miss at frame end,
@@ -4159,7 +4159,7 @@ function resetTrialStateOnly(){
  state.activeFrameTiming=null; state.frameOvershootLog=[]; state.rafIntervalLog=[];
  state.mode4Triggered=false; state.mode4AdaptiveMbsMs=null; state.mode4SustainedPresentationRateMs=null;
  state.mode4SustainedPresented=0; state.mode4SustainedCorrect=0; state.mode4SustainedWrong=0; state.mode4SustainedMissed=0;
- state.mode4SustainedCorrectRTs=[]; state.mode4FinalTrialsPresented=0; state.mode4FinalCorrect=0; state.mode4FinalWrong=0; state.mode4FinalRTs=[]; state.speedometerMode4Metric="spi";
+ state.mode4SustainedCorrectRTs=[]; state.mode4FinalTrialsPresented=0; state.mode4FinalCorrect=0; state.mode4FinalWrong=0; state.mode4FinalRTs=[]; state.speedometerMode4Metric="cpi";
  updateCPIDisplay(null); updateMetrics(); setProbeIdle(); setTestingQuiet(false);
 }
 function resetPretestEntryState(){
@@ -5448,7 +5448,7 @@ const _ssnext=$("summaryNextBtn"); if(_ssnext) _ssnext.onclick=()=>{ const s=$("
 const _spsel=$("speedometerSessionSelect"); if(_spsel) _spsel.onchange=()=>openSpeedometerSession(Number(_spsel.value));
 const _spprev=$("speedometerPrevBtn"); if(_spprev) _spprev.onclick=()=>{ const s=$("speedometerSessionSelect"); if(!s||!s.options.length) return; s.selectedIndex=Math.max(0, s.selectedIndex-1); if(s.onchange) s.onchange(); };
 const _spnext=$("speedometerNextBtn"); if(_spnext) _spnext.onclick=()=>{ const s=$("speedometerSessionSelect"); if(!s||!s.options.length) return; s.selectedIndex=Math.min(s.options.length-1, s.selectedIndex+1); if(s.onchange) s.onchange(); };
-const _spm4=$("speedometerMode4ToggleBtn"); if(_spm4) _spm4.onclick=()=>{ state.speedometerMode4Metric = String(state.speedometerMode4Metric||"spi").toLowerCase()==="cpi" ? "spi" : "cpi"; openSpeedometerSession(getSpeedometerSelectedIndex()); };
+const _spm4=$("speedometerMode4ToggleBtn"); if(_spm4) _spm4.onclick=()=>{ state.speedometerMode4Metric = String(state.speedometerMode4Metric||"cpi").toLowerCase()==="cpi" ? "spi" : "cpi"; openSpeedometerSession(getSpeedometerSelectedIndex()); };
 const _sact=$("speedometerActionOpenBtn"); if(_sact) _sact.onclick=()=>openSpeedometerMenuSelection();
 const _sactsel=$("speedometerActionSelect"); if(_sactsel) _sactsel.onchange=()=>openSpeedometerMenuSelection();
 const _sadmin=$("speedAdminBtn"); if(_sadmin) _sadmin.onclick=()=>openAdminFromOverlay("outcomeOverlay");
@@ -5622,7 +5622,7 @@ function renderSpfGaugeForResult(result){
 }
 
 function getMode4SpeedometerMetric(result){
- const pref = String(state.speedometerMode4Metric||"spi").toLowerCase()==="cpi" ? "cpi" : "spi";
+ const pref = String(state.speedometerMode4Metric||"cpi").toLowerCase()==="cpi" ? "cpi" : "spi";
  const csr = Number(result && (result.correctSustainedResponses!=null ? result.correctSustainedResponses : result.mode4SustainedCorrect));
  const spi = Number(result && result.sustainedProcessingIndex);
  const sblp = Number(result && result.sustainedBlockLimitPerformanceMs);
@@ -5699,7 +5699,7 @@ function renderSpeedometerOutcome(result, sessionIndex){
  if(mode4Toggle){
   if(isMode4Speedometer){
    mode4Toggle.classList.remove("hidden");
-   mode4Toggle.textContent = String(state.speedometerMode4Metric||"spi").toLowerCase()==="cpi" ? "Show SPI / CSR / SBLP" : "Show CPI / MBS";
+   mode4Toggle.textContent = String(state.speedometerMode4Metric||"cpi").toLowerCase()==="cpi" ? "Show SPI / CSR / SBLP" : "Show CPI / MBS";
   }else{
    mode4Toggle.classList.add("hidden");
   }

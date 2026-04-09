@@ -1,3 +1,8 @@
+## V561 — Mode 2 Speedometer defaults to CPI/MBS
+- In Mode 2 CogSpeed Sustained, the Speedometer now opens with CPI/MBS as the initial display instead of SPI/CSR/SBLP.
+- Updated the default speedometer metric preference and reset path so returning to this view starts on CPI/MBS.
+- Updated version references to V561.
+
 ## V560 — Speedometer layout cleanup
 - Reduced the Mode 2 Speedometer toggle button (**Show CPI / MBS** / **Show SPI / CSR / SBLP**) to the same visual size as the **Back to Start** button.
 - Placed the toggle button and **Back to Start** side by side on the Speedometer page.
