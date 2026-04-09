@@ -1,3 +1,8 @@
+## V574 — CogSpeed Thinking FX restored
+- Restored the CogSpeed Thinking overlay effects by starting the smoke/sparks canvas FX when the Thinking box is shown.
+- Preserved the 2-second Thinking delay before the outcome/speedometer page.
+- Updated visible/package version references to V574.
+
 ## V573 — Package drift cleanup for update reliability
 - Fixed stale script tag in `index.html` so the page now requests `app.js?v=572`, matching the current release and service-worker cache key.
 - Fixed stale resting `statusLine` text in `index.html` from `CogSpeed V552` to `CogSpeed V573`.

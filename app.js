@@ -2,7 +2,7 @@
 // CogSpeed V568
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V573";
+const APP_VERSION = "V574";
 
 // ═══════════════════════════════════════════════════
 // RECENT INTEGRATED PROGRAM CHANGES (see CHANGELOG.md for current integrated history)
@@ -4328,6 +4328,7 @@ function showResultsPage(resultOverride){
   if(testScreen) testScreen.classList.add("hidden");
   if(outcome) outcome.classList.add("hidden");
   if(thinking) thinking.classList.remove("hidden");
+  try{ startFX(); }catch(e){ console.warn("startFX failed", e); }
   setFlowDiagnostic("THINKING", `CogSpeed Thinking — ${ctx.result && ctx.result.endReason ? ctx.result.endReason : "Run complete"}`);
   setTimeout(()=>{
    try{
