@@ -1,3 +1,19 @@
+## V571 — Speedometer dropdown cleanup + Ranked Averages
+- Added **Ranked Averages** to the Speedometer dropdown menu.
+- Removed the unnecessary **Open** button; menu selections now open directly on change.
+- Kept the existing reset behavior so returning to Speedometer resets the menu to its placeholder.
+- Updated visible/package version references to V571.
+
+## V570 — Firebird intro sped up
+- Reduced the long initial hold on the Firebird intro GIF so the first GMM frame no longer lingers.
+- Increased overall intro playback speed slightly.
+- Shortened the auto-advance timing so the intro moves to the Start page sooner after playback.
+
+## V569 — Firebird intro auto-advance reliability + faster playback
+- Reduced Firebird intro playback time.
+- Added more reliable intro auto-advance timer startup on load/pageshow so the app moves to the Start page automatically.
+- No trial, pacing, scoring, or response-handling changes.
+
 ## V568 — Intro auto-advance fix + backup integrity metadata
 - Fixed the Firebird intro auto-advance by moving the intro timer wiring out of the trial-opening path and initializing it on page load.
 - Intro overlay now closes to the Start page automatically when the GIF finishes timing.

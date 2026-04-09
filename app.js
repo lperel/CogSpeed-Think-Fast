@@ -2,7 +2,7 @@
 // CogSpeed V568
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V568";
+const APP_VERSION = "V571";
 
 // ═══════════════════════════════════════════════════
 // RECENT INTEGRATED PROGRAM CHANGES (through V527)
@@ -2906,7 +2906,7 @@ let introAutoTimer=null;
 function clearIntroAutoTimer(){ if(introAutoTimer){ clearTimeout(introAutoTimer); introAutoTimer=null; } }
 function armIntroAutoAdvance(){
  clearIntroAutoTimer();
- introAutoTimer=setTimeout(()=>closeIntroOverlay(), 7600);
+ introAutoTimer=setTimeout(()=>closeIntroOverlay(), 2800);
 }
 function openIntroOverlay(){
  const intro=$("introOverlay");
@@ -2928,12 +2928,15 @@ function closeIntroOverlay(){
 function initIntroAutoAdvance(){
  const introGif=$("introGif");
  const introOverlay=$("introOverlay");
+ const restart=()=>{ if(introOverlay && !introOverlay.classList.contains("hidden")) armIntroAutoAdvance(); };
+ restart();
  if(introGif){
-  const restart=()=>{ if(introOverlay && !introOverlay.classList.contains("hidden")) armIntroAutoAdvance(); };
   introGif.addEventListener("load", restart);
-  restart();
+  introGif.addEventListener("error", restart);
+  try{ if(introGif.complete) restart(); }catch(e){}
  }
  if(introOverlay) introOverlay.addEventListener("click", (e)=>{ if(e.target && e.target.id==="introOverlay") closeIntroOverlay(); });
+ try{ window.addEventListener('pageshow', restart, {once:true}); }catch(e){}
 }
 
 function ensureSafeForLocalDataAction(actionLabel){
@@ -5653,7 +5656,6 @@ const _spsel=$("speedometerSessionSelect"); if(_spsel) _spsel.onchange=()=>openS
 const _spprev=$("speedometerPrevBtn"); if(_spprev) _spprev.onclick=()=>{ const s=$("speedometerSessionSelect"); if(!s||!s.options.length) return; s.selectedIndex=Math.max(0, s.selectedIndex-1); if(s.onchange) s.onchange(); };
 const _spnext=$("speedometerNextBtn"); if(_spnext) _spnext.onclick=()=>{ const s=$("speedometerSessionSelect"); if(!s||!s.options.length) return; s.selectedIndex=Math.min(s.options.length-1, s.selectedIndex+1); if(s.onchange) s.onchange(); };
 const _spm4=$("speedometerMode4ToggleBtn"); if(_spm4) _spm4.onclick=()=>{ state.speedometerMode4Metric = String(state.speedometerMode4Metric||"cpi").toLowerCase()==="cpi" ? "spi" : "cpi"; openSpeedometerSession(getSpeedometerSelectedIndex()); };
-const _sact=$("speedometerActionOpenBtn"); if(_sact) _sact.onclick=()=>openSpeedometerMenuSelection();
 const _sactsel=$("speedometerActionSelect"); if(_sactsel) _sactsel.onchange=()=>openSpeedometerMenuSelection();
 const _sadmin=$("speedAdminBtn"); if(_sadmin) _sadmin.onclick=()=>openAdminFromOverlay("outcomeOverlay");
 $("summaryAdminBtn").onclick=()=>openAdminFromOverlay("summaryOverlay");
@@ -5969,6 +5971,7 @@ function openSpeedometerMenuSelection(){
  if(choice==="perf_time"){ $("outcomeOverlay").classList.add("hidden"); openPerformanceOverTimePage(); return; }
  if(choice==="response_graph"){ openResponseGraphPage(false, idx); return; }
  if(choice==="trial_log"){ $("outcomeOverlay").classList.add("hidden"); buildTrialLog(idx); $("trialLogOverlay").classList.remove("hidden"); return; }
+ if(choice==="ranked"){ $("outcomeOverlay").classList.add("hidden"); buildRankedSummary(state.history[idx]); $("rankedOverlay").classList.remove("hidden"); return; }
  if(choice==="rate_rt"){ $("outcomeOverlay").classList.add("hidden"); buildRateRtOverlay(idx); $("rateRtOverlay").classList.remove("hidden"); return; }
  if(choice==="email"){ openEmailSelectPage(); return; }
 }
