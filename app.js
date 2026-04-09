@@ -2,10 +2,10 @@
 // CogSpeed V568
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V571";
+const APP_VERSION = "V572";
 
 // ═══════════════════════════════════════════════════
-// RECENT INTEGRATED PROGRAM CHANGES (through V527)
+// RECENT INTEGRATED PROGRAM CHANGES (see CHANGELOG.md for current integrated history)
 // This block summarizes the major program updates that were merged into
 // the current main line so future edits do not have to reconstruct them
 // from one-off patch builds.
