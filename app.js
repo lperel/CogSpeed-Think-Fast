@@ -1,8 +1,8 @@
 // ═══════════════════════════════════════════════════
-// CogSpeed ${APP_VERSION} source
+// CogSpeed source
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V582";
+const APP_VERSION = "V584";
 
 // ═══════════════════════════════════════════════════
 // RECENT INTEGRATED PROGRAM CHANGES (see CHANGELOG.md for current integrated history)

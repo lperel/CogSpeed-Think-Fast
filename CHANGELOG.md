@@ -1,3 +1,16 @@
+## V584 — Consolidated rebuild from V574 official baseline
+- Rebased current CogSpeed work on the approved V574 official baseline and carried forward the accepted post-V574 fixes and UI changes into one clean package.
+- Preserved the restored CogSpeed Thinking box with turning gears, sparks, smoke, and the 2-second delay.
+- Preserved Speedometer menu cleanup, Results Summary / Results - Complete / Ranked Averages entries, and direct-open dropdown behavior without the old Open button.
+- Preserved Mode 2 sustained scoring/admin changes, including sustained start factor, anti-spoof defaults, late-response rescue, and the actual MBS-based CPI table behavior.
+- Preserved update-banner local-backup protections, including schemaVersion and payload hash verification.
+- Preserved Firebird intro single-run logic and intro asset caching from the later branch while keeping V574 as the official source baseline for this consolidated rebuild.
+- Updated all visible/package version references to V584.
+
+## V583 — source header banner placeholder fixed
+- Replaced the stale literal comment `// CogSpeed ${APP_VERSION} source` with a static-safe header comment so the source banner no longer shows an unexpanded placeholder.
+- Updated package/version references to V583.
+
 ## V582 — Intro one-shot fix + precise auto-advance
 - Set the Firebird intro close guard correctly by marking `introClosedOnce = true` inside `closeIntroOverlay()`, preventing re-arming after close.
 - Matched intro auto-advance timing to the GIF duration (~3340 ms).
