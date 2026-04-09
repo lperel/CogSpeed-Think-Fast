@@ -1,3 +1,8 @@
+## V564 — Update banner shows target version + one-line change summary
+- The update-available banner now shows the current version and the newly available version, for example: **V562 → V564 available**.
+- Banner also shows a one-line changelog snippet for the newly available version when not in an active test.
+- Save Local Data / Restore Local Data flow remains unchanged.
+
 
 ## V562 — Update-available banner + local backup/restore safeguard
 - Added a safe update banner tied to the service-worker waiting state that appears only when no active test is running.
