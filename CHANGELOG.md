@@ -1,3 +1,13 @@
+
+## V562 — Update-available banner + local backup/restore safeguard
+- Added a safe update banner tied to the service-worker waiting state that appears only when no active test is running.
+- Banner text: **Update available. Save local data before refresh.**
+- Added **Save Local Data** JSON export using the current CogSpeed local profile, settings, and history.
+- Added **Restore Local Data** JSON import with validation and overwrite confirmation.
+- Added a post-refresh restore offer so users can restore backup data if a version update cleared local data.
+- Added service-worker `SKIP_WAITING` message handling for the banner refresh path.
+- No trial, pacing, scoring, or response-handling changes.
+
 ## V561 — Mode 2 Speedometer defaults to CPI/MBS
 - In Mode 2 CogSpeed Sustained, the Speedometer now opens with CPI/MBS as the initial display instead of SPI/CSR/SBLP.
 - Updated the default speedometer metric preference and reset path so returning to this view starts on CPI/MBS.

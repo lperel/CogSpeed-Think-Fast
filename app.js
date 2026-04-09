@@ -2,7 +2,7 @@
 // CogSpeed V543
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V561";
+const APP_VERSION = "V562";
 
 // ═══════════════════════════════════════════════════
 // RECENT INTEGRATED PROGRAM CHANGES (through V527)
@@ -879,6 +879,7 @@ function darken(hex,amt){ const n=parseInt(hex.slice(1),16),r=Math.max(0,(n>>16)
 function renderTrial(trial){
  const ts=$("testScreen"); if(ts) ts.classList.remove("hidden");
  applyPhaseBackground();
+ try{ refreshUpdateBannerVisibility(); }catch(e){}
  stimGrid.innerHTML="";
  for(let i=0;i<6;i++){
   const cell=document.createElement("div");
@@ -911,6 +912,7 @@ function flashBtn(index,ok){
 }
 function setProbeIdle(){
  applyPhaseBackground();
+ try{ refreshUpdateBannerVisibility(); }catch(e){}
  probeCell.classList.add("idle");
  probeInner.innerHTML="";
  stimGrid.innerHTML="";
@@ -2891,6 +2893,147 @@ function hideAllOverlays(){
 function showOnly(id){
  const target=$(id);
  getOverlayElements().forEach(el=>el.classList[el===target?"remove":"add"]("hidden"));
+ try{ refreshUpdateBannerVisibility(); }catch(e){}
+}
+
+
+function hasActiveTestInProgress(){
+ return !["idle","finished"].includes(String(state.phase||"idle"));
+}
+
+function ensureSafeForLocalDataAction(actionLabel){
+ if(hasActiveTestInProgress()){
+  setStatus(`${actionLabel} is unavailable during an active test.`);
+  return false;
+ }
+ return true;
+}
+
+function getCogSpeedBackupPayload(){
+ const readJson = (key, fallback)=>{
+  try{
+   const raw = localStorage.getItem(key);
+   return raw!=null ? JSON.parse(raw) : fallback;
+  }catch(e){
+   return fallback;
+  }
+ };
+ return {
+  magic: "CogSpeedBackup",
+  formatVersion: 1,
+  appVersion: APP_VERSION,
+  storagePrefix: STORAGE_PREFIX,
+  exportedAt: new Date().toISOString(),
+  payload: {
+   settings: readJson(`${STORAGE_PREFIX}_settings`, null),
+   profile: readJson(`${STORAGE_PREFIX}_profile`, null),
+   history: readJson(`${STORAGE_PREFIX}_history`, []),
+  }
+ };
+}
+
+function downloadCogSpeedLocalDataBackup(){
+ if(!ensureSafeForLocalDataAction("Save Local Data")) return;
+ const backup = getCogSpeedBackupPayload();
+ const stamp = backup.exportedAt.slice(0,10);
+ const blob = new Blob([JSON.stringify(backup, null, 2)], {type:'application/json'});
+ const a=document.createElement('a');
+ a.href=URL.createObjectURL(blob);
+ a.download=`cogspeed-backup-${APP_VERSION}-${stamp}.json`;
+ document.body.appendChild(a);
+ a.click();
+ setTimeout(()=>{ try{ URL.revokeObjectURL(a.href); }catch(e){} try{ a.remove(); }catch(e){} }, 250);
+ setStatus(`Saved local data backup (${a.download}).`);
+}
+
+function isValidCogSpeedBackupFile(obj){
+ return !!(obj && obj.magic==="CogSpeedBackup" && Number(obj.formatVersion)>=1 && obj.payload && Array.isArray(obj.payload.history));
+}
+
+function applyCogSpeedBackupFile(obj){
+ if(!ensureSafeForLocalDataAction("Restore Local Data")) return false;
+ if(!isValidCogSpeedBackupFile(obj)){
+  alert("That file is not a valid CogSpeed backup.");
+  return false;
+ }
+ const hasExisting = !!(localStorage.getItem(`${STORAGE_PREFIX}_history`) || localStorage.getItem(`${STORAGE_PREFIX}_profile`) || localStorage.getItem(`${STORAGE_PREFIX}_settings`));
+ if(hasExisting && !confirm("Restore local data and overwrite current saved CogSpeed data on this device?")) return false;
+ try{
+  localStorage.setItem(`${STORAGE_PREFIX}_settings`, JSON.stringify(obj.payload.settings || {}));
+  if(obj.payload.profile!=null) localStorage.setItem(`${STORAGE_PREFIX}_profile`, JSON.stringify(obj.payload.profile));
+  else localStorage.removeItem(`${STORAGE_PREFIX}_profile`);
+  localStorage.setItem(`${STORAGE_PREFIX}_history`, JSON.stringify(Array.isArray(obj.payload.history) ? obj.payload.history : []));
+  localStorage.setItem("cogspeed_version", `${STORAGE_PREFIX}_profileguard`);
+  sessionStorage.removeItem('cogspeed_restore_offer');
+  alert("CogSpeed local data restored. The page will now reload.");
+  window.location.reload();
+  return true;
+ }catch(err){
+  console.error('restore backup failed', err);
+  alert(`Could not restore backup: ${err && err.message ? err.message : err}`);
+  return false;
+ }
+}
+
+let cogspeedWaitingRegistration = null;
+let cogspeedUpdateBannerDismissed = false;
+
+function ensureUpdateBanner(){
+ if($("updateBanner")) return;
+ const wrap=document.createElement('div');
+ wrap.id='updateBanner';
+ wrap.className='hidden';
+ wrap.style.cssText='position:fixed;left:50%;transform:translateX(-50%);top:max(8px,env(safe-area-inset-top,8px));z-index:1200;width:min(96vw,900px);background:linear-gradient(180deg,#13315b,#0b1830);border:1px solid var(--accent);border-radius:16px;box-shadow:0 14px 34px rgba(0,0,0,.35);padding:12px 14px;color:var(--text)';
+ wrap.innerHTML=`<div style="display:flex;flex-wrap:wrap;align-items:center;gap:10px;justify-content:space-between"><div id="updateBannerText" style="font-size:15px;font-weight:700;color:var(--text)">Update available. Save local data before refresh.</div><div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end"><button class="ctrl-btn" id="updateBannerSaveBtn" style="width:auto;flex:0 0 auto;padding:10px 14px;min-height:40px;font-size:14px">Save Local Data</button><button class="ctrl-btn" id="updateBannerRestoreBtn" style="width:auto;flex:0 0 auto;padding:10px 14px;min-height:40px;font-size:14px">Restore Local Data</button><button class="ctrl-btn" id="updateBannerRefreshBtn" style="width:auto;flex:0 0 auto;padding:10px 14px;min-height:40px;font-size:14px">Refresh Now</button><button class="ctrl-btn" id="updateBannerLaterBtn" style="width:auto;flex:0 0 auto;padding:10px 14px;min-height:40px;font-size:14px">Later</button></div></div><input id="updateBannerRestoreInput" type="file" accept=".json,application/json" style="display:none"/>`;
+ document.body.appendChild(wrap);
+ $("updateBannerSaveBtn").onclick=()=>downloadCogSpeedLocalDataBackup();
+ $("updateBannerRestoreBtn").onclick=()=>{ if(!ensureSafeForLocalDataAction("Restore Local Data")) return; $("updateBannerRestoreInput").value=''; $("updateBannerRestoreInput").click(); };
+ $("updateBannerRefreshBtn").onclick=()=>{
+  if(!ensureSafeForLocalDataAction("Refresh")) return;
+  sessionStorage.setItem('cogspeed_restore_offer','1');
+  try{
+   if(cogspeedWaitingRegistration && cogspeedWaitingRegistration.waiting){
+    cogspeedWaitingRegistration.waiting.postMessage({type:'SKIP_WAITING'});
+   }
+  }catch(e){}
+  setTimeout(()=>window.location.reload(),150);
+ };
+ $("updateBannerLaterBtn").onclick=()=>{ cogspeedUpdateBannerDismissed=true; refreshUpdateBannerVisibility(); };
+ $("updateBannerRestoreInput").addEventListener('change', async (evt)=>{
+  const file = evt.target.files && evt.target.files[0];
+  if(!file) return;
+  try{
+   const text = await file.text();
+   const parsed = JSON.parse(text);
+   applyCogSpeedBackupFile(parsed);
+  }catch(err){
+   alert('Could not read backup file.');
+  }finally{
+   evt.target.value='';
+  }
+ });
+}
+
+function refreshUpdateBannerVisibility(){
+ ensureUpdateBanner();
+ const banner=$("updateBanner");
+ if(!banner) return;
+ const hasRestoreOffer = sessionStorage.getItem('cogspeed_restore_offer')==='1';
+ const show = !hasActiveTestInProgress() && !cogspeedUpdateBannerDismissed && (!!cogspeedWaitingRegistration || hasRestoreOffer);
+ banner.classList.toggle('hidden', !show);
+ if(!show) return;
+ const text=$("updateBannerText");
+ const refreshBtn=$("updateBannerRefreshBtn");
+ const laterBtn=$("updateBannerLaterBtn");
+ if(cogspeedWaitingRegistration){
+  text.textContent = 'Update available. Save local data before refresh.';
+  refreshBtn.style.display='';
+  laterBtn.textContent='Later';
+ }else{
+  text.textContent = 'If data are missing after update, restore local data.';
+  refreshBtn.style.display='none';
+  laterBtn.textContent='Dismiss';
+ }
 }
 
 // ─── START PAGE SPEEDOMETER LINK ─────────────────────────────
@@ -5490,9 +5633,33 @@ updateMetrics();
 
 if ("serviceWorker" in navigator) {
  window.addEventListener("load", async () => {
+  ensureUpdateBanner();
   try{
-   await navigator.serviceWorker.register(`./sw.js?v=${RELEASE}`);
+   const reg = await navigator.serviceWorker.register(`./sw.js?v=${RELEASE}`);
    console.log(`V${RELEASE} service worker registered.`);
+   const captureWaiting = ()=>{
+    if(reg.waiting){
+     cogspeedWaitingRegistration = reg;
+     cogspeedUpdateBannerDismissed = false;
+     refreshUpdateBannerVisibility();
+    }
+   };
+   captureWaiting();
+   reg.addEventListener('updatefound', ()=>{
+    const installing = reg.installing;
+    if(!installing) return;
+    installing.addEventListener('statechange', ()=>{
+     if(installing.state === 'installed' && navigator.serviceWorker.controller){
+      cogspeedWaitingRegistration = reg;
+      cogspeedUpdateBannerDismissed = false;
+      refreshUpdateBannerVisibility();
+     }
+    });
+   });
+   navigator.serviceWorker.addEventListener('controllerchange', ()=>{
+    cogspeedWaitingRegistration = null;
+    refreshUpdateBannerVisibility();
+   });
   }catch(err){
    console.warn("Service worker registration failed:", err);
   }
@@ -5501,6 +5668,7 @@ if ("serviceWorker" in navigator) {
   try{ wireEmailDraftAction(); }catch(err){}
   try{ syncEditableEmailRecipient(); }catch(err){}
   try{ wireResponseGraphControls(); }catch(err){}
+  try{ refreshUpdateBannerVisibility(); }catch(err){}
  });
 }
 

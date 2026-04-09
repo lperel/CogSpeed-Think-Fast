@@ -1,4 +1,4 @@
-const RELEASE = "561";
+const RELEASE = "562";
 const CACHE_NAME = `cogspeed-v${RELEASE}-shell-v${RELEASE}`;
 const APP_SHELL = [
   "./",
@@ -21,6 +21,13 @@ const APP_SHELL = [
   "./gear5.png",
   "./gear6.png"
 ];
+
+
+self.addEventListener("message", event => {
+  if (event.data && event.data.type === "SKIP_WAITING") {
+    self.skipWaiting();
+  }
+});
 
 self.addEventListener("install", event => {
   event.waitUntil(
