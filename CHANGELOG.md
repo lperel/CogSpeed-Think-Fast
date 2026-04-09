@@ -1,3 +1,10 @@
+## V579 — Firebird intro: one smooth fold and 2-second final hold
+- Rebuilt the Firebird intro so the stylized G M M starts side by side and folds inward once into the unified final Firebird.
+- Removed the extra secondary spin feel by using a single eased motion into the final logo.
+- Kept the exact original Firebird image as the final held frame.
+- Extended the final logo hold to about 2 seconds before auto-advance.
+- Retimed intro auto-advance to match the new animation length.
+
 ## V578 — Firebird intro rebuilt
 - Rebuilt the Firebird intro to start with stylized G M M letters side by side, then smoothly fold/spin into the exact original Firebird logo.
 - Added many more in-between frames, reduced the initial hold, and increased playback speed for smoother motion.
