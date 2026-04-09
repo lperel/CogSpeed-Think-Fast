@@ -1,10 +1,8 @@
 // ═══════════════════════════════════════════════════
-// CogSpeed build banner mirrors APP_VERSION below
+// CogSpeed V543
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V564";
-const SOURCE_HEADER_BANNER = `CogSpeed ${APP_VERSION}`;
-
+const APP_VERSION = "V566";
 
 // ═══════════════════════════════════════════════════
 // RECENT INTEGRATED PROGRAM CHANGES (through V527)
@@ -1443,6 +1441,30 @@ function openTrial(kind){
 
  renderTrial(state.current);
  updateMetrics();
+
+let introAutoTimer=null;
+function clearIntroAutoTimer(){ if(introAutoTimer){ clearTimeout(introAutoTimer); introAutoTimer=null; } }
+function armIntroAutoAdvance(){
+ clearIntroAutoTimer();
+ introAutoTimer=setTimeout(()=>closeIntroOverlay(), 9300);
+}
+function openIntroOverlay(){
+ showOnly("introOverlay");
+ setStatus("Ready");
+ armIntroAutoAdvance();
+}
+function closeIntroOverlay(){
+ clearIntroAutoTimer();
+ showOnly("subjectOverlay");
+ setStatus("Ready");
+ try{ updateStartPageLinks(); }catch(e){}
+}
+const _introGif=$("introGif"); if(_introGif){
+ _introGif.addEventListener("load", ()=>{ if(!$('introOverlay')?.classList.contains('hidden')) armIntroAutoAdvance(); });
+}
+const _introOverlay=$("introOverlay"); if(_introOverlay) _introOverlay.addEventListener("click", (e)=>{ if(e.target && e.target.id==="introOverlay") closeIntroOverlay(); });
+if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', ()=>{ if(!$('introOverlay')?.classList.contains('hidden')) armIntroAutoAdvance(); });
+else { if(!$('introOverlay')?.classList.contains('hidden')) armIntroAutoAdvance(); }
  try{ setFlowDiagnostic("TRIAL", `${String(kind||"trial").toUpperCase()} — awaiting response`); }catch(e){}
 
  if(kind==="calibration"){
@@ -3016,51 +3038,6 @@ function ensureUpdateBanner(){
  });
 }
 
-let cogspeedAvailableUpdateInfo = null;
-
-async function fetchCogSpeedAvailableUpdateInfo(){
- try{
-  const stamp = Date.now();
-  const [swResp, clResp] = await Promise.all([
-   fetch(`./sw.js?check=${stamp}`, {cache:'no-store'}),
-   fetch(`./CHANGELOG.md?check=${stamp}`, {cache:'no-store'})
-  ]);
-  const swText = swResp && swResp.ok ? await swResp.text() : '';
-  const clText = clResp && clResp.ok ? await clResp.text() : '';
-  const m = swText.match(/const\s+RELEASE\s*=\s*["'](\d+)["']/);
-  if(!m) return null;
-  const nextRelease = Number(m[1]);
-  const currentRelease = Number(RELEASE);
-  if(!isFinite(nextRelease) || nextRelease <= currentRelease) return null;
-  const targetVersion = `V${nextRelease}`;
-  let snippet = 'Update available. Save local data before refresh.';
-  const blockRe = new RegExp(`(?:^|\n)##\s+${targetVersion.replace('V','V')}\b([\s\S]*?)(?=\n##\s+V\d+\b|$)`);
-  const blockMatch = clText.match(blockRe);
-  if(blockMatch){
-   const lines = blockMatch[1].split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
-   const bullet = lines.find(line=>/^[-*]\s+/.test(line));
-   const plain = bullet ? bullet.replace(/^[-*]\s+/, '') : lines.find(line=>!line.startsWith('###'));
-   if(plain) snippet = plain;
-  }
-  return {targetVersion, snippet};
- }catch(err){
-  console.warn('update info fetch failed', err);
-  return null;
- }
-}
-
-async function updateCogSpeedAvailableBannerCopy(){
- if(!cogspeedWaitingRegistration) return;
- const text=$("updateBannerText");
- if(!text) return;
- if(!cogspeedAvailableUpdateInfo) cogspeedAvailableUpdateInfo = await fetchCogSpeedAvailableUpdateInfo();
- if(cogspeedAvailableUpdateInfo && cogspeedAvailableUpdateInfo.targetVersion){
-  text.innerHTML = `<div style="font-size:15px;font-weight:800">${APP_VERSION} → ${cogspeedAvailableUpdateInfo.targetVersion} available</div><div style="font-size:13px;font-weight:500;color:var(--muted);margin-top:2px">${String(cogspeedAvailableUpdateInfo.snippet||'').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</div>`;
- }else{
-  text.textContent = 'Update available. Save local data before refresh.';
- }
-}
-
 function refreshUpdateBannerVisibility(){
  ensureUpdateBanner();
  const banner=$("updateBanner");
@@ -3076,7 +3053,6 @@ function refreshUpdateBannerVisibility(){
   text.textContent = 'Update available. Save local data before refresh.';
   refreshBtn.style.display='';
   laterBtn.textContent='Later';
-  updateCogSpeedAvailableBannerCopy();
  }else{
   text.textContent = 'If data are missing after update, restore local data.';
   refreshBtn.style.display='none';
@@ -5688,7 +5664,6 @@ if ("serviceWorker" in navigator) {
    const captureWaiting = ()=>{
     if(reg.waiting){
      cogspeedWaitingRegistration = reg;
-     cogspeedAvailableUpdateInfo = null;
      cogspeedUpdateBannerDismissed = false;
      refreshUpdateBannerVisibility();
     }
@@ -5700,7 +5675,6 @@ if ("serviceWorker" in navigator) {
     installing.addEventListener('statechange', ()=>{
      if(installing.state === 'installed' && navigator.serviceWorker.controller){
       cogspeedWaitingRegistration = reg;
-      cogspeedAvailableUpdateInfo = null;
       cogspeedUpdateBannerDismissed = false;
       refreshUpdateBannerVisibility();
      }
@@ -5708,7 +5682,6 @@ if ("serviceWorker" in navigator) {
    });
    navigator.serviceWorker.addEventListener('controllerchange', ()=>{
     cogspeedWaitingRegistration = null;
-    cogspeedAvailableUpdateInfo = null;
     refreshUpdateBannerVisibility();
    });
   }catch(err){

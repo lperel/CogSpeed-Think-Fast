@@ -1,4 +1,4 @@
-const RELEASE = "564";
+const RELEASE = "566";
 const CACHE_NAME = `cogspeed-v${RELEASE}-shell-v${RELEASE}`;
 const APP_SHELL = [
   "./",
@@ -11,6 +11,7 @@ const APP_SHELL = [
   "./CogSpeed.jpeg",
   "./GMM FIREBIRD.png",
   "./brain-background.jpeg",
+  "./gmm_firebird_intro_fast.gif",
   "./icon-192.png",
   "./icon-512.png",
   "./gear0.png",

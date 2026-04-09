@@ -1,7 +1,8 @@
-## V564 — Update banner shows target version + one-line change summary
-- The update-available banner now shows the current version and the newly available version, for example: **V562 → V564 available**.
-- Banner also shows a one-line changelog snippet for the newly available version when not in an active test.
-- Save Local Data / Restore Local Data flow remains unchanged.
+## V566 — Firebird intro page
+- Added a faster Firebird intro GIF page shown before the Start page.
+- Intro uses the original Firebird image at the end of the animation so the top is not cut off.
+- Added a Continue button to enter the Start page; returning to Start does not reopen the intro automatically.
+- Cached the intro GIF in the service-worker app shell.
 
 
 ## V562 — Update-available banner + local backup/restore safeguard
