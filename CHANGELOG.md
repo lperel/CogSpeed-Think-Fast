@@ -1,3 +1,9 @@
+## V543 — Controlled merge build on V541 baseline line
+- Repackaged the uploaded V542 CPX / FFS / divergence / disposition scoring branch as a controlled V543 build.
+- Preserved the later approved baseline-line defaults and UI features already present in the uploaded source, including CPI worst anchor = 2400, Mode 2 sustained trial count default = 20, and the V541 RT graph legend clarifications.
+- Fixed package/version drift so `app.js`, `index.html`, `manifest.json`, and `sw.js` all align to V543.
+- No additional trial, pacing, or response-handling logic changes were introduced beyond the integrated V542 scoring branch.
+
 ## V542 — CPX / FFS / Disposition integrated cognitive performance score
 
 ### New scoring system

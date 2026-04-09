@@ -1,8 +1,8 @@
 // ═══════════════════════════════════════════════════
-// CogSpeed V542
+// CogSpeed V543
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V542";
+const APP_VERSION = "V543";
 
 // ═══════════════════════════════════════════════════
 // RECENT INTEGRATED PROGRAM CHANGES (through V527)
