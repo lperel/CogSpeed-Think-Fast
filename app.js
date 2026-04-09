@@ -2,7 +2,7 @@
 // CogSpeed ${APP_VERSION} source
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V579";
+const APP_VERSION = "V580";
 
 // ═══════════════════════════════════════════════════
 // RECENT INTEGRATED PROGRAM CHANGES (see CHANGELOG.md for current integrated history)
@@ -2903,13 +2903,15 @@ function hasActiveTestInProgress(){
 }
 
 let introAutoTimer=null;
+let introClosedOnce=false;
 function clearIntroAutoTimer(){ if(introAutoTimer){ clearTimeout(introAutoTimer); introAutoTimer=null; } }
 function armIntroAutoAdvance(){
  clearIntroAutoTimer();
- introAutoTimer=setTimeout(()=>closeIntroOverlay(), 3350);
+ introAutoTimer=setTimeout(()=>closeIntroOverlay(), 3250);
 }
 function openIntroOverlay(){
  const intro=$("introOverlay");
+ introClosedOnce=false;
  if(intro) intro.classList.remove("hidden");
  const subject=$("subjectOverlay");
  if(subject) subject.classList.add("hidden");
@@ -2928,7 +2930,7 @@ function closeIntroOverlay(){
 function initIntroAutoAdvance(){
  const introGif=$("introGif");
  const introOverlay=$("introOverlay");
- const restart=()=>{ if(introOverlay && !introOverlay.classList.contains("hidden")) armIntroAutoAdvance(); };
+ const restart=()=>{ if(!introClosedOnce && introOverlay && !introOverlay.classList.contains("hidden")) armIntroAutoAdvance(); };
  restart();
  if(introGif){
   introGif.addEventListener("load", restart);

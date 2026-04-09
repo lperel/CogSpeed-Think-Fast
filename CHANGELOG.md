@@ -1,3 +1,9 @@
+## V580 — Firebird intro single-play timing fix
+- Adjusted Firebird intro timing to avoid the apparent second play before auto-advance.
+- Added a one-shot close guard so the intro cannot re-arm and re-close multiple times in the same opening.
+- Slightly slowed the intro frame timing while keeping the final logo hold.
+- Updated version refs to V580.
+
 ## V579 — Firebird intro: one smooth fold and 2-second final hold
 - Rebuilt the Firebird intro so the stylized G M M starts side by side and folds inward once into the unified final Firebird.
 - Removed the extra secondary spin feel by using a single eased motion into the final logo.
