@@ -1,8 +1,8 @@
 // ═══════════════════════════════════════════════════
-// CogSpeed V568
+// CogSpeed ${APP_VERSION} source
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V576";
+const APP_VERSION = "V578";
 
 // ═══════════════════════════════════════════════════
 // RECENT INTEGRATED PROGRAM CHANGES (see CHANGELOG.md for current integrated history)
@@ -2906,7 +2906,7 @@ let introAutoTimer=null;
 function clearIntroAutoTimer(){ if(introAutoTimer){ clearTimeout(introAutoTimer); introAutoTimer=null; } }
 function armIntroAutoAdvance(){
  clearIntroAutoTimer();
- introAutoTimer=setTimeout(()=>closeIntroOverlay(), 2100);
+ introAutoTimer=setTimeout(()=>closeIntroOverlay(), 2350);
 }
 function openIntroOverlay(){
  const intro=$("introOverlay");
