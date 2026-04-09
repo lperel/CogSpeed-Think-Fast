@@ -1,3 +1,9 @@
+## V553 — Speedometer actions moved into dropdown menu
+- Reduced Speedometer button clutter by moving Results Summary, Performance over Date and Time, Response-Time Graph, Trial Detail Log, Presentation Rate vs Response Time, and E-mail Select into a single dropdown action menu.
+- Added an Open button next to the dropdown and also allow direct open on selection.
+- Returning to the Speedometer now resets the dropdown menu back to its default placeholder state.
+- Kept Admin and Back to Start as separate controls on the Speedometer page.
+
 ## V552 — Mode 2 sustained anti-spoof defaults completed
 - Added the missing DEFAULTS entries for **Mode 2 anti-spoof rolling mean window in Sustained Phase** (`mode4SustainedRollMeanWindow: 10`) and **Mode 2 anti-spoof rolling mean threshold in Sustained Phase** (`mode4SustainedRollMeanThreshold: 0.50`).
 - Keeps the V551 Mode 2 sustained rolling-mean Admin fields and runtime logic, but now defines them cleanly in the master DEFAULTS object so fresh installs and Reset Admin Settings restore the intended defaults.

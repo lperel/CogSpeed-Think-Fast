@@ -2,7 +2,7 @@
 // CogSpeed V543
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V552";
+const APP_VERSION = "V553";
 
 // ═══════════════════════════════════════════════════
 // RECENT INTEGRATED PROGRAM CHANGES (through V527)
@@ -5289,7 +5289,8 @@ const _spsel=$("speedometerSessionSelect"); if(_spsel) _spsel.onchange=()=>openS
 const _spprev=$("speedometerPrevBtn"); if(_spprev) _spprev.onclick=()=>{ const s=$("speedometerSessionSelect"); if(!s||!s.options.length) return; s.selectedIndex=Math.max(0, s.selectedIndex-1); if(s.onchange) s.onchange(); };
 const _spnext=$("speedometerNextBtn"); if(_spnext) _spnext.onclick=()=>{ const s=$("speedometerSessionSelect"); if(!s||!s.options.length) return; s.selectedIndex=Math.min(s.options.length-1, s.selectedIndex+1); if(s.onchange) s.onchange(); };
 const _spm4=$("speedometerMode4ToggleBtn"); if(_spm4) _spm4.onclick=()=>{ state.speedometerMode4Metric = String(state.speedometerMode4Metric||"spi").toLowerCase()==="cpi" ? "spi" : "cpi"; openSpeedometerSession(getSpeedometerSelectedIndex()); };
-const _orb=$("outcomeResultsBtn"); if(_orb) _orb.onclick=()=>{ $("outcomeOverlay").classList.add("hidden"); stopSpeedometer(); openSummarySession(getSpeedometerSelectedIndex()); setTestingQuiet(false); };
+const _sact=$("speedometerActionOpenBtn"); if(_sact) _sact.onclick=()=>openSpeedometerMenuSelection();
+const _sactsel=$("speedometerActionSelect"); if(_sactsel) _sactsel.onchange=()=>openSpeedometerMenuSelection();
 const _sadmin=$("speedAdminBtn"); if(_sadmin) _sadmin.onclick=()=>openAdminFromOverlay("outcomeOverlay");
 $("summaryAdminBtn").onclick=()=>openAdminFromOverlay("summaryOverlay");
 
@@ -5559,6 +5560,26 @@ function syncOutcomeStatusText(result){
  if(orr) orr.textContent = (result && result.endReason) ? result.endReason : "Run complete";
 }
 
+function resetSpeedometerActionMenu(){
+ const sel=$("speedometerActionSelect");
+ if(sel) sel.value="";
+}
+
+function openSpeedometerMenuSelection(){
+ const sel=$("speedometerActionSelect");
+ if(!sel) return;
+ const choice=String(sel.value||"");
+ if(!choice) return;
+ const idx=getSpeedometerSelectedIndex();
+ sel.value="";
+ if(choice==="summary"){ $("outcomeOverlay").classList.add("hidden"); stopSpeedometer(); openSummarySession(idx); setTestingQuiet(false); return; }
+ if(choice==="perf_time"){ $("outcomeOverlay").classList.add("hidden"); openPerformanceOverTimePage(); return; }
+ if(choice==="response_graph"){ openResponseGraphPage(false, idx); return; }
+ if(choice==="trial_log"){ $("outcomeOverlay").classList.add("hidden"); buildTrialLog(idx); $("trialLogOverlay").classList.remove("hidden"); return; }
+ if(choice==="rate_rt"){ $("outcomeOverlay").classList.add("hidden"); buildRateRtOverlay(idx); $("rateRtOverlay").classList.remove("hidden"); return; }
+ if(choice==="email"){ openEmailSelectPage(); return; }
+}
+
 function openSpeedometerPage(sessionIndex){
  try{ wireEmailSelectControls(); }catch(err){}
  try{ wireEmailDraftAction(); }catch(err){}
@@ -5589,7 +5610,7 @@ const _rrab=$("rateRtAdminBtn"); if(_rrab) _rrab.onclick=()=>openAdminFromOverla
 
 
 const _apt=$("adminPerfTimeBtn"); if(_apt) _apt.onclick=()=>{ $("adminOverlay").classList.add("hidden"); openPerformanceOverTimePage(); };
-const _spt=$("speedPerfTimeBtn"); if(_spt) _spt.onclick=()=>{ $("outcomeOverlay").classList.add("hidden"); openPerformanceOverTimePage(); };
+
 const _ptb=$("perfTimeBackBtn"); if(_ptb) _ptb.onclick=()=>{ $("perfTimeOverlay").classList.add("hidden"); openSpeedometerPage(); };
 const _pta=$("perfTimeAdminBtn"); if(_pta) _pta.onclick=()=>openAdminFromOverlay("perfTimeOverlay");
 
@@ -5597,12 +5618,12 @@ const _rsp=$("rankedSpeedometerBtn"); if(_rsp) _rsp.onclick=()=>{ $("rankedOverl
 const _rrs=$("rankedRestartBtn"); if(_rrs) _rrs.onclick=()=>{ $("rankedOverlay").classList.add("hidden"); goToStartPage(); };
 const _rra=$("rankedAdminBtn"); if(_rra) _rra.onclick=()=>openAdminFromOverlay("rankedOverlay");
 
-const _stl=$("speedTrialLogBtn"); if(_stl) _stl.onclick=()=>{ $("outcomeOverlay").classList.add("hidden"); buildTrialLog(getSpeedometerSelectedIndex()); $("trialLogOverlay").classList.remove("hidden"); };
 
-const _srr=$("speedRateRtBtn"); if(_srr) _srr.onclick=()=>{ $("outcomeOverlay").classList.add("hidden"); buildRateRtOverlay(getSpeedometerSelectedIndex()); $("rateRtOverlay").classList.remove("hidden"); };
+
+
 const _rateRtCloseBtn=$("rateRtCloseBtn"); if(_rateRtCloseBtn) _rateRtCloseBtn.onclick=()=>{ $("rateRtOverlay").classList.add("hidden"); openSpeedometerPage(); };
 
-const _srg=$("speedResponseGraphBtn"); if(_srg) _srg.onclick=()=>{ openResponseGraphPage(false, getSpeedometerSelectedIndex()); };
+
 const _arg=$("adminResponseGraphBtn"); if(_arg) _arg.onclick=()=>{ openResponseGraphPage(true); };
 const _fgs=$("fullGraphSpeedometerBtn"); if(_fgs) _fgs.onclick=()=>{ $("fullGraphOverlay").classList.add("hidden"); openSpeedometerPage(); };
 const _fga=$("fullGraphAdminBtn"); if(_fga) _fga.onclick=()=>openAdminFromOverlay("fullGraphOverlay");
