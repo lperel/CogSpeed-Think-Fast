@@ -1,7 +1,13 @@
-## V574 — CogSpeed Thinking FX restored
+## V575 — Firebird intro smoothed and sped up
+- Rebuilt the Firebird intro GIF with more in-between frames for smoother motion.
+- Reduced the slow-feeling first hold and sped up overall playback.
+- Kept the exact original Firebird image at the end on a padded canvas so the top does not clip.
+- Shortened intro auto-advance timing to match the faster GIF.
+
+## V575 — CogSpeed Thinking FX restored
 - Restored the CogSpeed Thinking overlay effects by starting the smoke/sparks canvas FX when the Thinking box is shown.
 - Preserved the 2-second Thinking delay before the outcome/speedometer page.
-- Updated visible/package version references to V574.
+- Updated visible/package version references to V575.
 
 ## V573 — Package drift cleanup for update reliability
 - Fixed stale script tag in `index.html` so the page now requests `app.js?v=572`, matching the current release and service-worker cache key.
