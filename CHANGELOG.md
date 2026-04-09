@@ -1,3 +1,56 @@
+## V542 — CPX / FFS / Disposition integrated cognitive performance score
+
+### New scoring system
+Added `computeCPX()`, `computeFFS()`, `computeCPXDisposition()`, `computeCPXSummary()`,
+and `formatCPXBlock()` to produce a unified cognitive performance score using every
+available data source in the session record.
+
+**CPX (Cognitive Performance Extended Index)** — 0–100 composite score:
+- Mode 1 (CogSpeed Adaptive): `0.65 × CPI + 0.35 × paced_accuracy`
+- Mode 4 (CogSpeed Sustained): weighted sum of CPI, recency-weighted SPI (second half
+  carries 60%), SPR, and CDI complement; minus variability penalty (SBLP SD + P90 tail,
+  max 10 pts), error-type penalty (omissions + commissions weighted separately, max 10 pts),
+  and degradation penalty (CDI preferred over raw decay + RT slope, max 25 pts).
+- Weights redistribute automatically when SPR or CDI are unavailable.
+- Modes 2 and 3: CPX = null (insufficient machine-paced data).
+
+**CPX state-adjusted** — CPX_raw with SP-FS context modifier applied:
+SP-FS 4: −3 pts, 3: −6, 2: −10, 1: −15. SP-FS 5–7: no adjustment.
+
+**FFS (Functional Fatigue State)** — SP-FS-equivalent derived from CPX_raw (1–7),
+mapping objective performance onto the corrected Samn-Perelli scale:
+7=Full alert (CPX 88–100), 6=Very lively (74–87), 5=Okay/normal (60–73),
+4=Less than sharp (46–59), 3=Dull/losing focus (32–45), 2=Groggy (18–31),
+1=Unable to function (0–17).
+
+**SP-FS divergence** — SP-FS_reported minus FFS. Positive = performing worse than
+declared state predicts (underreporting); +2 = note discrepancy; +3 or more = significant
+underreporting flag displayed in results.
+
+**Disposition** — operational recommendation from FFS × divergence matrix:
+Green (Clear), Yellow (Monitor / human review recommended),
+Red (Remove from hazardous duty — supervisor evaluation required).
+Disposition is a structured recommendation only; human review is required in all cases.
+
+### Wiring
+- `finish()`: CPX computed and saved into every result record immediately after CDI.
+- `buildSummary()`: CPX block inserted before END REASON in Mode 1 and Mode 4 summaries.
+- `buildSummary()`: Lazy-recompute backfill added so pre-V542 history sessions receive
+  CPX on first open when the result record lacked it.
+- `exportCSV()`: Six new columns appended after cdiCommRisk — cpxRaw, cpxFinal, cpxFfs,
+  cpxDivergence, cpxDispositionCode, cpxDispositionLabel.
+- `getResultsMetricExplanationText()`: CPX, CPX state-adjusted, FFS, SP-FS divergence,
+  and Disposition all defined with mode-appropriate fallbacks.
+
+### Version and drift fixes (same build)
+- Bumped APP\_VERSION V541 → V542 and corrected stale top-of-file banner (was V536).
+- manifest.json name corrected V530 → V542.
+- index.html title, versionBadge, and statusLine all corrected to V542
+  (statusLine was stale at V527).
+- index.html Cloudflare email obfuscation replaced with plain
+  mailto:thinkfastgmm@gmail.com anchor (recurring deploy issue — treat as permanent patch).
+- sw.js RELEASE bumped 541 → 542.
+
 ## V541 — RT graph legend labels clarified
 - Added explicit legend labels for orange and yellow RT graph markers: Recovery, Late correct, and Late wrong.
 - Kept existing labels for Calibration, Final self-paced, Correct, Wrong, Missed, Mean RT, and Phase break.

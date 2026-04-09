@@ -1,8 +1,8 @@
 // ═══════════════════════════════════════════════════
-// CogSpeed V536
+// CogSpeed V542
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V541";
+const APP_VERSION = "V542";
 
 // ═══════════════════════════════════════════════════
 // RECENT INTEGRATED PROGRAM CHANGES (through V527)
@@ -1331,6 +1331,7 @@ function finish(){
    if(wakeIso) result.sleepLog.wakeDateTimeIso = wakeIso;
   }
   Object.assign(result, computeCDISummary(result));
+  Object.assign(result, computeCPXSummary(result, settings));
  }catch(err){
   console.error("finish compute failed", err);
   failOpenResultsHandoff(result, "COMPUTE", err);
@@ -2377,6 +2378,7 @@ function exportCSV(){
   "pacedCorrect","pacedWrong","spRestartWrong","meanPacedRtMs","pacedRtSd",
   "avgFrameOvershootMs","maxFrameOvershootMs","avgRafIntervalMs","maxRafIntervalMs",
   "cdi","cdiClass","cdiPattern","cdiVarRisk","cdiOmitRisk","cdiDecayRisk","cdiSlopeRisk","cdiSprRisk","cdiCommRisk",
+  "cpxRaw","cpxFinal","cpxFfs","cpxDivergence","cpxDispositionCode","cpxDispositionLabel",
   "testDurationMs","endReason","location"];
  const rows=h.map((r,i)=>[
   i+1,
@@ -2430,6 +2432,12 @@ function exportCSV(){
   r.cdiSlopeRisk!=null?r.cdiSlopeRisk.toFixed(1):"",
   r.cdiSprRisk!=null?r.cdiSprRisk.toFixed(1):"",
   r.cdiCommRisk!=null?r.cdiCommRisk.toFixed(1):"",
+  r.cpxRaw!=null?r.cpxRaw.toFixed(1):"",
+  r.cpxFinal!=null?r.cpxFinal.toFixed(1):"",
+  r.cpxFfs!=null?r.cpxFfs:"",
+  r.cpxDivergence!=null?r.cpxDivergence:"",
+  r.cpxDispositionCode||"",
+  r.cpxDispositionLabel||"",
   r.testDurationMs!=null?Math.round(r.testDurationMs):"",
   r.endReason||"",
   (r.geo&&r.geo.address)||""
@@ -2948,7 +2956,12 @@ RESULTS METRIC EXPLANATIONS
  SPR (Sustained Processing Reserve) = (1 - SBLP / MBS) x 100; RT headroom below the timing window.${usesMode4Metrics?"":" Not used in this mode."}
  CDI (Cognitive Degradation Index) = weighted sustained-phase degradation score from 0-100 using variability, omissions, fade, slope, reserve, and commissions; higher = more degraded.${usesMode4Metrics?"":" Not used in this mode."}
  CDI class = Minimal / Mild / Moderate / Marked / Severe degradation.${usesMode4Metrics?"":" Not used in this mode."}
- CDI pattern = simple descriptive flag: Omission-dominant / Commission-dominant / Fading / Highly variable / Low reserve / Stable sustained pattern.${usesMode4Metrics?"":" Not used in this mode."}`;
+ CDI pattern = simple descriptive flag: Omission-dominant / Commission-dominant / Fading / Highly variable / Low reserve / Stable sustained pattern.${usesMode4Metrics?"":" Not used in this mode."}
+ CPX (Cognitive Performance Extended Index) = unified 0-100 score integrating every available metric into a single current-state estimate. Mode 1: weighted CPI + paced accuracy. Mode 4: weighted CPI, recency-weighted SPI, SPR, and CDI complement, minus variability, error-type, and degradation penalties.${usesMode1Metrics||usesMode4Metrics?"":" Not computed in this mode."}
+ CPX (state-adjusted) = CPX_raw adjusted downward when SP-FS indicates a declared fatigued state (SP-FS 4: -3 pts, 3: -6, 2: -10, 1: -15). Both values are recorded; the raw score reflects objective performance, the adjusted score reflects functional status.${usesMode1Metrics||usesMode4Metrics?"":" Not computed in this mode."}
+ FFS (Functional Fatigue State) = SP-FS-equivalent (1-7) derived from CPX_raw, mapping objective performance onto the Samn-Perelli scale: 7=Full alert (CPX 88-100), 6=Very lively (74-87), 5=Okay/normal (60-73), 4=Less than sharp (46-59), 3=Dull/losing focus (32-45), 2=Groggy (18-31), 1=Unable to function (0-17).${usesMode1Metrics||usesMode4Metrics?"":" Not computed in this mode."}
+ SP-FS divergence = SP-FS reported minus FFS. Zero or negative = consistent or performing above declared state. Positive = performing worse than reported state predicts; +2 = note discrepancy; +3 or more = significant underreporting flag.${usesMode1Metrics||usesMode4Metrics?"":" Not computed in this mode."}
+ Disposition = operational recommendation from FFS and divergence. Green = Clear. Yellow = Monitor or human review recommended. Red = Remove from hazardous duty / supervisor evaluation required. CogSpeed results are not a standalone fitness determination; disposition is a structured recommendation requiring human review in all cases.`;
 }
 
 
@@ -3069,6 +3082,9 @@ ${getResultsMetricExplanationText(result)}`;
   if(result.mode4Triggered && result.cdi==null){
    Object.assign(result, computeCDISummary(result));
   }
+  if(result.cpxRaw==null){
+   Object.assign(result, computeCPXSummary(result, settings));
+  }
   const mode4Cpi=result.mode4CpiFromCsr!=null?result.mode4CpiFromCsr:(Number.isFinite(Number(csr))?computeSPI(Number(csr), Math.max(1, Number(result.mode4SustainedTargetCount)||10)):null);
   const adaptiveCounts=computeMode4AdaptiveCounts(result);
   el.textContent=
@@ -3143,6 +3159,7 @@ FINAL SELF-PACED TRIALS
 ${hr}
 COGNITIVE PERFORMANCE TABLE
  ${getCognitivePerformanceTableText(result)}
+${formatCPXBlock(result)}
 ${hr}
 END REASON
  ${result.endReason||"Run complete"}
@@ -3184,6 +3201,7 @@ ${blockList}
 ${hr}
 COGNITIVE PERFORMANCE TABLE
  ${getCognitivePerformanceTableText(result)}
+${formatCPXBlock(result)}
 ${hr}
 END REASON
  ${result.endReason||"Run complete"}
@@ -3582,6 +3600,226 @@ function computeCDISummary(result){
   cdiSprRisk: sprRisk!=null ? Number(sprRisk.toFixed(1)) : null,
   cdiCommRisk: commRisk!=null ? Number(commRisk.toFixed(1)) : null
  };
+}
+
+// ═══════════════════════════════════════════════════════════════
+// CPX — Cognitive Performance Extended Index
+// A unified 0–100 score representing cognitive throughput capacity
+// at the moment the test ends.  Uses every available data source.
+//
+// Mode 1 (CogSpeed Adaptive):
+//   CPX = 0.65 × CPI + 0.35 × paced_accuracy
+//
+// Mode 4 (CogSpeed Sustained):
+//   CPX = weighted(CPI, SPI_now, SPR, CDI_complement)
+//         − var_penalty − error_penalty − degradation_penalty
+//
+// CPX_raw  = objective performance score
+// CPX_final = CPX_raw adjusted by SP-FS declared fatigue state
+//
+// FFS (Functional Fatigue State) = SP-FS-equivalent derived from CPX_raw (1–7)
+// Divergence = SP-FS_reported − FFS  (positive = reported better than performed)
+// Disposition = operational recommendation (Green / Yellow / Red)
+// ═══════════════════════════════════════════════════════════════
+
+const FFS_LABELS = {
+ 7:"Full alert, wide awake",
+ 6:"Very lively, responsive",
+ 5:"Okay, about normal",
+ 4:"Less than sharp, let down",
+ 3:"Feeling dull, losing focus",
+ 2:"Very difficult to concentrate, groggy",
+ 1:"Unable to function, ready to drop"
+};
+
+function computeFFS(cpxRaw){
+ if(cpxRaw==null) return null;
+ if(cpxRaw>=88) return 7;
+ if(cpxRaw>=74) return 6;
+ if(cpxRaw>=60) return 5;
+ if(cpxRaw>=46) return 4;
+ if(cpxRaw>=32) return 3;
+ if(cpxRaw>=18) return 2;
+ return 1;
+}
+
+function cpxSpfsAdj(spfs){
+ // SP-FS 7–5 = alert range → no adjustment
+ // SP-FS 4–1 = degraded declared state → downward context adjustment
+ if(spfs==null||spfs>=5) return 0;
+ if(spfs===4) return -3;
+ if(spfs===3) return -6;
+ if(spfs===2) return -10;
+ return -15; // SP-FS 1
+}
+
+function computeCPXDisposition(ffs, divergence){
+ if(ffs==null) return {code:null,label:null};
+ const div = divergence!=null ? divergence : 0;
+ if(ffs>=5){
+  if(div<=1)  return {code:"GREEN",  label:"Clear"};
+  if(div===2) return {code:"GREEN",  label:"Clear — note SP-FS discrepancy"};
+               return {code:"YELLOW", label:"Retest recommended — significant SP-FS underreporting"};
+ }
+ if(ffs===4){
+  if(div<=1)  return {code:"YELLOW", label:"Monitor — retest if safety-critical"};
+  if(div===2) return {code:"YELLOW", label:"Supervisor awareness recommended"};
+               return {code:"RED",    label:"Human review required — SP-FS underreporting at marginal performance"};
+ }
+ if(ffs===3){
+  if(div<=1)  return {code:"YELLOW", label:"Human review recommended before hazardous duty"};
+               return {code:"RED",    label:"Human review required — do not clear unilaterally"};
+ }
+ // FFS 1–2
+ return {code:"RED", label:"Remove from hazardous duty — supervisor evaluation required"};
+}
+
+function computeCPX(result, settings){
+ const none = {cpxRaw:null, cpxFinal:null};
+ if(!result) return none;
+ const mode = result.testMode;
+ const spfsRaw = result.samnPerelli&&result.samnPerelli.score!=null ? Number(result.samnPerelli.score) : null;
+ const spAdj = cpxSpfsAdj(spfsRaw);
+
+ // ── Mode 1 CogSpeed Adaptive ──────────────────────────────────
+ if(mode==="mode1"){
+  const cpi = result.cognitivePerformanceIndex;
+  if(cpi==null) return none;
+  const correct  = Number(result.pacedResponseCount)||0;
+  const wrong    = Number(result.pacedErrors)||0;
+  const missed   = Number(result.missedTrials)||0;
+  const presented = correct+wrong+missed;
+  const acc = presented>0 ? 100*correct/presented : 100;
+  const raw = Math.max(0,Math.min(100, 0.65*cpi + 0.35*acc));
+  return {
+   cpxRaw:   Math.round(raw*10)/10,
+   cpxFinal: Math.round(Math.max(0,Math.min(100, raw+spAdj))*10)/10
+  };
+ }
+
+ // ── Mode 4 CogSpeed Sustained ─────────────────────────────────
+ if(mode==="mode4"){
+  if(!result.mode4Triggered) return none;
+  const cpi = result.cognitivePerformanceIndex;
+  const spi = result.sustainedProcessingIndex;
+  if(cpi==null||spi==null) return none;
+
+  // 1. Recency-weighted SPI (second half carries 60% weight)
+  const h1=result.sustainedFirstHalfSpi, h2=result.sustainedSecondHalfSpi;
+  const spiNow=(h1!=null&&h2!=null) ? 0.40*h1+0.60*h2 : spi;
+
+  // 2. SPR and CDI complement availability
+  const spr  = result.sustainedProcessingReserve;
+  const cdi  = result.cdi;
+  const hasSpr = spr!=null;
+  const hasCdi = cdi!=null;
+
+  // Weight redistribution when components are unavailable
+  let cpiW,spiW,sprW,cdiW;
+  if(hasSpr&&hasCdi)       {cpiW=0.45;spiW=0.30;sprW=0.15;cdiW=0.10;}
+  else if(hasSpr&&!hasCdi) {cpiW=0.49;spiW=0.34;sprW=0.17;cdiW=0.00;}
+  else if(!hasSpr&&hasCdi) {cpiW=0.52;spiW=0.36;sprW=0.00;cdiW=0.12;}
+  else                     {cpiW=0.59;spiW=0.41;sprW=0.00;cdiW=0.00;}
+
+  const sprVal = hasSpr ? Math.max(0,Math.min(100,spr)) : 0;
+  const cdiVal = hasCdi ? Math.max(0,100-cdi) : 0; // complement: 0 CDI → 100, 100 CDI → 0
+
+  // 3. Variability penalty (max 10 pts)
+  // SD_norm penalises RT spread relative to the MBS window
+  // P90_excess penalises how far the worst-decile RT exceeds the mean
+  const mbs = result.mode4AdaptiveMbsMs!=null ? result.mode4AdaptiveMbsMs : result.averageLast2BlockingScoresMs;
+  const sblpSd   = result.sustainedBlockLimitPerformanceSdMs;
+  const sblpP90  = result.sustainedCorrectRtP90Ms;
+  const sblpMean = result.sustainedBlockLimitPerformanceMs;
+  let varPenalty = 0;
+  if(mbs!=null&&mbs>0){
+   if(sblpSd!=null)                       varPenalty += Math.min(1,Math.max(0,sblpSd/mbs))*6;
+   if(sblpP90!=null&&sblpMean!=null&&sblpMean>0)
+    varPenalty += Math.min(1,Math.max(0,(sblpP90-sblpMean)/mbs))*4;
+  }
+
+  // 4. Error-type penalty (max 10 pts)
+  // Commissions (wrong under pressure) weighted more than omissions (failure to respond)
+  const omit = result.sustainedOmissionRate;
+  const comm = result.sustainedCommissionRate;
+  const omitPenalty = omit!=null ? Math.min(1,Math.max(0,omit))*4 : 0;
+  const commPenalty = comm!=null ? Math.min(1,Math.max(0,comm))*6 : 0;
+
+  // 5. Degradation penalty (max 25 pts)
+  // CDI (when available) is preferred over raw decay because it is
+  // accuracy-weighted; RT slope captures pure timing drift independently.
+  let cdiPenalty;
+  if(hasCdi){
+   cdiPenalty = Math.min(1,Math.max(0,cdi/100))*15;
+  } else {
+   const decay = result.sustainedSpiDecay;
+   cdiPenalty  = decay!=null ? Math.min(1,Math.max(0,decay)/50)*15 : 0;
+  }
+  const slope = result.sustainedRtSlopeMsPerTrial;
+  const slopePenalty = slope!=null ? Math.min(1,Math.max(0,slope)/20)*10 : 0;
+
+  const raw = cpiW*cpi + spiW*spiNow + sprW*sprVal + cdiW*cdiVal
+             - varPenalty - omitPenalty - commPenalty - cdiPenalty - slopePenalty;
+  const cpxRaw   = Math.round(Math.max(0,Math.min(100,raw))*10)/10;
+  const cpxFinal = Math.round(Math.max(0,Math.min(100,raw+spAdj))*10)/10;
+  return {cpxRaw, cpxFinal};
+ }
+
+ // Mode 2 (self-paced only) and Mode 3 (fixed-paced): insufficient data for CPX
+ return none;
+}
+
+function computeCPXSummary(result, settings){
+ const blank = {
+  cpxRaw:null, cpxFinal:null,
+  cpxFfs:null, cpxFfsLabel:null,
+  cpxDivergence:null,
+  cpxDispositionCode:null, cpxDispositionLabel:null
+ };
+ if(!result) return blank;
+ const {cpxRaw,cpxFinal} = computeCPX(result,settings);
+ if(cpxRaw==null) return blank;
+ const ffs = computeFFS(cpxRaw);
+ const spfsReported = result.samnPerelli&&result.samnPerelli.score!=null ? Number(result.samnPerelli.score) : null;
+ const divergence   = (spfsReported!=null&&ffs!=null) ? spfsReported-ffs : null;
+ const {code,label} = computeCPXDisposition(ffs,divergence);
+ return {
+  cpxRaw, cpxFinal,
+  cpxFfs: ffs,
+  cpxFfsLabel: ffs!=null ? FFS_LABELS[ffs] : null,
+  cpxDivergence: divergence,
+  cpxDispositionCode: code,
+  cpxDispositionLabel: label
+ };
+}
+
+function formatCPXBlock(result){
+ const hr="─────────────────────────";
+ const raw   = result.cpxRaw;
+ const final = result.cpxFinal;
+ if(raw==null) return "";
+ const ffs   = result.cpxFfs;
+ const ffsLbl= result.cpxFfsLabel||"—";
+ const div   = result.cpxDivergence;
+ const spfsR = result.samnPerelli&&result.samnPerelli.score!=null ? result.samnPerelli.score : null;
+ const dispCode  = result.cpxDispositionCode||"—";
+ const dispLabel = result.cpxDispositionLabel||"—";
+ const dispFlag  = dispCode==="GREEN"?"✅":dispCode==="YELLOW"?"⚠️":dispCode==="RED"?"🔴":"";
+ let divStr="—";
+ if(div!=null){
+  divStr=`${div>0?"+":""}${div}`;
+  if(div>=3)       divStr+=" ⚠ Significant underreporting";
+  else if(div===2) divStr+=" — note discrepancy";
+  else if(div<0)   divStr+=" (performing above reported state)";
+ }
+ return `${hr}
+CPX — COGNITIVE PERFORMANCE EXTENDED INDEX
+ CPX (objective):        ${raw.toFixed(1)} / 100
+ CPX (state-adjusted):   ${final!=null?final.toFixed(1)+" / 100":"—"}${spfsR!=null?" (SP-FS "+spfsR+" applied)":""}
+ FFS (Functional Fatigue State): ${ffs!=null?ffs+" — "+ffsLbl:"—"}
+ SP-FS reported:         ${spfsR!=null?spfsR+" — "+(result.samnPerelli.label||""):"not recorded"}
+ SP-FS divergence:       ${divStr}
+ Disposition:            ${dispFlag} ${dispLabel}`;
 }
 
 function computeMode4TimingSummary(result){
