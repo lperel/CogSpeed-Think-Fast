@@ -1,3 +1,9 @@
+## V560 — Speedometer layout cleanup
+- Reduced the Mode 2 Speedometer toggle button (**Show CPI / MBS** / **Show SPI / CSR / SBLP**) to the same visual size as the **Back to Start** button.
+- Placed the toggle button and **Back to Start** side by side on the Speedometer page.
+- Increased the Speedometer dial size for stronger visual emphasis.
+- Updated version references and corrected manifest drift to V560.
+
 ## V559 — Speedometer toggle resized and dial enlarged
 - Increased the Speedometer dial size on the outcome/speedometer screen.
 - Resized the **Show CPI / MBS** / **Show SPI / CSR / SBLP** toggle button to match the **Back to Start** button sizing more closely.
