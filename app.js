@@ -2,7 +2,7 @@
 // CogSpeed V568
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V572";
+const APP_VERSION = "V573";
 
 // ═══════════════════════════════════════════════════
 // RECENT INTEGRATED PROGRAM CHANGES (see CHANGELOG.md for current integrated history)
@@ -4326,16 +4326,30 @@ function showResultsPage(resultOverride){
  try{
   stopFX();
   if(testScreen) testScreen.classList.add("hidden");
-  if(thinking) thinking.classList.add("hidden");
-  if(outcome) outcome.classList.remove("hidden");
-  if(Number.isFinite(Number(ctx.index)) && ctx.index>=0) syncSummarySessionSelect(ctx.index);
-  renderSpeedometerOutcome(ctx.result, ctx.index);
+  if(outcome) outcome.classList.add("hidden");
+  if(thinking) thinking.classList.remove("hidden");
+  setFlowDiagnostic("THINKING", `CogSpeed Thinking — ${ctx.result && ctx.result.endReason ? ctx.result.endReason : "Run complete"}`);
+  setTimeout(()=>{
+   try{
+    if(thinking) thinking.classList.add("hidden");
+    if(outcome) outcome.classList.remove("hidden");
+    if(Number.isFinite(Number(ctx.index)) && ctx.index>=0) syncSummarySessionSelect(ctx.index);
+    renderSpeedometerOutcome(ctx.result, ctx.index);
+   }catch(err){
+    console.error("showResultsPage delayed render failed", err);
+    if(outcome) outcome.classList.remove("hidden");
+    try{ syncOutcomeStatusText(ctx.result || {endReason:state.endReason||"Run complete"}); }catch(e){}
+    try{ applySpeedometerSourceDiagnostic(ctx.result, ctx.index, ctx.source); }catch(e){}
+   }finally{
+    try{ updateStartPageLinks(); }catch(e){}
+   }
+  }, 2000);
  }catch(err){
   console.error("showResultsPage failed", err);
+  if(thinking) thinking.classList.add("hidden");
   if(outcome) outcome.classList.remove("hidden");
   try{ syncOutcomeStatusText(ctx.result || {endReason:state.endReason||"Run complete"}); }catch(e){}
   try{ applySpeedometerSourceDiagnostic(ctx.result, ctx.index, ctx.source); }catch(e){}
- }finally{
   try{ updateStartPageLinks(); }catch(e){}
  }
 }

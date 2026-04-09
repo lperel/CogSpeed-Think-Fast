@@ -1,8 +1,8 @@
-## V572 — Package drift cleanup for update reliability
+## V573 — Package drift cleanup for update reliability
 - Fixed stale script tag in `index.html` so the page now requests `app.js?v=572`, matching the current release and service-worker cache key.
-- Fixed stale resting `statusLine` text in `index.html` from `CogSpeed V552` to `CogSpeed V572`.
+- Fixed stale resting `statusLine` text in `index.html` from `CogSpeed V552` to `CogSpeed V573`.
 - Replaced the stale app.js integrated-changes header comment with a current-safe note pointing readers to `CHANGELOG.md` for the up-to-date integrated history.
-- Updated visible/package version references to V572.
+- Updated visible/package version references to V573.
 
 ## V571 — Speedometer dropdown cleanup + Ranked Averages
 - Added **Ranked Averages** to the Speedometer dropdown menu.
