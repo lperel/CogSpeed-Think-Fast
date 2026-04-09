@@ -1,3 +1,8 @@
+## V567 — Firebird intro auto-advance fix
+- Removed the Gray Matter Metrics, LLC text from the Firebird intro page.
+- Made the Firebird intro auto-advance to the Start page more reliably by arming the transition immediately when the intro is shown, while keeping the load-based fallback.
+- Slightly shortened the intro timing so the transition occurs promptly after the GIF completes.
+
 ## V566 — Firebird intro page
 - Added a faster Firebird intro GIF page shown before the Start page.
 - Intro uses the original Firebird image at the end of the animation so the top is not cut off.
