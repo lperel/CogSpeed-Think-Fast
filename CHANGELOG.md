@@ -1,4 +1,9 @@
-## V549 — Mode 2 sustained anti-spoof rolling mean defaults
+## V552 — Mode 2 sustained anti-spoof defaults completed
+- Added the missing DEFAULTS entries for **Mode 2 anti-spoof rolling mean window in Sustained Phase** (`mode4SustainedRollMeanWindow: 10`) and **Mode 2 anti-spoof rolling mean threshold in Sustained Phase** (`mode4SustainedRollMeanThreshold: 0.50`).
+- Keeps the V551 Mode 2 sustained rolling-mean Admin fields and runtime logic, but now defines them cleanly in the master DEFAULTS object so fresh installs and Reset Admin Settings restore the intended defaults.
+- Updated visible/package version references to V552.
+
+## V551 — Mode 2 sustained anti-spoof rolling mean defaults
 - Added Mode 2 sustained-phase anti-spoof rolling mean window default to Admin: **10**.
 - Added Mode 2 sustained-phase anti-spoof rolling mean threshold default to Admin: **0.50**.
 - Sustained-phase taps now maintain a separate rolling-mean stream from Mode 1 so adaptive-phase history does not contaminate sustained anti-spoof checks.
@@ -30,10 +35,10 @@
 - Updated the CPI scale comment and aligned the cognitive-performance table fallback to the new anchor through the shared settings/default path.
 - Updated visible/package version references to V545.
 
-## V544 — Mode 1 CPI anchor default update
+## V551 — Mode 1 CPI anchor default update
 - Changed **Mode 1 CPI best ms anchor** default from **800** to **100** in `DEFAULTS`, Admin text, and fallback references.
 - Changed **Mode 1 CPI worst ms anchor** default from **2400** to **2000** in `DEFAULTS`, Admin text, and fallback references.
-- Updated the CPI scale comment and visible/package version references to V544.
+- Updated the CPI scale comment and visible/package version references to V551.
 - No trial, pacing, response-handling, CPX, CDI, or other scoring-logic changes beyond the anchor defaults themselves.
 
 ## V543 — Controlled merge build on V541 baseline line

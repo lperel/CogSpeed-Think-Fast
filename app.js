@@ -2,7 +2,7 @@
 // CogSpeed V543
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V549";
+const APP_VERSION = "V552";
 
 // ═══════════════════════════════════════════════════
 // RECENT INTEGRATED PROGRAM CHANGES (through V527)
@@ -125,6 +125,8 @@ const DEFAULTS={
  mode4SustainedStartFactor:1.2,
  mode4SustainedTrialCount:20,
  mode4SustainedMaxWrong:4,
+ mode4SustainedRollMeanWindow:10,
+ mode4SustainedRollMeanThreshold:0.50,
  mode4FinalTrialCount:2,
  consecutiveMissesForBlock:2,
   blockRestartPercent:1.3,
@@ -2885,6 +2887,17 @@ function getCognitivePerformanceTableText(result){
   const target=Math.max(1, Number(result.mode4SustainedTargetCount)||Number(settings.mode4SustainedTrialCount)||20);
   const csrRaw=(result&&result.correctSustainedResponses!=null)?result.correctSustainedResponses:(result?result.mode4SustainedCorrect:null);
   const csr=Number.isFinite(Number(csrRaw))?Number(csrRaw):null;
+  const actualMbs = result && result.mode4AdaptiveMbsMs!=null
+   ? Number(result.mode4AdaptiveMbsMs)
+   : (result && result.averageLast2BlockingScoresMs!=null ? Number(result.averageLast2BlockingScoresMs) : null);
+  const actualCpi = result && result.cognitivePerformanceIndex!=null
+   ? Number(result.cognitivePerformanceIndex)
+   : (actualMbs!=null ? computeCPI(actualMbs) : null);
+  const actualSpfs = result.samnPerelli && result.samnPerelli.score!=null ? Number(result.samnPerelli.score) : null;
+  const best = Number(settings.cpiBestMs)||DEFAULTS.cpiBestMs;
+  const worst = Number(settings.cpiWorstMs)||DEFAULTS.cpiWorstMs;
+  const span = worst - best;
+  const cpiToMs = c => Math.round(best + ((100-c)/100)*span);
   const mode1Bands=[
    {spfs:7,cpi:100,cap:"FUNCTIONING EXCEPTIONALLY WELL"},
    {spfs:6,cpi:80,cap:"FUNCTIONING VERY WELL"},
@@ -2895,25 +2908,36 @@ function getCognitivePerformanceTableText(result){
    {spfs:1,cpi:0,cap:"UNABLE TO FUNCTION / DEFINITELY UNSAFE"},
   ];
   const rows=[];
-  for(let n=target;n>=0;n--){
-   const rowCpi=Math.round((n/target)*100);
+  for(let rowCpi=100;rowCpi>=0;rowCpi-=5){
+   const rowMbs=cpiToMs(rowCpi);
+   const rowCsr=Math.max(0, Math.min(target, Math.round((rowCpi/100)*target)));
    let band=mode1Bands[0], bestDiff=Infinity;
    mode1Bands.forEach(b=>{ const d=Math.abs(rowCpi-b.cpi); if(d<bestDiff){ bestDiff=d; band=b; } });
-   const scoreLabel=(csr===n)?`← YOUR SCORES: CSR ${n} | CPI ${rowCpi}`:"";
-   rows.push({spfs:band.spfs, csr:n, cpi:rowCpi, cap:band.cap, mark:scoreLabel});
+   rows.push({spfs:band.spfs, csr:rowCsr, cpi:rowCpi, mbs:rowMbs, cap:band.cap, mark:""});
   }
-  const actualSpfs = result.samnPerelli && result.samnPerelli.score!=null ? Number(result.samnPerelli.score) : null;
-  const headers=["[SP-FS]","CSR","CPI","DESCRIPTION OF PERFORMANCE"];
+  let nearestIdx = -1;
+  if(actualCpi!=null){
+   let bestDiff = Infinity;
+   rows.forEach((r,i)=>{ const d=Math.abs(actualCpi-r.cpi); if(d<bestDiff){ bestDiff=d; nearestIdx=i; } });
+  }
+  if(nearestIdx>=0){
+   const cpiLabel = actualCpi!=null ? Math.round(actualCpi) : "—";
+   const mbsLabel = actualMbs!=null ? `${Math.round(actualMbs)} ms` : "—";
+   const csrLabel = csr!=null ? csr : "—";
+   rows[nearestIdx].mark = `← YOUR SCORES: CSR ${csrLabel} | CPI ${cpiLabel} | MBS ${mbsLabel}`;
+  }
+  const headers=["[SP-FS]","CSR","CPI","MBS","DESCRIPTION OF PERFORMANCE"];
   const spfsDisplay = v => (actualSpfs!=null && Number(v)===actualSpfs) ? `▶${v}◀` : String(v);
   const widths=[
    Math.max(headers[0].length, ...rows.map(r=>spfsDisplay(r.spfs).length)),
    Math.max(headers[1].length, ...rows.map(r=>String(r.csr).length)),
    Math.max(headers[2].length, ...rows.map(r=>String(r.cpi).length)),
-   Math.max(headers[3].length, ...rows.map(r=>r.cap.length)),
+   Math.max(headers[3].length, ...rows.map(r=>`${r.mbs} ms`.length)),
+   Math.max(headers[4].length, ...rows.map(r=>r.cap.length)),
   ];
-  const headerLine=`${headers[0].padEnd(widths[0])} | ${headers[1].padEnd(widths[1])} | ${headers[2].padEnd(widths[2])} | ${headers[3]}`;
-  const body=rows.map(r=>`${spfsDisplay(r.spfs).padEnd(widths[0])} | ${String(r.csr).padStart(widths[1])} | ${String(r.cpi).padStart(widths[2])} | ${r.cap}${r.mark?`  ${r.mark}`:""}`);
-  return ["Mode 2 CogSpeed Sustained Cognitive Performance Table (CSR → CPI)",headerLine,...body].join("\n");
+  const headerLine=`${headers[0].padEnd(widths[0])} | ${headers[1].padEnd(widths[1])} | ${headers[2].padEnd(widths[2])} | ${headers[3].padEnd(widths[3])} | ${headers[4]}`;
+  const body=rows.map(r=>`${spfsDisplay(r.spfs).padEnd(widths[0])} | ${String(r.csr).padStart(widths[1])} | ${String(r.cpi).padStart(widths[2])} | ${`${r.mbs} ms`.padStart(widths[3])} | ${r.cap}${r.mark?`  ${r.mark}`:""}`);
+  return ["Mode 2 CogSpeed Sustained Cognitive Performance Table (Actual CPI from MBS)",headerLine,...body].join("\n");
  }
  if(mode!=="mode1") return "Not used in this mode.";
  const cpi = result.cognitivePerformanceIndex!=null ? Number(result.cognitivePerformanceIndex) : null;
