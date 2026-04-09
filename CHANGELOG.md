@@ -1,3 +1,11 @@
+## V568 — Intro auto-advance fix + backup integrity metadata
+- Fixed the Firebird intro auto-advance by moving the intro timer wiring out of the trial-opening path and initializing it on page load.
+- Intro overlay now closes to the Start page automatically when the GIF finishes timing.
+- Removed the bottom Gray Matter Metrics footer line from the intro/start landing screen.
+- Local data backup export now includes `schemaVersion: 1` and a SHA-256 `payloadHash`.
+- Restore now verifies the payload hash and cleanly fails if the backup file was edited or corrupted.
+- Restore rejects newer unsupported schema versions and warns before restoring legacy backups without schema/integrity metadata.
+
 ## V567 — Firebird intro auto-advance fix
 - Removed the Gray Matter Metrics, LLC text from the Firebird intro page.
 - Made the Firebird intro auto-advance to the Start page more reliably by arming the transition immediately when the intro is shown, while keeping the load-based fallback.

@@ -1,8 +1,8 @@
 // ═══════════════════════════════════════════════════
-// CogSpeed V543
+// CogSpeed V568
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V567";
+const APP_VERSION = "V568";
 
 // ═══════════════════════════════════════════════════
 // RECENT INTEGRATED PROGRAM CHANGES (through V527)
@@ -1442,29 +1442,6 @@ function openTrial(kind){
  renderTrial(state.current);
  updateMetrics();
 
-let introAutoTimer=null;
-function clearIntroAutoTimer(){ if(introAutoTimer){ clearTimeout(introAutoTimer); introAutoTimer=null; } }
-function armIntroAutoAdvance(){
- clearIntroAutoTimer();
- introAutoTimer=setTimeout(()=>closeIntroOverlay(), 7600);
-}
-function openIntroOverlay(){
- showOnly("introOverlay");
- setStatus("Ready");
- armIntroAutoAdvance();
-}
-function closeIntroOverlay(){
- clearIntroAutoTimer();
- showOnly("subjectOverlay");
- setStatus("Ready");
- try{ updateStartPageLinks(); }catch(e){}
-}
-const _introGif=$("introGif"); if(_introGif){
- _introGif.addEventListener("load", ()=>{ if(!$('introOverlay')?.classList.contains('hidden')) armIntroAutoAdvance(); });
-}
-const _introOverlay=$("introOverlay"); if(_introOverlay) _introOverlay.addEventListener("click", (e)=>{ if(e.target && e.target.id==="introOverlay") closeIntroOverlay(); });
-if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', ()=>{ if(!$('introOverlay')?.classList.contains('hidden')) armIntroAutoAdvance(); });
-else { if(!$('introOverlay')?.classList.contains('hidden')) armIntroAutoAdvance(); }
  try{ setFlowDiagnostic("TRIAL", `${String(kind||"trial").toUpperCase()} — awaiting response`); }catch(e){}
 
  if(kind==="calibration"){
@@ -2925,6 +2902,40 @@ function hasActiveTestInProgress(){
  return !["idle","finished"].includes(String(state.phase||"idle"));
 }
 
+let introAutoTimer=null;
+function clearIntroAutoTimer(){ if(introAutoTimer){ clearTimeout(introAutoTimer); introAutoTimer=null; } }
+function armIntroAutoAdvance(){
+ clearIntroAutoTimer();
+ introAutoTimer=setTimeout(()=>closeIntroOverlay(), 7600);
+}
+function openIntroOverlay(){
+ const intro=$("introOverlay");
+ if(intro) intro.classList.remove("hidden");
+ const subject=$("subjectOverlay");
+ if(subject) subject.classList.add("hidden");
+ setStatus("Ready");
+ armIntroAutoAdvance();
+}
+function closeIntroOverlay(){
+ const intro=$("introOverlay");
+ if(intro) intro.classList.add("hidden");
+ const subject=$("subjectOverlay");
+ if(subject) subject.classList.remove("hidden");
+ clearIntroAutoTimer();
+ setStatus("Ready");
+ try{ updateStartPageLinks(); }catch(e){}
+}
+function initIntroAutoAdvance(){
+ const introGif=$("introGif");
+ const introOverlay=$("introOverlay");
+ if(introGif){
+  const restart=()=>{ if(introOverlay && !introOverlay.classList.contains("hidden")) armIntroAutoAdvance(); };
+  introGif.addEventListener("load", restart);
+  restart();
+ }
+ if(introOverlay) introOverlay.addEventListener("click", (e)=>{ if(e.target && e.target.id==="introOverlay") closeIntroOverlay(); });
+}
+
 function ensureSafeForLocalDataAction(actionLabel){
  if(hasActiveTestInProgress()){
   setStatus(`${actionLabel} is unavailable during an active test.`);
@@ -2933,7 +2944,14 @@ function ensureSafeForLocalDataAction(actionLabel){
  return true;
 }
 
-function getCogSpeedBackupPayload(){
+async function computeCogSpeedBackupHash(payloadObj){
+ const json = JSON.stringify(payloadObj);
+ const bytes = new TextEncoder().encode(json);
+ const digest = await crypto.subtle.digest("SHA-256", bytes);
+ return Array.from(new Uint8Array(digest)).map(b=>b.toString(16).padStart(2,"0")).join("");
+}
+
+async function getCogSpeedBackupPayload(){
  const readJson = (key, fallback)=>{
   try{
    const raw = localStorage.getItem(key);
@@ -2942,23 +2960,26 @@ function getCogSpeedBackupPayload(){
    return fallback;
   }
  };
- return {
-  magic: "CogSpeedBackup",
-  formatVersion: 1,
-  appVersion: APP_VERSION,
-  storagePrefix: STORAGE_PREFIX,
-  exportedAt: new Date().toISOString(),
-  payload: {
+ const payload = {
    settings: readJson(`${STORAGE_PREFIX}_settings`, null),
    profile: readJson(`${STORAGE_PREFIX}_profile`, null),
    history: readJson(`${STORAGE_PREFIX}_history`, []),
-  }
+  };
+ return {
+  magic: "CogSpeedBackup",
+  formatVersion: 1,
+  schemaVersion: 1,
+  appVersion: APP_VERSION,
+  storagePrefix: STORAGE_PREFIX,
+  exportedAt: new Date().toISOString(),
+  payload,
+  payloadHash: await computeCogSpeedBackupHash(payload)
  };
 }
 
-function downloadCogSpeedLocalDataBackup(){
+async function downloadCogSpeedLocalDataBackup(){
  if(!ensureSafeForLocalDataAction("Save Local Data")) return;
- const backup = getCogSpeedBackupPayload();
+ const backup = await getCogSpeedBackupPayload();
  const stamp = backup.exportedAt.slice(0,10);
  const blob = new Blob([JSON.stringify(backup, null, 2)], {type:'application/json'});
  const a=document.createElement('a');
@@ -2974,12 +2995,28 @@ function isValidCogSpeedBackupFile(obj){
  return !!(obj && obj.magic==="CogSpeedBackup" && Number(obj.formatVersion)>=1 && obj.payload && Array.isArray(obj.payload.history));
 }
 
-function applyCogSpeedBackupFile(obj){
+async function verifyCogSpeedBackupFile(obj){
+ if(!isValidCogSpeedBackupFile(obj)) return {ok:false, message:"That file is not a valid CogSpeed backup."};
+ if(obj.schemaVersion!=null && Number(obj.schemaVersion)>1) return {ok:false, message:`This backup uses unsupported schema version ${obj.schemaVersion}.`};
+ if(obj.payloadHash){
+  try{
+   const computed = await computeCogSpeedBackupHash(obj.payload);
+   if(computed !== obj.payloadHash) return {ok:false, message:"Backup file failed integrity verification. The file may have been edited or corrupted."};
+  }catch(err){
+   return {ok:false, message:"Could not verify backup integrity."};
+  }
+ }
+ return {ok:true, legacy: obj.schemaVersion==null || !obj.payloadHash};
+}
+
+async function applyCogSpeedBackupFile(obj){
  if(!ensureSafeForLocalDataAction("Restore Local Data")) return false;
- if(!isValidCogSpeedBackupFile(obj)){
-  alert("That file is not a valid CogSpeed backup.");
+ const verification = await verifyCogSpeedBackupFile(obj);
+ if(!verification.ok){
+  alert(verification.message);
   return false;
  }
+ if(verification.legacy && !confirm("This backup is from an older format and has no schema/integrity metadata. Restore it anyway?")) return false;
  const hasExisting = !!(localStorage.getItem(`${STORAGE_PREFIX}_history`) || localStorage.getItem(`${STORAGE_PREFIX}_profile`) || localStorage.getItem(`${STORAGE_PREFIX}_settings`));
  if(hasExisting && !confirm("Restore local data and overwrite current saved CogSpeed data on this device?")) return false;
  try{
@@ -3029,7 +3066,7 @@ function ensureUpdateBanner(){
   try{
    const text = await file.text();
    const parsed = JSON.parse(text);
-   applyCogSpeedBackupFile(parsed);
+   await applyCogSpeedBackupFile(parsed);
   }catch(err){
    alert('Could not read backup file.');
   }finally{
@@ -5654,6 +5691,9 @@ modeLabel.textContent="Subject mode";
 renderFatigueChecklist();
 renderRefresher();
 updateMetrics();
+
+if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', initIntroAutoAdvance);
+else initIntroAutoAdvance();
 
 if ("serviceWorker" in navigator) {
  window.addEventListener("load", async () => {
