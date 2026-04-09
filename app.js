@@ -2,7 +2,7 @@
 // CogSpeed V543
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V553";
+const APP_VERSION = "V558";
 
 // ═══════════════════════════════════════════════════
 // RECENT INTEGRATED PROGRAM CHANGES (through V527)
@@ -127,6 +127,7 @@ const DEFAULTS={
  mode4SustainedMaxWrong:4,
  mode4SustainedRollMeanWindow:10,
  mode4SustainedRollMeanThreshold:0.50,
+ mode4LateResponseThresholdMs:600,
  mode4FinalTrialCount:2,
  consecutiveMissesForBlock:2,
   blockRestartPercent:1.3,
@@ -218,19 +219,20 @@ const ADMIN_FIELDS=[
  ["mode4SustainedMaxWrong","36. Mode 2 anti-spoof max wrong in Sustained Phase (default 4)","number"],
  ["mode4SustainedRollMeanWindow","37. Mode 2 anti-spoof rolling mean window in Sustained Phase (default 10)","number"],
  ["mode4SustainedRollMeanThreshold","38. Mode 2 anti-spoof rolling mean threshold in Sustained Phase (default 0.50)","number"],
- ["mode4FinalTrialCount","39. Mode 2 final self-paced trials (default 2)","number"],
- ["mode2TrialLimit","40. Mode 3 self-paced trial limit (default 150)","number"],
- ["mode2MaxDurationMs","41. Mode 3 total duration ms (default 120000)","number"],
- ["mode3CalibrationTrials","42. Mode 4 self-paced calibration trials (default 10)","number"],
- ["mode3BaselineFactor","43. Mode 4 MP baseline factor from cal avg (default 1.3)","number"],
- ["mode3PacedTrialLimit","44. Mode 4 fixed machine-paced trial limit (default 140)","number"],
- ["mode3MaxDurationMs","45. Mode 4 total duration ms (default 120000)","number"],
+ ["mode4LateResponseThresholdMs","39. Mode 2 late response reassignment threshold (ms, default 600)","number"],
+ ["mode4FinalTrialCount","40. Mode 2 final self-paced trials (default 2)","number"],
+ ["mode2TrialLimit","41. Mode 3 self-paced trial limit (default 150)","number"],
+ ["mode2MaxDurationMs","42. Mode 3 total duration ms (default 120000)","number"],
+ ["mode3CalibrationTrials","43. Mode 4 self-paced calibration trials (default 10)","number"],
+ ["mode3BaselineFactor","44. Mode 4 MP baseline factor from cal avg (default 1.3)","number"],
+ ["mode3PacedTrialLimit","45. Mode 4 fixed machine-paced trial limit (default 140)","number"],
+ ["mode3MaxDurationMs","46. Mode 4 total duration ms (default 120000)","number"],
 
- // 46-49. Cross-mode utilities / diagnostics
- ["deviceBenchmarkEnabled","46. Device benchmark (0=off, 1=on)","number"],
- ["lateResponseThresholdMs","47. Late response reassignment threshold (ms, default 600)","number"],
- ["RecoveryInterTrialDelayMsStart","48. Recovery inter-trial delay at start (ms, default 0)","number"],
- ["ResumeToPacedDelayMs","49. Resume-to-paced delay after recovery (ms, default 0)","number"],
+ // 47-50. Cross-mode utilities / diagnostics
+ ["deviceBenchmarkEnabled","47. Device benchmark (0=off, 1=on)","number"],
+ ["lateResponseThresholdMs","48. Mode 1 late response reassignment threshold (ms, default 600)","number"],
+ ["RecoveryInterTrialDelayMsStart","49. Recovery inter-trial delay at start (ms, default 0)","number"],
+ ["ResumeToPacedDelayMs","50. Resume-to-paced delay after recovery (ms, default 0)","number"],
 ];
 
 // ─── Patterns ───
@@ -317,9 +319,10 @@ const state={
  activeFrameTiming:null, frameOvershootLog:[], rafIntervalLog:[],
  mode4Triggered:false, mode4AdaptiveMbsMs:null, mode4SustainedPresentationRateMs:null,
  mode4SustainedPresented:0, mode4SustainedCorrect:0, mode4SustainedWrong:0, mode4SustainedMissed:0,
- mode4SustainedCorrectRTs:[], mode4SustainedRollMeanLog:[], mode4FinalTrialsPresented:0,
+ mode4SustainedCorrectRTs:[], mode4SustainedRollMeanLog:[], mode4PendingPriorMiss:null, mode4FinalTrialsPresented:0,
  mode4FinalCorrect:0, mode4FinalWrong:0, mode4FinalRTs:[],
- speedometerMode4Metric:"spi"
+ speedometerMode4Metric:"spi",
+ summaryVariant:"complete"
  // pendingPriorMiss:
  //   stores the immediately previous paced frame when it LOOKED like a miss at frame end,
  //   but is still inside the late-response grace rule window.
@@ -1567,6 +1570,22 @@ function finalizePendingPriorMiss(){
 //   Applies the provisional pacing result for Frame 1 only if Frame 2 finished with no own response.
 //   If Frame 2 later gets its own >=600 ms response, this provisional pacing result is discarded
 //   and Frame 2's own pacing result replaces it.
+function finalizeMode4PendingPriorMiss(){
+ if(!state.mode4PendingPriorMiss) return false;
+ const pm = state.mode4PendingPriorMiss;
+ state.mode4PendingPriorMiss = null;
+ const savedCurrent = state.current;
+ const savedPresented = state.presentedRoundDuration;
+ state.current = pm.trial;
+ state.presentedRoundDuration = pm.durationMs;
+ logTrial({phase:"mode4_sustained_missed",rt:null,outcome:"missed",responseIndex:null,timing:pm.timing||null,pacing:{nextRateMs:state.duration,rateChangeMs:0,rateChangeReason:"Mode 4 sustained fixed rate (MBS × factor)"}});
+ state.current = savedCurrent;
+ state.presentedRoundDuration = savedPresented;
+ state.missedTrials += 1;
+ state.mode4SustainedMissed += 1;
+ return false;
+}
+
 function applyPendingLatePacingIfAny(){
  if(!state.pendingLatePacing) return;
  const p = state.pendingLatePacing;
@@ -1600,13 +1619,31 @@ if(state.phase==="paced_fixed"){
   return;
  }
 if(state.phase==="mode4_sustained"){
-  const truelyMissed=state.current&&!state.current.resolved&&!state.hadResponse;
-  if(truelyMissed){
-   logTrial({phase:"mode4_sustained_missed",rt:null,outcome:"missed",responseIndex:null});
-   state.missedTrials+=1;
-   state.mode4SustainedMissed+=1;
+  if(state.mode4PendingPriorMiss){
+   finalizeMode4PendingPriorMiss();
   }
+  const frameTiming = harvestActiveFrameTiming(performance.now());
+  const truelyMissed=state.current&&!state.current.resolved&&!state.hadResponse;
   const limit=Math.max(1, Number(settings.mode4SustainedTrialCount)||20);
+  if(truelyMissed){
+   if(state.mode4SustainedPresented >= limit){
+    logTrial({phase:"mode4_sustained_missed",rt:null,outcome:"missed",responseIndex:null,timing:frameTiming,pacing:{nextRateMs:state.duration,rateChangeMs:0,rateChangeReason:"Mode 4 sustained fixed rate (MBS × factor)"}});
+    state.missedTrials+=1;
+    state.mode4SustainedMissed+=1;
+    state.phase="mode4_final";
+    state.mode4FinalTrialsPresented=0;
+    openTrial("mode4_final");
+    return;
+   }
+   state.mode4PendingPriorMiss = {
+    trial: state.current,
+    durationMs: state.presentedRoundDuration!=null ? state.presentedRoundDuration : (state.duration?Math.round(state.duration):null),
+    timing: frameTiming
+   };
+   openTrial("mode4_sustained");
+   return;
+  }
+  state.mode4PendingPriorMiss = null;
   if(state.mode4SustainedPresented >= limit){
    state.phase="mode4_final";
    state.mode4FinalTrialsPresented=0;
@@ -1848,10 +1885,62 @@ function handleTap(index,eventTimeStamp){
 
  if(state.phase==="mode4_sustained"){
   const rt=getSafeTrialRtMs(eventTimeStamp);
-  const timingSummary = harvestActiveFrameTiming(performance.now());
+  const lateThreshold = Number(settings.mode4LateResponseThresholdMs)||600;
   const limit=Math.max(1, Number(settings.mode4SustainedTrialCount)||20);
+
+  if(state.mode4PendingPriorMiss && rt < lateThreshold){
+   const prior = state.mode4PendingPriorMiss.trial;
+   const priorDur = state.mode4PendingPriorMiss.durationMs!=null ? state.mode4PendingPriorMiss.durationMs : (state.duration?Math.round(state.duration):null);
+   const correctForLast = prior && trialMatches(prior,index);
+   state.totalResponses += 1;
+   if(correctForLast){
+    const eRT = rt + priorDur;
+    state.totalCorrect += 1;
+    state.mode4SustainedCorrect += 1;
+    state.pacedRTs.push(eRT);
+    state.mode4SustainedCorrectRTs.push(eRT);
+    const savedCurrent = state.current;
+    const savedPresented = state.presentedRoundDuration;
+    state.current = prior;
+    state.presentedRoundDuration = priorDur;
+    logTrial({phase:"mode4_sustained",rt:eRT,outcome:"correct",responseIndex:index,timing:state.mode4PendingPriorMiss?.timing||null,pacing:{nextRateMs:state.duration,rateChangeMs:0,rateChangeReason:"Mode 4 sustained fixed rate (late rescue)"}});
+    state.current = savedCurrent;
+    state.presentedRoundDuration = savedPresented;
+    flashBtn(index,true);
+    if(checkMode4SustainedRollingMean(true)) return;
+   }else{
+    state.totalIncorrect += 1;
+    state.pacedErrors += 1;
+    state.mode4SustainedWrong += 1;
+    const sustainedWrongLimit=Math.max(1, Number(settings.mode4SustainedMaxWrong)||4);
+    const savedCurrent = state.current;
+    const savedPresented = state.presentedRoundDuration;
+    state.current = prior;
+    state.presentedRoundDuration = priorDur;
+    logTrial({phase:"mode4_sustained_wrong",rt:rt,outcome:"wrong",responseIndex:index,timing:state.mode4PendingPriorMiss?.timing||null,pacing:{nextRateMs:state.duration,rateChangeMs:0,rateChangeReason:"Mode 4 sustained fixed rate (late rescue)"}});
+    state.current = savedCurrent;
+    state.presentedRoundDuration = savedPresented;
+    flashBtn(index,false);
+    checkMode4SustainedRollingMean(false);
+    if(state.mode4SustainedWrong >= sustainedWrongLimit){
+     state.endReason=`Mode 2 CogSpeed Sustained stopped: too many wrong responses in Sustained Phase (${state.mode4SustainedWrong}/${sustainedWrongLimit}).`;
+     finish(); return;
+    }
+    if(checkMaxPacedWrong()) return;
+   }
+   state.mode4PendingPriorMiss = null;
+   state.hadResponse = false;
+   return;
+  }
+
+  if(state.mode4PendingPriorMiss){
+   finalizeMode4PendingPriorMiss();
+  }
+  const timingSummary = harvestActiveFrameTiming(performance.now());
+
   if(state.current&&!state.current.resolved&&trialMatches(state.current,index)){
    state.current.resolved=true; state.totalResponses+=1; state.totalCorrect+=1; state.mode4SustainedCorrect+=1; state.pacedRTs.push(rt); state.mode4SustainedCorrectRTs.push(rt);
+   state.hadResponse=true;
    logTrial({phase:"mode4_sustained",rt,outcome:"correct",responseIndex:index,timing:timingSummary,pacing:{nextRateMs:state.duration,rateChangeMs:0,rateChangeReason:"Mode 4 sustained fixed rate (MBS × factor)"}});
    flashBtn(index,true);
    if(checkMode4SustainedRollingMean(true)) return;
@@ -3042,6 +3131,73 @@ function computeMode4AdaptiveCounts(result){
  return {correct, wrong, missed: Math.max(0, missed)};
 }
 
+
+function buildResultsSummaryCompact(result){
+ const el=$("summaryText"); if(!el) return;
+ const hr="─────────────────────────";
+ const spf=result.samnPerelli?`${result.samnPerelli.score} (${result.samnPerelli.label})`:"not recorded";
+ let geoStr="unavailable";
+ if(result.geo){
+  geoStr=result.geo.status==="ok"
+   ?(result.geo.address||`${result.geo.latitude.toFixed(5)}, ${result.geo.longitude.toFixed(5)}`)+` (±${Math.round(result.geo.accuracy_m)}m)`
+   :result.geo.status;
+ }
+ const modeName = result.testMode==="mode2" ? "Mode 3 Self-Paced Calibration" : result.testMode==="mode3" ? "Mode 4 Fixed Machine-Paced" : result.testMode==="mode4" ? "Mode 2 CogSpeed Sustained" : "Mode 1 CogSpeed Adaptive";
+ const totalPresentations = computeTotalTrialPresentations(result);
+ const totalDuration = formatDuration(result.testDurationMs);
+ const sleepLine = formatSleepLine(result);
+ const adaptiveMbs=result.mode4AdaptiveMbsMs!=null?result.mode4AdaptiveMbsMs:result.averageLast2BlockingScoresMs;
+ const timing=result.testMode==="mode4" ? (result.mode4TimingSummary||computeMode4TimingSummary(result)) : null;
+ if(result.testMode==="mode4"){
+  if(result.mode4Triggered && result.sustainedFirstHalfSpi==null && Array.isArray(result.rtLog)){
+   Object.assign(result, computeMode4SustainedAnalysis(result.rtLog, result.mode4SustainedPresentationRateMs, result.mode4SustainedTargetCount||10));
+  }
+  if(result.mode4Triggered && result.cdi==null){
+   Object.assign(result, computeCDISummary(result));
+  }
+ }
+ if(result.cpxRaw==null){
+  Object.assign(result, computeCPXSummary(result, settings));
+ }
+ const adaptiveCounts = result.testMode==="mode4" ? computeMode4AdaptiveCounts(result) : null;
+ const mode1AdaptiveBlock = result.testMode==="mode1" ? `ADAPTIVE MACHINE-PACED PHASE: Right ${result.pacedResponseCount||0} · Wrong ${result.pacedErrors||0} · Missed ${result.missedTrials||0} · Avg RT ${result.pacedResponseMeanMs!=null?result.pacedResponseMeanMs.toFixed(1)+" ms":"—"} · CPI ${result.cognitivePerformanceIndex!=null?result.cognitivePerformanceIndex.toFixed(1):"—"} · MBS ${result.averageLast2BlockingScoresMs!=null?result.averageLast2BlockingScoresMs.toFixed(1)+" ms":"—"}` : null;
+ const mode4AdaptiveBlock = result.testMode==="mode4" ? `ADAPTIVE MACHINE-PACED PHASE: Right ${adaptiveCounts.correct} · Wrong ${adaptiveCounts.wrong} · Missed ${adaptiveCounts.missed} · Avg RT ${result.pacedResponseMeanMs!=null?result.pacedResponseMeanMs.toFixed(1)+" ms":"—"}` : null;
+ const cpiDisplay = result.testMode==="mode4" ? (adaptiveMbs!=null?computeCPI(adaptiveMbs).toFixed(1)+" / 100":"—") : (result.cognitivePerformanceIndex!=null?result.cognitivePerformanceIndex.toFixed(1)+" / 100":result.testMode==="mode3"||result.testMode==="mode2"?"—":(result.averageLast2BlockingScoresMs!=null?computeCPI(result.averageLast2BlockingScoresMs).toFixed(1)+" / 100":"—"));
+ const mbsDisplay = result.testMode==="mode4" ? (adaptiveMbs!=null?adaptiveMbs.toFixed(1)+" ms":"—") : (result.averageLast2BlockingScoresMs!=null?result.averageLast2BlockingScoresMs.toFixed(1)+" ms":"—");
+ const selfPacedLine = result.testMode==="mode3" || result.testMode==="mode4" || result.testMode==="mode2"
+   ? `SELF-PACE CALIBRATION: Total ${result.selfPacedResponseCount!=null?result.selfPacedResponseCount:"—"} · Correct ${result.selfPacedCorrect!=null?result.selfPacedCorrect:"—"} · Wrong ${result.calibrationErrors!=null?result.calibrationErrors:(result.selfPacedWrong!=null?result.selfPacedWrong:"—")} · Avg RT ${result.calibrationAverageMs!=null?result.calibrationAverageMs.toFixed(1)+" ms":(result.selfPacedResponseMeanMs!=null?result.selfPacedResponseMeanMs.toFixed(1)+" ms":"—")}`
+   : `SELF-PACE CALIBRATION: Total ${result.selfPacedResponseCount!=null?result.selfPacedResponseCount:"—"} · Correct ${result.selfPacedCorrect!=null?result.selfPacedCorrect:"—"} · Wrong ${result.calibrationErrors!=null?result.calibrationErrors:(result.selfPacedWrong!=null?result.selfPacedWrong:"—")} · Avg RT ${result.calibrationAverageMs!=null?result.calibrationAverageMs.toFixed(1)+" ms":"—"}`;
+ const sustainedBlock = result.testMode==="mode4" && result.mode4Triggered
+   ? `MODE 2 SUSTAINED COGSPEED PHASE: Presentation Rate ${result.mode4SustainedPresentationRateMs!=null?result.mode4SustainedPresentationRateMs.toFixed(1)+" ms":"—"} · CSR Correct ${result.correctSustainedResponses!=null?result.correctSustainedResponses:(result.mode4SustainedCorrect||0)} · SBLP ${result.sustainedBlockLimitPerformanceMs!=null?result.sustainedBlockLimitPerformanceMs.toFixed(1)+" ms":"—"} · SPI ${result.sustainedProcessingIndex!=null?result.sustainedProcessingIndex.toFixed(1)+" / 100":"—"} · CDI ${result.cdi!=null?result.cdi+" / 100":"—"} · CDI Risks ${result.cdiVarRisk!=null?`V ${result.cdiVarRisk.toFixed(0)}, O ${result.cdiOmitRisk.toFixed(0)}, F ${result.cdiDecayRisk.toFixed(0)}, S ${result.cdiSlopeRisk.toFixed(0)}, R ${result.cdiSprRisk.toFixed(0)}, C ${result.cdiCommRisk.toFixed(0)}`:"—"}`
+   : `MODE 2 SUSTAINED COGSPEED PHASE: not taken`;
+ const cpxLine = result.cpxRaw!=null ? `CPX: Objective ${result.cpxRaw.toFixed(1)} / 100 · State-adjusted ${result.cpxFinal!=null?result.cpxFinal.toFixed(1)+" / 100":"—"}` : 'CPX: —';
+ const dispositionLine = result.cpxDispositionLabel||result.cpxDispositionCode ? `${result.cpxDispositionCode||"—"} ${result.cpxDispositionLabel||"—"}` : '—';
+ el.textContent=
+`CogSpeed version: ${APP_VERSION}
+Mode: ${modeName}
+Session: ${result.sessionNumber!=null?result.sessionNumber:"—"}
+Subject ID: ${result.subjectId||"—"}
+Location: ${geoStr}
+Date/Time: ${result.time?new Date(result.time).toLocaleString():"—"}
+Total Trial Presentations: ${totalPresentations}
+Total Test Duration: ${result.testMode==="mode4"&&timing?formatDuration(timing.totalMs):totalDuration}
+Fatigue (SP-FS): ${spf}
+Sleep: ${sleepLine.replace(/^SLEEP:\s*/,'')}
+${selfPacedLine}
+${mode1AdaptiveBlock || mode4AdaptiveBlock || 'ADAPTIVE MACHINE-PACED PHASE: Not used in this mode'}
+CPI: ${cpiDisplay}
+MBS: ${mbsDisplay}
+${sustainedBlock}
+Cognitive Performance table:
+ ${getCognitivePerformanceTableText(result)}
+${cpxLine}
+Disposition: ${dispositionLine}
+END Reason: ${result.endReason||"Run complete"}
+${hr}
+RESULTS METRICS EXPLANATIONS:
+${getResultsMetricExplanationText(result)}`;
+}
+
 function buildSummary(result){
  const el=$("summaryText"); if(!el) return;
  const hr="─────────────────────────";
@@ -3898,13 +4054,17 @@ function getMode4BlockListText(result){
  return blocks.map((b,i)=>` Block ${i+1}: ${Number(b).toFixed(0)} ms`).join("\n");
 }
 
-function openSummarySession(idx){
+function openSummarySession(idx, variant){
+ if(variant) state.summaryVariant = variant;
  const ctx = resolveResultContext(null, idx, "summary session");
  if(!ctx.result) return;
  const clamped = Number.isFinite(Number(ctx.index)) ? Math.max(0, Math.min(state.history.length-1, Number(ctx.index))) : null;
  if(clamped!=null) syncSummarySessionSelect(clamped);
  try{
-  buildSummary(ctx.result);
+  const variantToUse = String(state.summaryVariant||"complete");
+  const sb=$("summaryBadge"); if(sb) sb.textContent = variantToUse==="compact" ? "Results Summary" : "Results";
+  if(variantToUse==="compact") buildResultsSummaryCompact(ctx.result);
+  else buildSummary(ctx.result);
   applySummarySourceDiagnostic(ctx.result, clamped, ctx.source);
  }catch(err){
   const st=$("summaryText");
@@ -3989,7 +4149,7 @@ function resetTrialStateOnly(){
  state.spCorrectStreak=0; state.spWrongCount=0; state.terminalBlockReason=null;
  state.totalTrials=0; state.endReason=""; state.totalResponses=0; state.pacedErrors=0; state.recoveryErrors=0;
  state.testStartTime=null; state.maxTestRemainingMs=null; state.maxTestDeadlineMs=null; state.totalCorrect=0; state.totalIncorrect=0;
- state.missedTrials=0; state.rollMeanLog=[]; state.mode4SustainedRollMeanLog=[]; state.lastFiveAnswers=[];
+ state.missedTrials=0; state.rollMeanLog=[]; state.mode4SustainedRollMeanLog=[]; state.mode4PendingPriorMiss=null; state.lastFiveAnswers=[];
  state.calibrationTrialIndex=0; state.calibrationRTs=[]; state.calibrationErrors=0;
  state.pacedRTs=[]; state.rtLog=[]; state.lastFrameDuration=null; state.presentedRoundDuration=null;
  state.activeMode=settings.testMode||"mode1"; state.selfPacedRTs=[]; state.selfPacedCorrect=0; state.selfPacedWrong=0;
@@ -5572,7 +5732,8 @@ function openSpeedometerMenuSelection(){
  if(!choice) return;
  const idx=getSpeedometerSelectedIndex();
  sel.value="";
- if(choice==="summary"){ $("outcomeOverlay").classList.add("hidden"); stopSpeedometer(); openSummarySession(idx); setTestingQuiet(false); return; }
+ if(choice==="summary"){ $("outcomeOverlay").classList.add("hidden"); stopSpeedometer(); openSummarySession(idx, "complete"); setTestingQuiet(false); return; }
+ if(choice==="summary_short"){ $("outcomeOverlay").classList.add("hidden"); stopSpeedometer(); openSummarySession(idx, "compact"); setTestingQuiet(false); return; }
  if(choice==="perf_time"){ $("outcomeOverlay").classList.add("hidden"); openPerformanceOverTimePage(); return; }
  if(choice==="response_graph"){ openResponseGraphPage(false, idx); return; }
  if(choice==="trial_log"){ $("outcomeOverlay").classList.add("hidden"); buildTrialLog(idx); $("trialLogOverlay").classList.remove("hidden"); return; }

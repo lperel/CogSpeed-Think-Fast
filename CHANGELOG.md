@@ -1,3 +1,30 @@
+## V558 — Added compact Results Summary to Speedometer menu
+- Added a new Speedometer dropdown item: **Results Summary**.
+- New compact Results Summary includes version, mode, session, subject ID, location, date/time, total trial presentations, total duration, SP-FS, sleep, self-paced calibration, adaptive phase, CPI, MBS, Mode 2 sustained phase details when present, cognitive performance table, CPX, disposition, end reason, and results metric explanations.
+- Existing **Results - Complete** item remains available.
+- Returning to Speedometer continues to reset the dropdown menu to its default placeholder.
+
+## V557 — Speedometer dropdown label clarified
+- Changed the Speedometer dropdown menu label from **Results Summary** to **Results - Complete**.
+- Kept the dropdown action wiring unchanged.
+
+## V556 — Package consistency cleanup
+- Fixed stale manifest name so package/version references are fully aligned.
+- Updated manifest name from stale V552 to V556.
+- Repackaged as a clean full build with no program files missing.
+- No trial, pacing, scoring, or response-handling logic changes.
+
+## V555 — Mode 2 late-response rescue + dedicated sustained default
+- Added the Mode 1-style late-response rescue algorithm to **Mode 2 CogSpeed Sustained** so a first tap on the next sustained frame under the configured threshold can be reassigned to the prior apparent miss, scoring it as correct or wrong instead of missed when appropriate.
+- Added a dedicated Admin/default setting for the sustained-phase late-response rule: **Mode 2 late response reassignment threshold (default 600 ms)**.
+- Preserved the existing Mode 2 sustained anti-spoof max wrong and rolling-mean defaults.
+- No Mode 1 pacing, CPX, or CDI formula changes.
+
+## V554 — Smaller Speedometer SPI/CSR/SBLP toggle button
+- Reduced the size of the Speedometer Mode 2 metric-toggle button ("Show SPI / CSR / SBLP" / "Show CPI / MBS") to reduce visual clutter.
+- Narrower width, smaller text, and lighter padding only.
+- No trial, pacing, scoring, or response-handling changes.
+
 ## V553 — Speedometer actions moved into dropdown menu
 - Reduced Speedometer button clutter by moving Results Summary, Performance over Date and Time, Response-Time Graph, Trial Detail Log, Presentation Rate vs Response Time, and E-mail Select into a single dropdown action menu.
 - Added an Open button next to the dropdown and also allow direct open on selection.
