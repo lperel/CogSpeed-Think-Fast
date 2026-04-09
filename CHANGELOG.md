@@ -1,3 +1,29 @@
+## V549 — Mode 2 sustained anti-spoof rolling mean defaults
+- Added Mode 2 sustained-phase anti-spoof rolling mean window default to Admin: **10**.
+- Added Mode 2 sustained-phase anti-spoof rolling mean threshold default to Admin: **0.50**.
+- Sustained-phase taps now maintain a separate rolling-mean stream from Mode 1 so adaptive-phase history does not contaminate sustained anti-spoof checks.
+- If sustained rolling mean falls below threshold after the configured window is filled, the Mode 2 session stops with a sustained-phase anti-spoof end reason.
+- No changes to Mode 1, Mode 3, CPX/CDI, or response-timing rules outside the new Mode 2 sustained anti-spoof logic.
+
+## V548 — Mode 2 sustained anti-spoof wrong limit
+- Added a new Admin default: **Mode 2 anti-spoof max wrong in Sustained Phase (default 4)**.
+- Mode 2 now stops the sustained phase and ends the session if sustained wrong responses reach that limit.
+- Kept the existing global anti-spoof and max paced wrong protections unchanged.
+- No changes to Mode 1, Mode 3, CPX, CDI, or response-timing rules.
+
+## V547 — Mode 2 sustained phase starts at MBS × factor
+- Added new Admin default **Mode 2 sustained start factor × MBS** with default **1.2**.
+- When adaptive convergence triggers the sustained phase, the sustained presentation rate now starts at **MBS × mode4SustainedStartFactor** instead of exact MBS.
+- The adjusted sustained rate is clamped within the existing global min/max frame-duration limits.
+- Updated the Admin section text so the sustained trial count line now reads **sustained trials at MBS × factor**.
+- No changes to Mode 1/3/4 logic outside the sustained-start rate for visible Mode 2 CogSpeed Sustained.
+
+## V546 — Mode 1 CPI worst anchor restored to 2400
+- Changed **Mode 1 CPI worst ms anchor** default from **2000** to **2400** in `DEFAULTS`, Admin text, and fallback references.
+- Kept **Mode 1 CPI best ms anchor** at **1000**.
+- Updated the CPI scale comment and aligned visible/package version references to V546.
+- Fixed remaining package drift so `index.html` status line and `manifest.json` name now match the current version.
+
 ## V545 — Mode 1 CPI anchor correction
 - Changed **Mode 1 CPI best ms anchor** default from **100** to **1000** in `DEFAULTS`, Admin text, and fallback references.
 - Kept **Mode 1 CPI worst ms anchor** at **2000**.

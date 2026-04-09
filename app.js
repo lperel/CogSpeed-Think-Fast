@@ -2,7 +2,7 @@
 // CogSpeed V543
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V545";
+const APP_VERSION = "V549";
 
 // ═══════════════════════════════════════════════════
 // RECENT INTEGRATED PROGRAM CHANGES (through V527)
@@ -122,7 +122,9 @@ const DEFAULTS={
  mode3MaxDurationMs:120000,
  mode3BaselineFactor:1.3,
  mode4MbsThresholdMs:250,
+ mode4SustainedStartFactor:1.2,
  mode4SustainedTrialCount:20,
+ mode4SustainedMaxWrong:4,
  mode4FinalTrialCount:2,
  consecutiveMissesForBlock:2,
   blockRestartPercent:1.3,
@@ -153,7 +155,7 @@ const DEFAULTS={
  calibrationStopErrors:4,
  calibrationStopSlowMs:6000,
  cpiBestMs:1000,
- cpiWorstMs:2000,
+ cpiWorstMs:2400,
  deviceBenchmarkEnabled:0,
  timeFormat:"12",
  lateResponseThresholdMs:600, // first response <600ms on next frame may belong to prior frame; a second >=600ms response belongs to current frame
@@ -205,24 +207,28 @@ const ADMIN_FIELDS=[
  ["maxTrialCount","29. Mode 1 max paced trials (default 180)","number"],
  ["maxPacedWrong","30. Mode 1 max paced wrong before fail (default 20)","number"],
  ["cpiBestMs","31. Mode 1 CPI best ms anchor (default 1000)","number"],
- ["cpiWorstMs","32. Mode 1 CPI worst ms anchor (default 2000)","number"],
+ ["cpiWorstMs","32. Mode 1 CPI worst ms anchor (default 2400)","number"],
 
- // 33-41. Modes 2-4, ordered by visible mode number and by use within each mode
+ // 33-43. Modes 2-4, ordered by visible mode number and by use within each mode
  ["mode4MbsThresholdMs","33. Mode 2 MBS threshold to start sustained phase (ms, default 250)","number"],
- ["mode4SustainedTrialCount","34. Mode 2 sustained trials at MBS (default 20)","number"],
- ["mode4FinalTrialCount","35. Mode 2 final self-paced trials (default 2)","number"],
- ["mode2TrialLimit","36. Mode 3 self-paced trial limit (default 150)","number"],
- ["mode2MaxDurationMs","37. Mode 3 total duration ms (default 120000)","number"],
- ["mode3CalibrationTrials","38. Mode 4 self-paced calibration trials (default 10)","number"],
- ["mode3BaselineFactor","39. Mode 4 MP baseline factor from cal avg (default 1.3)","number"],
- ["mode3PacedTrialLimit","40. Mode 4 fixed machine-paced trial limit (default 140)","number"],
- ["mode3MaxDurationMs","41. Mode 4 total duration ms (default 120000)","number"],
+ ["mode4SustainedStartFactor","34. Mode 2 sustained start factor × MBS (default 1.2)","number"],
+ ["mode4SustainedTrialCount","35. Mode 2 sustained trials at MBS × factor (default 20)","number"],
+ ["mode4SustainedMaxWrong","36. Mode 2 anti-spoof max wrong in Sustained Phase (default 4)","number"],
+ ["mode4SustainedRollMeanWindow","37. Mode 2 anti-spoof rolling mean window in Sustained Phase (default 10)","number"],
+ ["mode4SustainedRollMeanThreshold","38. Mode 2 anti-spoof rolling mean threshold in Sustained Phase (default 0.50)","number"],
+ ["mode4FinalTrialCount","39. Mode 2 final self-paced trials (default 2)","number"],
+ ["mode2TrialLimit","40. Mode 3 self-paced trial limit (default 150)","number"],
+ ["mode2MaxDurationMs","41. Mode 3 total duration ms (default 120000)","number"],
+ ["mode3CalibrationTrials","42. Mode 4 self-paced calibration trials (default 10)","number"],
+ ["mode3BaselineFactor","43. Mode 4 MP baseline factor from cal avg (default 1.3)","number"],
+ ["mode3PacedTrialLimit","44. Mode 4 fixed machine-paced trial limit (default 140)","number"],
+ ["mode3MaxDurationMs","45. Mode 4 total duration ms (default 120000)","number"],
 
- // 42-45. Cross-mode utilities / diagnostics
- ["deviceBenchmarkEnabled","42. Device benchmark (0=off, 1=on)","number"],
- ["lateResponseThresholdMs","43. Late response reassignment threshold (ms, default 600)","number"],
- ["RecoveryInterTrialDelayMsStart","44. Recovery inter-trial delay at start (ms, default 0)","number"],
- ["ResumeToPacedDelayMs","45. Resume-to-paced delay after recovery (ms, default 0)","number"],
+ // 46-49. Cross-mode utilities / diagnostics
+ ["deviceBenchmarkEnabled","46. Device benchmark (0=off, 1=on)","number"],
+ ["lateResponseThresholdMs","47. Late response reassignment threshold (ms, default 600)","number"],
+ ["RecoveryInterTrialDelayMsStart","48. Recovery inter-trial delay at start (ms, default 0)","number"],
+ ["ResumeToPacedDelayMs","49. Resume-to-paced delay after recovery (ms, default 0)","number"],
 ];
 
 // ─── Patterns ───
@@ -309,7 +315,7 @@ const state={
  activeFrameTiming:null, frameOvershootLog:[], rafIntervalLog:[],
  mode4Triggered:false, mode4AdaptiveMbsMs:null, mode4SustainedPresentationRateMs:null,
  mode4SustainedPresented:0, mode4SustainedCorrect:0, mode4SustainedWrong:0, mode4SustainedMissed:0,
- mode4SustainedCorrectRTs:[], mode4FinalTrialsPresented:0,
+ mode4SustainedCorrectRTs:[], mode4SustainedRollMeanLog:[], mode4FinalTrialsPresented:0,
  mode4FinalCorrect:0, mode4FinalWrong:0, mode4FinalRTs:[],
  speedometerMode4Metric:"spi"
  // pendingPriorMiss:
@@ -488,7 +494,7 @@ function harvestActiveFrameTiming(actualAtMs){
 // ─── CPI ───
 // ─── CPI SCORE CALCULATION ────────────────────────────────────
 // Converts avg last 2 block durations (ms) to 0-100 CPI score.
-// Scale: cpiBestMs=1000ms → CPI 100, cpiWorstMs=2000ms → CPI 0.
+// Scale: cpiBestMs=1000ms → CPI 100, cpiWorstMs=2400ms → CPI 0.
 // Source: Perelli (2026). Formula: (worst-ms)/(worst-best)*100
 // ──────────────────────────────────────────────────────────────
 function computeCPI(avgMs){
@@ -972,6 +978,25 @@ function checkMaxPacedWrong(){
  if(state.pacedErrors>=limit){ state.endReason=`FAILED: reached paced wrong-tap limit (${limit})`; finish(); return true; }
  return false;
 }
+
+function checkMode4SustainedRollingMean(ok){
+ if(!isMode4()) return false;
+ state.mode4SustainedRollMeanLog = Array.isArray(state.mode4SustainedRollMeanLog) ? state.mode4SustainedRollMeanLog : [];
+ state.mode4SustainedRollMeanLog.push(!!ok);
+ const win=Math.max(1,Math.round(Number(settings.mode4SustainedRollMeanWindow)||10));
+ if(state.mode4SustainedRollMeanLog.length>win) state.mode4SustainedRollMeanLog.shift();
+ if(state.mode4SustainedRollMeanLog.length===win){
+  const ratio=state.mode4SustainedRollMeanLog.filter(v=>v===true).length/win;
+  const thresh=Number(settings.mode4SustainedRollMeanThreshold)||0.50;
+  if(ratio<thresh){
+   state.endReason=`Mode 2 CogSpeed Sustained stopped: rolling mean below threshold in Sustained Phase (${win} responses, threshold ${thresh})`;
+   finish();
+   return true;
+  }
+ }
+ return false;
+}
+
 function recordAnswer(ok,isMiss){
  if(!isMiss){
   state.lastFiveAnswers.push(ok);
@@ -1019,18 +1044,21 @@ function maybeTriggerTerminalRule(){
    if(avg2==null) return false;
    state.mode4Triggered = true;
    state.mode4AdaptiveMbsMs = avg2;
-   state.mode4SustainedPresentationRateMs = avg2;
+   const sustainedStartFactor = Number(settings.mode4SustainedStartFactor)||1.2;
+   const sustainedRate = clamp(avg2 * sustainedStartFactor, Number(settings.minDurationMs)||600, Number(settings.maxDurationMs)||3500);
+   state.mode4SustainedPresentationRateMs = sustainedRate;
    state.mode4SustainedPresented = 0;
    state.mode4SustainedCorrect = 0;
    state.mode4SustainedWrong = 0;
    state.mode4SustainedMissed = 0;
    state.mode4SustainedCorrectRTs = [];
+   state.mode4SustainedRollMeanLog = [];
    state.mode4FinalTrialsPresented = 0;
    state.mode4FinalCorrect = 0;
    state.mode4FinalWrong = 0;
    state.mode4FinalRTs = [];
    state.phase = "mode4_sustained";
-   state.duration = avg2;
+   state.duration = sustainedRate;
    openTrial("mode4_sustained");
    return true;
   }
@@ -1428,7 +1456,7 @@ function openTrial(kind){
   state.presentedRoundDuration = Math.round(state.duration);
   state.mode4SustainedPresented += 1;
   phaseLabel.textContent=`Mode 4 Sustained MBS · ${Math.round(state.duration)}ms`;
-  setStatus("Mode 4 sustained MBS trials at fixed presentation rate");
+  setStatus(`Mode 4 sustained trials at MBS × ${(Number(settings.mode4SustainedStartFactor)||1.2).toFixed(1)}`);
  }else if(kind==="recovery"){
   clearTimer();
   state.duration=null; state.lastFrameDuration=null; state.presentedRoundDuration=null;
@@ -1822,16 +1850,26 @@ function handleTap(index,eventTimeStamp){
   const limit=Math.max(1, Number(settings.mode4SustainedTrialCount)||20);
   if(state.current&&!state.current.resolved&&trialMatches(state.current,index)){
    state.current.resolved=true; state.totalResponses+=1; state.totalCorrect+=1; state.mode4SustainedCorrect+=1; state.pacedRTs.push(rt); state.mode4SustainedCorrectRTs.push(rt);
-   logTrial({phase:"mode4_sustained",rt,outcome:"correct",responseIndex:index,timing:timingSummary,pacing:{nextRateMs:state.duration,rateChangeMs:0,rateChangeReason:"Mode 4 sustained fixed MBS"}});
+   logTrial({phase:"mode4_sustained",rt,outcome:"correct",responseIndex:index,timing:timingSummary,pacing:{nextRateMs:state.duration,rateChangeMs:0,rateChangeReason:"Mode 4 sustained fixed rate (MBS × factor)"}});
    flashBtn(index,true);
+   if(checkMode4SustainedRollingMean(true)) return;
    if(state.mode4SustainedPresented >= limit){ state.phase="mode4_final"; state.mode4FinalTrialsPresented=0; openTrial("mode4_final"); return; }
    openTrial("mode4_sustained"); return;
   }
   state.hadResponse=true;
   state.totalResponses+=1; state.totalIncorrect+=1; state.pacedErrors+=1; state.mode4SustainedWrong+=1;
+  const sustainedWrongLimit=Math.max(1, Number(settings.mode4SustainedMaxWrong)||4);
+  if(state.mode4SustainedWrong >= sustainedWrongLimit){
+   logTrial({phase:"mode4_sustained_wrong",rt,outcome:"wrong",responseIndex:index,timing:timingSummary,pacing:{nextRateMs:state.duration,rateChangeMs:0,rateChangeReason:"Mode 4 sustained fixed rate (MBS × factor)"}});
+   flashBtn(index,false);
+   checkMode4SustainedRollingMean(false);
+   state.endReason=`Mode 2 CogSpeed Sustained stopped: too many wrong responses in Sustained Phase (${state.mode4SustainedWrong}/${sustainedWrongLimit}).`;
+   finish(); return;
+  }
   if(checkMaxPacedWrong()) return;
-  logTrial({phase:"mode4_sustained_wrong",rt,outcome:"wrong",responseIndex:index,timing:timingSummary,pacing:{nextRateMs:state.duration,rateChangeMs:0,rateChangeReason:"Mode 4 sustained fixed MBS"}});
+  logTrial({phase:"mode4_sustained_wrong",rt,outcome:"wrong",responseIndex:index,timing:timingSummary,pacing:{nextRateMs:state.duration,rateChangeMs:0,rateChangeReason:"Mode 4 sustained fixed rate (MBS × factor)"}});
   flashBtn(index,false);
+  if(checkMode4SustainedRollingMean(false)) return;
   if(state.mode4SustainedPresented >= limit){ state.phase="mode4_final"; state.mode4FinalTrialsPresented=0; openTrial("mode4_final"); return; }
   openTrial("mode4_sustained"); return;
  }
@@ -3927,7 +3965,7 @@ function resetTrialStateOnly(){
  state.spCorrectStreak=0; state.spWrongCount=0; state.terminalBlockReason=null;
  state.totalTrials=0; state.endReason=""; state.totalResponses=0; state.pacedErrors=0; state.recoveryErrors=0;
  state.testStartTime=null; state.maxTestRemainingMs=null; state.maxTestDeadlineMs=null; state.totalCorrect=0; state.totalIncorrect=0;
- state.missedTrials=0; state.rollMeanLog=[]; state.lastFiveAnswers=[];
+ state.missedTrials=0; state.rollMeanLog=[]; state.mode4SustainedRollMeanLog=[]; state.lastFiveAnswers=[];
  state.calibrationTrialIndex=0; state.calibrationRTs=[]; state.calibrationErrors=0;
  state.pacedRTs=[]; state.rtLog=[]; state.lastFrameDuration=null; state.presentedRoundDuration=null;
  state.activeMode=settings.testMode||"mode1"; state.selfPacedRTs=[]; state.selfPacedCorrect=0; state.selfPacedWrong=0;
