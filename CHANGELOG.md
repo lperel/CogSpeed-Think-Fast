@@ -1,3 +1,12 @@
+## V559 — Speedometer toggle resized and dial enlarged
+- Increased the Speedometer dial size on the outcome/speedometer screen.
+- Resized the **Show CPI / MBS** / **Show SPI / CSR / SBLP** toggle button to match the **Back to Start** button sizing more closely.
+- No trial logic, pacing, scoring, or response-handling changes.
+
+## V558 — Package alignment repack
+- Corrected package/version drift so `index.html`, `manifest.json`, and `sw.js` all align to V558.
+- No logic, scoring, pacing, or UI behavior changes beyond version/package consistency.
+
 ## V558 — Added compact Results Summary to Speedometer menu
 - Added a new Speedometer dropdown item: **Results Summary**.
 - New compact Results Summary includes version, mode, session, subject ID, location, date/time, total trial presentations, total duration, SP-FS, sleep, self-paced calibration, adaptive phase, CPI, MBS, Mode 2 sustained phase details when present, cognitive performance table, CPX, disposition, end reason, and results metric explanations.
