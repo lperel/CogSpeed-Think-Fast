@@ -1,3 +1,19 @@
+## V612 — Speedometer menu package-alignment fix
+- Fixed stale script query in index.html.
+- index.html now loads app.js?v=612 instead of the stale v599 cache-busting tag.
+- Preserved the corrected Speedometer menu order and wiring from V611.
+
+## V611 — Speedometer menu order corrected in static dropdown
+- Corrected the actual Speedometer dropdown order and labels to:
+  1. Results Summary
+  2. Results - Complete
+  3. Trial Detail Log
+  4. Response Time Graph
+  5. Performance Over Date and Time Graph
+  6. Presentation Rate Versus Response Time Graph
+  7. Ranked Averages
+  8. E-Mail Select
+
 ## V610 — Speedometer menu label correction
 - Corrected the Speedometer menu labels to:
   1. Results Summary
