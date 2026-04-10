@@ -1,4 +1,26 @@
-## V592 — Results pages now show hours asleep
+## V597 — Sleep/wake path completed and validated
+- Added a dedicated **last wake time before this test** entry path when the subject reports **no sleep before the current test**.
+- Removed fallback inference from older session history for awake-time reporting.
+- Results now compute **Hours awake before test** only from the current test's own wake entry (`wakeDateTimeIso` or `lastWakeDateTimeIso`).
+- Updated the optional **Actual minutes asleep** field to use `min=10` so the UI matches the validator.
+
+## V596 — Sleep logger timezone/cat-nap support
+- Added optional **Actual minutes asleep** override in Sleep Logger for cat naps and sleep episodes that cross time zones, such as on an airplane.
+- Results now use the override when entered and label it as manual in the sleep line.
+- Lowered the minimum accepted sleep duration from 30 minutes to 10 minutes so short naps can be logged.
+- Preserved wake-time validation against the current test time.
+
+## V595 — allow >24h awake intervals
+- Removed the hard validation rule that required sleep start to be within 24 hours of the current test.
+- Sleep validation now checks logical consistency only: sleep duration bounds and wake time not after the current test time.
+- This allows valid >24-hour awake intervals in sleep-deprivation studies and real-world fatigue cases.
+
+## V595 — Performance over Date and Time legend and marker cleanup
+- Blue dot in the Performance over Date and Time graph now represents CPI without an orange ring around it in the legend.
+- Orange open circle now represents MBS as a separate marker at the same x-position on the graph.
+- Left-axis labels/legend were simplified to CPI and MBS wording for clarity.
+
+## V593 — Results pages now show hours asleep
 - Updated the shared sleep line used by Results Summary and Results - Complete so sleep now explicitly shows hours asleep.
 - If the subject slept before the test, the results show the recorded sleep duration in hours/minutes.
 - If the subject did not sleep before the test, the results show Hours asleep: 0h.
