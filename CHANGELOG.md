@@ -1,3 +1,26 @@
+## V610 — Speedometer menu label correction
+- Corrected the Speedometer menu labels to:
+  1. Results Summary
+  2. Results - Complete
+  3. Trial Detail Log
+  4. Response Time Graph
+  5. Performance Over Date and Time Graph
+  6. Presentation Rate Versus Response Time Graph
+  7. Ranked Averages
+  8. E-Mail Select
+
+## V609 — Speedometer menu reordered
+- Reordered the Speedometer “Open the results / graphs log” menu to:
+  1. Results Summary
+  2. Results - Complete
+  3. Trial Detail Log
+  4. Response Time Graph
+  5. Performance Over Date and Time Graph
+  6. Presentation Rate Versus Response
+  7. Ranked Averages Time Graph
+  8. E-Mail Select
+- Updated the displayed labels to match the requested wording.
+
 ## V608 — Thinking FX symbol-reference cleanup
 - Confirmed the Thinking-box FX loop uses FX_CORNERS, not GEARS.
 - Added a clarifying comment in startFX() to prevent future rename drift.

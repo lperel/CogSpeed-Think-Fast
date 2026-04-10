@@ -2,7 +2,7 @@
 // CogSpeed source
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V608";
+const APP_VERSION = "V610";
 
 // ═══════════════════════════════════════════════════
 // RECENT INTEGRATED PROGRAM CHANGES (see CHANGELOG.md for current integrated history)
@@ -27,9 +27,9 @@ const APP_VERSION = "V608";
 // 3) Performance / graph updates
 //    - Speedometer has a session browser (dropdown + Prev/Next) and linked
 //      views open for the currently selected session.
-//    - Performance over Date and Time shows all sessions by default and
+//    - Performance Over Date and Time Graph shows all sessions by default and
 //      includes sleep-quality bars.
-//    - Response-Time Graph and other live charts use HiDPI canvas setup.
+//    - Response Time Graph and other live charts use HiDPI canvas setup.
 //
 // 4) Trial detail / timing diagnostics
 //    - Trial Detail column names were clarified.
@@ -4639,17 +4639,17 @@ function downloadTrialLogCSV(){
  const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=`${STORAGE_PREFIX}_trials_${subj}.csv`; a.click();
 }
 
-// Presentation Rate vs Response Time (all sessions)
+// Presentation Rate Versus Response Time Graph (all sessions)
 // - all sessions plotted on one graph
 // - selected session highlighted with Prev/Next buttons
 // - smaller ms = better performance and graphs higher
-// Presentation Rate vs Response Time (overlaid sessions)
+// Presentation Rate Versus Response Time Graph (overlaid sessions)
 // - all sessions share the same x-axis
 // - every session starts at trial 1
 // - sessions can have different lengths
 // - selected session is highlighted
 // - smaller ms = better performance and graphs higher
-// Presentation Rate vs Response Time (same-mode overlaid sessions)
+// Presentation Rate Versus Response Time Graph (same-mode overlaid sessions)
 // - only sessions from the SAME mode as the selected session are overlaid
 // - all overlaid sessions share the same x-axis starting at trial 1
 // - smaller ms = better performance and graphs higher
@@ -6376,7 +6376,7 @@ function drawPerformanceOverTimeChart(canvas,hist){
   ctx.fillStyle="#b7d9ef";
   ctx.textAlign="left";
   ctx.font="bold 16px sans-serif";
-  ctx.fillText("Performance over Date and Time", PAD.left, 24);
+  ctx.fillText("Performance Over Date and Time Graph", PAD.left, 24);
 
   ctx.font="12px sans-serif";
   ctx.fillStyle="#d7e7f8";
@@ -6653,7 +6653,7 @@ function openPerformanceOverTimePage(){
 /* ===== end Performance vs Time graph section ===== */
 
 
-/* ===== E-mail Select wiring ===== */
+/* ===== E-Mail Select wiring ===== */
 function openEmailSelectPage(){
   hideAllOverlays();
   const ov = $("emailOverlay");
@@ -6711,9 +6711,9 @@ function wireEmailSelectControls(){
         summary: "Results Summary selected.",
         trial_log: "Trial Detail Log selected.",
         ranked: "Ranked Target / Position Averages selected.",
-        perf_time: "Performance over Date and Time selected.",
-        response_graph: "Response-Time Graph Data selected.",
-        rate_rt: "Presentation Rate vs Response Time selected.",
+        perf_time: "Performance Over Date and Time Graph selected.",
+        response_graph: "Response Time Graph Data selected.",
+        rate_rt: "Presentation Rate Versus Response Time Graph selected.",
         all: "All available data selected."
       };
       info.textContent = labels[dataSel.value] || "Data selection ready.";
@@ -6721,7 +6721,7 @@ function wireEmailSelectControls(){
   }
 }
 
-/* ===== end E-mail Select wiring ===== */
+/* ===== end E-Mail Select wiring ===== */
 
 
 /* ===== E-mail draft action ===== */
@@ -6768,7 +6768,7 @@ function formatLastResponseGraphText(last){
     const rt = r.rt!=null ? `${r.rt} ms` : "—";
     return `${i+1}. Trial ${r.seq||i+1} | Phase ${r.phase||"—"} | Presented ${dur} | RT ${rt} | Trial result ${r.outcome||"—"}`;
   });
-  return "Response-Time Graph Data\n\n" + rows.join("\n");
+  return "Response Time Graph Data\n\n" + rows.join("\n");
 }
 
 function formatLastPerfTimeText(){
@@ -6782,18 +6782,18 @@ function formatLastPerfTimeText(){
     const sleep = r.sleepLog && r.sleepLog.qualityLabel ? r.sleepLog.qualityLabel : (r.sleepSinceLastTest==="no" ? "No sleep since last test" : "—");
     return `${i+1}. ${when} | ${r.testMode==="mode4"?"SPI":"CPI"} ${cpi} | ${r.testMode==="mode4"?"CSR/SBLP":"MBS"} ${mbs} | SP-FS ${spf} | Sleep ${sleep}`;
   });
-  return "Performance over Date and Time\n\n" + rows.join("\n");
+  return "Performance Over Date and Time Graph\n\n" + rows.join("\n");
 }
 
 function formatLastRateRtText(last){
-  if(!last) return "No Presentation Rate vs Response Time data available.";
+  if(!last) return "No Presentation Rate Versus Response Time Graph data available.";
   const rows = (last.rtLog||[]).map((r,i)=>{
     const dur = r.durationMs!=null ? `${r.durationMs} ms` : "—";
     const rt = r.rt!=null ? `${r.rt} ms` : "—";
     const change = r.rateChangeMs!=null ? `${r.rateChangeMs>0?"+":""}${r.rateChangeMs} ms` : "—";
     return `${i+1}. Phase ${r.phase||"—"} | Presented ${dur} | RT ${rt} | Rate change ${change} | Trial result ${r.outcome||"—"}`;
   });
-  return rows.length ? ("Presentation Rate vs Response Time\n\n" + rows.join("\n")) : "No Presentation Rate vs Response Time data available.";
+  return rows.length ? ("Presentation Rate Versus Response Time Graph\n\n" + rows.join("\n")) : "No Presentation Rate Versus Response Time Graph data available.";
 }
 
 function buildEmailBodyFromSelection(){
