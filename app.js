@@ -2,7 +2,7 @@
 // CogSpeed source
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V606";
+const APP_VERSION = "V608";
 
 // ═══════════════════════════════════════════════════
 // RECENT INTEGRATED PROGRAM CHANGES (see CHANGELOG.md for current integrated history)
@@ -2589,6 +2589,7 @@ function emailResults(){
 // ─── FX (steam + sparks from each gear corner) ───
 let _fxRaf=null, _fxParticles=[];
 function startFX(){
+ // Use FX_CORNERS here, not GEARS. GEARS is the global mechanical gear-definition array.
  const canvas=$("fxCanvas"); if(!canvas) return;
  const ctx=canvas.getContext("2d");
  const box=canvas.parentElement;
@@ -2612,7 +2613,7 @@ function startFX(){
  _fxParticles=[];
  function frame(){
   ctx.clearRect(0,0,canvas.width,canvas.height);
-  GEARS.forEach(g=>{
+  FX_CORNERS.forEach(g=>{
    if(Math.random()<0.22){
     const ang=-Math.PI/2+(Math.random()-0.5)*0.8;
     _fxParticles.push({

@@ -1,3 +1,13 @@
+## V608 — Thinking FX symbol-reference cleanup
+- Confirmed the Thinking-box FX loop uses FX_CORNERS, not GEARS.
+- Added a clarifying comment in startFX() to prevent future rename drift.
+- This is the strict follow-up build after the GEARS → FX_CORNERS stale-reference bug.
+
+## V607 — CogSpeed Thinking FX restored
+- Fixed the Thinking box FX regression.
+- Smoke and sparks now use the local FX corner coordinates again.
+- Kept the V606 Performance over Date and Time legend fix intact.
+
 ## V606 — SP-FS restored to Performance over Date and Time legend
 - Added SP-FS back to the legend on the Performance over Date and Time graph.
 - Kept CPI as the blue dot and MBS as the orange open circle around the same point.
