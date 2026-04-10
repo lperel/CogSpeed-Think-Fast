@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
   <meta name="theme-color" content="#0b1830"/>
   <link rel="manifest" href="manifest.json"/>
-  <title>CogSpeed® V590</title>
+  <title>CogSpeed® V591</title>
     <style>
 
     :root{--bg:#091426;--bg2:#132746;--panel:#0d1b33;--panel2:#10213e;--text:#f5fbff;--muted:#d7e7f8;--edge:#4f6f99;--accent:#7fd7ff;--probe:#00f0ff}
@@ -374,7 +374,7 @@
       <img src="CogSpeed.jpeg" alt="CogSpeed logo" style="width:min(78vw,420px);max-width:100%;height:auto;display:block;object-fit:contain;border:1px solid #2f5fb8;box-shadow:0 2px 16px rgba(0,0,0,.25)"/>
     </div>
     <div style="flex:1;display:flex;flex-direction:column;justify-content:flex-start;align-items:center;gap:clamp(6px,1.2dvh,14px);padding-top:10px">
-      <div style="text-align:center"><span class="badge" style="font-size:11px;padding:2px 10px" id="versionBadge">V590</span></div>
+      <div style="text-align:center"><span class="badge" style="font-size:11px;padding:2px 10px" id="versionBadge">V591</span></div>
       <div style="text-align:center">
         <span style="font-size:clamp(20px,3.6dvh,34px);font-weight:900;font-style:italic;letter-spacing:.12em;color:var(--accent);text-transform:uppercase;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;text-shadow:0 0 12px rgba(127,215,255,0.6)">Think Fast!</span>
       </div>
@@ -552,28 +552,11 @@
 <div id="sleepPromptOverlay" class="overlay hidden">
   <div class="modal modal-page">
     <h2 style="font-size:clamp(24px,4dvh,32px)">Sleep</h2>
-    <p class="modal-hint" id="sleepPromptQuestion" style="font-size:clamp(15px,2.2dvh,18px)">Did you sleep since your last test?</p>
-    <div id="sleepPromptChoices" style="display:flex;flex-direction:column;gap:10px;flex:1;justify-content:center">
+    <p class="modal-hint" style="font-size:clamp(15px,2.2dvh,18px)">Did you sleep since your last test?</p>
+    <div style="display:flex;flex-direction:column;gap:10px;flex:1;justify-content:center">
       <button class="ctrl-btn" id="sleepPromptYesBtn" style="font-size:22px;font-weight:900;min-height:64px">Yes</button>
       <button class="ctrl-btn" id="sleepPromptNoBtn" style="font-size:22px;font-weight:900;min-height:64px">No</button>
 </div>
-    <div id="lastWakePromptSection" class="hidden" style="margin-top:10px">
-      <div id="lastWake24Wrap">
-        <input id="lastWakeInput" type="time" style="font-size:18px;width:100%;padding:16px;border:1px solid var(--edge);border-radius:14px;background:#0a1629;color:var(--text)">
-      </div>
-      <div id="lastWake12Wrap" class="hidden">
-        <div style="display:flex;gap:8px;align-items:center">
-          <input id="lastWakeHourInput" type="number" min="1" max="12" placeholder="hh" inputmode="numeric" style="flex:0 0 88px;padding:16px;border:1px solid var(--edge);border-radius:14px;background:#0a1629;color:var(--text);font-size:22px;font-weight:600;text-align:center">
-          <span style="font-size:28px;font-weight:800;color:var(--accent)">:</span>
-          <input id="lastWakeMinuteInput" type="number" min="0" max="59" placeholder="mm" inputmode="numeric" style="flex:0 0 88px;padding:16px;border:1px solid var(--edge);border-radius:14px;background:#0a1629;color:var(--text);font-size:22px;font-weight:600;text-align:center">
-          <button id="lastWakeAmBtn" type="button" class="ctrl-btn" style="flex:1;font-size:18px;min-height:56px">AM</button>
-          <button id="lastWakePmBtn" type="button" class="ctrl-btn" style="flex:1;font-size:18px;min-height:56px">PM</button>
-        </div>
-      </div>
-      <div style="font-size:13px;color:var(--muted);margin-top:8px">Enter only your most recent wake time before this test. You do not need to reconstruct sleep across the whole gap since the last test.</div>
-      <button class="ctrl-btn" id="lastWakeContinueBtn" style="width:100%;margin-top:14px;font-size:22px;font-weight:900;min-height:60px">Continue → SP-FS</button>
-    </div>
-
     <div class="controls" style="margin-top:10px;gap:8px">
       <button class="ctrl-btn" id="sleepPromptBackBtn" style="font-size:18px;min-height:52px">Back to Start Page</button>
 </div>
@@ -959,7 +942,7 @@
     <span id="fatigueOut">—</span>
     <span id="modeLabel">Subject mode</span>
     <span id="phaseLabel">Ready</span>
-    <span id="statusLine">CogSpeed V589</span>
+    <span id="statusLine">CogSpeed V591</span>
     <span id="rateOut">—</span>
     <span id="blocksOut">0</span>
     <span id="recoveryOut">0</span>
@@ -989,6 +972,6 @@
   <div class="resp-grid" id="respGrid"></div>
 </div>
 
-<script src="app.js?v=589" defer></script>
+<script src="app.js?v=591" defer></script>
 </body>
 </html>

@@ -1,8 +1,7 @@
-## V590 — Current-state sleep/wake reporting cleanup
-- Stopped inferring wakefulness from older test history across long gaps.
-- Added a direct **last wake time before this test** entry path when the subject reports no sleep before the current test.
-- Results Summary and Results - Complete now report current-state sleep/wake information only, including **Hours awake before test** derived from the current pre-test wake entry.
-- Sleep reporting no longer depends on prior sessions for elapsed awake time, avoiding false values after multi-day or multi-week gaps.
+## V591 — Results pages now show hours asleep
+- Updated the shared sleep line used by Results Summary and Results - Complete so sleep now explicitly shows hours asleep.
+- If the subject slept before the test, the results show the recorded sleep duration in hours/minutes.
+- If the subject did not sleep before the test, the results show Hours asleep: 0h.
 
 ## V589 — Wider Results pages
 - Widened Results Summary and related results/chart overlays so more data is visible at once.
