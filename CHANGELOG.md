@@ -1,11 +1,4 @@
-## V588 — Mode 2 wrong-fail threshold changed to sustained-trial fraction
-- Replaced the fixed **Mode 2 anti-spoof max wrong in Sustained Phase** rule with a fraction-based rule tied to the configured sustained-trial count.
-- New default: **Mode 2 wrong-fail fraction of sustained trials (default 0.50)**.
-- Example: if Mode 2 sustained trial count is 20, the wrong-fail limit is now 10.
-- Updated the Admin page label to reflect the new fraction-based default.
-- No changes to trial timing, pacing, or late-response handling.
-
-## V587 — Wider Results pages
+## V589 — Wider Results pages
 - Widened Results Summary and related results/chart overlays so more data is visible at once.
 - Increased Results Summary text area height on phones.
 - Reduced modal padding slightly to maximize usable content width.

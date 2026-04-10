@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
   <meta name="theme-color" content="#0b1830"/>
   <link rel="manifest" href="manifest.json"/>
-  <title>CogSpeed® V588</title>
+  <title>CogSpeed® V589</title>
     <style>
 
     :root{--bg:#091426;--bg2:#132746;--panel:#0d1b33;--panel2:#10213e;--text:#f5fbff;--muted:#d7e7f8;--edge:#4f6f99;--accent:#7fd7ff;--probe:#00f0ff}
@@ -26,7 +26,7 @@
     .statusline{font-size:13px;color:var(--muted);text-align:center;padding:4px;min-height:22px}
     .hidden{display:none!important}
     .overlay{position:fixed;inset:0;z-index:100;display:flex;align-items:flex-start;justify-content:center;padding:max(8px,env(safe-area-inset-top,8px)) 10px max(8px,env(safe-area-inset-bottom,8px));background:rgba(2,8,16,.72);backdrop-filter:blur(4px);overflow:auto}
-    .modal{max-width:min(94vw,420px);width:100%;border-radius:22px;padding:16px 14px;background:linear-gradient(180deg,rgba(255,255,255,.04),rgba(255,255,255,.01)),var(--panel2);border:1px solid var(--edge);margin-top:4px}
+    .modal{max-width:min(94vw,400px);width:100%;border-radius:22px;padding:14px 12px;background:linear-gradient(180deg,rgba(255,255,255,.04),rgba(255,255,255,.01)),var(--panel2);border:1px solid var(--edge);margin-top:4px}
     .modal h2{text-align:center;font-size:26px;font-weight:900;margin-bottom:10px;color:var(--text)}
     .modal-hint{font-size:16px;color:var(--muted);text-align:center;margin-bottom:12px;font-weight:500}
     .field-row{margin-bottom:12px}
@@ -88,24 +88,41 @@
        dvh = dynamic viewport height (excludes browser chrome on Android/iOS)
        iPhone SE 1st gen ~548px · SE 2nd/3rd ~667px · standard ~844px
        iPhone 14/15 Pro ~932px · Pro Max ~956px · Pixel 8 Pro ~898px        */
-    .modal h2         {font-size:clamp(24px,4.6dvh,42px)}
-    .modal-hint       {font-size:clamp(15px,2.6dvh,24px)}
-    .ctrl-btn         {font-size:clamp(15px,2.8dvh,26px);min-height:clamp(44px,7.6dvh,72px)}
-    .field-row label  {font-size:clamp(17px,2.8dvh,26px)}
-    .field-hint       {font-size:clamp(12px,1.8dvh,18px)}
-    .field-row input  {font-size:clamp(18px,3.2dvh,30px);padding:clamp(10px,1.9dvh,18px) 14px}
-    .fatigue-item     {font-size:clamp(16px,3.0dvh,28px);padding:clamp(10px,2.0dvh,20px) 16px}
-    .ref-num          {font-size:clamp(17px,3.1dvh,30px)}
-    .ref-lbl          {font-size:clamp(10px,1.8dvh,17px)}
-    .ref-arrow        {font-size:clamp(15px,2.3dvh,22px)}
-    .modal            {padding:clamp(12px,2.0dvh,22px) 14px}
+     .modal h2         {font-size:clamp(22px,3.8dvh,34px)}
+     .modal-hint       {font-size:clamp(14px,2.1dvh,18px)}
+     .ctrl-btn         {font-size:clamp(14px,2.2dvh,19px);min-height:clamp(42px,6.2dvh,56px)}
+     .field-row label  {font-size:clamp(16px,2.2dvh,20px)}
+     .field-hint       {font-size:clamp(12px,1.5dvh,15px)}
+     .field-row input  {font-size:clamp(17px,2.4dvh,22px);padding:clamp(10px,1.5dvh,14px) 12px}
+     .fatigue-item     {font-size:clamp(15px,2.3dvh,20px);padding:clamp(10px,1.5dvh,14px) 14px}
+     .ref-num          {font-size:clamp(16px,2.4dvh,22px)}
+     .ref-lbl          {font-size:clamp(10px,1.4dvh,14px)}
+     .ref-arrow        {font-size:clamp(14px,1.8dvh,18px)}
+     .modal            {padding:clamp(10px,1.5dvh,16px) 12px}
+
+
+    /* ── Tablet / desktop scaling cleanup ── */
+    @media(min-width:768px){
+      .modal{max-width:min(88vw,620px);padding:16px 14px}
+      .modal h2{font-size:clamp(24px,2.4vw,32px)}
+      .modal-hint{font-size:clamp(14px,1.5vw,18px)}
+      .ctrl-btn{font-size:clamp(14px,1.5vw,18px);min-height:46px}
+      .field-row label{font-size:clamp(15px,1.6vw,19px)}
+      .field-row input{font-size:clamp(16px,1.7vw,20px)}
+      .fatigue-item{font-size:clamp(15px,1.6vw,18px)}
+    }
+    @media(min-width:1024px){
+      .modal{max-width:min(84vw,760px)}
+      #testScreen{max-width:min(86vw,620px)}
+      #testScreen .probe-cell{width:clamp(112px,20vw,168px)!important;height:clamp(112px,20vw,168px)!important}
+    }
 
     /* ── Fatigue list: items grow to fill all available vertical space ── */
-    .fatigue-list{flex:1;margin-bottom:0;gap:clamp(5px,1.1dvh,14px)}
+    .fatigue-list{flex:1;margin-bottom:0;gap:clamp(5px,0.9dvh,10px)}
     .fatigue-item{flex:1;display:flex;align-items:center}
 
     /* ── Ref grid: fills remaining space, cards equal height ── */
-    .ref-grid{flex:1;margin-bottom:8px;align-content:stretch;gap:clamp(6px,1.2dvh,14px)}
+    .ref-grid{flex:1;margin-bottom:8px;align-content:stretch;gap:clamp(6px,1.0dvh,10px)}
     .ref-card{display:flex;flex-direction:column;justify-content:center}
 
     /* ── Short screens: compress everything to fit without scrolling ── */
@@ -159,7 +176,7 @@
     display:flex !important;
     flex-direction:column;
     background:#9b9b9b;
-    max-width:540px;
+    max-width:min(100vw,500px);
     margin:0 auto;
     left:50% !important;
     transform:translateX(-50%);
@@ -196,8 +213,8 @@
     flex-shrink:0;
   }
   #testScreen .probe-cell{
-    width:clamp(120px,34vw,200px) !important;
-    height:clamp(120px,34vw,200px) !important;
+    width:clamp(108px,30vw,176px) !important;
+    height:clamp(108px,30vw,176px) !important;
     border:none !important;border-radius:0 !important;
     background:transparent !important;box-shadow:none !important;
     animation:none !important;
@@ -357,7 +374,7 @@
       <img src="CogSpeed.jpeg" alt="CogSpeed logo" style="width:min(78vw,420px);max-width:100%;height:auto;display:block;object-fit:contain;border:1px solid #2f5fb8;box-shadow:0 2px 16px rgba(0,0,0,.25)"/>
     </div>
     <div style="flex:1;display:flex;flex-direction:column;justify-content:flex-start;align-items:center;gap:clamp(6px,1.2dvh,14px);padding-top:10px">
-      <div style="text-align:center"><span class="badge" style="font-size:11px;padding:2px 10px" id="versionBadge">V588</span></div>
+      <div style="text-align:center"><span class="badge" style="font-size:11px;padding:2px 10px" id="versionBadge">V589</span></div>
       <div style="text-align:center">
         <span style="font-size:clamp(20px,3.6dvh,34px);font-weight:900;font-style:italic;letter-spacing:.12em;color:var(--accent);text-transform:uppercase;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;text-shadow:0 0 12px rgba(127,215,255,0.6)">Think Fast!</span>
       </div>
@@ -925,7 +942,7 @@
     <span id="fatigueOut">—</span>
     <span id="modeLabel">Subject mode</span>
     <span id="phaseLabel">Ready</span>
-    <span id="statusLine">CogSpeed V588</span>
+    <span id="statusLine">CogSpeed V589</span>
     <span id="rateOut">—</span>
     <span id="blocksOut">0</span>
     <span id="recoveryOut">0</span>
@@ -955,6 +972,6 @@
   <div class="resp-grid" id="respGrid"></div>
 </div>
 
-<script src="app.js?v=588" defer></script>
+<script src="app.js?v=589" defer></script>
 </body>
 </html>

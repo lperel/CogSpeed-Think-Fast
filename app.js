@@ -2,7 +2,7 @@
 // CogSpeed source
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V588";
+const APP_VERSION = "V589";
 
 // ═══════════════════════════════════════════════════
 // RECENT INTEGRATED PROGRAM CHANGES (see CHANGELOG.md for current integrated history)
@@ -124,7 +124,7 @@ const DEFAULTS={
  mode4MbsThresholdMs:250,
  mode4SustainedStartFactor:1.2,
  mode4SustainedTrialCount:20,
- mode4SustainedWrongFailFraction:0.50,
+ mode4SustainedMaxWrong:4,
  mode4SustainedRollMeanWindow:10,
  mode4SustainedRollMeanThreshold:0.50,
  mode4LateResponseThresholdMs:600,
@@ -216,7 +216,7 @@ const ADMIN_FIELDS=[
  ["mode4MbsThresholdMs","33. Mode 2 MBS threshold to start sustained phase (ms, default 250)","number"],
  ["mode4SustainedStartFactor","34. Mode 2 sustained start factor × MBS (default 1.2)","number"],
  ["mode4SustainedTrialCount","35. Mode 2 sustained trials at MBS × factor (default 20)","number"],
- ["mode4SustainedWrongFailFraction","36. Mode 2 wrong-fail fraction of sustained trials (default 0.50)","number"],
+ ["mode4SustainedMaxWrong","36. Mode 2 anti-spoof max wrong in Sustained Phase (default 4)","number"],
  ["mode4SustainedRollMeanWindow","37. Mode 2 anti-spoof rolling mean window in Sustained Phase (default 10)","number"],
  ["mode4SustainedRollMeanThreshold","38. Mode 2 anti-spoof rolling mean threshold in Sustained Phase (default 0.50)","number"],
  ["mode4LateResponseThresholdMs","39. Mode 2 late response reassignment threshold (ms, default 600)","number"],
@@ -984,13 +984,6 @@ function checkMaxPacedWrong(){
  const limit=Number(settings.maxPacedWrong)||20;
  if(state.pacedErrors>=limit){ state.endReason=`FAILED: reached paced wrong-tap limit (${limit})`; finish(); return true; }
  return false;
-}
-
-function getMode4SustainedWrongFailLimit(){
- if(!isMode4()) return null;
- const target=Math.max(1, Math.round(Number(settings.mode4SustainedTrialCount)||20));
- const frac=Math.max(0, Number(settings.mode4SustainedWrongFailFraction));
- return Math.max(1, Math.round(target*frac));
 }
 
 function checkMode4SustainedRollingMean(ok){
@@ -1922,7 +1915,7 @@ function handleTap(index,eventTimeStamp){
     state.totalIncorrect += 1;
     state.pacedErrors += 1;
     state.mode4SustainedWrong += 1;
-    const sustainedWrongLimit=getMode4SustainedWrongFailLimit();
+    const sustainedWrongLimit=Math.max(1, Number(settings.mode4SustainedMaxWrong)||4);
     const savedCurrent = state.current;
     const savedPresented = state.presentedRoundDuration;
     state.current = prior;
@@ -1959,7 +1952,7 @@ function handleTap(index,eventTimeStamp){
   }
   state.hadResponse=true;
   state.totalResponses+=1; state.totalIncorrect+=1; state.pacedErrors+=1; state.mode4SustainedWrong+=1;
-  const sustainedWrongLimit=getMode4SustainedWrongFailLimit();
+  const sustainedWrongLimit=Math.max(1, Number(settings.mode4SustainedMaxWrong)||4);
   if(state.mode4SustainedWrong >= sustainedWrongLimit){
    logTrial({phase:"mode4_sustained_wrong",rt,outcome:"wrong",responseIndex:index,timing:timingSummary,pacing:{nextRateMs:state.duration,rateChangeMs:0,rateChangeReason:"Mode 4 sustained fixed rate (MBS × factor)"}});
    flashBtn(index,false);
