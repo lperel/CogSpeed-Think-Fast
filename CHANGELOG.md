@@ -1,3 +1,8 @@
+## V587 — Wider Results pages
+- Widened Results Summary and related results/chart overlays so more data is visible at once.
+- Increased Results Summary text area height on phones.
+- Reduced modal padding slightly to maximize usable content width.
+
 ## V586 — controllerchange-driven update reload
 - Removed the timed reload from the update banner Refresh Now button.
 - Refresh Now now sets a one-shot pending flag, posts SKIP_WAITING to the waiting service worker, and lets controllerchange perform the single reload.
