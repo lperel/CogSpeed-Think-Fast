@@ -1,5 +1,5 @@
 // Keep RELEASE in sync with APP_VERSION in app.js and the versioned app.js query in index.html.
-const RELEASE = "604";
+const RELEASE = "606";
 const CACHE_NAME = `cogspeed-v${RELEASE}-shell-v${RELEASE}`;
 const APP_SHELL = [
   "./",

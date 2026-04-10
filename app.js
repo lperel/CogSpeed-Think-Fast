@@ -2,7 +2,7 @@
 // CogSpeed source
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V604";
+const APP_VERSION = "V606";
 
 // ═══════════════════════════════════════════════════
 // RECENT INTEGRATED PROGRAM CHANGES (see CHANGELOG.md for current integrated history)
@@ -6464,11 +6464,10 @@ function drawPerformanceOverTimeChart(canvas,hist){
       const metric = metricVals[i];
       if(score==null || metric==null) return;
       const x = xOf(i);
-      const yScore = yLeftFromScore(score);
-      const yMetric = yLeftFromMs(metric);
-      ctx.beginPath(); ctx.arc(x,yMetric,5.6,0,Math.PI*2);
+      const y = yLeftFromScore(score);
+      ctx.beginPath(); ctx.arc(x,y,5.8,0,Math.PI*2);
       ctx.strokeStyle="#ffb357"; ctx.lineWidth=2.2; ctx.stroke();
-      ctx.beginPath(); ctx.arc(x,yScore,2.8,0,Math.PI*2);
+      ctx.beginPath(); ctx.arc(x,y,2.8,0,Math.PI*2);
       ctx.fillStyle="#7fd7ff"; ctx.fill();
     });
   }

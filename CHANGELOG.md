@@ -1,3 +1,12 @@
+## V606 — SP-FS restored to Performance over Date and Time legend
+- Added SP-FS back to the legend on the Performance over Date and Time graph.
+- Kept CPI as the blue dot and MBS as the orange open circle around the same point.
+
+## V605 — Performance over Date and Time CPI/MBS markers aligned
+- Fixed the graph so CPI (blue dot) and MBS (orange circle) are drawn at the same y-position.
+- The orange open circle now sits around the blue CPI dot instead of being plotted at a separate nearby position.
+- This keeps CPI and MBS visually paired at the same x/y location, matching the intended meaning that they represent the same session value in different units.
+
 ## V604 — Mode 2 final self-paced now consistently uses per-trial no-response timeout
 - Fixed the dead `case "mode4_final"` branch in `armNoResponseTimer()` by making `openTrial("mode4_final")` actually call `armNoResponseTimer()`.
 - Mode 2 final self-paced trials now use the configured recovery no-response timeout per trial, consistent with the existing switch logic.
