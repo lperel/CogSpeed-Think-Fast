@@ -1,3 +1,16 @@
+## V586 — controllerchange-driven update reload
+- Removed the timed reload from the update banner Refresh Now button.
+- Refresh Now now sets a one-shot pending flag, posts SKIP_WAITING to the waiting service worker, and lets controllerchange perform the single reload.
+- Keeps the waiting-state update-banner lifecycle introduced in V585, with a cleaner and more deterministic activation flow.
+
+## V585 — Intro single-play + update-banner SW waiting fix
+- Rebased from the approved V584 package.
+- Fixed the update notification path by removing `self.skipWaiting()` from the service-worker install handler so new workers can enter the `waiting` state and trigger the in-app update banner.
+- Kept the existing `SKIP_WAITING` message path for the banner's Refresh Now action.
+- Re-saved `gmm_firebird_intro_fast.gif` without an infinite-loop flag so it plays once instead of looping forever.
+- Added tap-to-skip on the intro GIF itself in addition to the overlay background.
+- Updated visible/package version references to V585.
+
 ## V584 — Consolidated rebuild from V574 official baseline
 - Rebased current CogSpeed work on the approved V574 official baseline and carried forward the accepted post-V574 fixes and UI changes into one clean package.
 - Preserved the restored CogSpeed Thinking box with turning gears, sparks, smoke, and the 2-second delay.

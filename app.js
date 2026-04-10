@@ -2,7 +2,7 @@
 // CogSpeed source
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V584";
+const APP_VERSION = "V586";
 
 // ═══════════════════════════════════════════════════
 // RECENT INTEGRATED PROGRAM CHANGES (see CHANGELOG.md for current integrated history)
@@ -2936,6 +2936,7 @@ function initIntroAutoAdvance(){
  if(introGif){
   introGif.addEventListener("load", restart);
   introGif.addEventListener("error", restart);
+  introGif.addEventListener("click", ()=>closeIntroOverlay());
   try{ if(introGif.complete) restart(); }catch(e){}
  }
  if(introOverlay) introOverlay.addEventListener("click", (e)=>{ if(e.target && e.target.id==="introOverlay") closeIntroOverlay(); });
@@ -3044,6 +3045,7 @@ async function applyCogSpeedBackupFile(obj){
 
 let cogspeedWaitingRegistration = null;
 let cogspeedUpdateBannerDismissed = false;
+let cogspeedPendingControllerReload = false;
 
 function ensureUpdateBanner(){
  if($("updateBanner")) return;
@@ -3058,12 +3060,12 @@ function ensureUpdateBanner(){
  $("updateBannerRefreshBtn").onclick=()=>{
   if(!ensureSafeForLocalDataAction("Refresh")) return;
   sessionStorage.setItem('cogspeed_restore_offer','1');
+  cogspeedPendingControllerReload = true;
   try{
    if(cogspeedWaitingRegistration && cogspeedWaitingRegistration.waiting){
     cogspeedWaitingRegistration.waiting.postMessage({type:'SKIP_WAITING'});
    }
   }catch(e){}
-  setTimeout(()=>window.location.reload(),150);
  };
  $("updateBannerLaterBtn").onclick=()=>{ cogspeedUpdateBannerDismissed=true; refreshUpdateBannerVisibility(); };
  $("updateBannerRestoreInput").addEventListener('change', async (evt)=>{
@@ -5743,6 +5745,10 @@ if ("serviceWorker" in navigator) {
    navigator.serviceWorker.addEventListener('controllerchange', ()=>{
     cogspeedWaitingRegistration = null;
     refreshUpdateBannerVisibility();
+    if(cogspeedPendingControllerReload){
+     cogspeedPendingControllerReload = false;
+     window.location.reload();
+    }
    });
   }catch(err){
    console.warn("Service worker registration failed:", err);
