@@ -1,7 +1,17 @@
-## V601 — Cognitive Performance table readability on phones
-- Changed Results Summary and Results - Complete text area to preserve table columns with horizontal scrolling instead of wrapping the last column.
-- Slightly tightened mobile results text sizing.
-- Shortened the Cognitive Performance table header and performance labels to improve fit on smaller screens.
+## V604 — Mode 2 final self-paced now consistently uses per-trial no-response timeout
+- Fixed the dead `case "mode4_final"` branch in `armNoResponseTimer()` by making `openTrial("mode4_final")` actually call `armNoResponseTimer()`.
+- Mode 2 final self-paced trials now use the configured recovery no-response timeout per trial, consistent with the existing switch logic.
+- Updated the `armNoResponseTimer()` header comment to document Mode 2 final self-paced coverage.
+
+## V603 — Mode 2 final self-paced restored to true self-paced
+- Removed the no-response timeout path from Mode 2 final self-paced trials.
+- Final self-paced trials now wait for an answer and only the overall max test time can end the session if unanswered.
+- Updated status text to clarify that the final two trials are true self-paced.
+
+## V602 — Mode 2 final self-paced presentations now finish even on no response
+- Fixed Mode 2 CogSpeed Sustained so the final self-paced phase counts presented trials, not only responded trials.
+- Added mode4_final no-response handling: each unanswered final self-paced presentation now counts toward the configured final-trial target and the session completes after the target count is reached.
+- Mode 2 final self-paced now uses the existing no-response timeout instead of hanging until the overall max time.
 
 ## V600 — Mode-label drift comment cleanup
 - Clarified sustained-mode comments to distinguish the internal `mode4` key from the user-facing **Mode 2 CogSpeed Sustained** name.

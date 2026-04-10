@@ -2,7 +2,7 @@
 // CogSpeed source
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V601";
+const APP_VERSION = "V604";
 
 // ═══════════════════════════════════════════════════
 // RECENT INTEGRATED PROGRAM CHANGES (see CHANGELOG.md for current integrated history)
@@ -55,7 +55,7 @@ const APP_VERSION = "V601";
 //
 // 8) Recent rule updates
 //    - Admin max total test time default is 150000 ms.
-//    - Mode 2 final self-paced no-response is bounded by the overall max
+//    - Mode 2 final self-paced is true self-paced; only the overall max can end it if unanswered
 //      test time rather than a per-trial no-response timeout.
 //    - The overall timer is suspended during the sustained MBS segment and
 //      restarted when the first final self-paced trial is shown.
@@ -560,6 +560,7 @@ function armNoResponseTimer(){
  switch(state.phase){
   case "recovery":
   case "terminal_recovery":
+  case "mode4_final":
    ms = Number(settings.recoveryNoResponseMs)||10000;
    break;
   case "calibration":
@@ -1478,7 +1479,7 @@ function openTrial(kind){
   state.duration=null; state.lastFrameDuration=null; state.presentedRoundDuration=null;
   const need=Math.max(1, Number(settings.mode4FinalTrialCount)||2);
   phaseLabel.textContent=`Mode 2 Final ${state.mode4FinalTrialsPresented+1}/${need}`;
-  setStatus(`Mode 2 final self-paced trials — ${state.mode4FinalTrialsPresented}/${need} completed (overall max time still applies)`);
+  setStatus(`Mode 2 final self-paced trials — ${state.mode4FinalTrialsPresented}/${need} completed (true self-paced; overall max time still applies)`);
  }
 
  // Arm timers only after the display is fully rendered.
@@ -1507,7 +1508,7 @@ function openTrial(kind){
    }else if(kind==="recovery" || kind==="terminal_recovery"){
     armNoResponseTimer();
    }else if(kind==="mode4_final"){
-    clearNoResponseTimer();
+    armNoResponseTimer();
    }
   });
  });
@@ -3195,13 +3196,13 @@ function getCognitivePerformanceTableText(result){
   const span = worst - best;
   const cpiToMs = c => Math.round(best + ((100-c)/100)*span);
   const mode1Bands=[
-   {spfs:7,cpi:100,cap:"EXCEPTIONALLY WELL"},
-   {spfs:6,cpi:80,cap:"VERY WELL"},
-   {spfs:5,cpi:75,cap:"NORMAL"},
-   {spfs:4,cpi:50,cap:"SLIGHTLY BELOW NORMAL"},
-   {spfs:3,cpi:25,cap:"STARTING TO SLOW"},
-   {spfs:2,cpi:11,cap:"DIFFICULT / UNSAFE"},
-   {spfs:1,cpi:0,cap:"UNABLE / UNSAFE"},
+   {spfs:7,cpi:100,cap:"FUNCTIONING EXCEPTIONALLY WELL"},
+   {spfs:6,cpi:80,cap:"FUNCTIONING VERY WELL"},
+   {spfs:5,cpi:75,cap:"FUNCTIONING NORMALLY"},
+   {spfs:4,cpi:50,cap:"FUNCTIONING SLIGHTLY LESS THAN NORMAL"},
+   {spfs:3,cpi:25,cap:"FUNCTIONING STARTING TO SLOW"},
+   {spfs:2,cpi:11,cap:"DIFFICULT TO FUNCTION / BECOMING UNSAFE"},
+   {spfs:1,cpi:0,cap:"UNABLE TO FUNCTION / DEFINITELY UNSAFE"},
   ];
   const rows=[];
   for(let rowCpi=100;rowCpi>=0;rowCpi-=5){
@@ -3222,7 +3223,7 @@ function getCognitivePerformanceTableText(result){
    const csrLabel = csr!=null ? csr : "—";
    rows[nearestIdx].mark = `← YOUR SCORES: CSR ${csrLabel} | CPI ${cpiLabel} | MBS ${mbsLabel}`;
   }
-  const headers=["[SP-FS]","CSR","CPI","MBS","PERFORMANCE"];
+  const headers=["[SP-FS]","CSR","CPI","MBS","DESCRIPTION OF PERFORMANCE"];
   const spfsDisplay = v => (actualSpfs!=null && Number(v)===actualSpfs) ? `▶${v}◀` : String(v);
   const widths=[
    Math.max(headers[0].length, ...rows.map(r=>spfsDisplay(r.spfs).length)),
@@ -3243,13 +3244,13 @@ function getCognitivePerformanceTableText(result){
  const span = worst - best;
  const cpiToMs = c => Math.round(best + ((100-c)/100)*span);
  const rows = [
-  {spfs:7,cpi:100,ms:cpiToMs(100),cap:"EXCEPTIONALLY WELL"},
-  {spfs:6,cpi:80,ms:cpiToMs(80),cap:"VERY WELL"},
-  {spfs:5,cpi:75,ms:cpiToMs(75),cap:"NORMAL"},
-  {spfs:4,cpi:50,ms:cpiToMs(50),cap:"SLIGHTLY BELOW NORMAL"},
-  {spfs:3,cpi:25,ms:cpiToMs(25),cap:"STARTING TO SLOW"},
-  {spfs:2,cpi:11,ms:cpiToMs(11),cap:"DIFFICULT / UNSAFE"},
-  {spfs:1,cpi:0,ms:cpiToMs(0),cap:"UNABLE / UNSAFE"},
+  {spfs:7,cpi:100,ms:cpiToMs(100),cap:"FUNCTIONING EXCEPTIONALLY WELL"},
+  {spfs:6,cpi:80,ms:cpiToMs(80),cap:"FUNCTIONING VERY WELL"},
+  {spfs:5,cpi:75,ms:cpiToMs(75),cap:"FUNCTIONING NORMALLY"},
+  {spfs:4,cpi:50,ms:cpiToMs(50),cap:"FUNCTIONING SLIGHTLY LESS THAN NORMAL"},
+  {spfs:3,cpi:25,ms:cpiToMs(25),cap:"FUNCTIONING STARTING TO SLOW"},
+  {spfs:2,cpi:11,ms:cpiToMs(11),cap:"DIFFICULT TO FUNCTION / BECOMING UNSAFE"},
+  {spfs:1,cpi:0,ms:cpiToMs(0),cap:"UNABLE TO FUNCTION / DEFINITELY UNSAFE"},
  ];
  let nearestIdx = -1;
  if(cpi!=null){
