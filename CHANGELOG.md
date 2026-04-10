@@ -1,3 +1,28 @@
+## V601 — Cognitive Performance table readability on phones
+- Changed Results Summary and Results - Complete text area to preserve table columns with horizontal scrolling instead of wrapping the last column.
+- Slightly tightened mobile results text sizing.
+- Shortened the Cognitive Performance table header and performance labels to improve fit on smaller screens.
+
+## V600 — Mode-label drift comment cleanup
+- Clarified sustained-mode comments to distinguish the internal `mode4` key from the user-facing **Mode 2 CogSpeed Sustained** name.
+- Updated the top integration notes and sustained-analysis heading to avoid stale **Mode 4** wording in comments.
+- Kept the already-correct user-facing phase labels and MBS-based CPI wording intact.
+- Minor cleanup: no-result source diagnostic fallback text no longer uses a `SOURCE:` prefix.
+
+## V600 — cleanup and audit fixes
+- Removed stale dead success branch for old Mode 4 sustained completion wording.
+- Renamed stored sustained CPI field from mode4CpiFromCsr to mode4CpiFromMbs and corrected Results text label to CPI from MBS.
+- Corrected Results fallback to compute CPI from adaptive MBS instead of SPI from CSR.
+- Disabled user-visible summary/source diagnostic injection.
+- Renamed local FX GEARS array to FX_CORNERS to avoid shadowing the global GEARS definition.
+- Renamed recoveryCorrectCompleted to recoveryTrialsCompleted to match actual behavior.
+- Removed stale extra closing </div> after benchmarkOverlay in index.html.
+- Removed dead curtain wrapper functions and dead benchmark no-op variable.
+- Added cpxFfsLabel to CSV export.
+- Updated stale mode-count/mode-label comments and visible Mode 2 sustained labels.
+- Corrected Total wrong rows to use totalIncorrect.
+- Added sw.js RELEASE sync note and aligned all version references to V600.
+
 ## V597 — Sleep/wake path completed and validated
 - Added a dedicated **last wake time before this test** entry path when the subject reports **no sleep before the current test**.
 - Removed fallback inference from older session history for awake-time reporting.
