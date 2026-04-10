@@ -2,7 +2,7 @@
 // CogSpeed source
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V589";
+const APP_VERSION = "V590";
 
 // ═══════════════════════════════════════════════════
 // RECENT INTEGRATED PROGRAM CHANGES (see CHANGELOG.md for current integrated history)
@@ -1361,9 +1361,15 @@ function finish(){
    time:new Date().toISOString(), geo:state.geo, timingQuality
   };
   setActiveResultContext(result, null, "computed result");
-  if(result.sleepSinceLastTest==="yes" && result.sleepLog){
-   const wakeIso = deriveWakeDateTimeIso(result.sleepLog.wakeTime, result.time);
-   if(wakeIso) result.sleepLog.wakeDateTimeIso = wakeIso;
+  if(result.sleepLog){
+   if(result.sleepSinceLastTest==="yes"){
+    const wakeIso = deriveWakeDateTimeIso(result.sleepLog.wakeTime || result.sleepLog.lastWakeTime, result.time);
+    if(wakeIso) result.sleepLog.wakeDateTimeIso = wakeIso;
+   }else if(result.sleepSinceLastTest==="no"){
+    const wakeIso = deriveWakeDateTimeIso(result.sleepLog.lastWakeTime || result.sleepLog.wakeTime, result.time);
+    if(wakeIso) result.sleepLog.lastWakeDateTimeIso = wakeIso;
+    if(wakeIso && !result.sleepLog.wakeDateTimeIso) result.sleepLog.wakeDateTimeIso = wakeIso;
+   }
   }
   Object.assign(result, computeCDISummary(result));
   Object.assign(result, computeCPXSummary(result, settings));
@@ -3436,7 +3442,7 @@ ${hr}
 FATIGUE (S-PF)
  Pre-test rating: ${spf}
 ${formatSleepLine(result)}
-${formatTimeSinceLastSleepLine(result)||""}
+${formatHoursAwakeBeforeTestLine(result)||""}
 ${hr}
 SELF-PACED CALIBRATION (SPC)
  Total self-paced responses: ${result.selfPacedResponseCount}
@@ -3471,7 +3477,7 @@ ${hr}
 FATIGUE (S-PF)
  Pre-test rating: ${spf}
 ${formatSleepLine(result)}
-${formatTimeSinceLastSleepLine(result)||""}
+${formatHoursAwakeBeforeTestLine(result)||""}
 ${hr}
 SELF-PACED CALIBRATION
  Total self-paced responses: ${result.selfPacedResponseCount}
@@ -3533,7 +3539,7 @@ ${hr}
 FATIGUE (S-PF)
  Pre-test rating: ${spf}
 ${formatSleepLine(result)}
-${formatTimeSinceLastSleepLine(result)||""}
+${formatHoursAwakeBeforeTestLine(result)||""}
 ${hr}
 SELF-PACED CALIBRATION
  Total self-paced responses: ${result.selfPacedResponseCount}
@@ -3616,7 +3622,7 @@ ${hr}
 FATIGUE (S-PF)
  Pre-test rating: ${spf}
 ${formatSleepLine(result)}
-${formatTimeSinceLastSleepLine(result)||""}
+${formatHoursAwakeBeforeTestLine(result)||""}
 ${hr}
 CALIBRATION
  Average RT: ${result.calibrationAverageMs!=null?result.calibrationAverageMs.toFixed(1)+" ms":"—"}
@@ -4396,9 +4402,9 @@ function resetPretestEntryState(){
  fatigueOut.textContent="—";
  const fsb=$("fatigueStartBtn"); if(fsb) fsb.classList.add("hidden");
  const fl=$("fatigueList"); if(fl) fl.querySelectorAll(".fatigue-item").forEach(el=>{ el.style.background=""; el.classList.remove("selected"); });
- ["sleepBedtimeInput","sleepWakeInput"].forEach(id=>{ const el=$(id); if(el){ el.value=""; if(el.dataset){ el.dataset.canonical=""; el.dataset.meridiem = (id==="sleepBedtimeInput"?"PM":"AM"); } } });
- ["sleepBedHourInput","sleepBedMinuteInput","sleepWakeHourInput","sleepWakeMinuteInput"].forEach(id=>{ const el=$(id); if(el) el.value=""; });
- ["sleepBed","sleepWake"].forEach(prefix=>refreshSleepMeridiemButtons(prefix));
+ ["sleepBedtimeInput","sleepWakeInput","lastWakeInput"].forEach(id=>{ const el=$(id); if(el){ el.value=""; if(el.dataset){ el.dataset.canonical=""; el.dataset.meridiem = (id==="sleepBedtimeInput"?"PM":"AM"); } } });
+ ["sleepBedHourInput","sleepBedMinuteInput","sleepWakeHourInput","sleepWakeMinuteInput","lastWakeHourInput","lastWakeMinuteInput"].forEach(id=>{ const el=$(id); if(el) el.value=""; });
+ ["sleepBed","sleepWake","lastWake"].forEach(prefix=>refreshSleepMeridiemButtons(prefix));
  ["sleepQualityPoorBtn","sleepQualityOkayBtn","sleepQualityGoodBtn"].forEach(id=>$(id)?.classList.remove("selected"));
  updateSleepLoggerUI();
 }
@@ -5211,18 +5217,19 @@ function parseSleepTimeToMinutes(v){
 function getSleep12PrefixFromInputId(id){
  if(id==="sleepBedtimeInput") return "sleepBed";
  if(id==="sleepWakeInput") return "sleepWake";
+ if(id==="lastWakeInput") return "lastWake";
  return "";
 }
 function getDefaultSleepMeridiem(prefix){
  return prefix==="sleepBed" ? "PM" : "AM";
 }
 function setSleepMeridiem(prefix, meridiem){
- const hidden=$(prefix==="sleepBed"?"sleepBedtimeInput":"sleepWakeInput");
+ const hidden=$(prefix==="sleepBed"?"sleepBedtimeInput":(prefix==="sleepWake"?"sleepWakeInput":"lastWakeInput"));
  if(hidden && hidden.dataset) hidden.dataset.meridiem = meridiem;
  refreshSleepMeridiemButtons(prefix);
 }
 function refreshSleepMeridiemButtons(prefix){
- const hidden=$(prefix==="sleepBed"?"sleepBedtimeInput":"sleepWakeInput");
+ const hidden=$(prefix==="sleepBed"?"sleepBedtimeInput":(prefix==="sleepWake"?"sleepWakeInput":"lastWakeInput"));
  const meridiem=(hidden&&hidden.dataset&&hidden.dataset.meridiem)||getDefaultSleepMeridiem(prefix);
  const am=$(prefix+"AmBtn"), pm=$(prefix+"PmBtn");
  if(am){ am.style.background = meridiem==="AM" ? "#1a3366" : ""; am.style.borderColor = meridiem==="AM" ? "var(--accent)" : ""; }
@@ -5234,7 +5241,7 @@ function getSleep12CanonicalValue(prefix){
  if(!hRaw || !mRaw) return "";
  const hh=Number(hRaw), mm=Number(mRaw);
  if(!Number.isFinite(hh) || !Number.isFinite(mm) || hh<1 || hh>12 || mm<0 || mm>59) return "";
- const hidden=$(prefix==="sleepBed"?"sleepBedtimeInput":"sleepWakeInput");
+ const hidden=$(prefix==="sleepBed"?"sleepBedtimeInput":(prefix==="sleepWake"?"sleepWakeInput":"lastWakeInput"));
  const meridiem=(hidden&&hidden.dataset&&hidden.dataset.meridiem)||getDefaultSleepMeridiem(prefix);
  let hour=hh%12;
  if(meridiem==="PM") hour+=12;
@@ -5278,15 +5285,16 @@ function syncSleepInputCanonical(el){
 }
 function applySleepInputFormat(modeOverride=null){
  const mode=(modeOverride===null||modeOverride===undefined)?getEffectiveTimeFormat():String(modeOverride)==="24"?"24":"12";
- ["sleepBedtimeInput","sleepWakeInput"].forEach(id=>{
+ ["sleepBedtimeInput","sleepWakeInput","lastWakeInput"].forEach(id=>{
   const el=$(id);
   if(!el) return;
   const canon = (el.dataset && el.dataset.canonical) ? el.dataset.canonical : normalizeSleepTimeValue(el.value || "") || "";
   if(el.dataset) el.dataset.canonical = canon || "";
   const isBed=id==="sleepBedtimeInput";
-  const wrap24=$(isBed?"sleepBedtime24Wrap":"sleepWake24Wrap");
-  const wrap12=$(isBed?"sleepBedtime12Wrap":"sleepWake12Wrap");
-  const prefix=isBed?"sleepBed":"sleepWake";
+  const isWake=id==="sleepWakeInput";
+  const wrap24=$(isBed?"sleepBedtime24Wrap":(isWake?"sleepWake24Wrap":"lastWake24Wrap"));
+  const wrap12=$(isBed?"sleepBedtime12Wrap":(isWake?"sleepWake12Wrap":"lastWake12Wrap"));
+  const prefix=isBed?"sleepBed":(isWake?"sleepWake":"lastWake");
   if(mode==="24"){
    if(wrap24) wrap24.classList.remove("hidden");
    if(wrap12) wrap12.classList.add("hidden");
@@ -5323,37 +5331,14 @@ function deriveWakeDateTimeIso(wakeTime, testIso){
  if(wakeDate.getTime() > testDate.getTime()) wakeDate.setDate(wakeDate.getDate()-1);
  return wakeDate.toISOString();
 }
-function findMostRecentSleepWakeDateTimeIso(result){
- const direct = result?.sleepLog?.wakeDateTimeIso;
- if(direct){
-  const d = new Date(direct);
-  if(isFinite(d.getTime())) return direct;
- }
- const testIso = result?.time;
- const testDate = new Date(testIso);
- if(!isFinite(testDate.getTime())) return null;
- const history = Array.isArray(state?.history) ? state.history : [];
- let bestIso = null;
- let bestMs = -Infinity;
- for(const r of history){
-  const iso = r?.sleepLog?.wakeDateTimeIso;
-  if(!iso) continue;
-  const d = new Date(iso);
-  const ms = d.getTime();
-  if(!isFinite(ms)) continue;
-  if(ms <= testDate.getTime() && ms > bestMs){
-   bestMs = ms;
-   bestIso = iso;
-  }
- }
- return bestIso;
+function getRecordedWakeDateTimeIso(result){
+ const direct = result?.sleepLog?.wakeDateTimeIso || result?.sleepLog?.lastWakeDateTimeIso || null;
+ if(!direct) return null;
+ const d = new Date(direct);
+ return isFinite(d.getTime()) ? direct : null;
 }
-// Computes elapsed time from the most recent recorded sleep wake datetime.
-// Falls back to the latest prior session with sleepLog.wakeDateTimeIso so
-// sessions several days after the last recorded sleep still display
-// meaningful elapsed time.
-function computeTimeSinceLastSleepMinutes(result){
- const wakeIso = findMostRecentSleepWakeDateTimeIso(result);
+function computeHoursAwakeBeforeTestMinutes(result){
+ const wakeIso = getRecordedWakeDateTimeIso(result);
  const testIso = result?.time;
  if(!wakeIso || !testIso) return null;
  const wakeDate = new Date(wakeIso);
@@ -5363,11 +5348,12 @@ function computeTimeSinceLastSleepMinutes(result){
  if(deltaMs < 0) return null;
  return Math.round(deltaMs/60000);
 }
-function formatTimeSinceLastSleepLine(result){
- const mins = computeTimeSinceLastSleepMinutes(result);
+function formatHoursAwakeBeforeTestLine(result){
+ const mins = computeHoursAwakeBeforeTestMinutes(result);
  if(mins==null) return null;
- return `Time since last sleep: ${formatElapsedDuration(mins)}`;
+ return `Hours awake before test: ${formatElapsedDuration(mins)}`;
 }
+
 function computeSleepDurationMinutes(bed,wake){
  const b=parseSleepTimeToMinutes(bed), w=parseSleepTimeToMinutes(wake);
  if(b==null || w==null) return null;
@@ -5402,7 +5388,8 @@ function formatSleepLine(result){
   return `SLEEP: Yes · Bed ${bed} → Wake ${wake} (${dur}) · Quality: ${qLabel} (${qScore})`;
  }
  if(slept==="no"){
-  return "SLEEP: No sleep since last test";
+  const lw = formatClockForDisplay(sl?.lastWakeTime || null);
+  return `SLEEP: No sleep before test${lw!=="—"?` · Last wake ${lw}`:""}`;
  }
  return "SLEEP: Not entered";
 }
@@ -5473,7 +5460,9 @@ function continueFromSleepLogger(){
  const duration=computeSleepDurationMinutes(bed,wake);
  state.sleepLog.bedtime = bed || null;
  state.sleepLog.wakeTime = wake || null;
+ state.sleepLog.lastWakeTime = wake || null;
  state.sleepLog.durationMinutes = duration;
+ state.sleepLog.wakeDateTimeIso = wake ? deriveWakeDateTimeIso(wake, new Date().toISOString()) : null;
  if(state.sleepLog.qualityScore==null){
   state.sleepLog.qualityScore = 2;
   state.sleepLog.qualityLabel = "Okay";
@@ -5481,8 +5470,37 @@ function continueFromSleepLogger(){
  showFatigueOverlay();
 }
 
+function setLastWakePromptVisible(on){
+ const box=$("lastWakePromptSection");
+ const q=$("sleepPromptQuestion");
+ const choices=$("sleepPromptChoices");
+ const back=$("sleepPromptBackBtn");
+ if(box) box.classList.toggle("hidden", !on);
+ if(choices) choices.classList.toggle("hidden", on);
+ if(q) q.textContent = on ? "When did you last wake up before this test?" : "Did you sleep since your last test?";
+ if(back) back.textContent = on ? "Back" : "Back to Start Page";
+ if(on){ updateSleepTimeFormatHint(); applySleepInputFormat(); }
+}
+function continueWithoutSleepBeforeTest(){
+ const wake=getSleepInputCanonicalValue("lastWakeInput");
+ if(!wake){ alert("Please enter your last wake time before this test."); return; }
+ state.sleepSinceLastTest="no";
+ state.sleepLog={
+  lastWakeTime:wake,
+  wakeDateTimeIso:deriveWakeDateTimeIso(wake, new Date().toISOString()),
+  durationMinutes:null,
+  bedtime:null,
+  wakeTime:null,
+  qualityScore:null,
+  qualityLabel:null
+ };
+ showFatigueOverlay();
+ setStatus("Sleep before test: No");
+}
+
 function showSleepPrompt(){
  resetPretestEntryState();
+ setLastWakePromptVisible(false);
  showOnly("sleepPromptOverlay");
 }
 
@@ -5544,26 +5562,30 @@ $("sleepPromptYesBtn").onclick=()=>{
 $("sleepPromptNoBtn").onclick=()=>{
  state.sleepSinceLastTest="no";
  state.sleepLog=null;
- showFatigueOverlay();
- setStatus("Sleep since last test: No");
+ setLastWakePromptVisible(true);
+ setStatus("Sleep before test: No");
 };
 
 $("sleepBedtimeInput").addEventListener("input", (e)=>{ syncSleepInputCanonical(e.currentTarget); updateSleepLoggerUI(); });
 $("sleepWakeInput").addEventListener("input", (e)=>{ syncSleepInputCanonical(e.currentTarget); updateSleepLoggerUI(); });
-["sleepBedHourInput","sleepBedMinuteInput","sleepWakeHourInput","sleepWakeMinuteInput"].forEach(id=>{
+const _lwi=$("lastWakeInput"); if(_lwi) _lwi.addEventListener("input", (e)=>{ syncSleepInputCanonical(e.currentTarget); });
+["sleepBedHourInput","sleepBedMinuteInput","sleepWakeHourInput","sleepWakeMinuteInput","lastWakeHourInput","lastWakeMinuteInput"].forEach(id=>{
  const el=$(id); if(el) el.addEventListener("input", ()=>updateSleepLoggerUI());
 });
 const _sba=$("sleepBedAmBtn"); if(_sba) _sba.onclick=(e)=>{ e.preventDefault(); setSleepMeridiem("sleepBed","AM"); updateSleepLoggerUI(); };
 const _sbp=$("sleepBedPmBtn"); if(_sbp) _sbp.onclick=(e)=>{ e.preventDefault(); setSleepMeridiem("sleepBed","PM"); updateSleepLoggerUI(); };
 const _swa=$("sleepWakeAmBtn"); if(_swa) _swa.onclick=(e)=>{ e.preventDefault(); setSleepMeridiem("sleepWake","AM"); updateSleepLoggerUI(); };
+const _lwa=$("lastWakeAmBtn"); if(_lwa) _lwa.onclick=(e)=>{ e.preventDefault(); setSleepMeridiem("lastWake","AM"); };
 const _swp=$("sleepWakePmBtn"); if(_swp) _swp.onclick=(e)=>{ e.preventDefault(); setSleepMeridiem("sleepWake","PM"); updateSleepLoggerUI(); };
+const _lwp=$("lastWakePmBtn"); if(_lwp) _lwp.onclick=(e)=>{ e.preventDefault(); setSleepMeridiem("lastWake","PM"); };
 $("sleepQualityPoorBtn").onclick=()=>setSleepQuality(1);
 $("sleepQualityOkayBtn").onclick=()=>setSleepQuality(2);
 $("sleepQualityGoodBtn").onclick=()=>setSleepQuality(3);
 $("sleepContinueBtn").onclick=()=>continueFromSleepLogger();
+const _lwcb=$("lastWakeContinueBtn"); if(_lwcb) _lwcb.onclick=()=>continueWithoutSleepBeforeTest();
 $("sleepBackBtn").onclick=()=>showOnly("sleepPromptOverlay");
 
-$("sleepPromptBackBtn").onclick=()=>goToStartPage();
+$("sleepPromptBackBtn").onclick=()=>{ const box=$("lastWakePromptSection"); if(box && !box.classList.contains("hidden")) setLastWakePromptVisible(false); else goToStartPage(); };
 
 
 
