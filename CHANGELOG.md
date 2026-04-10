@@ -1,4 +1,4 @@
-## V591 — Results pages now show hours asleep
+## V592 — Results pages now show hours asleep
 - Updated the shared sleep line used by Results Summary and Results - Complete so sleep now explicitly shows hours asleep.
 - If the subject slept before the test, the results show the recorded sleep duration in hours/minutes.
 - If the subject did not sleep before the test, the results show Hours asleep: 0h.

@@ -1,4 +1,5 @@
-const RELEASE = "591";
+// Keep RELEASE aligned with APP_VERSION in app.js and visible package version refs.
+const RELEASE = "592";
 const CACHE_NAME = `cogspeed-v${RELEASE}-shell-v${RELEASE}`;
 const APP_SHELL = [
   "./",
