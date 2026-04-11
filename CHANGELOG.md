@@ -1,3 +1,69 @@
+## V613 — Comprehensive audit fix build
+
+### Critical bug fixes
+- `safeCdiNum(null)` now correctly returns null (was returning 0 via Number(null)=0).
+  Fixes corrupted CDI for low-data sessions; cdiSprRisk(null) no longer injects 100 into scores.
+- `perfSessionCpi()` now guards null before Number() conversion.
+  Fixes Mode 1 sessions plotting at zero on Performance Over Date and Time graph.
+- Mode 2 final self-paced no-response timeout now produces a success outcome (not Failed)
+  when the sustained phase was triggered. End reason is "Mode 2 final self-paced: no response
+  — session complete" which is recognised as success in isTestSuccess.
+- Service worker now filters external requests — Nominatim geocode responses are no longer
+  cached by the SW (violated Nominatim ToS and caused unbounded cache growth).
+- emailDataSelect dropdown labels now match speedometerActionSelect labels.
+- Dead speedEmailSelectBtn wiring removed (element never existed in index.html).
+
+### Label and terminology fixes
+- "FATIGUE (S-PF)" corrected to "FATIGUE (SP-FS)" in all four summary builders.
+- CPX explanation: "Mode 4: weighted CPI..." corrected to "Mode 2: weighted CPI...".
+- "Condition 4" inline comment updated to match section header "Slow calibration halt".
+- "SELF-PACE CALIBRATION" corrected to "SELF-PACED CALIBRATION" in compact summary.
+- armNoResponseTimer header comment now mentions Mode 2 final self-paced coverage.
+- Admin field 26 label updated to include Mode 2 final self-paced.
+- Admin field 33 (mode4MbsThresholdMs) marked deprecated — has no effect on logic.
+- terms.html: "Cognitive Performance Score / CPS" → "Cognitive Performance Index / CPI".
+- GitHub URL in privacy.html and terms.html: CogSpeed®-Think-Fast → CogSpeed-Think-Fast.
+- Performance Over Date and Time graph: axis labels now adapt for Mode 2 sessions
+  (SPI / SBLP labels when all filtered sessions are Mode 2).
+
+### Dead code removed
+- emailResults() function and its two comment references (superseded by E-Mail Select).
+- getTerminalRecoveryWrongCount() — computed but never called.
+- armCurtainWatchdog() — curtain is permanently passive since earlier versions.
+- resetSpeedometerActionMenu() — never called.
+- allTriggeredMode4, mixedMode4 — computed but never read in drawPerformanceOverTimeChart.
+- yLeftFromMs(), scoreFromMs() — dead inner functions since V606 marker consolidation.
+- Dead DOMContentLoaded listener — unreachable with defer script loading.
+- Dead gidle CSS rules from index.html and ensureGearImageStyles (gidle classes never added).
+- Dead curtain CSS rules (curtain is permanently display:none).
+- drawSpeedometer: removed unused parameters blockMs, showBlock, blockLabel.
+
+### Behavioural fixes
+- summaryVariant is now reset to "complete" between tests.
+- resetAllSessions now syncs the Rate/RT session dropdown.
+- stopSpeedometer() called in all non-summary Speedometer menu paths and goToStartPage.
+- noteAnyResponse() now includes mode4_final phase (resets per-trial no-response timer on tap).
+- Blob URLs in exportCSV and downloadTrialLogCSV now revoked after download.
+- CSV trial download filename: @ and . in subject email sanitized to _ to avoid OS issues.
+- localStorage save failure now sets a visible status warning to the user.
+- @keyframes probePulseG hoisted to ensureGearImageStyles — no longer re-injected on each
+  tutorial step render.
+- emailDraftWired2 flag renamed to emailDraftWired (stale version suffix).
+
+### Profile and UI
+- "Email my results" toggle text corrected: auto-send is not implemented; text now
+  directs users to E-Mail Select on the results page.
+- Profile birth year max attribute corrected from stale "2015" to "2012" (14+ in 2026).
+- Profile age/gender collection documented: stored per-result for future population-norm use.
+
+### Code comments added
+- SVG gear fallback path: comment notes this is only reached if gear images are missing.
+- normalizeTrialRow: note about late-rescue RT inflation in ranking averages.
+- Paced phase: comment on double-tap-on-resolved-trial behaviour (counts as wrong).
+- Recovery delay setTimeout: note about non-cancellability on Full Reset.
+- Nominatim fetch: comment on UA attribution and absence of AbortController timeout.
+- Benchmark: comment on non-cancellability while running.
+
 ## V612 — Speedometer menu package-alignment fix
 - Fixed stale script query in index.html.
 - index.html now loads app.js?v=612 instead of the stale v599 cache-busting tag.

@@ -1,5 +1,5 @@
 // Keep RELEASE in sync with APP_VERSION in app.js and the versioned app.js query in index.html.
-const RELEASE = "612";
+const RELEASE = "613";
 const CACHE_NAME = `cogspeed-v${RELEASE}-shell-v${RELEASE}`;
 const APP_SHELL = [
   "./",
@@ -49,6 +49,8 @@ self.addEventListener("activate", event => {
 self.addEventListener("fetch", event => {
   const req = event.request;
   if (req.method !== "GET") return;
+  // Only cache same-origin requests — do not cache external APIs (e.g. Nominatim geocoding).
+  if (!req.url.startsWith(self.location.origin)) return;
 
   event.respondWith(
     caches.match(req).then(cached => {
