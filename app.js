@@ -2,7 +2,7 @@
 // CogSpeed source
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V627";
+const APP_VERSION = "V628";
 
 // ═══════════════════════════════════════════════════
 // Current behavior summary (historical details live in CHANGELOG.md)
@@ -1068,20 +1068,21 @@ function failCalibration(reason){ state.endReason=reason; finish(); }
 // NO-RESPONSE TIMEOUTS: first trial=10s, subsequent=6s
 // ──────────────────────────────────────────────────────────────
 // finishCalibration() now branches by selected mode:
-// mode1 -> original adaptive machine-paced CogSpeed phase
-// mode2 -> finish after self-paced-only session
-// mode3 -> begin fixed-baseline machine-paced phase using
+// mode1 -> begin adaptive machine-paced CogSpeed phase
+// mode2 -> begin adaptive machine-paced CogSpeed phase and later enter sustained + final self-paced
+// mode3 -> finish after self-paced-only session
+// mode4 -> begin fixed-baseline machine-paced phase using
 //          calibration average × mode4BaselineFactor
 //          IMPORTANT: mode4CalibrationTrials means CORRECT MEASURED trials;
 //          initialUnusedCalibrationTrials warmups are added on top and
 //          wrong measured trials do not count toward the target or the average.
 function finishCalibration(){
  const avg=mean(state.calibrationRTs.length?state.calibrationRTs:state.selfPacedRTs);
- if(isMode2()){
+ if(isMode3()){
   state.endReason = state.endReason || "Required responses reached";
   finish(); return;
  }
- if(isMode3()){
+ if(isMode4()){
   const factor=Number(settings.mode4BaselineFactor)||1.3;
   state.fixedPacedBaseline=clamp(avg*factor,settings.minDurationMs,settings.maxDurationMs);
   state.duration=state.fixedPacedBaseline;
