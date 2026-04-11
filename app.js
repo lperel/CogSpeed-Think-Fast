@@ -1265,7 +1265,7 @@ function finish(){
    maxRafIntervalMs: state.rafIntervalLog.length ? Number(Math.max(...state.rafIntervalLog).toFixed(2)) : null
   };
   const sustainedAnalysis = (isMode2() && state.mode2Triggered)
-   ? computeMode2SustainedAnalysis(state.rtLog)
+   ? computeMode2SustainedRtTails(state.rtLog)
    : {
     sustainedCorrectRtP90Ms:null,
     sustainedCorrectRtMaxMs:null
@@ -1894,7 +1894,9 @@ function handleTap(index,eventTimeStamp){
     if(checkMaxPacedWrong()) return;
    }
    state.mode2PendingPriorMiss = null;
-   state.hadResponse = false;
+   // Keep hadResponse=true so the current frame's RAF timer does not
+   // misidentify this trial as a miss when onPacedFrameEnd fires.
+   state.hadResponse = true;
    return;
   }
 
@@ -3302,7 +3304,7 @@ function buildResultsSummaryCompact(result){
  const timing=result.testMode==="mode2" ? (result.mode2TimingSummary||computeMode2TimingSummary(result)) : null;
  if(result.testMode==="mode2"){
   if(result.mode2Triggered && result.sustainedCorrectRtP90Ms==null && Array.isArray(result.rtLog)){
-   Object.assign(result, computeMode2SustainedAnalysis(result.rtLog));
+   Object.assign(result, computeMode2SustainedRtTails(result.rtLog));
   }
  }
  if(result.mode2Triggered && result.cpa==null){
@@ -3447,7 +3449,7 @@ ${getResultsMetricExplanationText(result)}`;
   const timing=result.mode2TimingSummary||computeMode2TimingSummary(result);
   // Backfill retained sustained RT descriptors for legacy sessions
   if(result.mode2Triggered && result.sustainedCorrectRtP90Ms==null && Array.isArray(result.rtLog)){
-   Object.assign(result, computeMode2SustainedAnalysis(result.rtLog));
+   Object.assign(result, computeMode2SustainedRtTails(result.rtLog));
   }
   if(result.mode2Triggered && result.cpa==null){
    Object.assign(result, computeMode2CPA(result));
@@ -3809,14 +3811,12 @@ function syncSummarySessionSelect(selectedIdx){
 }
 
 
-// ─── Mode 2 Sustained Phase Analysis ──────────────────
-// Computes retained sustained-phase RT descriptors from rtLog.
-// Only the non-stale values still used in live results are kept here.
-// Fields produced:
-//  sustainedCorrectRtP90Ms — 90th-percentile correct sustained RT
-//  sustainedCorrectRtMaxMs — maximum correct sustained RT
+// ─── Mode 2 Sustained Phase RT Tail Metrics ───────────────────
+// Computes P90 and Max of correct sustained RTs from rtLog.
+// Input:  rtLog array (full session trial log)
+// Output: { sustainedCorrectRtP90Ms, sustainedCorrectRtMaxMs }
 // ──────────────────────────────────────────────────────────────
-function computeMode2SustainedAnalysis(rtLog){
+function computeMode2SustainedRtTails(rtLog){
  const entries = Array.isArray(rtLog) ? rtLog : [];
  const correctRTs = entries
   .filter(e => e && e.phase==="mode2_sustained" && Number.isFinite(Number(e.rt)))
