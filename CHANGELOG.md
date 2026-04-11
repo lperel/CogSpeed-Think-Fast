@@ -1,3 +1,19 @@
+## V620 — Mode 2 CPA score added
+
+- Added CPA (Cognitive Performance Ability) for Mode 2 CogSpeed Sustained as a single end-state score derived from CPI plus sustained-phase factor weightings.
+- Added CPA factor reporting to Results (complete) and a standalone CPA section to Results Summary.
+- Added CPA box on the Speedometer for Mode 2 sessions.
+- Stored CPA fields in session history and CSV export.
+- Audit note: implemented the requested bucket model with two explicit ambiguity resolutions in code comments: `11–14 correct` for the apparent `1–14` typo, and top-down handling of the overlapping missed-response buckets so 0–3 keeps the +10% bucket and 4 maps to 0%.
+
+## V619 — Performance Over Date and Time graph CPI/MBS correction
+
+- Corrected the Performance Over Date and Time graph so the blue marker always plots CPI for all modes, including Mode 2 CogSpeed Sustained.
+- Kept the orange MBS ring as a companion marker at the same CPI position by design, instead of implying an independently plotted SPI or SBLP point.
+- Changed graph metric preference so Mode 2 sessions use adaptive MBS before SBLP when deriving CPI and the left-axis MBS labels.
+- Moved the SP-FS right-side scale and label farther right for readability.
+- Updated package/app version strings to V619.
+
 ## V618 — Admin label clarification for Mode 1 restart
 - Updated Admin item 18 text to: `Mode 1 restart multiplier after block (default 1.3 = 130% of block baseline)`.
 - Preserved Admin item 34 text: `Mode 2 wrong-fail threshold for sustained phase (default 50% of sustained trials)`.
