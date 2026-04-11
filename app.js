@@ -1894,9 +1894,7 @@ function handleTap(index,eventTimeStamp){
     if(checkMaxPacedWrong()) return;
    }
    state.mode2PendingPriorMiss = null;
-   // Keep hadResponse=true so the current frame's RAF timer does not
-   // misidentify this trial as a miss when onPacedFrameEnd fires.
-   state.hadResponse = true;
+   state.hadResponse = false;
    return;
   }
 
@@ -1910,10 +1908,9 @@ function handleTap(index,eventTimeStamp){
    state.hadResponse=true;
    logTrial({phase:"mode2_sustained",rt,outcome:"correct",responseIndex:index,timing:timingSummary,pacing:{nextRateMs:state.duration,rateChangeMs:0,rateChangeReason:"Mode 2 sustained fixed rate (MBS × factor)"}});
    flashBtn(index,true);
-   // Do NOT call openTrial here — the RAF frame timer must run to full duration.
-   // onPacedFrameEnd() will advance to the next trial when the window expires.
-   if(checkMode2SustainedRollingMean(true)) return; // only returns true if test ended
-   return;
+   if(checkMode2SustainedRollingMean(true)) return;
+   if(state.mode2SustainedPresented >= limit){ state.phase="mode2_final"; state.mode2FinalTrialsPresented=0; openTrial("mode2_final"); return; }
+   openTrial("mode2_sustained"); return;
   }
   state.hadResponse=true;
   state.totalResponses+=1; state.totalIncorrect+=1; state.pacedErrors+=1; state.mode2SustainedWrong+=1;
@@ -1928,10 +1925,9 @@ function handleTap(index,eventTimeStamp){
   if(checkMaxPacedWrong()) return;
   logTrial({phase:"mode2_sustained_wrong",rt,outcome:"wrong",responseIndex:index,timing:timingSummary,pacing:{nextRateMs:state.duration,rateChangeMs:0,rateChangeReason:"Mode 2 sustained fixed rate (MBS × factor)"}});
   flashBtn(index,false);
-  // Do NOT call openTrial here — the RAF frame timer must run to full duration.
-  // onPacedFrameEnd() will advance to the next trial when the window expires.
-  if(checkMode2SustainedRollingMean(false)) return; // only returns true if test ended
-  return;
+  if(checkMode2SustainedRollingMean(false)) return;
+  if(state.mode2SustainedPresented >= limit){ state.phase="mode2_final"; state.mode2FinalTrialsPresented=0; openTrial("mode2_final"); return; }
+  openTrial("mode2_sustained"); return;
  }
 
  if(state.phase==="mode2_final"){
