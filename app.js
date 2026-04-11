@@ -2,80 +2,20 @@
 // CogSpeed source
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V614";
+const APP_VERSION = "V616";
 
 // ═══════════════════════════════════════════════════
-// RECENT INTEGRATED PROGRAM CHANGES (see CHANGELOG.md for current integrated history)
-// This block summarizes the major program updates that were merged into
-// the current main line so future edits do not have to reconstruct them
-// from one-off patch builds.
-//
-// 1) Sleep logger / results integration
-//    - Sleep entry supports 12-hour mode (hour + minute + AM/PM buttons)
-//      and 24-hour mode.
-//    - Sleep data is preserved across test start and saved into result
-//      records, CSV export, and the Results page summary.
-//    - Each sleep entry stores a real wake datetime so “Time since last
-//      sleep” can span multiple days across sessions.
-//
-// 2) Profile / guest separation
-//    - Guest mode (subject ID 0) is treated as settings-only and must not
-//      inherit a previously saved email profile.
-//    - The 12/24 hour toggle on the Profile page is local draft UI state
-//      while Profile is open and is only committed on Save & Continue.
-//
-// 3) Performance / graph updates
-//    - Speedometer has a session browser (dropdown + Prev/Next) and linked
-//      views open for the currently selected session.
-//    - Performance Over Date and Time Graph shows all sessions by default and
-//      includes sleep-quality bars.
-//    - Response Time Graph and other live charts use HiDPI canvas setup.
-//
-// 4) Trial detail / timing diagnostics
-//    - Trial Detail column names were clarified.
-//    - Trial logs record pacing deltas and per-trial timing diagnostics.
-//
-// 5) Package consistency / cleanup
-//    - Contact text is standardized to thinkfastgmm@gmail.com.
-//    - Full Reset label matches actual behavior.
-//    - GMM FIREBIRD.png is cached in the service-worker app shell.
-//    - The app remains a single monolithic app.js.
-//
-// 6) Sustained mode integration (internal key: mode4; user-facing: Mode 2 CogSpeed Sustained)
-//    - The internal mode4 path adds a sustained MBS phase after convergent adaptive pacing.
-//    - User-facing Mode 2 stores CSR, SBLP, SPI, sustained/final targets, and related
-//      session data for results, graphs, speedometer summaries, and CSV.
-//    - Failed non-triggered Mode 2 sessions leave SPI/SBLP empty.
-//
-// 7) Stabilization / fail-open flow
-//    - Curtain helpers are defensive cleanup only; live control flow should
-//      not depend on curtain behavior.
-//    - Start and finish handoffs are guarded with visible flow diagnostics.
-//    - Finish stages are COMPUTE, SAVE, RENDER, and SHOW.
-//
-// 8) Recent rule updates
-//    - Admin max total test time default is 150000 ms.
-//    - Mode 2 final self-paced is true self-paced; only the overall max can end it if unanswered
-//      test time rather than a per-trial no-response timeout.
-//    - The overall timer is suspended during the sustained MBS segment and
-//      restarted when the first final self-paced trial is shown.
-//    - Mode 2 now enters the sustained MBS segment when convergent adaptive
-//      pacing is reached; it no longer requires adaptive MBS to be below a
-//      separate threshold before the sustained branch can start.
-//
-// 9) V527 — Extended Mode 2 sustained-phase analysis (internal function: computeMode4SustainedAnalysis)
-//    - Eleven new metrics derived from rtLog after finish(): SBLP SD, SBLP P90,
-//      SBLP Max, SPI first/second half, SPI decay, RT slope (OLS), omission
-//      rate, commission rate, error profile, and SPR (Sustained Processing
-//      Reserve: headroom between mean correct RT and the MBS window).
-//    - All new fields null-safe; RT slope requires ≥3 correct responses.
-//    - buildSummary() lazy-recomputes new fields for pre-V527 history results
-//      that have rtLog present, matching the mode4TimingSummary pattern.
-//    - CSV export expanded from 47 to 58 columns.
-//    - Bug fixes: @keyframes probePulseG added (tutorial probe pulse was
-//      broken); ensureGearImageStyles fallback color corrected (#6e6e6e →
-//      #7d7d7d); CF email obfuscation patched in index.html; versionBadge
-//      static text updated; header banner corrected V518 → V527.
+// Current behavior summary (historical details live in CHANGELOG.md)
+// - Visible test labels are standardized everywhere as:
+//   Mode 1 CogSpeed Adapted, Mode 2 CogSpeed Sustained,
+//   Mode 3 Self-paced, and Mode 4 Machine-paced.
+// - Internal storage keys remain mode1/mode2/mode3/mode4 for compatibility.
+// - Mode 2 uses adaptive pacing until convergence, then runs a sustained
+//   fixed-rate segment followed by true self-paced final trials.
+// - In the Mode 2 final self-paced segment, unanswered trials are ended only
+//   by the overall session max-time rule; there is no per-trial timeout.
+// - Start and finish handoffs are curtain-neutral and must not depend on
+//   curtain animations or DOM state.
 // ═══════════════════════════════════════════════════
 
 const RELEASE = APP_VERSION.replace(/^V/i, "");
@@ -106,10 +46,10 @@ const STORAGE_PREFIX = `cogspeed_v${RELEASE}`;
 // ═══════════════════════════════════════════════════════════════
 // ═══════════════════════════════════════════════════════════════
 // FOUR TEST MODES
-// mode1 = original adaptive CogSpeed test
-// mode2 = Mode 3 Self-Paced Calibration
-// mode3 = Mode 4 Fixed Machine-Paced
-// mode4 = Mode 2 CogSpeed Sustained (internal key retained for compatibility)
+// mode1 = Mode 1 CogSpeed Adapted
+// mode2 = Mode 3 Self-paced
+// mode3 = Mode 4 Machine-paced
+// mode4 = Mode 2 CogSpeed Sustained
 // Internal keys remain mode1/mode2/mode3/mode4 for compatibility.
 // ═══════════════════════════════════════════════════════════════
 const DEFAULTS={
@@ -121,10 +61,9 @@ const DEFAULTS={
  mode3PacedTrialLimit:140,
  mode3MaxDurationMs:120000,
  mode3BaselineFactor:1.3,
- mode4MbsThresholdMs:250,
  mode4SustainedStartFactor:1.2,
  mode4SustainedTrialCount:20,
- mode4SustainedMaxWrong:4,
+ mode4SustainedWrongFailPercent:50,
  mode4SustainedRollMeanWindow:10,
  mode4SustainedRollMeanThreshold:0.50,
  mode4LateResponseThresholdMs:600,
@@ -141,7 +80,6 @@ const DEFAULTS={
  qualifyingBlockGapMs:250,
  rollMeanWindow:10,
  rollMeanThreshold:0.50,
- machinePacedNoResponseMs:15000,
  recoveryNoResponseMs:10000,
  calibrationFirstNoResponseMs:10000,
  calibrationNoResponseMs:6000,
@@ -175,7 +113,7 @@ const ADMIN_FIELDS=[
  // 1. Admin passcode
  ["adminPasscode","1. Admin passcode","text"],
 
- // 2-15. Global defaults used across all modes, ordered by use in the test
+ // 2-14. Global defaults used across all modes, ordered by use in the test
  ["initialUnusedCalibrationTrials","2. Warm-up calibration trials (default 1)","number"],
  ["initialMeasuredCalibrationTrials","3. Measured calibration trials (default 7)","number"],
  ["calibrationFirstNoResponseMs","4. Calibration first-trial no-response (ms, default 10000)","number"],
@@ -184,55 +122,57 @@ const ADMIN_FIELDS=[
  ["calibrationStopSlowMs","7. Calibration avg RT limit (ms, default 6000)","number"],
  ["minDurationMs","8. MP frame minimum duration (ms, default 600)","number"],
  ["maxDurationMs","9. MP frame maximum duration (ms, default 3500)","number"],
- ["machinePacedNoResponseMs","10. MP no-response timeout (ms, default 15000)","number"],
- ["maxTestDurationMs","11. Max total test time (ms, default 150000)","number"],
- ["wrongWindowSize","12. Anti-spoof wrong window size (default 5)","number"],
- ["wrongThresholdStop","13. Anti-spoof max wrong in window (default 4)","number"],
- ["rollMeanWindow","14. Anti-spoof rolling mean window (default 10)","number"],
- ["rollMeanThreshold","15. Anti-spoof rolling mean threshold (default 0.50)","number"],
+ ["maxTestDurationMs","10. Max total test time (ms, default 150000)","number"],
+ ["wrongWindowSize","11. Anti-spoof wrong window size (default 5)","number"],
+ ["wrongThresholdStop","12. Anti-spoof max wrong in window (default 4)","number"],
+ ["rollMeanWindow","13. Anti-spoof rolling mean window (default 10)","number"],
+ ["rollMeanThreshold","14. Anti-spoof rolling mean threshold (default 0.50)","number"],
 
- // 16. Test mode selector
- ["testMode","16. Test mode","select:mode1|mode2|mode3|mode4"],
+ // 15. Test mode selector
+ ["testMode","15. Test mode","select:mode1|mode2|mode3|mode4"],
 
- // 17-32. Mode 1 CogSpeed Adaptive, ordered by use
- ["initialPacedPercent","17. Mode 1 MP start: % of calibration avg (default 1.2)","number"],
- ["consecutiveMissesForBlock","18. Mode 1 misses to trigger block (default 2)","number"],
- ["blockRestartPercent","19. Mode 1 restart: % of block baseline (default 1.3)","number"],
- ["spRestartCorrectStreak","20. Mode 1 recovery correct streak to resume (default 2)","number"],
- ["spRestartWrongLimit","21. Mode 1 recovery max wrong before fail (default 3)","number"],
- ["wrongSlowdownMs","22. Mode 1 MP slowdown on wrong (ms, default 50)","number"],
- ["correctSpeedupFactor","23. Mode 1 MP correct formula factor (default 0.30)","number"],
- ["minSpeedupOnCorrectMs","24. Mode 1 MP minimum speedup on correct (ms, default 50)","number"],
- ["maxSpeedupOnCorrectMs","25. Mode 1 MP maximum speedup on correct (ms, default 200)","number"],
- ["recoveryNoResponseMs","26. Mode 1 recovery & Mode 2 final self-paced no-response timeout (ms, default 10000)","number"],
- ["maxBlockCount","27. Mode 1 max total blocks before fail (default 6)","number"],
- ["qualifyingBlockGapMs","28. Mode 1 qualifying block max gap (ms, default 250)","number"],
- ["maxTrialCount","29. Mode 1 max paced trials (default 180)","number"],
- ["maxPacedWrong","30. Mode 1 max paced wrong before fail (default 20)","number"],
- ["cpiBestMs","31. Mode 1 CPI best ms anchor (default 1000)","number"],
- ["cpiWorstMs","32. Mode 1 CPI worst ms anchor (default 2400)","number"],
+ // 16-31. Mode 1 CogSpeed Adapted, ordered by use
+ ["initialPacedPercent","16. Mode 1 MP start: % of calibration avg (default 1.2)","number"],
+ ["consecutiveMissesForBlock","17. Mode 1 misses to trigger block (default 2)","number"],
+ ["blockRestartPercent","18. Mode 1 restart: % of block baseline (default 1.3)","number"],
+ ["spRestartCorrectStreak","19. Mode 1 recovery correct streak to resume (default 2)","number"],
+ ["spRestartWrongLimit","20. Mode 1 recovery max wrong before fail (default 3)","number"],
+ ["wrongSlowdownMs","21. Mode 1 MP slowdown on wrong (ms, default 50)","number"],
+ ["correctSpeedupFactor","22. Mode 1 MP correct formula factor (default 0.30)","number"],
+ ["minSpeedupOnCorrectMs","23. Mode 1 MP minimum speedup on correct (ms, default 50)","number"],
+ ["maxSpeedupOnCorrectMs","24. Mode 1 MP maximum speedup on correct (ms, default 200)","number"],
+ ["recoveryNoResponseMs","25. Mode 1 recovery no-response timeout (ms, default 10000)","number"],
+ ["maxBlockCount","26. Mode 1 max total blocks before fail (default 6)","number"],
+ ["qualifyingBlockGapMs","27. Mode 1 qualifying block max gap (ms, default 250)","number"],
+ ["maxTrialCount","28. Mode 1 max paced trials (default 180)","number"],
+ ["maxPacedWrong","29. Mode 1 max paced wrong before fail (default 20)","number"],
+ ["cpiBestMs","30. Mode 1 CPI best ms anchor (default 1000)","number"],
+ ["cpiWorstMs","31. Mode 1 CPI worst ms anchor (default 2400)","number"],
 
- // 33-43. Modes 2-4, ordered by visible mode number and by use within each mode
- ["mode4MbsThresholdMs","33. Mode 2 MBS threshold (deprecated — no effect; sustained phase starts on convergence)","number"],
- ["mode4SustainedStartFactor","34. Mode 2 sustained start factor × MBS (default 1.2)","number"],
- ["mode4SustainedTrialCount","35. Mode 2 sustained trials at MBS × factor (default 20)","number"],
- ["mode4SustainedMaxWrong","36. Mode 2 anti-spoof max wrong in Sustained Phase (default 4)","number"],
- ["mode4SustainedRollMeanWindow","37. Mode 2 anti-spoof rolling mean window in Sustained Phase (default 10)","number"],
- ["mode4SustainedRollMeanThreshold","38. Mode 2 anti-spoof rolling mean threshold in Sustained Phase (default 0.50)","number"],
- ["mode4LateResponseThresholdMs","39. Mode 2 late response reassignment threshold (ms, default 600)","number"],
- ["mode4FinalTrialCount","40. Mode 2 final self-paced trials (default 2)","number"],
- ["mode2TrialLimit","41. Mode 3 self-paced trial limit (default 150)","number"],
- ["mode2MaxDurationMs","42. Mode 3 total duration ms (default 120000)","number"],
- ["mode3CalibrationTrials","43. Mode 4 self-paced calibration trials (default 10)","number"],
- ["mode3BaselineFactor","44. Mode 4 MP baseline factor from cal avg (default 1.3)","number"],
- ["mode3PacedTrialLimit","45. Mode 4 fixed machine-paced trial limit (default 140)","number"],
- ["mode3MaxDurationMs","46. Mode 4 total duration ms (default 120000)","number"],
+ // 32-38. Mode 2 CogSpeed Sustained
+ ["mode4SustainedStartFactor","32. Mode 2 sustained start factor × MBS (default 1.2)","number"],
+ ["mode4SustainedTrialCount","33. Mode 2 sustained trials at MBS × factor (default 20)","number"],
+ ["mode4SustainedWrongFailPercent","34. Mode 2 wrong-fail threshold (% of sustained trials, default 50)","number"],
+ ["mode4SustainedRollMeanWindow","35. Mode 2 anti-spoof rolling mean window in Sustained Phase (default 10)","number"],
+ ["mode4SustainedRollMeanThreshold","36. Mode 2 anti-spoof rolling mean threshold in Sustained Phase (default 0.50)","number"],
+ ["mode4LateResponseThresholdMs","37. Mode 2 late response reassignment threshold (ms, default 600)","number"],
+ ["mode4FinalTrialCount","38. Mode 2 final self-paced trials (default 2)","number"],
 
- // 47-50. Cross-mode utilities / diagnostics
- ["deviceBenchmarkEnabled","47. Device benchmark (0=off, 1=on)","number"],
- ["lateResponseThresholdMs","48. Mode 1 late response reassignment threshold (ms, default 600)","number"],
- ["RecoveryInterTrialDelayMsStart","49. Recovery inter-trial delay at start (ms, default 0)","number"],
- ["ResumeToPacedDelayMs","50. Resume-to-paced delay after recovery (ms, default 0)","number"],
+ // 39-40. Mode 3 Self-paced
+ ["mode2TrialLimit","39. Mode 3 self-paced trial limit (default 150)","number"],
+ ["mode2MaxDurationMs","40. Mode 3 total duration ms (default 120000)","number"],
+
+ // 41-44. Mode 4 Machine-paced
+ ["mode3CalibrationTrials","41. Mode 4 self-paced calibration trials (default 10)","number"],
+ ["mode3BaselineFactor","42. Mode 4 MP baseline factor from cal avg (default 1.3)","number"],
+ ["mode3PacedTrialLimit","43. Mode 4 fixed machine-paced trial limit (default 140)","number"],
+ ["mode3MaxDurationMs","44. Mode 4 total duration ms (default 120000)","number"],
+
+ // 45-48. Cross-mode utilities / diagnostics
+ ["deviceBenchmarkEnabled","45. Device benchmark (0=off, 1=on)","number"],
+ ["lateResponseThresholdMs","46. Mode 1 late response reassignment threshold (ms, default 600)","number"],
+ ["RecoveryInterTrialDelayMsStart","47. Recovery inter-trial delay at start (ms, default 0)","number"],
+ ["ResumeToPacedDelayMs","48. Resume-to-paced delay after recovery (ms, default 0)","number"],
 ];
 
 // ─── Patterns ───
@@ -434,7 +374,7 @@ function isMode1(){ return (settings.testMode||"mode1")==="mode1"; }
 function isMode2(){ return (settings.testMode||"mode1")==="mode2"; }
 function isMode3(){ return (settings.testMode||"mode1")==="mode3"; }
 function isMode4(){ return (settings.testMode||"mode1")==="mode4"; }
-function currentModeLabel(){ return isMode1() ? "Mode 1 CogSpeed Adaptive" : isMode2() ? "Mode 3 Self-Paced Calibration" : isMode3() ? "Mode 4 Fixed Machine-Paced" : "Mode 2 CogSpeed Sustained"; }
+function currentModeLabel(){ return isMode1() ? "Mode 1 CogSpeed Adapted" : isMode2() ? "Mode 3 Self-paced" : isMode3() ? "Mode 4 Machine-paced" : "Mode 2 CogSpeed Sustained"; }
 function getEffectiveTimeFormat(){ return String(settings.timeFormat||"12") === "24" ? "24" : "12"; }
 function getSessionMaxDurationMs(){ return isMode2() ? (Number(settings.mode2MaxDurationMs)||120000) : isMode3() ? (Number(settings.mode3MaxDurationMs)||120000) : (Number(settings.maxTestDurationMs)||150000); }
 
@@ -551,8 +491,8 @@ function resumeMaxTestTimer(){
 // Absolute "not responding" timer — keeps tests from hanging forever.
 // Calibration trial 1 uses calibrationFirstNoResponseMs (default 10s).
 // Later calibration trials use calibrationNoResponseMs (default 6s).
-// Machine-paced uses machinePacedNoResponseMs (default 15s).
-// Recovery and Mode 2 final self-paced use recoveryNoResponseMs (default 10s).
+// Calibration and Mode 1 recovery use explicit per-trial no-response timeouts.
+// Mode 2 final self-paced uses no per-trial timeout; only the overall max-time rule can end an unanswered final trial.
 // Fires finish() with a no-response end reason if nothing is tapped in time.
 function armNoResponseTimer(){
  clearNoResponseTimer();
@@ -560,9 +500,10 @@ function armNoResponseTimer(){
  switch(state.phase){
   case "recovery":
   case "terminal_recovery":
-  case "mode4_final":
    ms = Number(settings.recoveryNoResponseMs)||10000;
    break;
+  case "mode4_final":
+   return;
   case "calibration":
    ms = state.calibrationTrialIndex===0
     ? (Number(settings.calibrationFirstNoResponseMs)||10000)
@@ -579,7 +520,7 @@ function armNoResponseTimer(){
   state.endReason = state.phase==="calibration"
    ? "NO RESPONSE — Retest"
    : state.phase==="mode4_final"
-   ? "Mode 2 final self-paced: no response — session complete"
+   ? "Mode 2 final self-paced: overall max time reached"
    : "NOT RESPONDING IN TIME — Retest";
   finish();
  }, ms);
@@ -593,9 +534,15 @@ function armMaxTestTimer(msOverride){
  state.maxTestTimer=setTimeout(()=>{ state.endReason=(isMode2()||isMode3())?"Required test time reached":"Time limit reached"; finish(); },ms);
 }
 function noteAnyResponse(){
- if(state.phase==="calibration" || state.phase==="recovery" || state.phase==="terminal_recovery" || state.phase==="mode4_final"){
+ if(state.phase==="calibration" || state.phase==="recovery" || state.phase==="terminal_recovery"){
   armNoResponseTimer();
  }
+}
+
+function getMode2SustainedWrongFailLimit(){
+ const target=Math.max(1, Number(settings.mode4SustainedTrialCount)||20);
+ const percent=clamp(Number(settings.mode4SustainedWrongFailPercent)||50,0,100);
+ return clamp(Math.ceil(target*(percent/100)),1,target);
 }
 
 // ─── Quiet mode ───
@@ -1026,7 +973,7 @@ function recordAnswer(ok,isMiss){
 // ─── TERMINAL RECOVERY / MODE 4 BRANCH RULE ───────────────────
 // maybeTriggerTerminalRule(): fires when 2 consecutive block scores
 //  fall within qualifyingBlockGapMs (250ms) of each other.
-// Mode 1/2/3 path: enter terminal_recovery and finish after the final
+// Mode 1/3/4 path: enter terminal_recovery and finish after the final
 //  self-paced trials.
 // Mode 2 sustained path: follow normal Mode 1 adaptive behavior until true
 //  convergence is reached. Adaptive-phase failure stops such as
@@ -1126,7 +1073,7 @@ function finishCalibration(){
   state.fixedPacedBaseline=clamp(avg*factor,settings.minDurationMs,settings.maxDurationMs);
   state.duration=state.fixedPacedBaseline;
   state.phase="paced_fixed";
-  setStatus(`Mode 4 fixed baseline: ${state.duration.toFixed(0)}ms`);
+  setStatus(`Mode 4 machine-paced baseline: ${state.duration.toFixed(0)}ms`);
   openTrial("paced_fixed");
   return;
  }
@@ -1343,7 +1290,6 @@ function finish(){
    sustainedProcessingIndex: mode4Spi,
    correctSustainedResponses: isMode4() ? getMode4CsrCountFromState() : null,
    mode4AdaptiveMbsMs: state.mode4AdaptiveMbsMs,
-   mode4MbsThresholdMs: Number(settings.mode4MbsThresholdMs)||250,
    mode4SustainedTargetCount: isMode4() ? Math.max(1, Number(settings.mode4SustainedTrialCount)||20) : null,
    mode4FinalTrialTargetCount: isMode4() ? Math.max(1, Number(settings.mode4FinalTrialCount)||2) : null,
    mode4SustainedPresentationRateMs: state.mode4SustainedPresentationRateMs,
@@ -1485,7 +1431,7 @@ function openTrial(kind){
   state.duration=null; state.lastFrameDuration=null; state.presentedRoundDuration=null;
   const need=Math.max(1, Number(settings.mode4FinalTrialCount)||2);
   phaseLabel.textContent=`Mode 2 Final ${state.mode4FinalTrialsPresented+1}/${need}`;
-  setStatus(`Mode 2 final self-paced trials — ${state.mode4FinalTrialsPresented}/${need} completed (true self-paced; overall max time still applies)`);
+  setStatus(`Mode 2 final self-paced trials — ${state.mode4FinalTrialsPresented}/${need} completed (true self-paced)`);
  }
 
  // Arm timers only after the display is fully rendered.
@@ -1608,7 +1554,7 @@ function applyPendingLatePacingIfAny(){
 }
 
 function onPacedFrameEnd(actualNow){
- // Mode 4 Fixed Machine-Paced handler (internal key: mode3):
+ // Mode 4 Machine-paced handler (internal key: mode3):
 // every trial uses one fixed baseline duration,
 // no adaptive speedup/slowdown within the fixed MP phase.
 if(state.phase==="paced_fixed"){
@@ -1873,7 +1819,7 @@ function handleTap(index,eventTimeStamp){
   return;
  }
 
- // Mode 4 Fixed Machine-Paced (internal key: mode3)
+ // Mode 4 Machine-paced (internal key: mode3)
  if(state.phase==="paced_fixed"){
   const rt=getSafeTrialRtMs(eventTimeStamp);
   const timingSummary = harvestActiveFrameTiming(performance.now());
@@ -1921,7 +1867,7 @@ function handleTap(index,eventTimeStamp){
     state.totalIncorrect += 1;
     state.pacedErrors += 1;
     state.mode4SustainedWrong += 1;
-    const sustainedWrongLimit=Math.max(1, Number(settings.mode4SustainedMaxWrong)||4);
+    const sustainedWrongLimit=getMode2SustainedWrongFailLimit();
     const savedCurrent = state.current;
     const savedPresented = state.presentedRoundDuration;
     state.current = prior;
@@ -1932,7 +1878,7 @@ function handleTap(index,eventTimeStamp){
     flashBtn(index,false);
     checkMode4SustainedRollingMean(false);
     if(state.mode4SustainedWrong >= sustainedWrongLimit){
-     state.endReason=`Mode 2 CogSpeed Sustained stopped: too many wrong responses in Sustained Phase (${state.mode4SustainedWrong}/${sustainedWrongLimit}).`;
+     state.endReason=`Mode 2 CogSpeed Sustained stopped: wrong-response limit reached in Sustained Phase (${state.mode4SustainedWrong}/${sustainedWrongLimit}).`;
      finish(); return;
     }
     if(checkMaxPacedWrong()) return;
@@ -1958,12 +1904,12 @@ function handleTap(index,eventTimeStamp){
   }
   state.hadResponse=true;
   state.totalResponses+=1; state.totalIncorrect+=1; state.pacedErrors+=1; state.mode4SustainedWrong+=1;
-  const sustainedWrongLimit=Math.max(1, Number(settings.mode4SustainedMaxWrong)||4);
+  const sustainedWrongLimit=getMode2SustainedWrongFailLimit();
   if(state.mode4SustainedWrong >= sustainedWrongLimit){
    logTrial({phase:"mode4_sustained_wrong",rt,outcome:"wrong",responseIndex:index,timing:timingSummary,pacing:{nextRateMs:state.duration,rateChangeMs:0,rateChangeReason:"Mode 2 sustained fixed rate (MBS × factor)"}});
    flashBtn(index,false);
    checkMode4SustainedRollingMean(false);
-   state.endReason=`Mode 2 CogSpeed Sustained stopped: too many wrong responses in Sustained Phase (${state.mode4SustainedWrong}/${sustainedWrongLimit}).`;
+   state.endReason=`Mode 2 CogSpeed Sustained stopped: wrong-response limit reached in Sustained Phase (${state.mode4SustainedWrong}/${sustainedWrongLimit}).`;
    finish(); return;
   }
   if(checkMaxPacedWrong()) return;
@@ -2140,7 +2086,7 @@ function renderAdmin(){
   r.style.cssText="display:grid;grid-template-columns:1fr 140px;gap:8px;align-items:center;margin-bottom:8px";
   let controlHTML="";
   if(String(t).startsWith("select:")){
-   const selectLabels={mode1:"Mode 1 CogSpeed Adaptive",mode2:"Mode 3 Self-Paced Calibration",mode3:"Mode 4 Fixed Machine-Paced",mode4:"Mode 2 CogSpeed Sustained"};
+   const selectLabels={mode1:"Mode 1 CogSpeed Adapted",mode2:"Mode 3 Self-paced",mode3:"Mode 4 Machine-paced",mode4:"Mode 2 CogSpeed Sustained"};
    const opts=String(t).slice(7).split("|").map(v=>`<option value="${v}" ${String(settings[k])===v?"selected":""}>${selectLabels[v]||v}</option>`).join("");
    controlHTML=`<select id="adm_${k}" style="padding:9px;border:1px solid var(--edge);border-radius:10px;background:#0a1629;color:var(--text);font-size:14px;width:100%">${opts}</select>`;
   }else{
@@ -2345,14 +2291,14 @@ function drawModeResultChart(canvas, result){
 function getResponseGraphPhaseLegendText(result){
  if(!result) return "Includes phases: none";
  if(result.testMode==="mode1") return "Includes phases: paced, paced_wrong, paced_late_correct, paced_late_wrong, missed.";
- if(result.testMode==="mode2") return "Includes phases: calibration only.";
- if(result.testMode==="mode3") return "Includes phases: calibration, paced_fixed, paced_fixed_wrong, paced_fixed_missed.";
+ if(result.testMode==="mode2") return "Includes phases: self-paced trials only.";
+ if(result.testMode==="mode3") return "Includes phases: self-paced calibration, paced_fixed, paced_fixed_wrong, paced_fixed_missed.";
  if(result.testMode==="mode4") return "Includes phases: calibration, adaptive paced trials, sustained MBS trials, and final self-paced trials.";
  return "Includes phases: paced family only.";
 }
 
 function formatModeTag(mode){
- const labels={mode1:"Mode 1 CogSpeed Adaptive",mode2:"Mode 3 Self-Paced Calibration",mode3:"Mode 4 Fixed Machine-Paced",mode4:"Mode 2 CogSpeed Sustained"};
+ const labels={mode1:"Mode 1 CogSpeed Adapted",mode2:"Mode 3 Self-paced",mode3:"Mode 4 Machine-paced",mode4:"Mode 2 CogSpeed Sustained"};
  return labels[mode||"mode1"] || (mode||"mode1").replace("mode","Test Mode ");
 }
 
@@ -3469,7 +3415,7 @@ SELF-PACED CALIBRATION
  Average calibration RT: ${result.calibrationAverageMs!=null?result.calibrationAverageMs.toFixed(1)+" ms":"—"}
 Self-paced RT SD: ${result.selfPacedResponseSdMs!=null?result.selfPacedResponseSdMs.toFixed(1)+" ms":"—"}
 ${hr}
-FIXED MACHINE-PACED PHASE (Mode 4 Fixed Machine-Paced)
+MACHINE-PACED PHASE (Mode 4 Machine-paced)
  Machine-paced baseline: ${result.fixedPacedBaselineMs!=null?result.fixedPacedBaselineMs.toFixed(1)+" ms":"—"}
  Average machine-paced RT: ${result.pacedResponseMeanMs!=null?result.pacedResponseMeanMs.toFixed(1)+" ms":"—"}
  Machine-paced RT SD: ${result.pacedResponseSdMs!=null?result.pacedResponseSdMs.toFixed(1)+" ms":"—"}
@@ -4089,7 +4035,7 @@ function computeCPX(result, settings){
  const spfsRaw = result.samnPerelli&&result.samnPerelli.score!=null ? Number(result.samnPerelli.score) : null;
  const spAdj = cpxSpfsAdj(spfsRaw);
 
- // ── Mode 1 CogSpeed Adaptive ──────────────────────────────────
+ // ── Mode 1 CogSpeed Adapted ──────────────────────────────────
  if(mode==="mode1"){
   const cpi = result.cognitivePerformanceIndex;
   if(cpi==null) return none;
@@ -4298,7 +4244,7 @@ function openSpeedometerSession(idx){
 }
 
 function showResultsPage(resultOverride){
- // Curtain-neutral results handoff: curtain is fully non-blocking here.
+ // Results handoff is fully curtain-neutral.
  clearCurtainWatchdog();
  hardResetCurtainState(true);
  hideAllOverlays();
@@ -4413,30 +4359,13 @@ function startOverFlow(){
 
 // ─── Ready signal then start ───
 // ─── READY HANDOFF / CURTAIN-NEUTRAL START ───────────────────
-// runGearSpinThenStart(): curtain-neutral, fail-open 1-second gear-spin intro.
-// It clears any stale curtain state, reveals the live test screen, renders a
-// short decorative spinning-gear cue, then opens the first calibration trial.
-// The start path does NOT depend on animation callbacks or curtain state.
-// If anything goes wrong, the callback still runs after the fixed 1-second
-// handoff window. hardResetCurtainState() and normalizeCurtainForTesting()
-// remain as defensive cleanup helpers for trial open and page reset paths.
+// Curtain transitions have been retired. These helpers now only normalize the
+// visible test surface so the gear-spin handoff stays fail-open and simple.
 // ──────────────────────────────────────────────────────────────
 
-let _curtainWatchdogTimer=null;
-function clearCurtainWatchdog(){
- if(_curtainWatchdogTimer){ clearTimeout(_curtainWatchdogTimer); _curtainWatchdogTimer=null; }
-}
+function clearCurtainWatchdog(){}
 function hardResetCurtainState(hideTestScreen=false){
- clearCurtainWatchdog();
  document.body.classList.remove("curtain-active");
- const curtain=$("curtain");
- if(curtain){
-  curtain.classList.add("open");
-  curtain.classList.remove("closing","opening");
-  curtain.style.transition="none";
-  void curtain.offsetWidth;
-  curtain.style.transition="";
- }
  const ts=$("testScreen");
  if(ts){
   if(hideTestScreen) ts.classList.add("hidden");

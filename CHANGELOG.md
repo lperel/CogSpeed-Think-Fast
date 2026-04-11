@@ -1,3 +1,26 @@
+## V616 — sustained wrong-fail default corrected to 50%
+
+- Changed `mode4SustainedWrongFailPercent` default from 20% to 50%.
+- Admin label now reads: `Mode 2 wrong-fail threshold (% of sustained trials, default 50)`.
+- With the default 20 sustained trials, the default wrong-fail limit is now 10 wrong responses.
+- Added the shared helper `getMode2SustainedWrongFailLimit()` and routed sustained wrong-limit checks through it. This also fixes the missing-helper runtime bug in V615.
+
+## V615 — mode naming cleanup, true final self-paced, sustained wrong-fail percent
+
+### Behavioral fixes
+- Mode labels standardized throughout the program as: Mode 1 CogSpeed Adapted, Mode 2 CogSpeed Sustained, Mode 3 Self-paced, and Mode 4 Machine-paced.
+- Mode 2 final self-paced is now truly self-paced: unanswered final trials are ended only by the overall max test timer, not by a per-trial timeout.
+- Mode 2 sustained-phase wrong-response fail logic now uses a percentage of the sustained trial target. New Admin setting: `mode4SustainedWrongFailPercent` (default 20%). With the default 20 sustained trials, the default wrong-fail limit is 4 wrong responses.
+
+### Admin cleanup
+- Removed deprecated no-effect Mode 2 MBS threshold setting from defaults/Admin.
+- Removed dead machine-paced no-response timeout setting from defaults/Admin.
+- Updated Mode 2 recovery/final self-paced labeling so Admin text matches live behavior.
+
+### Code cleanup
+- Replaced the large top-of-file history block with a short current-behavior header and kept archaeology in CHANGELOG.md.
+- Removed more retired curtain scaffolding: the hidden curtain DOM node is gone, and curtain reset helpers are now lightweight test-surface normalizers only.
+
 ## V614 — Audit patch: mode4_final fix completed, privacy.html CPI, dead code
 
 ### Critical bug fixes (V614)
