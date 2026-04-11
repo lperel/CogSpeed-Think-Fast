@@ -2,7 +2,7 @@
 // CogSpeed source
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V613";
+const APP_VERSION = "V614";
 
 // ═══════════════════════════════════════════════════
 // RECENT INTEGRATED PROGRAM CHANGES (see CHANGELOG.md for current integrated history)
@@ -578,6 +578,8 @@ function armNoResponseTimer(){
  state.absoluteNoResponseTimer=setTimeout(()=>{
   state.endReason = state.phase==="calibration"
    ? "NO RESPONSE — Retest"
+   : state.phase==="mode4_final"
+   ? "Mode 2 final self-paced: no response — session complete"
    : "NOT RESPONDING IN TIME — Retest";
   finish();
  }, ms);
@@ -2911,15 +2913,6 @@ function armIntroAutoAdvance(){
  clearIntroAutoTimer();
  introAutoTimer=setTimeout(()=>closeIntroOverlay(), 3340);
 }
-function openIntroOverlay(){
- const intro=$("introOverlay");
- introClosedOnce=false;
- if(intro) intro.classList.remove("hidden");
- const subject=$("subjectOverlay");
- if(subject) subject.classList.add("hidden");
- setStatus("Ready");
- armIntroAutoAdvance();
-}
 function closeIntroOverlay(){
  const intro=$("introOverlay");
  if(intro) intro.classList.add("hidden");
@@ -3149,10 +3142,12 @@ function isTestSuccess(resultOrReason){
  const reason=String(result ? (result.endReason||"") : (resultOrReason||"")).trim();
  if(!reason) return false;
  const lower=reason.toLowerCase();
+ // Mode 2 final self-paced no-response must be checked before failHints,
+ // because "no response" is in both the end reason and the failHints list.
+ if(lower.includes("mode 2 final self-paced: no response")) return !!(result && result.mode4Triggered);
  const failHints=["failed","retest","practice","erratic responses","not responding in time","no response","too many blocks","too many wrong","anti-spoof","rolling mean","wrong window"];
  if(failHints.some(h=>lower.includes(h))) return false;
  if(lower.startsWith("convergent")) return true;
- if(lower.includes("mode 2 final self-paced: no response")) return !!(result && result.mode4Triggered);
  if(lower.includes("mode 2 cogspeed sustained complete")) return true;
  if(lower==="required responses reached") return true;
  if(lower==="required test time reached") return true;
@@ -3640,15 +3635,6 @@ ${getResultsMetricExplanationText(result)}`;
 // ──────────────────────────────────────────────────────────────
 let _speedoRaf = null;
 
-function roundRect(ctx, x, y, w, h, r){
- ctx.beginPath();
- ctx.moveTo(x+r, y);
- ctx.lineTo(x+w-r, y); ctx.arcTo(x+w, y, x+w, y+r, r);
- ctx.lineTo(x+w, y+h-r); ctx.arcTo(x+w, y+h, x+w-r, y+h, r);
- ctx.lineTo(x+r, y+h); ctx.arcTo(x, y+h, x, y+h-r, r);
- ctx.lineTo(x, y+r); ctx.arcTo(x, y, x+r, y, r);
- ctx.closePath();
-}
 
 function drawSpeedometer(canvas, scoreValue, success, scoreLabel="CPI"){
  const dpr = window.devicePixelRatio||1;
@@ -6041,7 +6027,7 @@ function openSpeedometerMenuSelection(){
  if(choice==="summary"){ $("outcomeOverlay").classList.add("hidden"); stopSpeedometer(); openSummarySession(idx, "complete"); setTestingQuiet(false); return; }
  if(choice==="summary_short"){ $("outcomeOverlay").classList.add("hidden"); stopSpeedometer(); openSummarySession(idx, "compact"); setTestingQuiet(false); return; }
  if(choice==="perf_time"){ $("outcomeOverlay").classList.add("hidden"); stopSpeedometer(); openPerformanceOverTimePage(); return; }
- if(choice==="response_graph"){ openResponseGraphPage(false, idx); return; }
+ if(choice==="response_graph"){ stopSpeedometer(); openResponseGraphPage(false, idx); return; }
  if(choice==="trial_log"){ $("outcomeOverlay").classList.add("hidden"); stopSpeedometer(); buildTrialLog(idx); $("trialLogOverlay").classList.remove("hidden"); return; }
  if(choice==="ranked"){ $("outcomeOverlay").classList.add("hidden"); stopSpeedometer(); buildRankedSummary(state.history[idx]); $("rankedOverlay").classList.remove("hidden"); return; }
  if(choice==="rate_rt"){ $("outcomeOverlay").classList.add("hidden"); stopSpeedometer(); buildRateRtOverlay(idx); $("rateRtOverlay").classList.remove("hidden"); return; }

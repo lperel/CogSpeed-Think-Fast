@@ -1,3 +1,23 @@
+## V614 — Audit patch: mode4_final fix completed, privacy.html CPI, dead code
+
+### Critical bug fixes (V614)
+- Mode 2 final self-paced no-response timeout now correctly produces a success outcome.
+  V613 added the isTestSuccess guard but omitted the distinct end reason in armNoResponseTimer,
+  so the guard was dead code ("no response" in failHints intercepted first). V614 adds
+  the distinct end reason "Mode 2 final self-paced: no response — session complete" in
+  armNoResponseTimer AND moves the isTestSuccess guard before the failHints block.
+- privacy.html: "CPS score" corrected to "CPI score".
+
+### Behavioural fixes (V614)
+- response_graph Speedometer menu choice now calls stopSpeedometer() before navigating.
+  Was the only menu choice that did not stop the speedometer rAF loop.
+
+### Dead code removed (V614)
+- openIntroOverlay(): defined but never called (closeIntroOverlay remains).
+- roundRect(): canvas helper defined but never called anywhere.
+
+---
+
 ## V613 — Comprehensive audit fix build
 
 ### Critical bug fixes
@@ -5,9 +25,7 @@
   Fixes corrupted CDI for low-data sessions; cdiSprRisk(null) no longer injects 100 into scores.
 - `perfSessionCpi()` now guards null before Number() conversion.
   Fixes Mode 1 sessions plotting at zero on Performance Over Date and Time graph.
-- Mode 2 final self-paced no-response timeout now produces a success outcome (not Failed)
-  when the sustained phase was triggered. End reason is "Mode 2 final self-paced: no response
-  — session complete" which is recognised as success in isTestSuccess.
+- [Completed in V614] Mode 2 final self-paced no-response timeout fix was half-applied in V613.
 - Service worker now filters external requests — Nominatim geocode responses are no longer
   cached by the SW (violated Nominatim ToS and caused unbounded cache growth).
 - emailDataSelect dropdown labels now match speedometerActionSelect labels.
