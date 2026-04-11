@@ -2,7 +2,7 @@
 // CogSpeed source
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V632";
+const APP_VERSION = "V633";
 
 // ═══════════════════════════════════════════════════
 // Current behavior summary (historical details live in CHANGELOG.md)
@@ -1894,7 +1894,9 @@ function handleTap(index,eventTimeStamp){
     if(checkMaxPacedWrong()) return;
    }
    state.mode2PendingPriorMiss = null;
-   state.hadResponse = false;
+   // Keep hadResponse=true so the current frame's RAF timer does not
+   // misidentify this trial as a miss when onPacedFrameEnd fires.
+   state.hadResponse = true;
    return;
   }
 
@@ -1908,9 +1910,10 @@ function handleTap(index,eventTimeStamp){
    state.hadResponse=true;
    logTrial({phase:"mode2_sustained",rt,outcome:"correct",responseIndex:index,timing:timingSummary,pacing:{nextRateMs:state.duration,rateChangeMs:0,rateChangeReason:"Mode 2 sustained fixed rate (MBS × factor)"}});
    flashBtn(index,true);
-   if(checkMode2SustainedRollingMean(true)) return;
-   if(state.mode2SustainedPresented >= limit){ state.phase="mode2_final"; state.mode2FinalTrialsPresented=0; openTrial("mode2_final"); return; }
-   openTrial("mode2_sustained"); return;
+   // Do NOT call openTrial here — the RAF frame timer must run to full duration.
+   // onPacedFrameEnd() will advance to the next trial when the window expires.
+   if(checkMode2SustainedRollingMean(true)) return; // only returns true if test ended
+   return;
   }
   state.hadResponse=true;
   state.totalResponses+=1; state.totalIncorrect+=1; state.pacedErrors+=1; state.mode2SustainedWrong+=1;
@@ -1925,9 +1928,10 @@ function handleTap(index,eventTimeStamp){
   if(checkMaxPacedWrong()) return;
   logTrial({phase:"mode2_sustained_wrong",rt,outcome:"wrong",responseIndex:index,timing:timingSummary,pacing:{nextRateMs:state.duration,rateChangeMs:0,rateChangeReason:"Mode 2 sustained fixed rate (MBS × factor)"}});
   flashBtn(index,false);
-  if(checkMode2SustainedRollingMean(false)) return;
-  if(state.mode2SustainedPresented >= limit){ state.phase="mode2_final"; state.mode2FinalTrialsPresented=0; openTrial("mode2_final"); return; }
-  openTrial("mode2_sustained"); return;
+  // Do NOT call openTrial here — the RAF frame timer must run to full duration.
+  // onPacedFrameEnd() will advance to the next trial when the window expires.
+  if(checkMode2SustainedRollingMean(false)) return; // only returns true if test ended
+  return;
  }
 
  if(state.phase==="mode2_final"){
@@ -3804,6 +3808,30 @@ function syncSummarySessionSelect(selectedIdx){
   }).join('');
  }
  if(s.options.length) s.value = String(wanted);
+}
+
+function openSummarySession(sessionIndex, variant){
+ const desiredVariant = String(variant || state.summaryVariant || "complete").toLowerCase()==="compact" ? "compact" : "complete";
+ state.summaryVariant = desiredVariant;
+ const ctx = resolveResultContext(null, sessionIndex, `summary ${desiredVariant}`);
+ if(!ctx.result) return goToStartPage();
+ hideAllOverlays();
+ const summary = $("summaryOverlay");
+ if(summary) summary.classList.remove("hidden");
+ if(Number.isFinite(Number(ctx.index)) && ctx.index>=0) syncSummarySessionSelect(ctx.index);
+ try{
+  if(desiredVariant === "compact") buildResultsSummaryCompact(ctx.result);
+  else buildSummary(ctx.result);
+ }catch(err){
+  console.error("openSummarySession render failed", err);
+  const el=$("summaryText");
+  if(el) el.textContent = `CogSpeed results fallback
+Reason: ${ctx.result && ctx.result.endReason ? ctx.result.endReason : "Run complete"}
+Render error: ${err && err.message ? err.message : err}`;
+ }
+ try{ applySummarySourceDiagnostic(ctx.result, ctx.index, ctx.source); }catch(e){}
+ try{ updateStartPageLinks(); }catch(e){}
+ setTestingQuiet(false);
 }
 
 
