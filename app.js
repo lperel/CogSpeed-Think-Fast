@@ -3243,19 +3243,30 @@ RESULTS METRIC EXPLANATIONS
  CPI (Cognitive Processing Index) = normalized 0 - 100 index based on MBS.${usesMode1Metrics||usesMode4Metrics?"":" Not used in this mode."}
  CSR (Correct Sustained Responses) = number of correct sustained responses in the Mode 2 sustained segment.${usesMode4Metrics?"":" Not used in this mode."}
  SBLP (Sustained Blocking Limit Performance) = average RT of correct sustained responses during Mode 2 sustained segment, but defined as 0 when CSR = 0.${usesMode4Metrics?"":" Not used in this mode."}
- SBLP SD = standard deviation of correct sustained RTs; intraindividual variability at MBS.${usesMode4Metrics?"":" Not used in this mode."}
  SBLP P90 = 90th-percentile correct sustained RT; conservative ceiling estimate.${usesMode4Metrics?"":" Not used in this mode."}
  SPI (Sustained Processing Index) = normalized 0 - 100 index based on CSR.${usesMode4Metrics?"":" Not used in this mode."}
- SPI decay = first-half SPI minus second-half SPI; positive values indicate within-segment degradation.${usesMode4Metrics?"":" Not used in this mode."}
- RT slope = OLS slope of correct RT vs trial position (ms/trial); positive = slowing (decompensation).${usesMode4Metrics?"":" Not used in this mode."}
- Omission rate = missed / presented; pure speed-failure proportion.${usesMode4Metrics?"":" Not used in this mode."}
- Commission rate = wrong / presented; speed-accuracy tradeoff proportion.${usesMode4Metrics?"":" Not used in this mode."}
- Error profile = categorical: clean / omission_dominant / commission_dominant / mixed.${usesMode4Metrics?"":" Not used in this mode."}
- SPR (Sustained Processing Reserve) = (1 - SBLP / MBS) x 100; RT headroom below the timing window.${usesMode4Metrics?"":" Not used in this mode."}
-    CPA (Cognitive Performance Ability) = Mode 2 combined end-state score (0–100): CPI plus sustained-phase weightings for correct count, wrong count, missed count, RT variability, and positive drift penalty (Pd = min 15 pts). Computed for Mode 2 only.${usesMode4Metrics?"":" Not used in this mode."}
+ CPA (Cognitive Performance Ability) = Mode 2 combined end-state score (0–100): CPI adjusted by sustained-phase weightings for correct count, wrong count, missed count, response RT variability (SD), and positive drift (late vs early median RT). Computed for Mode 2 only.${usesMode4Metrics?"":" Not used in this mode."}
  Disposition = operational recommendation derived from CPA score. GREEN (Clear): CPA > 49. YELLOW (Monitor / human review recommended): CPA 25–49. RED (Remove from hazardous duty): CPA < 25. CogSpeed disposition is a structured recommendation requiring human review — not a standalone fitness determination.${usesMode4Metrics?"":" Not used in this mode."}`;
 }
 
+
+// ─── Mode 2 timing breakdown ─────────────────────────────────
+// Splits total test time into adaptive phase vs sustained+final phase.
+function computeMode2TimingSummary(result){
+ const entries=Array.isArray(result&&result.rtLog)?result.rtLog:[];
+ const sumPhases=(phases)=>entries.filter(e=>phases.includes(String(e.phase||"")) && Number.isFinite(Number(e.durationMs))).reduce((s,e)=>s+Number(e.durationMs),0);
+ const sustainedFinalMs=sumPhases(["mode2_sustained","mode2_sustained_wrong","mode2_sustained_missed","mode2_final"]);
+ const totalMs=Number(result&&result.testDurationMs)||0;
+ const adaptiveMs=Math.max(0,totalMs-sustainedFinalMs);
+ return {totalMs,adaptiveMs,sustainedFinalMs};
+}
+
+// ─── Mode 2 block list text ──────────────────────────────────
+function getMode4BlockListText(result){
+ const blocks=Array.isArray(result&&result.blocks)?result.blocks:[];
+ if(!blocks.length) return " none";
+ return blocks.map((b,i)=>` Block ${i+1}: ${Number(b).toFixed(0)} ms`).join("\n");
+}
 
 function computeMode2AdaptiveCounts(result){
  const log = Array.isArray(result&&result.rtLog) ? result.rtLog : [];
@@ -3899,8 +3910,18 @@ function computeMode2CPA(result){
   : 0; // no adj when fewer than 2 sustained RTs exist
  // Drift uses the bucketed weighting rule for positive slowing only.
  // 0–10% = 0; 11–30% = -1% CPI; 31–40% = -5% CPI; 41%+ = -10% CPI.
- // Pd drift penalty: Pd = min(15, 50 × max(0, driftRatio)) — spec formula (0–15 absolute pts)
- const driftAdj = clampCpaFactorDelta(-Math.min(15, 50 * driftRatio), cpi);
+ // Drift penalty (bucketed, positive drift only — negative drift = no penalty):
+ //   1–10%  slowing → 0
+ //   11–30% slowing → -(CPI × 0.01)
+ //   31–40% slowing → -(CPI × 0.05)
+ //   41%+   slowing → -(CPI × 0.10)
+ const driftPct = driftRatio * 100;
+ const driftAdj = clampCpaFactorDelta(cpi * bucketedCpaMultiplier(driftPct, [
+  [0,    10,   0],
+  [10.0001, 30, -0.01],
+  [30.0001, 40, -0.05],
+  [40.0001, Number.POSITIVE_INFINITY, -0.10]
+ ]), cpi);
  const rawCpa = cpi + correctAdj + wrongAdj + missedAdj + sdAdj + driftAdj;
  const cpa = Math.max(0, Math.min(100, rawCpa));
  const r1 = v => v != null && Number.isFinite(Number(v)) ? Number(Number(v).toFixed(1)) : null;
