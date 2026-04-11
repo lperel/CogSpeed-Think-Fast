@@ -1,6 +1,6 @@
-# V622
+# V623
 
-## V622 — Mode semantic cleanup repair
+## V623 — Mode semantic cleanup repair
 - realigned visible mode labels and result paths so Mode 2 = Sustained, Mode 3 = Self-paced, and Mode 4 = Machine-paced
 - moved sustained CPA/rendering onto the Mode 2 results path
 - restored computeCPI fallback to DEFAULTS anchors

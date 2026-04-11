@@ -2,7 +2,7 @@
 // CogSpeed source
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V622";
+const APP_VERSION = "V623";
 
 // ═══════════════════════════════════════════════════
 // Current behavior summary (historical details live in CHANGELOG.md)
@@ -56,10 +56,12 @@ const DEFAULTS={
  adminPasscode:"4822",
  testMode:"mode2",
  mode2TrialLimit:150,
- mode2MaxDurationMs:120000,
+ mode2MaxDurationMs:120000, // legacy storage key for Mode 3 Self-paced total duration
+ mode3SelfPacedMaxDurationMs:120000,
  mode3CalibrationTrials:10,
  mode3PacedTrialLimit:140,
- mode3MaxDurationMs:120000,
+ mode3MaxDurationMs:120000, // legacy storage key for Mode 4 Machine-paced total duration
+ mode4MachinePacedMaxDurationMs:120000,
  mode3BaselineFactor:1.3,
  mode4SustainedStartFactor:1.2,
  mode4SustainedTrialCount:20,
@@ -160,13 +162,13 @@ const ADMIN_FIELDS=[
 
  // 39-40. Mode 3 Self-paced
  ["mode2TrialLimit","39. Mode 3 self-paced trial limit (default 150)","number"],
- ["mode2MaxDurationMs","40. Mode 3 total duration ms (default 120000)","number"],
+ ["mode3SelfPacedMaxDurationMs","40. Mode 3 total duration ms (default 120000)","number"],
 
  // 41-44. Mode 4 Machine-paced
  ["mode3CalibrationTrials","41. Mode 4 self-paced calibration trials (default 10)","number"],
  ["mode3BaselineFactor","42. Mode 4 MP baseline factor from cal avg (default 1.3)","number"],
  ["mode3PacedTrialLimit","43. Mode 4 fixed machine-paced trial limit (default 140)","number"],
- ["mode3MaxDurationMs","44. Mode 4 total duration ms (default 120000)","number"],
+ ["mode4MachinePacedMaxDurationMs","44. Mode 4 total duration ms (default 120000)","number"],
 
  // 45-48. Cross-mode utilities / diagnostics
  ["deviceBenchmarkEnabled","45. Device benchmark (0=off, 1=on)","number"],
@@ -220,11 +222,19 @@ function loadSettings(){
  if(!s) return {...DEFAULTS};
  const m={...DEFAULTS};
  Object.keys(DEFAULTS).forEach(k=>{ if(s[k]!==undefined) m[k]=s[k]; });
+ // Legacy migration only: older builds used stale internal key names for
+ // Mode 3 Self-paced and Mode 4 Machine-paced total-duration settings.
+ if(s.mode3SelfPacedMaxDurationMs===undefined && s.mode2MaxDurationMs!==undefined) m.mode3SelfPacedMaxDurationMs=s.mode2MaxDurationMs;
+ if(s.mode4MachinePacedMaxDurationMs===undefined && s.mode3MaxDurationMs!==undefined) m.mode4MachinePacedMaxDurationMs=s.mode3MaxDurationMs;
+ // Keep legacy keys mirrored in-memory for any code paths or exports that still
+ // inspect them during the compatibility transition.
+ m.mode2MaxDurationMs = m.mode3SelfPacedMaxDurationMs;
+ m.mode3MaxDurationMs = m.mode4MachinePacedMaxDurationMs;
  // Legacy migration only: older builds saved the same preference as use12HourTime (1/0).
  if(!m.timeFormat) m.timeFormat = (s.use12HourTime===0 || s.use12HourTime==="0") ? "24" : "12";
  return m;
 }
-function saveSettings(){ localStorage.setItem(`${STORAGE_PREFIX}_settings`,JSON.stringify(settings)); }
+function saveSettings(){ settings.mode2MaxDurationMs=settings.mode3SelfPacedMaxDurationMs; settings.mode3MaxDurationMs=settings.mode4MachinePacedMaxDurationMs; localStorage.setItem(`${STORAGE_PREFIX}_settings`,JSON.stringify(settings)); }
 let settings=loadSettings();
 
 // ─── State ───
@@ -382,7 +392,7 @@ function isSelfPacedOnlyMode(){ return isSelfPacedOnlyModeValue(settings.testMod
 function isMachinePacedMode(){ return isMachinePacedModeValue(settings.testMode||"mode1"); }
 function currentModeLabel(){ return isMode1() ? "Mode 1 CogSpeed Adapted" : isMode2() ? "Mode 2 CogSpeed Sustained" : isMode3() ? "Mode 3 Self-paced" : "Mode 4 Machine-paced"; }
 function getEffectiveTimeFormat(){ return String(settings.timeFormat||"12") === "24" ? "24" : "12"; }
-function getSessionMaxDurationMs(){ return isSustainedMode() ? (Number(settings.maxTestDurationMs)||150000) : isSelfPacedOnlyMode() ? (Number(settings.mode2MaxDurationMs)||120000) : isMachinePacedMode() ? (Number(settings.mode3MaxDurationMs)||120000) : (Number(settings.maxTestDurationMs)||150000); }
+function getSessionMaxDurationMs(){ return isSustainedMode() ? (Number(settings.maxTestDurationMs)||150000) : isSelfPacedOnlyMode() ? (Number(settings.mode3SelfPacedMaxDurationMs)||120000) : isMachinePacedMode() ? (Number(settings.mode4MachinePacedMaxDurationMs)||120000) : (Number(settings.maxTestDurationMs)||150000); }
 
 // Timing diagnostics are observational only. They do NOT affect pacing or scoring.
 function beginFrameTiming(targetMs, phase){
@@ -1259,7 +1269,7 @@ function finish(){
    maxRafIntervalMs: state.rafIntervalLog.length ? Number(Math.max(...state.rafIntervalLog).toFixed(2)) : null
   };
   const sustainedAnalysis = (isSustainedMode() && state.mode4Triggered)
-   ? computeMode4SustainedAnalysis(state.rtLog, state.mode4SustainedPresentationRateMs, Number(settings.mode4SustainedTrialCount)||20)
+   ? computeMode2SustainedAnalysis(state.rtLog, state.mode4SustainedPresentationRateMs, Number(settings.mode4SustainedTrialCount)||20)
    : {
     sustainedBlockLimitPerformanceSdMs:null, sustainedOmissionRate:null,
     sustainedCommissionRate:null, sustainedErrorProfile:null,
@@ -3307,7 +3317,7 @@ function buildResultsSummaryCompact(result){
  const timing=result.testMode==="mode2" ? (result.mode4TimingSummary||computeMode4TimingSummary(result)) : null;
  if(result.testMode==="mode2"){
   if(result.mode4Triggered && result.sustainedFirstHalfSpi==null && Array.isArray(result.rtLog)){
-   Object.assign(result, computeMode4SustainedAnalysis(result.rtLog, result.mode4SustainedPresentationRateMs, result.mode4SustainedTargetCount||20));
+   Object.assign(result, computeMode2SustainedAnalysis(result.rtLog, result.mode4SustainedPresentationRateMs, result.mode4SustainedTargetCount||20));
   }
   if(result.mode4Triggered && result.cdi==null){
    Object.assign(result, computeCDISummary(result));
@@ -3458,7 +3468,7 @@ ${getResultsMetricExplanationText(result)}`;
   const csr=result.correctSustainedResponses!=null?result.correctSustainedResponses:(result.mode4SustainedCorrect||0);
   const timing=result.mode4TimingSummary||computeMode4TimingSummary(result);
   if(result.mode4Triggered && result.sustainedFirstHalfSpi==null && Array.isArray(result.rtLog)){
-   Object.assign(result, computeMode4SustainedAnalysis(result.rtLog, result.mode4SustainedPresentationRateMs, result.mode4SustainedTargetCount||20));
+   Object.assign(result, computeMode2SustainedAnalysis(result.rtLog, result.mode4SustainedPresentationRateMs, result.mode4SustainedTargetCount||20));
   }
   if(result.mode4Triggered && result.cdi==null){
    Object.assign(result, computeCDISummary(result));
@@ -3630,6 +3640,115 @@ function bucketedCpaMultiplier(value, buckets){
  }
  return 0;
 }
+
+// Mode 2 sustained-phase analysis derived from the sustained fixed-rate window.
+// Returns secondary degradation metrics used by Results Complete, CDI, and CPX.
+//
+//  sustainedBlockLimitPerformanceSdMs — SD of correct sustained RTs
+//  sustainedOmissionRate  — missed / presented (0–1)
+//  sustainedCommissionRate — wrong / presented (0–1)
+//  sustainedErrorProfile  — "clean"|"omission_dominant"|"commission_dominant"|"mixed"
+//  sustainedProcessingReserve — (1 − SBLP/MBS) × 100; headroom below window
+//  sustainedFirstHalfSpi  — CSR rate in trials 1..⌊N/2⌋ × 100
+//  sustainedSecondHalfSpi — CSR rate in trials ⌊N/2⌋+1..N × 100
+//  sustainedSpiDecay      — firstHalfSpi − secondHalfSpi (positive = degrading)
+//  sustainedRtSlopeMsPerTrial — OLS slope of correct RT vs trial position (ms/trial)
+//  sustainedCorrectRtP90Ms — 90th-percentile correct RT
+//  sustainedCorrectRtMaxMs — maximum correct RT
+function computeMode2SustainedAnalysis(rtLog, mbsRateMs, targetCount){
+ const entries = Array.isArray(rtLog) ? rtLog : [];
+ const sustained = entries.filter(e =>
+  e.phase==="mode4_sustained" ||
+  e.phase==="mode4_sustained_wrong" ||
+  e.phase==="mode4_sustained_missed"
+ );
+ if(!sustained.length) return {
+  sustainedBlockLimitPerformanceSdMs:null,
+  sustainedOmissionRate:null, sustainedCommissionRate:null,
+  sustainedErrorProfile:null, sustainedProcessingReserve:null,
+  sustainedFirstHalfSpi:null, sustainedSecondHalfSpi:null,
+  sustainedSpiDecay:null, sustainedRtSlopeMsPerTrial:null,
+  sustainedCorrectRtP90Ms:null, sustainedCorrectRtMaxMs:null
+ };
+
+ const correctEntries = sustained.filter(e => e.phase==="mode4_sustained" && Number.isFinite(Number(e.rt)));
+ const correctRTs = correctEntries.map(e => Number(e.rt));
+ const presented = sustained.length;
+ const wrongCount  = sustained.filter(e => e.phase==="mode4_sustained_wrong").length;
+ const missedCount = sustained.filter(e => e.phase==="mode4_sustained_missed").length;
+ const mbs = Number(mbsRateMs) || 0;
+
+ const sblpSd = correctRTs.length >= 2 ? stdDev(correctRTs) : null;
+ const omissionRate   = presented > 0 ? missedCount / presented : null;
+ const commissionRate = presented > 0 ? wrongCount  / presented : null;
+
+ let errorProfile = null;
+ if(presented > 0){
+  const totalErrors = wrongCount + missedCount;
+  if(totalErrors === 0) errorProfile = "clean";
+  else if(wrongCount === 0) errorProfile = "omission_dominant";
+  else if(missedCount === 0) errorProfile = "commission_dominant";
+  else errorProfile = (wrongCount / totalErrors >= 0.6) ? "commission_dominant"
+                    : (missedCount / totalErrors >= 0.6) ? "omission_dominant"
+                    : "mixed";
+ }
+
+ const sblpMean = correctRTs.length > 0 ? mean(correctRTs) : null;
+ const spr = (mbs > 0 && sblpMean != null) ? (1 - sblpMean / mbs) * 100 : null;
+
+ let firstHalfSpi = null, secondHalfSpi = null, spiDecay = null;
+ if(sustained.length >= 2){
+  const half = Math.floor(sustained.length / 2);
+  const fh = sustained.slice(0, half);
+  const sh = sustained.slice(half);
+  const fhCorrect = fh.filter(e => e.phase==="mode4_sustained").length;
+  const shCorrect = sh.filter(e => e.phase==="mode4_sustained").length;
+  firstHalfSpi  = (fhCorrect / Math.max(1, fh.length)) * 100;
+  secondHalfSpi = (shCorrect / Math.max(1, sh.length)) * 100;
+  spiDecay = firstHalfSpi - secondHalfSpi;
+ }
+
+ let rtSlopeMsPerTrial = null;
+ if(correctEntries.length >= 3){
+  const pos = correctEntries.map((_, i) => i + 1);
+  const rts = correctRTs;
+  const mp = mean(pos), mr = mean(rts);
+  const num = pos.reduce((s, x, i) => s + (x - mp) * (rts[i] - mr), 0);
+  const den = pos.reduce((s, x)    => s + (x - mp) ** 2, 0);
+  rtSlopeMsPerTrial = den > 0 ? num / den : null;
+ }
+
+ let correctRtP90Ms = null, correctRtMaxMs = null;
+ if(correctRTs.length > 0){
+  const sorted = [...correctRTs].sort((a, b) => a - b);
+  correctRtMaxMs = sorted[sorted.length - 1];
+  const p90idx = Math.max(0, Math.ceil(sorted.length * 0.9) - 1);
+  correctRtP90Ms = sorted[p90idx];
+ }
+
+ const r = v => v != null ? Number(v.toFixed(2)) : null;
+ const r1 = v => v != null ? Number(v.toFixed(1)) : null;
+ const r3 = v => v != null ? Number(v.toFixed(3)) : null;
+ return {
+  sustainedBlockLimitPerformanceSdMs: r(sblpSd),
+  sustainedOmissionRate:              omissionRate != null ? Number(omissionRate.toFixed(4)) : null,
+  sustainedCommissionRate:            commissionRate != null ? Number(commissionRate.toFixed(4)) : null,
+  sustainedErrorProfile:              errorProfile,
+  sustainedProcessingReserve:         r(spr),
+  sustainedFirstHalfSpi:              r1(firstHalfSpi),
+  sustainedSecondHalfSpi:             r1(secondHalfSpi),
+  sustainedSpiDecay:                  r1(spiDecay),
+  sustainedRtSlopeMsPerTrial:         r3(rtSlopeMsPerTrial),
+  sustainedCorrectRtP90Ms:            r1(correctRtP90Ms),
+  sustainedCorrectRtMaxMs:            r1(correctRtMaxMs)
+ };
+}
+
+// Compatibility shim for older saved summaries / helper references.
+function computeMode4SustainedAnalysis(rtLog, mbsRateMs, targetCount){
+ return computeMode2SustainedAnalysis(rtLog, mbsRateMs, targetCount);
+}
+
 
 function getMode2SustainedRespondedEntries(rtLog){
  return (Array.isArray(rtLog)?rtLog:[]).filter(row=>{
