@@ -1,3 +1,11 @@
+
+## V627
+- Straightened live mode semantics throughout the program so mode1=CogSpeed Adapted, mode2=CogSpeed Sustained, mode3=Self-paced, and mode4=Machine-paced.
+- Renamed Mode 2 sustained settings, result fields, and CPA plumbing away from the stale mode4 compatibility names where they were truly stale.
+- Added settings migration for prior mode2/mode3/mode4 key names so prior admin values can still be read into the new canonical keys.
+- Updated admin selector labels, result labels, CSV headings, and session grouping order to match the true mode numbering.
+- Kept only compatibility reads that are still needed for older saved settings; removed the stale internal remap comments and labels.
+
 ## V625 — CPA/Disposition repair rebuild from V619
 
 - Rebuilt from V619 as the baseline to avoid the broken CPA patch chain.
