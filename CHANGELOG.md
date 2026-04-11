@@ -1,3 +1,12 @@
+## V618 — Admin label clarification for Mode 1 restart
+- Updated Admin item 18 text to: `Mode 1 restart multiplier after block (default 1.3 = 130% of block baseline)`.
+- Preserved Admin item 34 text: `Mode 2 wrong-fail threshold for sustained phase (default 50% of sustained trials)`.
+- Updated package/app version strings to V618.
+
+## V617 — Admin label clarification for Mode 2 wrong-fail threshold
+- Updated Admin item 34 text to: `Mode 2 wrong-fail threshold for sustained phase (default 50% of sustained trials)`.
+- No logic changes.
+
 ## V616 — sustained wrong-fail default corrected to 50%
 
 - Changed `mode4SustainedWrongFailPercent` default from 20% to 50%.

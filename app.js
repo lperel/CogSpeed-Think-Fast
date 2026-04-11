@@ -2,7 +2,7 @@
 // CogSpeed source
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V616";
+const APP_VERSION = "V618";
 
 // ═══════════════════════════════════════════════════
 // Current behavior summary (historical details live in CHANGELOG.md)
@@ -134,7 +134,7 @@ const ADMIN_FIELDS=[
  // 16-31. Mode 1 CogSpeed Adapted, ordered by use
  ["initialPacedPercent","16. Mode 1 MP start: % of calibration avg (default 1.2)","number"],
  ["consecutiveMissesForBlock","17. Mode 1 misses to trigger block (default 2)","number"],
- ["blockRestartPercent","18. Mode 1 restart: % of block baseline (default 1.3)","number"],
+ ["blockRestartPercent","18. Mode 1 restart multiplier after block (default 1.3 = 130% of block baseline)","number"],
  ["spRestartCorrectStreak","19. Mode 1 recovery correct streak to resume (default 2)","number"],
  ["spRestartWrongLimit","20. Mode 1 recovery max wrong before fail (default 3)","number"],
  ["wrongSlowdownMs","21. Mode 1 MP slowdown on wrong (ms, default 50)","number"],
@@ -152,7 +152,7 @@ const ADMIN_FIELDS=[
  // 32-38. Mode 2 CogSpeed Sustained
  ["mode4SustainedStartFactor","32. Mode 2 sustained start factor × MBS (default 1.2)","number"],
  ["mode4SustainedTrialCount","33. Mode 2 sustained trials at MBS × factor (default 20)","number"],
- ["mode4SustainedWrongFailPercent","34. Mode 2 wrong-fail threshold (% of sustained trials, default 50)","number"],
+ ["mode4SustainedWrongFailPercent","34. Mode 2 wrong-fail threshold for sustained phase (default 50% of sustained trials)","number"],
  ["mode4SustainedRollMeanWindow","35. Mode 2 anti-spoof rolling mean window in Sustained Phase (default 10)","number"],
  ["mode4SustainedRollMeanThreshold","36. Mode 2 anti-spoof rolling mean threshold in Sustained Phase (default 0.50)","number"],
  ["mode4LateResponseThresholdMs","37. Mode 2 late response reassignment threshold (ms, default 600)","number"],
