@@ -1,31 +1,10 @@
-# V623
-
-## V623 — Mode semantic cleanup repair
-- realigned visible mode labels and result paths so Mode 2 = Sustained, Mode 3 = Self-paced, and Mode 4 = Machine-paced
-- moved sustained CPA/rendering onto the Mode 2 results path
-- restored computeCPI fallback to DEFAULTS anchors
-- restored helper functions needed by CPA calculations
-- added explicit finish-fallback diagnostic text if fallback rendering is used
-
-# V621
-- Fixed `computeCPI()` to use the same `|| DEFAULTS.cpiBestMs` / `|| DEFAULTS.cpiWorstMs` fallback pattern used elsewhere in the program.
-- This prevents inconsistent CPI anchor handling if an admin setting is missing or invalid.
-
-## V621 — Mode 2 CPA formula and presentation update
-
-- Implemented the user-specified Mode 2 CPA (Cognitive Performance Ability) formula as: CPI plus bucketed sustained-phase weightings for correct count, wrong count, missed count, sustained response RT SD, and positive drift only.
-- CPA now reports as its own section in Results Summary, its own section with factor breakdown in Results - Complete, and as a dedicated Speedometer metric box for Mode 2 sessions.
-- Stored CPA fields in session history and CSV export.
-- Audit note: preserved two explicit ambiguity resolutions in code comments: `11–14 correct` for the apparent `1–14` typo, and top-down handling of the overlapping missed-response buckets so 0–3 keeps the +10% bucket and 4 maps to 0%.
-- Audit note: SD and drift use all sustained responses that produced an RT (correct + wrong); missed sustained trials affect CPA through the missed-count weighting but do not contribute an RT.
-
-## V619 — Performance Over Date and Time graph CPI/MBS correction
+## V620 — Performance Over Date and Time graph CPI/MBS correction
 
 - Corrected the Performance Over Date and Time graph so the blue marker always plots CPI for all modes, including Mode 2 CogSpeed Sustained.
 - Kept the orange MBS ring as a companion marker at the same CPI position by design, instead of implying an independently plotted SPI or SBLP point.
 - Changed graph metric preference so Mode 2 sessions use adaptive MBS before SBLP when deriving CPI and the left-axis MBS labels.
 - Moved the SP-FS right-side scale and label farther right for readability.
-- Updated package/app version strings to V619.
+- Updated package/app version strings to V620.
 
 ## V618 — Admin label clarification for Mode 1 restart
 - Updated Admin item 18 text to: `Mode 1 restart multiplier after block (default 1.3 = 130% of block baseline)`.
