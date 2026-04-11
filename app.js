@@ -2,7 +2,7 @@
 // CogSpeed source
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V630";
+const APP_VERSION = "V631";
 
 // ═══════════════════════════════════════════════════
 // Current behavior summary (historical details live in CHANGELOG.md)
@@ -1908,9 +1908,10 @@ function handleTap(index,eventTimeStamp){
    state.hadResponse=true;
    logTrial({phase:"mode2_sustained",rt,outcome:"correct",responseIndex:index,timing:timingSummary,pacing:{nextRateMs:state.duration,rateChangeMs:0,rateChangeReason:"Mode 2 sustained fixed rate (MBS × factor)"}});
    flashBtn(index,true);
-   if(checkMode2SustainedRollingMean(true)) return;
-   if(state.mode2SustainedPresented >= limit){ state.phase="mode2_final"; state.mode2FinalTrialsPresented=0; openTrial("mode2_final"); return; }
-   openTrial("mode2_sustained"); return;
+   // Do NOT call openTrial here — the RAF frame timer must run to full duration.
+   // onPacedFrameEnd() will advance to the next trial when the window expires.
+   if(checkMode2SustainedRollingMean(true)) return; // only returns true if test ended
+   return;
   }
   state.hadResponse=true;
   state.totalResponses+=1; state.totalIncorrect+=1; state.pacedErrors+=1; state.mode2SustainedWrong+=1;
@@ -1925,9 +1926,10 @@ function handleTap(index,eventTimeStamp){
   if(checkMaxPacedWrong()) return;
   logTrial({phase:"mode2_sustained_wrong",rt,outcome:"wrong",responseIndex:index,timing:timingSummary,pacing:{nextRateMs:state.duration,rateChangeMs:0,rateChangeReason:"Mode 2 sustained fixed rate (MBS × factor)"}});
   flashBtn(index,false);
-  if(checkMode2SustainedRollingMean(false)) return;
-  if(state.mode2SustainedPresented >= limit){ state.phase="mode2_final"; state.mode2FinalTrialsPresented=0; openTrial("mode2_final"); return; }
-  openTrial("mode2_sustained"); return;
+  // Do NOT call openTrial here — the RAF frame timer must run to full duration.
+  // onPacedFrameEnd() will advance to the next trial when the window expires.
+  if(checkMode2SustainedRollingMean(false)) return; // only returns true if test ended
+  return;
  }
 
  if(state.phase==="mode2_final"){
@@ -2855,7 +2857,7 @@ let introClosedOnce=false;
 function clearIntroAutoTimer(){ if(introAutoTimer){ clearTimeout(introAutoTimer); introAutoTimer=null; } }
 function armIntroAutoAdvance(){
  clearIntroAutoTimer();
- introAutoTimer=setTimeout(()=>closeIntroOverlay(), 2340);
+ introAutoTimer=setTimeout(()=>closeIntroOverlay(), 1000);
 }
 function closeIntroOverlay(){
  const intro=$("introOverlay");
@@ -3848,7 +3850,7 @@ function clampCpaFactorDelta(delta, cpi){
  return Math.max(floor, d);
 }
 
-function getMode4SustainedRespondedEntries(rtLog){
+function getMode2SustainedRespondedEntries(rtLog){
  const log = Array.isArray(rtLog) ? rtLog : [];
  return log.filter(e => e && ["mode2_sustained","mode2_sustained_wrong"].includes(e.phase) && Number.isFinite(Number(e.rt)));
 }
@@ -3873,7 +3875,7 @@ function computeMode2CPA(result){
  const correct = Number(result.mode2SustainedCorrect)||0;
  const wrong = Number(result.mode2SustainedWrong)||0;
  const missed = Number(result.mode2SustainedMissed)||0;
- const responded = getMode4SustainedRespondedEntries(result.rtLog);
+ const responded = getMode2SustainedRespondedEntries(result.rtLog);
  const respondedRTs = responded.map(e => Number(e.rt)).filter(Number.isFinite);
  const responseSd = respondedRTs.length >= 2 ? stdDev(respondedRTs) : null;
  let earlyMedian = null, lateMedian = null, driftRatio = 0;
@@ -3897,7 +3899,8 @@ function computeMode2CPA(result){
   : 0; // no adj when fewer than 2 sustained RTs exist
  // Drift uses the bucketed weighting rule for positive slowing only.
  // 0–10% = 0; 11–30% = -1% CPI; 31–40% = -5% CPI; 41%+ = -10% CPI.
- const driftAdj = clampCpaFactorDelta(cpi * bucketedCpaMultiplier(driftRatio, [[0,0.10,0],[0.1000001,0.30,-0.01],[0.3000001,0.40,-0.05],[0.4000001,Number.POSITIVE_INFINITY,-0.1]]), cpi);
+ // Pd drift penalty: Pd = min(15, 50 × max(0, driftRatio)) — spec formula (0–15 absolute pts)
+ const driftAdj = clampCpaFactorDelta(-Math.min(15, 50 * driftRatio), cpi);
  const rawCpa = cpi + correctAdj + wrongAdj + missedAdj + sdAdj + driftAdj;
  const cpa = Math.max(0, Math.min(100, rawCpa));
  const r1 = v => v != null && Number.isFinite(Number(v)) ? Number(Number(v).toFixed(1)) : null;
