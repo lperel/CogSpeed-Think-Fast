@@ -1,10 +1,23 @@
-## V620 — Mode 2 CPA score added
+# V622
 
-- Added CPA (Cognitive Performance Ability) for Mode 2 CogSpeed Sustained as a single end-state score derived from CPI plus sustained-phase factor weightings.
-- Added CPA factor reporting to Results (complete) and a standalone CPA section to Results Summary.
-- Added CPA box on the Speedometer for Mode 2 sessions.
+## V622 — Mode semantic cleanup repair
+- realigned visible mode labels and result paths so Mode 2 = Sustained, Mode 3 = Self-paced, and Mode 4 = Machine-paced
+- moved sustained CPA/rendering onto the Mode 2 results path
+- restored computeCPI fallback to DEFAULTS anchors
+- restored helper functions needed by CPA calculations
+- added explicit finish-fallback diagnostic text if fallback rendering is used
+
+# V621
+- Fixed `computeCPI()` to use the same `|| DEFAULTS.cpiBestMs` / `|| DEFAULTS.cpiWorstMs` fallback pattern used elsewhere in the program.
+- This prevents inconsistent CPI anchor handling if an admin setting is missing or invalid.
+
+## V621 — Mode 2 CPA formula and presentation update
+
+- Implemented the user-specified Mode 2 CPA (Cognitive Performance Ability) formula as: CPI plus bucketed sustained-phase weightings for correct count, wrong count, missed count, sustained response RT SD, and positive drift only.
+- CPA now reports as its own section in Results Summary, its own section with factor breakdown in Results - Complete, and as a dedicated Speedometer metric box for Mode 2 sessions.
 - Stored CPA fields in session history and CSV export.
-- Audit note: implemented the requested bucket model with two explicit ambiguity resolutions in code comments: `11–14 correct` for the apparent `1–14` typo, and top-down handling of the overlapping missed-response buckets so 0–3 keeps the +10% bucket and 4 maps to 0%.
+- Audit note: preserved two explicit ambiguity resolutions in code comments: `11–14 correct` for the apparent `1–14` typo, and top-down handling of the overlapping missed-response buckets so 0–3 keeps the +10% bucket and 4 maps to 0%.
+- Audit note: SD and drift use all sustained responses that produced an RT (correct + wrong); missed sustained trials affect CPA through the missed-count weighting but do not contribute an RT.
 
 ## V619 — Performance Over Date and Time graph CPI/MBS correction
 
