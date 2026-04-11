@@ -2,7 +2,7 @@
 // CogSpeed source
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V629";
+const APP_VERSION = "V630";
 
 // ═══════════════════════════════════════════════════
 // Current behavior summary (historical details live in CHANGELOG.md)
@@ -2458,7 +2458,7 @@ function formatModePooledRankSection(mode){
 // ─── EXPORT / EMAIL ───────────────────────────────────────────
 // exportCSV(): downloads history as ${STORAGE_PREFIX}_history.csv
 //  80 columns: session, subject, date, SP-FS, calibration, blocks,
-//  CPI, sustained metrics (SBLP/SPI/CDI), CPA + factors,
+//  CPI, sustained metrics (SBLP/SPI), CPA + factors,
 //  Disposition, timing quality, sleep, paced stats, end reason.
 // ──────────────────────────────────────────────────────────────
 
@@ -2855,7 +2855,7 @@ let introClosedOnce=false;
 function clearIntroAutoTimer(){ if(introAutoTimer){ clearTimeout(introAutoTimer); introAutoTimer=null; } }
 function armIntroAutoAdvance(){
  clearIntroAutoTimer();
- introAutoTimer=setTimeout(()=>closeIntroOverlay(), 3340);
+ introAutoTimer=setTimeout(()=>closeIntroOverlay(), 2340);
 }
 function closeIntroOverlay(){
  const intro=$("introOverlay");
@@ -3111,7 +3111,7 @@ function isTestSuccess(resultOrReason){
 // ─── SUMMARY TEST RESULTS ─────────────────────────────────────
 // Formats full monospace result text (state.lastResultText).
 // Includes: subject ID, date/time, location, SP-FS, calibration,
-//  block scores, CPI, CDI, CPA + factors, Disposition, response
+//  block scores, CPI, CPA + factors, Disposition, response
 //  stats, end reason, reference table.
 // REFERENCE TABLE: 7-row SP-FS/CPI/MBS lookup from Perelli (2026)
 //  with ← YOUR SCORE arrow on the matching CPI band.
@@ -3250,10 +3250,7 @@ RESULTS METRIC EXPLANATIONS
  Commission rate = wrong / presented; speed-accuracy tradeoff proportion.${usesMode4Metrics?"":" Not used in this mode."}
  Error profile = categorical: clean / omission_dominant / commission_dominant / mixed.${usesMode4Metrics?"":" Not used in this mode."}
  SPR (Sustained Processing Reserve) = (1 - SBLP / MBS) x 100; RT headroom below the timing window.${usesMode4Metrics?"":" Not used in this mode."}
- CDI (Cognitive Degradation Index) = weighted sustained-phase degradation score from 0-100 using variability, omissions, fade, slope, reserve, and commissions; higher = more degraded.${usesMode4Metrics?"":" Not used in this mode."}
- CDI class = Minimal / Mild / Moderate / Marked / Severe degradation.${usesMode4Metrics?"":" Not used in this mode."}
- CDI pattern = simple descriptive flag: Omission-dominant / Commission-dominant / Fading / Highly variable / Low reserve / Stable sustained pattern.${usesMode4Metrics?"":" Not used in this mode."}
- CPA (Cognitive Performance Ability) = Mode 2 combined end-state score (0–100): CPI plus sustained-phase weightings for correct count, wrong count, missed count, RT variability, and positive drift penalty (Pd = min 15 pts). Computed for Mode 2 only.${usesMode4Metrics?"":" Not used in this mode."}
+    CPA (Cognitive Performance Ability) = Mode 2 combined end-state score (0–100): CPI plus sustained-phase weightings for correct count, wrong count, missed count, RT variability, and positive drift penalty (Pd = min 15 pts). Computed for Mode 2 only.${usesMode4Metrics?"":" Not used in this mode."}
  Disposition = operational recommendation derived from CPA score. GREEN (Clear): CPA > 49. YELLOW (Monitor / human review recommended): CPA 25–49. RED (Remove from hazardous duty): CPA < 25. CogSpeed disposition is a structured recommendation requiring human review — not a standalone fitness determination.${usesMode4Metrics?"":" Not used in this mode."}`;
 }
 
@@ -3898,9 +3895,9 @@ function computeMode2CPA(result){
  const sdAdj = responseSd != null
   ? clampCpaFactorDelta(cpi * bucketedCpaMultiplier(responseSd, [[0,200,0.2],[201,300,0.1],[301,400,0],[401,500,-0.1],[501,700,-0.2],[701,Number.POSITIVE_INFINITY,-0.3]]), cpi)
   : 0; // no adj when fewer than 2 sustained RTs exist
- // Pd drift penalty: Pd = min(15, 50 × max(0, driftRatio)) — spec formula (0–15 absolute pts)
- // Positive drift only (negative drift = subject improving = no penalty, already zeroed above).
- const driftAdj = -Math.min(15, 50 * driftRatio);
+ // Drift uses the bucketed weighting rule for positive slowing only.
+ // 0–10% = 0; 11–30% = -1% CPI; 31–40% = -5% CPI; 41%+ = -10% CPI.
+ const driftAdj = clampCpaFactorDelta(cpi * bucketedCpaMultiplier(driftRatio, [[0,0.10,0],[0.1000001,0.30,-0.01],[0.3000001,0.40,-0.05],[0.4000001,Number.POSITIVE_INFINITY,-0.1]]), cpi);
  const rawCpa = cpi + correctAdj + wrongAdj + missedAdj + sdAdj + driftAdj;
  const cpa = Math.max(0, Math.min(100, rawCpa));
  const r1 = v => v != null && Number.isFinite(Number(v)) ? Number(Number(v).toFixed(1)) : null;
