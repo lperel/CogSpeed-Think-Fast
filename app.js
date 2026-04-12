@@ -3932,7 +3932,7 @@ function clampCpaFactorDelta(delta, cpi){
  const base = Number(cpi);
  const d = Number(delta);
  if(!Number.isFinite(base) || !Number.isFinite(d)) return 0;
- const floor = -0.8 * base;
+ const floor = -0.9 * base;
  return Math.max(floor, d);
 }
 
@@ -3977,9 +3977,9 @@ function computeMode2CPA(result){
    }
   }
  }
- const correctAdj = clampCpaFactorDelta(cpi * bucketedCpaMultiplier(correct, [[0,6,0],[7,10,0.1],[11,14,0.2],[15,18,0.3],[19,20,0.4]]), cpi);
- const wrongAdj = clampCpaFactorDelta(cpi * bucketedCpaMultiplier(wrong, [[0,1,0.1],[2,4,0],[5,8,-0.2],[9,12,-0.3],[13,15,-0.5],[16,18,-0.8],[19,20,-0.9]]), cpi);
- const missedAdj = clampCpaFactorDelta(cpi * bucketedCpaMultiplier(missed, [[0,3,0.1],[4,4,0],[5,8,-0.2],[9,12,-0.3],[13,15,-0.5],[16,18,-0.8],[19,20,-0.9]]), cpi);
+ const correctAdj = clampCpaFactorDelta(cpi * bucketedCpaMultiplier(correct, [[0,10,0],[11,12,0.1],[13,14,0.2],[15,18,0.3],[19,20,0.4]]), cpi);
+ const wrongAdj = clampCpaFactorDelta(cpi * bucketedCpaMultiplier(wrong, [[0,0,0.1],[1,4,0],[5,8,-0.2],[9,12,-0.3],[13,15,-0.5],[16,18,-0.8],[19,20,-0.9]]), cpi);
+ const missedAdj = clampCpaFactorDelta(cpi * bucketedCpaMultiplier(missed, [[0,2,0.1],[3,4,0],[5,8,-0.2],[9,12,-0.3],[13,15,-0.5],[16,18,-0.8],[19,20,-0.9]]), cpi);
  const sdAdj = responseSd != null
   ? clampCpaFactorDelta(cpi * bucketedCpaMultiplier(responseSd, [[0,200,0.2],[201,300,0.1],[301,400,0],[401,500,-0.1],[501,700,-0.2],[701,Number.POSITIVE_INFINITY,-0.3]]), cpi)
   : 0; // no adj when fewer than 2 sustained RTs exist
@@ -4008,7 +4008,7 @@ function computeMode2CPA(result){
   cpaWrongWeighting: r1(wrongAdj),
   cpaMissedWeighting: r1(missedAdj),
   cpaSdWeighting: r1(sdAdj),
-  cpaDriftWeighting: r1(driftAdj),       // negative value = penalty (Pd formula)
+  cpaDriftWeighting: r1(driftAdj),       // negative value = bucketed drift penalty
   cpaSustainedResponseSdMs: r1(responseSd),
   cpaSustainedDriftRatio: r3(driftRatio),
   cpaEarlyMedianRtMs: r1(earlyMedian),
@@ -4032,6 +4032,10 @@ function getSpeedometerSelectedIndex(){
  if(!s || !s.options.length) return Math.max(0, state.history.length-1);
  const idx=Number(s.value);
  return Number.isFinite(idx) ? Math.max(0, Math.min(state.history.length-1, idx)) : Math.max(0, state.history.length-1);
+}
+
+function getLatestHistoryIndex(){
+ return Array.isArray(state.history) && state.history.length ? state.history.length-1 : null;
 }
 
 function syncSpeedometerSessionSelect(selectedIdx){
@@ -4079,7 +4083,7 @@ function showResultsPage(resultOverride){
    try{
     if(thinking) thinking.classList.add("hidden");
     if(outcome) outcome.classList.remove("hidden");
-    if(Number.isFinite(Number(ctx.index)) && ctx.index>=0) syncSummarySessionSelect(ctx.index);
+    if(Number.isFinite(Number(ctx.index)) && ctx.index>=0){ syncSummarySessionSelect(ctx.index); syncSpeedometerSessionSelect(ctx.index); }
     renderSpeedometerOutcome(ctx.result, ctx.index);
    }catch(err){
     console.error("showResultsPage delayed render failed", err);
@@ -5674,6 +5678,7 @@ function getMode2SpeedometerMetric(result){
   scoreLabel:pref!=="cpi" ? "CPA" : "CPI",
   mbsText,
   boxes:[
+   {label:"CPA", value:Number.isFinite(cpa)?`${Number(cpa).toFixed(1)} / 100`:"—"},
    {label:"MBS", value:mbsText},
    {label:"Disposition", value:dispositionText}
   ]
@@ -5774,8 +5779,8 @@ function openSpeedometerMenuSelection(){
 function openSpeedometerPage(sessionIndex){
  try{ wireEmailSelectControls(); }catch(err){}
  try{ wireEmailDraftAction(); }catch(err){}
- const ctx = resolveResultContext(null, sessionIndex, "openSpeedometerPage");
- const idx = Number.isFinite(Number(ctx.index)) ? Math.max(0, Math.min(state.history.length-1, Number(ctx.index))) : null;
+ const explicitIdx = Number.isFinite(Number(sessionIndex)) ? Math.max(0, Math.min(state.history.length-1, Number(sessionIndex))) : null;
+ const idx = explicitIdx!=null ? explicitIdx : getLatestHistoryIndex();
  if(idx!=null){
   openSpeedometerSession(idx);
  }else{
@@ -5786,8 +5791,8 @@ function openSpeedometerPage(sessionIndex){
 function openSpeedometerFromAdmin(sessionIndex){
  const admin = $("adminOverlay");
  if(admin) admin.classList.add("hidden");
- const ctx = resolveResultContext(null, sessionIndex, "openSpeedometerFromAdmin");
- const idx = Number.isFinite(Number(ctx.index)) ? Math.max(0, Math.min(state.history.length-1, Number(ctx.index))) : null;
+ const explicitIdx = Number.isFinite(Number(sessionIndex)) ? Math.max(0, Math.min(state.history.length-1, Number(sessionIndex))) : null;
+ const idx = explicitIdx!=null ? explicitIdx : getLatestHistoryIndex();
  if(idx!=null){
   openSpeedometerSession(idx);
  }else{
