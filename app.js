@@ -2,7 +2,7 @@
 // CogSpeed source
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V641";
+const APP_VERSION = "V644";
 
 // ═══════════════════════════════════════════════════
 // Current behavior summary (historical details live in CHANGELOG.md)
@@ -1898,9 +1898,10 @@ function handleTap(index,eventTimeStamp){
     if(checkMaxPacedWrong()) return;
    }
    state.mode2PendingPriorMiss = null;
-   // Keep hadResponse=true so the current frame's RAF timer does not
-   // misidentify this trial as a miss when onPacedFrameEnd fires.
-   state.hadResponse = true;
+   // The rescue tap is assigned to the previous missed frame only.
+   // The current frame remains open and still awaits its own response,
+   // so hadResponse must remain false here.
+   state.hadResponse = false;
    return;
   }
 
@@ -2478,7 +2479,7 @@ function csvCell(v){
 function exportCSV(){
  const h=state.history; if(!h.length){setStatus("No history to export."); return;}
  const cols=["session","testMode","subjectId","date","samnPerelli","calibAvgMs","blocks",
-  "avgLast2Ms","blockDiffMs","cpi","totalTaps","correct","wrong","missed","sblpMs","sblpSdMs","sblpP90Ms","sblpMaxMs","spi","spiFirstHalf","spiSecondHalf","spiDecay","rtSlopeMsPerTrial","omissionRate","commissionRate","errorProfile","spr","csr","mode2Target","mode2RateMs","mode2Presented","mode2Correct","mode2Wrong","mode2Missed","mode2FinalTarget","mode2FinalTrials","mode2FinalCorrect","mode2FinalWrong","mode2FinalMeanRtMs",
+  "avgLast2Ms","blockDiffMs","cpi","totalTaps","correct","wrong","missed","sblpMs","sustainedCorrectRtP90Ms","sustainedCorrectRtMaxMs","spi","csr","mode2Target","mode2RateMs","mode2Presented","mode2Correct","mode2Wrong","mode2Missed","mode2FinalTarget","mode2FinalTrials","mode2FinalCorrect","mode2FinalWrong","mode2FinalMeanRtMs",
   "sleepSinceLastTest","sleepBedtime","sleepWakeTime","sleepWakeDateTimeIso","sleepDurationMinutes","sleepQualityLabel","sleepQualityScore",
   "pacedCorrect","pacedWrong","spRestartWrong","meanPacedRtMs","pacedRtSd",
   "avgFrameOvershootMs","maxFrameOvershootMs","avgRafIntervalMs","maxRafIntervalMs",
@@ -4044,8 +4045,6 @@ function getSpeedometerSelectedIndex(){
 
 function getLatestHistoryIndex(){
  if(Array.isArray(state.history) && state.history.length){
-  const pinned = Number(state.speedometerLatestSessionIndex);
-  if(Number.isFinite(pinned) && pinned >= 0 && pinned < state.history.length) return pinned;
   return state.history.length-1;
  }
  return null;
@@ -4079,7 +4078,6 @@ function openSpeedometerSession(idx){
  if(!ctx.result) return goToStartPage();
  hideAllOverlays();
  if(Number.isFinite(Number(ctx.index)) && ctx.index>=0){
-  state.speedometerLatestSessionIndex = ctx.index;
   syncSpeedometerSessionSelect(ctx.index);
  }
  renderSpeedometerOutcome(ctx.result, ctx.index);
@@ -4105,7 +4103,7 @@ function showResultsPage(resultOverride){
    try{
     if(thinking) thinking.classList.add("hidden");
     if(outcome) outcome.classList.remove("hidden");
-    if(Number.isFinite(Number(ctx.index)) && ctx.index>=0){ state.speedometerLatestSessionIndex = ctx.index; syncSummarySessionSelect(ctx.index); syncSpeedometerSessionSelect(ctx.index); }
+    if(Number.isFinite(Number(ctx.index)) && ctx.index>=0){ syncSummarySessionSelect(ctx.index); syncSpeedometerSessionSelect(ctx.index); }
     renderSpeedometerOutcome(ctx.result, ctx.index);
    }catch(err){
     console.error("showResultsPage delayed render failed", err);
@@ -5758,7 +5756,7 @@ function renderSpeedometerOutcome(result, sessionIndex){
       ? ((latestIdx!=null && state.history[latestIdx]===result) ? latestIdx : Math.max(0, state.history.indexOf(result)))
       : (latestIdx!=null ? latestIdx : 0));
  setActiveResultContext(result, idx>=0?idx:null, idx>=0?"rendered from history":"rendered current result");
- if(idx>=0){ state.speedometerLatestSessionIndex = idx; syncSpeedometerSessionSelect(idx); }
+ if(idx>=0){ syncSpeedometerSessionSelect(idx); }
  applySpeedometerSourceDiagnostic(result, idx>=0?idx:null, state.activeResultSource);
  const mode2Toggle=$("speedometerMode2ToggleBtn");
  if(mode2Toggle){
@@ -6501,15 +6499,15 @@ function formatLastPerfTimeText(){
   if(!h.length) return "No performance-over-time history available.";
   const rows = h.map((r,i)=>{
     const when = r.time ? new Date(r.time).toLocaleString() : `Session ${i+1}`;
-    const isMode4 = r.testMode==="mode2";
-    const cpi = isMode4 && r.sustainedProcessingIndex!=null ? Math.round(Number(r.sustainedProcessingIndex)) : (r.cognitivePerformanceIndex!=null ? Math.round(Number(r.cognitivePerformanceIndex)) : "—");
-    const mbs = isMode4 ? (r.correctSustainedResponses!=null ? `${Math.round(Number(r.correctSustainedResponses))} CSR` : (r.sustainedBlockLimitPerformanceMs!=null ? Math.round(Number(r.sustainedBlockLimitPerformanceMs))+" ms" : "—")) : (r.averageLast2BlockingScoresMs!=null ? Math.round(Number(r.averageLast2BlockingScoresMs))+" ms" : "—");
-    const cpa = isMode4 && r.cpa!=null ? `CPA ${Number(r.cpa).toFixed(1)}` : null;
-    const disp = isMode4 && r.dispositionCode ? r.dispositionCode : null;
+    const isMode2Sustained = r.testMode==="mode2";
+    const cpi = isMode2Sustained && r.sustainedProcessingIndex!=null ? Math.round(Number(r.sustainedProcessingIndex)) : (r.cognitivePerformanceIndex!=null ? Math.round(Number(r.cognitivePerformanceIndex)) : "—");
+    const mbs = isMode2Sustained ? (r.correctSustainedResponses!=null ? `${Math.round(Number(r.correctSustainedResponses))} CSR` : (r.sustainedBlockLimitPerformanceMs!=null ? Math.round(Number(r.sustainedBlockLimitPerformanceMs))+" ms" : "—")) : (r.averageLast2BlockingScoresMs!=null ? Math.round(Number(r.averageLast2BlockingScoresMs))+" ms" : "—");
+    const cpa = isMode2Sustained && r.cpa!=null ? `CPA ${Number(r.cpa).toFixed(1)}` : null;
+    const disp = isMode2Sustained && r.dispositionCode ? r.dispositionCode : null;
     const spf = r.samnPerelli && r.samnPerelli.score!=null ? r.samnPerelli.score : "—";
     const sleep = r.sleepLog && r.sleepLog.qualityLabel ? r.sleepLog.qualityLabel : (r.sleepSinceLastTest==="no" ? "No sleep since last test" : "—");
     const cpaStr = cpa ? ` | ${cpa}${disp?" ("+disp+")":""}` : "";
-    return `${i+1}. ${when} | ${isMode4?"SPI":"CPI"} ${cpi} | ${isMode4?"CSR/SBLP":"MBS"} ${mbs}${cpaStr} | SP-FS ${spf} | Sleep ${sleep}`;
+    return `${i+1}. ${when} | ${isMode2Sustained?"SPI":"CPI"} ${cpi} | ${isMode2Sustained?"CSR/SBLP":"MBS"} ${mbs}${cpaStr} | SP-FS ${spf} | Sleep ${sleep}`;
   });
   return "Performance Over Date and Time Graph\n\n" + rows.join("\n");
 }

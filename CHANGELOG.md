@@ -1,4 +1,15 @@
-## V641
+## V644
+- Keep Fix 8 in the late-rescue path.
+- Keep hadResponse = false for the current frame after a late-rescue.
+- Replace the stale comment so it correctly explains why the current frame remains open.
+
+## V643
+- Fix stale app.js cache buster to load V643 script.
+- Fix late-rescue path so current frame remains open for response scoring.
+- Realign CSV export headers with row data after stale metrics cleanup.
+- Rename stale Mode 2 performance-history helper variable for clarity.
+
+## V642
 - Speedometer now defaults and re-syncs to the most recent saved session after each completed session.
 - Updated the dial to seven equally spaced color bands from dark red through dark green.
 - Revised Mode 2 CPA Disposition thresholds and labels to GREEN >65, YELLOW 45–64, ORANGE 30–44, RED <30, and synced the Speedometer box/reporting text.
