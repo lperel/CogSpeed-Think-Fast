@@ -2,7 +2,7 @@
 // CogSpeed source
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V640";
+const APP_VERSION = "V641";
 
 // ═══════════════════════════════════════════════════
 // Current behavior summary (historical details live in CHANGELOG.md)
@@ -273,6 +273,7 @@ const state={
  mode2SustainedCorrectRTs:[], mode2SustainedRollMeanLog:[], mode2PendingPriorMiss:null, mode2FinalTrialsPresented:0,
  mode2FinalCorrect:0, mode2FinalWrong:0, mode2FinalRTs:[],
  speedometerMode2Metric:"cpi",
+ speedometerLatestSessionIndex:null,
  summaryVariant:"complete"
  // pendingPriorMiss:
  //   stores the immediately previous paced frame when it LOOKED like a miss at frame end,
@@ -1334,6 +1335,7 @@ function finish(){
   setFlowDiagnostic("FINISH_SAVE", `FINISH_SAVE — ${result.endReason||"Run complete"}`);
   state.history.push(result);
   localStorage.setItem(`${STORAGE_PREFIX}_history`,JSON.stringify(state.history));
+  state.speedometerLatestSessionIndex = state.history.length-1;
   setActiveResultContext(result, state.history.length-1, "saved history");
   try{ syncSummarySessionSelect(state.history.length-1); }catch(e){}
   try{ syncSpeedometerSessionSelect(state.history.length-1); }catch(e){}
@@ -4041,7 +4043,12 @@ function getSpeedometerSelectedIndex(){
 }
 
 function getLatestHistoryIndex(){
- return Array.isArray(state.history) && state.history.length ? state.history.length-1 : null;
+ if(Array.isArray(state.history) && state.history.length){
+  const pinned = Number(state.speedometerLatestSessionIndex);
+  if(Number.isFinite(pinned) && pinned >= 0 && pinned < state.history.length) return pinned;
+  return state.history.length-1;
+ }
+ return null;
 }
 
 function syncSpeedometerSessionSelect(selectedIdx){
@@ -4067,10 +4074,14 @@ function syncSpeedometerSessionSelect(selectedIdx){
 }
 
 function openSpeedometerSession(idx){
- const ctx = resolveResultContext(null, idx, "speedometer session");
+ const safeIdx = Number.isFinite(Number(idx)) ? Math.max(0, Math.min(state.history.length-1, Number(idx))) : getLatestHistoryIndex();
+ const ctx = resolveResultContext(null, safeIdx, "speedometer session");
  if(!ctx.result) return goToStartPage();
  hideAllOverlays();
- if(Number.isFinite(Number(ctx.index)) && ctx.index>=0) syncSpeedometerSessionSelect(ctx.index);
+ if(Number.isFinite(Number(ctx.index)) && ctx.index>=0){
+  state.speedometerLatestSessionIndex = ctx.index;
+  syncSpeedometerSessionSelect(ctx.index);
+ }
  renderSpeedometerOutcome(ctx.result, ctx.index);
 }
 
@@ -4094,7 +4105,7 @@ function showResultsPage(resultOverride){
    try{
     if(thinking) thinking.classList.add("hidden");
     if(outcome) outcome.classList.remove("hidden");
-    if(Number.isFinite(Number(ctx.index)) && ctx.index>=0){ syncSummarySessionSelect(ctx.index); syncSpeedometerSessionSelect(ctx.index); }
+    if(Number.isFinite(Number(ctx.index)) && ctx.index>=0){ state.speedometerLatestSessionIndex = ctx.index; syncSummarySessionSelect(ctx.index); syncSpeedometerSessionSelect(ctx.index); }
     renderSpeedometerOutcome(ctx.result, ctx.index);
    }catch(err){
     console.error("showResultsPage delayed render failed", err);
@@ -5747,7 +5758,7 @@ function renderSpeedometerOutcome(result, sessionIndex){
       ? ((latestIdx!=null && state.history[latestIdx]===result) ? latestIdx : Math.max(0, state.history.indexOf(result)))
       : (latestIdx!=null ? latestIdx : 0));
  setActiveResultContext(result, idx>=0?idx:null, idx>=0?"rendered from history":"rendered current result");
- if(idx>=0) syncSpeedometerSessionSelect(idx);
+ if(idx>=0){ state.speedometerLatestSessionIndex = idx; syncSpeedometerSessionSelect(idx); }
  applySpeedometerSourceDiagnostic(result, idx>=0?idx:null, state.activeResultSource);
  const mode2Toggle=$("speedometerMode2ToggleBtn");
  if(mode2Toggle){
