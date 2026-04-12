@@ -1,9 +1,3 @@
-## V634 — Mode 2 wrong breakdown clarity
-- Broke out Mode 2 wrong counts into separate lines for Calibration, Adaptive, Sustained, and Final self-paced phases.
-- Added a Mode 2 total line: **Total wrong across all phases**.
-- Removed the ambiguous single **Total wrong** line from the Mode 2 complete results section.
-- Added a compact Mode 2 wrong-breakdown line to Results Summary.
-
 ## V630
 - Rebuilt from V629.
 - Fixed Mode 2 CPA drift weighting to use the bucketed slowing ranges instead of the unintended continuous drift penalty.
