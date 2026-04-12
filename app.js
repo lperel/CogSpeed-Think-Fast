@@ -2,7 +2,7 @@
 // CogSpeed source
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V646";
+const APP_VERSION = "V647";
 
 // ═══════════════════════════════════════════════════
 // Current behavior summary (historical details live in CHANGELOG.md)
@@ -4144,8 +4144,9 @@ function showResultsPage(resultOverride){
    try{
     if(thinking) thinking.classList.add("hidden");
     if(outcome) outcome.classList.remove("hidden");
-    if(Number.isFinite(Number(ctx.index)) && ctx.index>=0){ syncSummarySessionSelect(ctx.index); syncSpeedometerSessionSelect(ctx.index); }
-    renderSpeedometerOutcome(ctx.result, ctx.index);
+    const latestIdx = state.history.length - 1;
+    if(Number.isFinite(Number(latestIdx)) && latestIdx>=0){ syncSummarySessionSelect(latestIdx); syncSpeedometerSessionSelect(latestIdx); }
+    renderSpeedometerOutcome(ctx.result, latestIdx);
    }catch(err){
     console.error("showResultsPage delayed render failed", err);
     if(outcome) outcome.classList.remove("hidden");

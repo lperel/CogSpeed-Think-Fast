@@ -1,3 +1,6 @@
+## V647
+- Fixed showResultsPage results handoff so Speedometer and summary selectors sync to the newest saved session after the result is written to history.
+
 ## V646
 - Changed Admin item 32 default to `1.1` for **Mode 2 sustained start factor × MBS**.
 - Added a **Mode 2 CPA defaults** note block on the Admin page listing the current CPA weighting rules for correct, wrong, missed, sustained RT SD, drift ratio, and the max CPA reduction of `CPI × 0.9`.
