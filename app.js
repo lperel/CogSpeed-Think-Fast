@@ -2,7 +2,7 @@
 // CogSpeed source
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V639";
+const APP_VERSION = "V640";
 
 // ═══════════════════════════════════════════════════
 // Current behavior summary (historical details live in CHANGELOG.md)
@@ -4047,11 +4047,16 @@ function getLatestHistoryIndex(){
 function syncSpeedometerSessionSelect(selectedIdx){
  const s=$("speedometerSessionSelect");
  if(!s) return;
- const wanted = Math.max(0, Math.min(state.history.length-1, Number(selectedIdx)||0));
+ const latestIdx = getLatestHistoryIndex();
+ const wanted = Number.isFinite(Number(selectedIdx))
+  ? Math.max(0, Math.min(state.history.length-1, Number(selectedIdx)))
+  : (latestIdx!=null ? latestIdx : 0);
+ const orderedIdx = state.history.map((_,idx)=>idx).reverse();
  const existing = Array.from(s.options).map(o=>o.value).join('|');
- const desired = state.history.map((r,idx)=>String(idx)).join('|');
+ const desired = orderedIdx.map(idx=>String(idx)).join('|');
  if(existing !== desired){
-  s.innerHTML = state.history.map((r,idx)=>{
+  s.innerHTML = orderedIdx.map((idx)=>{
+   const r = state.history[idx];
    const stamp = r && r.time ? new Date(r.time).toLocaleString() : `Session ${idx+1}`;
    const mode = r && r.testMode ? formatModeTag(r.testMode) : '—';
    const subj = r && r.subjectId ? r.subjectId : '—';

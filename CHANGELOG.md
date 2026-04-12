@@ -1,4 +1,4 @@
-## V639
+## V640
 - Speedometer now defaults and re-syncs to the most recent saved session after each completed session.
 - Updated the dial to seven equally spaced color bands from dark red through dark green.
 - Revised Mode 2 CPA Disposition thresholds and labels to GREEN >65, YELLOW 45–64, ORANGE 30–44, RED <30, and synced the Speedometer box/reporting text.
