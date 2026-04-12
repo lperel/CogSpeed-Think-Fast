@@ -1,4 +1,4 @@
-## V648
+## V649
 - Fixed showResultsPage results handoff so Speedometer and summary selectors sync to the newest saved session after the result is written to history.
 
 ## V646

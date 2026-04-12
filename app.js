@@ -2,7 +2,7 @@
 // CogSpeed source
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V648";
+const APP_VERSION = "V649";
 
 // ═══════════════════════════════════════════════════
 // Current behavior summary (historical details live in CHANGELOG.md)
@@ -3979,6 +3979,39 @@ function getMode2SustainedRespondedEntries(rtLog){
  return log.filter(e => e && ["mode2_sustained","mode2_sustained_wrong"].includes(e.phase) && Number.isFinite(Number(e.rt)));
 }
 
+
+function parseBucketSpec(spec, fallback){
+ try{
+  const text = String(spec ?? '').trim();
+  if(!text) return fallback.map(([min,max,mult])=>[min,max,mult]);
+  const out = [];
+  for(const rawPart of text.split(';')){
+   const part = rawPart.trim();
+   if(!part) continue;
+   const pieces = part.split(':');
+   if(pieces.length !== 2) throw new Error('bad bucket');
+   const rangeText = pieces[0].trim();
+   const multText = pieces[1].trim();
+   const rangePieces = rangeText.split('-');
+   if(rangePieces.length !== 2) throw new Error('bad range');
+   const parseBound = (v)=>{
+    const t = String(v).trim().toLowerCase();
+    if(t === 'inf' || t === '+inf' || t === 'infinity' || t === '+infinity') return Number.POSITIVE_INFINITY;
+    const n = Number(t);
+    if(!Number.isFinite(n)) throw new Error('bad bound');
+    return n;
+   };
+   const min = parseBound(rangePieces[0]);
+   const max = parseBound(rangePieces[1]);
+   const mult = Number(multText);
+   if(!Number.isFinite(min) || !(Number.isFinite(max) || max === Number.POSITIVE_INFINITY) || !Number.isFinite(mult) || max < min) throw new Error('bad values');
+   out.push([min,max,mult]);
+  }
+  return out.length ? out : fallback.map(([min,max,mult])=>[min,max,mult]);
+ }catch(_err){
+  return fallback.map(([min,max,mult])=>[min,max,mult]);
+ }
+}
 function computeMode2CPA(result){
  const blank = {
   cpa:null,
