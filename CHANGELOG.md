@@ -1,3 +1,8 @@
+## V639
+- Speedometer now defaults and re-syncs to the most recent saved session after each completed session.
+- Updated the dial to seven equally spaced color bands from dark red through dark green.
+- Revised Mode 2 CPA Disposition thresholds and labels to GREEN >65, YELLOW 45–64, ORANGE 30–44, RED <30, and synced the Speedometer box/reporting text.
+
 ## V638
 - Fixed stale app version constant in app.js from V633 to V638 so the live start page, storage prefix, and session namespace now match the actual build.
 - This isolates V638 storage/history from older V633 sessions.

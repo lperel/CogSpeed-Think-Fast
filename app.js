@@ -2,7 +2,7 @@
 // CogSpeed source
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V638";
+const APP_VERSION = "V639";
 
 // ═══════════════════════════════════════════════════
 // Current behavior summary (historical details live in CHANGELOG.md)
@@ -1335,6 +1335,8 @@ function finish(){
   state.history.push(result);
   localStorage.setItem(`${STORAGE_PREFIX}_history`,JSON.stringify(state.history));
   setActiveResultContext(result, state.history.length-1, "saved history");
+  try{ syncSummarySessionSelect(state.history.length-1); }catch(e){}
+  try{ syncSpeedometerSessionSelect(state.history.length-1); }catch(e){}
   try{ updateStartPageLinks(); }catch(e){}
  }catch(err){
   console.error("finish save failed", err);
@@ -3248,7 +3250,7 @@ RESULTS METRIC EXPLANATIONS
  SBLP P90 = 90th-percentile correct sustained RT; conservative ceiling estimate.${usesMode4Metrics?"":" Not used in this mode."}
  SPI (Sustained Processing Index) = normalized 0 - 100 index based on CSR.${usesMode4Metrics?"":" Not used in this mode."}
  CPA (Cognitive Performance Ability) = Mode 2 combined end-state score (0–100): CPI adjusted by sustained-phase weightings for correct count, wrong count, missed count, response RT variability (SD), and positive drift (late vs early median RT). Computed for Mode 2 only.${usesMode4Metrics?"":" Not used in this mode."}
- Disposition = operational recommendation derived from CPA score. GREEN (Clear): CPA > 49. YELLOW (Monitor / human review recommended): CPA 25–49. RED (Remove from hazardous duty): CPA < 25. CogSpeed disposition is a structured recommendation requiring human review — not a standalone fitness determination.${usesMode4Metrics?"":" Not used in this mode."}`;
+ Disposition = operational recommendation derived from CPA score. GREEN (Clear): CPA > 65. YELLOW (Monitor / human review recommended): CPA 45–64. ORANGE (Human review required): CPA 30–44. RED (Remove from hazardous duty): CPA < 30. CogSpeed disposition is a structured recommendation requiring human review — not a standalone fitness determination.${usesMode4Metrics?"":" Not used in this mode."}`;
 }
 
 
@@ -3637,7 +3639,7 @@ ${getResultsMetricExplanationText(result)}`;
 
 // ─── SPEEDOMETER V2 — Vintage Auto Meter style ────────────────
 // Full 240° round dial. Cream face, chrome bezel.
-// Color arc: red(0-25) → orange(25-50) → light green(50-75) → dark green(75-100)
+// Color arc: seven equal bands from dark red at 0 to dark green at 100.
 // Needle sweeps from 0 to final CPI in 1.4s ease-in-out, then dithers ±0.8 CPI.
 // Block ms in green LCD box appears at needle tip after sweep completes.
 // On fail: needle stays at 0, red needle, no block box.
@@ -3691,13 +3693,16 @@ function drawSpeedometer(canvas, scoreValue, success, scoreLabel="CPI", tipLabel
  ctx.beginPath(); ctx.arc(cx,cy,R,0,Math.PI*2);
  ctx.strokeStyle="rgba(0,0,0,0.14)"; ctx.lineWidth=R*0.018; ctx.stroke();
 
- // ── 4. Color arc (4 wedge segments) ──
+ // ── 4. Color arc (7 equally spaced wedge segments) ──
  const arcOut = R*0.925, arcIn = R*0.815;
  const ARC = [
-  {s:0, e:25, c:"#cc1100"},
-  {s:25, e:50, c:"#ee6500"},
-  {s:50, e:75, c:"#7ec800"},
-  {s:75, e:100, c:"#006400"},
+  {s:0, e:100/7, c:"#7a0000"},
+  {s:100/7, e:200/7, c:"#ff6b6b"},
+  {s:200/7, e:300/7, c:"#ff9800"},
+  {s:300/7, e:400/7, c:"#ffd400"},
+  {s:400/7, e:500/7, c:"#9bdc65"},
+  {s:500/7, e:600/7, c:"#3fae4a"},
+  {s:600/7, e:100, c:"#006400"},
  ];
  ARC.forEach(seg=>{
   const a1=toAngle(seg.s), a2=toAngle(seg.e);
@@ -3710,7 +3715,7 @@ function drawSpeedometer(canvas, scoreValue, success, scoreLabel="CPI", tipLabel
   ctx.strokeStyle="rgba(255,255,255,0.20)"; ctx.lineWidth=R*0.026; ctx.stroke();
  });
  // Segment dividers
- [0,25,50,75,100].forEach(v=>{
+ [0,100/7,200/7,300/7,400/7,500/7,600/7,100].forEach(v=>{
   const a=toAngle(v);
   ctx.beginPath();
   ctx.moveTo(cx+arcIn*Math.cos(a), cy+arcIn*Math.sin(a));
@@ -4021,9 +4026,10 @@ function computeDispositionFromCPA(result){
  if(!result || result.testMode!=="mode2" || !result.mode2Triggered) return blank;
  const cpa = Number(result.cpa);
  if(!Number.isFinite(cpa)) return blank;
- if(cpa > 49) return { dispositionCode:"GREEN", dispositionLabel:"Clear" };
- if(cpa >= 25) return { dispositionCode:"YELLOW", dispositionLabel:"Monitor or human review recommended" };
- return { dispositionCode:"RED", dispositionLabel:"Remove from hazardous duty / supervisor evaluation required" };
+ if(cpa > 65) return { dispositionCode:"GREEN", dispositionLabel:"Clear" };
+ if(cpa >= 45) return { dispositionCode:"YELLOW", dispositionLabel:"Monitor / human review recommended" };
+ if(cpa >= 30) return { dispositionCode:"ORANGE", dispositionLabel:"Human review required" };
+ return { dispositionCode:"RED", dispositionLabel:"Remove from Hazardous Duty" };
 }
 
 
@@ -5729,7 +5735,12 @@ function renderSpeedometerOutcome(result, sessionIndex){
  }
  const wrap = $("speedometerWrap");
  if(wrap) canvas.style.width = wrap.offsetWidth + "px";
- const idx = Number.isFinite(Number(sessionIndex)) ? Math.max(0, Math.min(state.history.length-1, Number(sessionIndex))) : (result ? Math.max(0, state.history.indexOf(result)) : Math.max(0, state.history.length-1));
+ const latestIdx = getLatestHistoryIndex();
+ const idx = Number.isFinite(Number(sessionIndex))
+  ? Math.max(0, Math.min(state.history.length-1, Number(sessionIndex)))
+  : (result
+      ? ((latestIdx!=null && state.history[latestIdx]===result) ? latestIdx : Math.max(0, state.history.indexOf(result)))
+      : (latestIdx!=null ? latestIdx : 0));
  setActiveResultContext(result, idx>=0?idx:null, idx>=0?"rendered from history":"rendered current result");
  if(idx>=0) syncSpeedometerSessionSelect(idx);
  applySpeedometerSourceDiagnostic(result, idx>=0?idx:null, state.activeResultSource);
@@ -6052,7 +6063,7 @@ function drawPerformanceOverTimeChart(canvas,hist){
 
   ctx.strokeStyle="rgba(127,215,255,0.16)";
   ctx.lineWidth=1;
-  [0,25,50,75,100].forEach(v=>{
+  [0,100/7,200/7,300/7,400/7,500/7,600/7,100].forEach(v=>{
     const y=yLeftFromScore(v);
     ctx.beginPath(); ctx.moveTo(PAD.left,y); ctx.lineTo(PAD.left+cW,y); ctx.stroke();
   });
