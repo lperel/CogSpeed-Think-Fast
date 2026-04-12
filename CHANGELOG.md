@@ -1,3 +1,7 @@
+## V638
+- Fixed stale app version constant in app.js from V633 to V638 so the live start page, storage prefix, and session namespace now match the actual build.
+- This isolates V638 storage/history from older V633 sessions.
+
 ## V630
 - Rebuilt from V629.
 - Fixed Mode 2 CPA drift weighting to use the bucketed slowing ranges instead of the unintended continuous drift penalty.
