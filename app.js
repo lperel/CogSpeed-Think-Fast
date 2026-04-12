@@ -2,7 +2,7 @@
 // CogSpeed source
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V647";
+const APP_VERSION = "V648";
 
 // ═══════════════════════════════════════════════════
 // Current behavior summary (historical details live in CHANGELOG.md)
@@ -99,7 +99,13 @@ const DEFAULTS={
  timeFormat:"12",
  lateResponseThresholdMs:600, // first response <600ms on next frame may belong to prior frame; a second >=600ms response belongs to current frame
  RecoveryInterTrialDelayMsStart:0, // delay before opening the next recovery or terminal-recovery trial
- ResumeToPacedDelayMs:0 // delay before resuming paced mode after recovery succeeds
+ ResumeToPacedDelayMs:0, // delay before resuming paced mode after recovery succeeds
+ mode2CpaCorrectBuckets:"0-10:0;11-12:0.1;13-14:0.2;15-18:0.3;19-20:0.4",
+ mode2CpaWrongBuckets:"0-0:0.1;1-4:0;5-8:-0.2;9-12:-0.3;13-15:-0.5;16-18:-0.8;19-20:-0.9",
+ mode2CpaMissedBuckets:"0-2:0.1;3-4:0;5-8:-0.2;9-12:-0.3;13-15:-0.5;16-18:-0.8;19-20:-0.9",
+ mode2CpaSdBuckets:"0-200:0.2;201-300:0.1;301-400:0;401-500:-0.1;501-700:-0.2;701-inf:-0.3",
+ mode2CpaDriftBuckets:"0-10:0;10.0001-30:-0.01;30.0001-40:-0.05;40.0001-inf:-0.1",
+ mode2CpaMaxReductionFactor:0.9
 };
 
 // ═══════════════════════════════════════════════════════════════
@@ -171,6 +177,14 @@ const ADMIN_FIELDS=[
  ["lateResponseThresholdMs","46. Mode 1 late response reassignment threshold (ms, default 600)","number"],
  ["RecoveryInterTrialDelayMsStart","47. Recovery inter-trial delay at start (ms, default 0)","number"],
  ["ResumeToPacedDelayMs","48. Resume-to-paced delay after recovery (ms, default 0)","number"],
+
+ // 49-54. Mode 2 CPA editable defaults
+ ["mode2CpaCorrectBuckets","49. Mode 2 CPA correct buckets (min-max:multiplier; ...)","text"],
+ ["mode2CpaWrongBuckets","50. Mode 2 CPA wrong buckets (min-max:multiplier; ...)","text"],
+ ["mode2CpaMissedBuckets","51. Mode 2 CPA missed buckets (min-max:multiplier; ...)","text"],
+ ["mode2CpaSdBuckets","52. Mode 2 CPA sustained RT SD buckets (min-max:multiplier; ...)","text"],
+ ["mode2CpaDriftBuckets","53. Mode 2 CPA drift % buckets (min-max:multiplier; ...)","text"],
+ ["mode2CpaMaxReductionFactor","54. Mode 2 CPA max reduction factor × CPI (default 0.9)","number"],
 ];
 
 // ─── Patterns ───
@@ -2117,14 +2131,11 @@ function renderAdmin(){
  const note=document.createElement("div");
  note.style.cssText="margin-top:14px;padding:12px 14px;border:1px solid var(--edge);border-radius:12px;background:#0a1629;color:var(--text);white-space:pre-wrap;line-height:1.35;font-size:13px";
  note.textContent = [
-  "Mode 2 CPA defaults",
-  "CPA = CPI + sustained correct weighting + sustained wrong weighting + sustained missed weighting + sustained RT SD weighting + driftRatio weighting",
-  "Correct weighting: 0-10=0; 11-12=+0.1×CPI; 13-14=+0.2×CPI; 15-18=+0.3×CPI; 19-20=+0.4×CPI",
-  "Wrong weighting: 0=+0.1×CPI; 1-4=0; 5-8=-0.2×CPI; 9-12=-0.3×CPI; 13-15=-0.5×CPI; 16-18=-0.8×CPI; 19-20=-0.9×CPI",
-  "Missed weighting: 0-2=+0.1×CPI; 3-4=0; 5-8=-0.2×CPI; 9-12=-0.3×CPI; 13-15=-0.5×CPI; 16-18=-0.8×CPI; 19-20=-0.9×CPI",
-  "Sustained RT SD weighting: 0-200ms=+0.2×CPI; 201-300ms=+0.1×CPI; 301-400ms=0; 401-500ms=-0.1×CPI; 501-700ms=-0.2×CPI; 701ms+=-0.3×CPI",
-  "driftRatio weighting: up to 10% slowing=0; 11-30%=-0.01×CPI; 31-40%=-0.05×CPI; 41%+=-0.1×CPI; negative drift=0",
-  "MAX CPA reduction per factor = CPI × 0.9"
+  "Mode 2 CPA editable defaults",
+  "Format for bucket fields: min-max:multiplier; min-max:multiplier",
+  "Use inf for an open-ended upper bound (example: 701-inf:-0.3).",
+  "Example correct buckets: 0-10:0;11-12:0.1;13-14:0.2;15-18:0.3;19-20:0.4",
+  "Drift buckets use percent slowing, and negative drift is still forced to 0 before bucketing."
  ].join("\n");
  w.appendChild(note);
 }
@@ -4004,11 +4015,16 @@ function computeMode2CPA(result){
    }
   }
  }
- const correctAdj = clampCpaFactorDelta(cpi * bucketedCpaMultiplier(correct, [[0,10,0],[11,12,0.1],[13,14,0.2],[15,18,0.3],[19,20,0.4]]), cpi);
- const wrongAdj = clampCpaFactorDelta(cpi * bucketedCpaMultiplier(wrong, [[0,0,0.1],[1,4,0],[5,8,-0.2],[9,12,-0.3],[13,15,-0.5],[16,18,-0.8],[19,20,-0.9]]), cpi);
- const missedAdj = clampCpaFactorDelta(cpi * bucketedCpaMultiplier(missed, [[0,2,0.1],[3,4,0],[5,8,-0.2],[9,12,-0.3],[13,15,-0.5],[16,18,-0.8],[19,20,-0.9]]), cpi);
+ const correctBuckets = parseBucketSpec(settings.mode2CpaCorrectBuckets, [[0,10,0],[11,12,0.1],[13,14,0.2],[15,18,0.3],[19,20,0.4]]);
+ const wrongBuckets = parseBucketSpec(settings.mode2CpaWrongBuckets, [[0,0,0.1],[1,4,0],[5,8,-0.2],[9,12,-0.3],[13,15,-0.5],[16,18,-0.8],[19,20,-0.9]]);
+ const missedBuckets = parseBucketSpec(settings.mode2CpaMissedBuckets, [[0,2,0.1],[3,4,0],[5,8,-0.2],[9,12,-0.3],[13,15,-0.5],[16,18,-0.8],[19,20,-0.9]]);
+ const sdBuckets = parseBucketSpec(settings.mode2CpaSdBuckets, [[0,200,0.2],[201,300,0.1],[301,400,0],[401,500,-0.1],[501,700,-0.2],[701,Number.POSITIVE_INFINITY,-0.3]]);
+ const driftBuckets = parseBucketSpec(settings.mode2CpaDriftBuckets, [[0,10,0],[10.0001,30,-0.01],[30.0001,40,-0.05],[40.0001,Number.POSITIVE_INFINITY,-0.10]]);
+ const correctAdj = clampCpaFactorDelta(cpi * bucketedCpaMultiplier(correct, correctBuckets), cpi);
+ const wrongAdj = clampCpaFactorDelta(cpi * bucketedCpaMultiplier(wrong, wrongBuckets), cpi);
+ const missedAdj = clampCpaFactorDelta(cpi * bucketedCpaMultiplier(missed, missedBuckets), cpi);
  const sdAdj = responseSd != null
-  ? clampCpaFactorDelta(cpi * bucketedCpaMultiplier(responseSd, [[0,200,0.2],[201,300,0.1],[301,400,0],[401,500,-0.1],[501,700,-0.2],[701,Number.POSITIVE_INFINITY,-0.3]]), cpi)
+  ? clampCpaFactorDelta(cpi * bucketedCpaMultiplier(responseSd, sdBuckets), cpi)
   : 0; // no adj when fewer than 2 sustained RTs exist
  // Drift uses the bucketed weighting rule for positive slowing only.
  // 0–10% = 0; 11–30% = -1% CPI; 31–40% = -5% CPI; 41%+ = -10% CPI.
@@ -4018,12 +4034,7 @@ function computeMode2CPA(result){
  //   31–40% slowing → -(CPI × 0.05)
  //   41%+   slowing → -(CPI × 0.10)
  const driftPct = driftRatio * 100;
- const driftAdj = clampCpaFactorDelta(cpi * bucketedCpaMultiplier(driftPct, [
-  [0,    10,   0],
-  [10.0001, 30, -0.01],
-  [30.0001, 40, -0.05],
-  [40.0001, Number.POSITIVE_INFINITY, -0.10]
- ]), cpi);
+ const driftAdj = clampCpaFactorDelta(cpi * bucketedCpaMultiplier(driftPct, driftBuckets), cpi);
  const rawCpa = cpi + correctAdj + wrongAdj + missedAdj + sdAdj + driftAdj;
  const cpa = Math.max(0, Math.min(100, rawCpa));
  const r1 = v => v != null && Number.isFinite(Number(v)) ? Number(Number(v).toFixed(1)) : null;
