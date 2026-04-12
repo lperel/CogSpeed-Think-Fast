@@ -2,7 +2,7 @@
 // CogSpeed source
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V644";
+const APP_VERSION = "V646";
 
 // ═══════════════════════════════════════════════════
 // Current behavior summary (historical details live in CHANGELOG.md)
@@ -59,7 +59,7 @@ const DEFAULTS={
  mode4PacedTrialLimit:140,
  mode4MaxDurationMs:120000,
  mode4BaselineFactor:1.3,
- mode2SustainedStartFactor:1.2,
+ mode2SustainedStartFactor:1.1,
  mode2SustainedTrialCount:20,
  mode2SustainedWrongFailPercent:50,
  mode2SustainedRollMeanWindow:10,
@@ -148,7 +148,7 @@ const ADMIN_FIELDS=[
  ["cpiWorstMs","31. Mode 1 CPI worst ms anchor (default 2400)","number"],
 
  // 32-38. Mode 2 CogSpeed Sustained
- ["mode2SustainedStartFactor","32. Mode 2 sustained start factor × MBS (default 1.2)","number"],
+ ["mode2SustainedStartFactor","32. Mode 2 sustained start factor × MBS (default 1.1)","number"],
  ["mode2SustainedTrialCount","33. Mode 2 sustained trials at MBS × factor (default 20)","number"],
  ["mode2SustainedWrongFailPercent","34. Mode 2 wrong-fail threshold for sustained phase (default 50% of sustained trials)","number"],
  ["mode2SustainedRollMeanWindow","35. Mode 2 anti-spoof rolling mean window in Sustained Phase (default 10)","number"],
@@ -2114,6 +2114,19 @@ function renderAdmin(){
   r.innerHTML=`<label style="font-size:14px;color:var(--text)">${l}</label>${controlHTML}`;
   w.appendChild(r);
  }
+ const note=document.createElement("div");
+ note.style.cssText="margin-top:14px;padding:12px 14px;border:1px solid var(--edge);border-radius:12px;background:#0a1629;color:var(--text);white-space:pre-wrap;line-height:1.35;font-size:13px";
+ note.textContent = [
+  "Mode 2 CPA defaults",
+  "CPA = CPI + sustained correct weighting + sustained wrong weighting + sustained missed weighting + sustained RT SD weighting + driftRatio weighting",
+  "Correct weighting: 0-10=0; 11-12=+0.1×CPI; 13-14=+0.2×CPI; 15-18=+0.3×CPI; 19-20=+0.4×CPI",
+  "Wrong weighting: 0=+0.1×CPI; 1-4=0; 5-8=-0.2×CPI; 9-12=-0.3×CPI; 13-15=-0.5×CPI; 16-18=-0.8×CPI; 19-20=-0.9×CPI",
+  "Missed weighting: 0-2=+0.1×CPI; 3-4=0; 5-8=-0.2×CPI; 9-12=-0.3×CPI; 13-15=-0.5×CPI; 16-18=-0.8×CPI; 19-20=-0.9×CPI",
+  "Sustained RT SD weighting: 0-200ms=+0.2×CPI; 201-300ms=+0.1×CPI; 301-400ms=0; 401-500ms=-0.1×CPI; 501-700ms=-0.2×CPI; 701ms+=-0.3×CPI",
+  "driftRatio weighting: up to 10% slowing=0; 11-30%=-0.01×CPI; 31-40%=-0.05×CPI; 41%+=-0.1×CPI; negative drift=0",
+  "MAX CPA reduction per factor = CPI × 0.9"
+ ].join("\n");
+ w.appendChild(note);
 }
 function readAdmin(){ for(const [k,,t] of ADMIN_FIELDS){ const el=$("adm_"+k); if(!el) continue; settings[k]=(String(t).startsWith("select:")||t==="text") ? el.value : Number(el.value); } }
 function resetAdmin(){ settings={...DEFAULTS}; saveSettings(); renderAdmin(); }
@@ -3866,7 +3879,13 @@ function syncSummarySessionSelect(selectedIdx){
    return `<option value="${idx}">Session ${idx+1} • ${mode} • ${subj} • ${stamp}</option>`;
   }).join('');
  }
- if(s.options.length) s.value = String(wanted);
+ if(s.options.length){
+  s.value = String(wanted);
+  if(String(s.value)!==String(wanted)){
+   const fallbackPos = orderedIdx.indexOf(wanted);
+   s.selectedIndex = fallbackPos>=0 ? fallbackPos : 0;
+  }
+ }
 }
 
 function openSummarySession(sessionIndex, variant){
@@ -4044,10 +4063,19 @@ function getSpeedometerSelectedIndex(){
 }
 
 function getLatestHistoryIndex(){
- if(Array.isArray(state.history) && state.history.length){
-  return state.history.length-1;
+ if(!Array.isArray(state.history) || !state.history.length) return null;
+ let bestIdx = state.history.length - 1;
+ let bestTime = Number.NEGATIVE_INFINITY;
+ for(let i=0;i<state.history.length;i++){
+  const r = state.history[i];
+  const t = r && r.time ? Date.parse(r.time) : NaN;
+  const score = Number.isFinite(t) ? t : i;
+  if(score >= bestTime){
+   bestTime = score;
+   bestIdx = i;
+  }
  }
- return null;
+ return bestIdx;
 }
 
 function syncSpeedometerSessionSelect(selectedIdx){
@@ -4057,7 +4085,14 @@ function syncSpeedometerSessionSelect(selectedIdx){
  const wanted = Number.isFinite(Number(selectedIdx))
   ? Math.max(0, Math.min(state.history.length-1, Number(selectedIdx)))
   : (latestIdx!=null ? latestIdx : 0);
- const orderedIdx = state.history.map((_,idx)=>idx).reverse();
+ const orderedIdx = state.history
+  .map((r, idx)=>({idx, t:(r && r.time ? Date.parse(r.time) : NaN)}))
+  .sort((a,b)=>{
+   const at = Number.isFinite(a.t) ? a.t : a.idx;
+   const bt = Number.isFinite(b.t) ? b.t : b.idx;
+   return bt - at;
+  })
+  .map(entry=>entry.idx);
  const existing = Array.from(s.options).map(o=>o.value).join('|');
  const desired = orderedIdx.map(idx=>String(idx)).join('|');
  if(existing !== desired){
@@ -4069,7 +4104,13 @@ function syncSpeedometerSessionSelect(selectedIdx){
    return `<option value="${idx}">Session ${idx+1} · ${mode} · ${subj} · ${stamp}</option>`;
   }).join('');
  }
- if(s.options.length) s.value = String(wanted);
+ if(s.options.length){
+  s.value = String(wanted);
+  if(String(s.value)!==String(wanted)){
+   const fallbackPos = orderedIdx.indexOf(wanted);
+   s.selectedIndex = fallbackPos>=0 ? fallbackPos : 0;
+  }
+ }
 }
 
 function openSpeedometerSession(idx){
