@@ -2,7 +2,7 @@
 // CogSpeed source
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V633";
+const APP_VERSION = "V634";
 
 // ═══════════════════════════════════════════════════
 // Current behavior summary (historical details live in CHANGELOG.md)
@@ -3286,6 +3286,17 @@ function computeMode2AdaptiveCounts(result){
 }
 
 
+
+function computeMode2WrongBreakdown(result){
+ const calibration = Math.max(0, Number(result&&result.calibrationErrors!=null ? result.calibrationErrors : result&&result.selfPacedWrong)||0);
+ const adaptiveCounts = computeMode2AdaptiveCounts(result);
+ const sustained = Math.max(0, Number(result&&result.mode2SustainedWrong)||0);
+ const finalSelfPaced = Math.max(0, Number(result&&result.mode2FinalWrong)||0);
+ const adaptive = Math.max(0, Number(adaptiveCounts&&adaptiveCounts.wrong)||0);
+ const total = calibration + adaptive + sustained + finalSelfPaced;
+ return { calibration, adaptive, sustained, finalSelfPaced, total };
+}
+
 function buildResultsSummaryCompact(result){
  const el=$("summaryText"); if(!el) return;
  const hr="─────────────────────────";
@@ -3318,8 +3329,9 @@ function buildResultsSummaryCompact(result){
  const mode2AdaptiveBlock = result.testMode==="mode2" ? `ADAPTIVE MACHINE-PACED PHASE: Right ${adaptiveCounts.correct} · Wrong ${adaptiveCounts.wrong} · Missed ${adaptiveCounts.missed} · Avg RT ${result.pacedResponseMeanMs!=null?result.pacedResponseMeanMs.toFixed(1)+" ms":"—"}` : null;
  const cpiDisplay = result.testMode==="mode2" ? (adaptiveMbs!=null?computeCPI(adaptiveMbs).toFixed(1)+" / 100":"—") : (result.cognitivePerformanceIndex!=null?result.cognitivePerformanceIndex.toFixed(1)+" / 100":result.testMode==="mode4"||result.testMode==="mode3"?"—":(result.averageLast2BlockingScoresMs!=null?computeCPI(result.averageLast2BlockingScoresMs).toFixed(1)+" / 100":"—"));
  const mbsDisplay = result.testMode==="mode2" ? (adaptiveMbs!=null?adaptiveMbs.toFixed(1)+" ms":"—") : (result.averageLast2BlockingScoresMs!=null?result.averageLast2BlockingScoresMs.toFixed(1)+" ms":"—");
+ const wrongBreakdown = result.testMode==="mode2" ? computeMode2WrongBreakdown(result) : null;
  const selfPacedLine = result.testMode==="mode4" || result.testMode==="mode2" || result.testMode==="mode3"
-   ? `SELF-PACED CALIBRATION: Total ${result.selfPacedResponseCount!=null?result.selfPacedResponseCount:"—"} · Correct ${result.selfPacedCorrect!=null?result.selfPacedCorrect:"—"} · Wrong ${result.calibrationErrors!=null?result.calibrationErrors:(result.selfPacedWrong!=null?result.selfPacedWrong:"—")} · Avg RT ${result.calibrationAverageMs!=null?result.calibrationAverageMs.toFixed(1)+" ms":(result.selfPacedResponseMeanMs!=null?result.selfPacedResponseMeanMs.toFixed(1)+" ms":"—")}`
+   ? `SELF-PACED CALIBRATION: Total ${result.selfPacedResponseCount!=null?result.selfPacedResponseCount:"—"} · Correct ${result.selfPacedCorrect!=null?result.selfPacedCorrect:"—"} · Calibration wrong ${result.calibrationErrors!=null?result.calibrationErrors:(result.selfPacedWrong!=null?result.selfPacedWrong:"—")} · Avg RT ${result.calibrationAverageMs!=null?result.calibrationAverageMs.toFixed(1)+" ms":(result.selfPacedResponseMeanMs!=null?result.selfPacedResponseMeanMs.toFixed(1)+" ms":"—")}`
    : `SELF-PACED CALIBRATION: Total ${result.selfPacedResponseCount!=null?result.selfPacedResponseCount:"—"} · Correct ${result.selfPacedCorrect!=null?result.selfPacedCorrect:"—"} · Wrong ${result.calibrationErrors!=null?result.calibrationErrors:(result.selfPacedWrong!=null?result.selfPacedWrong:"—")} · Avg RT ${result.calibrationAverageMs!=null?result.calibrationAverageMs.toFixed(1)+" ms":"—"}`;
  const sustainedBlock = result.testMode==="mode2" && result.mode2Triggered
    ? `MODE 2 SUSTAINED COGSPEED PHASE: Presentation Rate ${result.mode2SustainedPresentationRateMs!=null?result.mode2SustainedPresentationRateMs.toFixed(1)+" ms":"—"} · CSR Correct ${result.correctSustainedResponses!=null?result.correctSustainedResponses:(result.mode2SustainedCorrect||0)} · SBLP ${result.sustainedBlockLimitPerformanceMs!=null?result.sustainedBlockLimitPerformanceMs.toFixed(1)+" ms":"—"} · SPI ${result.sustainedProcessingIndex!=null?result.sustainedProcessingIndex.toFixed(1)+" / 100":"—"}`
@@ -3338,6 +3350,7 @@ Total Test Duration: ${result.testMode==="mode2"&&timing?formatDuration(timing.t
 Fatigue (SP-FS): ${spf}
 Sleep: ${sleepLine.replace(/^SLEEP:\s*/,'')}
 ${selfPacedLine}
+${result.testMode==="mode2"&&wrongBreakdown?`Wrong breakdown: Calibration ${wrongBreakdown.calibration} · Adaptive ${wrongBreakdown.adaptive} · Sustained ${wrongBreakdown.sustained} · Final self-paced ${wrongBreakdown.finalSelfPaced} · Total wrong across all phases ${wrongBreakdown.total}`:""}
 ${mode1AdaptiveBlock || mode2AdaptiveBlock || 'ADAPTIVE MACHINE-PACED PHASE: Not used in this mode'}
 CPI: ${cpiDisplay}
 MBS: ${mbsDisplay}
@@ -3459,6 +3472,7 @@ ${getResultsMetricExplanationText(result)}`;
   }
   const mode4Cpi=result.mode2CpiFromMbs!=null ? result.mode2CpiFromMbs : (adaptiveMbs!=null ? computeCPI(adaptiveMbs) : null);
   const adaptiveCounts=computeMode2AdaptiveCounts(result);
+  const wrongBreakdown=computeMode2WrongBreakdown(result);
   el.textContent=
 `CogSpeed ${APP_VERSION} — ${modeName}
 ${hr}
@@ -3480,10 +3494,16 @@ ${hr}
 SELF-PACED CALIBRATION
  Total self-paced responses: ${result.selfPacedResponseCount}
  Self-paced correct: ${result.selfPacedCorrect}
- Calibration wrong: ${result.calibrationErrors!=null?result.calibrationErrors:result.selfPacedWrong}
- Total wrong:       ${result.totalIncorrect!=null?result.totalIncorrect:"—"}
+ Calibration wrong: ${wrongBreakdown.calibration}
  Average calibration RT: ${result.calibrationAverageMs!=null?result.calibrationAverageMs.toFixed(1)+" ms":"—"}
  Self-paced RT SD: ${result.selfPacedResponseSdMs!=null?result.selfPacedResponseSdMs.toFixed(1)+" ms":"—"}
+${hr}
+WRONG BREAKDOWN
+ Calibration wrong: ${wrongBreakdown.calibration}
+ Adaptive wrong: ${wrongBreakdown.adaptive}
+ Sustained wrong: ${wrongBreakdown.sustained}
+ Final self-paced wrong: ${wrongBreakdown.finalSelfPaced}
+ Total wrong across all phases: ${wrongBreakdown.total}
 ${hr}
 ADAPTIVE MACHINE-PACED PHASE
  Right Responses: ${adaptiveCounts.correct}
