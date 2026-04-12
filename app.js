@@ -3502,6 +3502,7 @@ ${getResultsMetricExplanationText(result)}`;
   }
   const mode4Cpi=result.mode2CpiFromMbs!=null ? result.mode2CpiFromMbs : (adaptiveMbs!=null ? computeCPI(adaptiveMbs) : null);
   const adaptiveCounts=computeMode2AdaptiveCounts(result);
+  const wrongBreakdown=computeMode2WrongBreakdown(result);
   el.textContent=
 `CogSpeed ${APP_VERSION} — ${modeName}
 ${hr}
