@@ -1,4 +1,7 @@
-## V649
+## V651
+- Restored the original analog-style Speedometer look with a cream dial face, black ticks/numerals, chrome bezel, and rectangular MBS window while keeping the 7-band outer color arc.
+
+## V650
 - Fixed showResultsPage results handoff so Speedometer and summary selectors sync to the newest saved session after the result is written to history.
 
 ## V646

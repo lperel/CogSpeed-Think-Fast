@@ -2,7 +2,7 @@
 // CogSpeed source
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V649";
+const APP_VERSION = "V651";
 
 // ═══════════════════════════════════════════════════
 // Current behavior summary (historical details live in CHANGELOG.md)
@@ -3677,161 +3677,166 @@ let _speedoRaf = null;
 function drawSpeedometer(canvas, scoreValue, success, scoreLabel="CPI", tipLabel="MBS", tipValue=null){
  const dpr = window.devicePixelRatio||1;
  const W = canvas.offsetWidth||380;
- const H = W; // square canvas for circular gauge
+ const H = W;
  canvas.width = W*dpr; canvas.height = H*dpr;
  canvas.style.width = W+"px"; canvas.style.height = H+"px";
  const ctx = canvas.getContext("2d");
- ctx.scale(dpr, dpr);
+ ctx.setTransform(dpr,0,0,dpr,0,0);
+ ctx.clearRect(0,0,W,H);
 
  const cx = W/2, cy = H/2;
- const R = W*0.375; // dial radius — leaves margin for tip box
-
- // 240° sweep: 0 CPI at 150° (lower-left), 100 CPI at 390°=30° (lower-right)
+ const R = W*0.38;
  const A_START = 150*Math.PI/180;
  const A_SWEEP = 240*Math.PI/180;
  function toAngle(v){ return A_START + (Math.max(0,Math.min(100,v))/100)*A_SWEEP; }
+ const na = toAngle(scoreValue);
+ const bandOut = R*1.06;
+ const bandIn  = R*0.93;
+ const tickOuter = R*0.89;
+ const faceTone = "#efe2c2";
+ const dark = "#17130f";
 
- const na = toAngle(scoreValue); // needle angle
- const needleColor = success ? "#0d0a00" : "#cc0000";
+ // outer bezel / chrome
+ ctx.beginPath(); ctx.arc(cx,cy,R*1.22,0,Math.PI*2);
+ ctx.fillStyle = "#111"; ctx.fill();
+ const bezel = ctx.createLinearGradient(cx-R*1.22, cy-R*1.22, cx+R*1.22, cy+R*1.22);
+ bezel.addColorStop(0.00,"#fbfbfb");
+ bezel.addColorStop(0.10,"#b9b9b9");
+ bezel.addColorStop(0.24,"#efefef");
+ bezel.addColorStop(0.52,"#717171");
+ bezel.addColorStop(0.78,"#f1f1f1");
+ bezel.addColorStop(1.00,"#8f8f8f");
+ ctx.beginPath(); ctx.arc(cx,cy,R*1.18,0,Math.PI*2);
+ ctx.fillStyle = bezel; ctx.fill();
+ ctx.beginPath(); ctx.arc(cx,cy,R*1.11,0,Math.PI*2);
+ ctx.strokeStyle = "rgba(0,0,0,0.55)"; ctx.lineWidth = R*0.018; ctx.stroke();
 
- // ── 1. Dark outer ring ──
- ctx.beginPath(); ctx.arc(cx,cy,R*1.20,0,Math.PI*2);
- ctx.fillStyle="#1a1a1a"; ctx.fill();
-
- // ── 2. Chrome bezel (linear gradient for metallic sheen) ──
- const cg = ctx.createLinearGradient(cx-R*1.15, cy-R*1.15, cx+R*1.15, cy+R*1.15);
- cg.addColorStop(0.00,"#f8f8f8"); cg.addColorStop(0.15,"#c8c8c8");
- cg.addColorStop(0.32,"#eeeeee"); cg.addColorStop(0.50,"#a0a0a0");
- cg.addColorStop(0.68,"#e0e0e0"); cg.addColorStop(0.85,"#b4b4b4");
- cg.addColorStop(1.00,"#d8d8d8");
- ctx.beginPath(); ctx.arc(cx,cy,R*1.16,0,Math.PI*2);
- ctx.fillStyle=cg; ctx.fill();
-
- // Bezel inner shadow
+ // dial face
+ const face = ctx.createRadialGradient(cx-R*0.08, cy-R*0.12, 0, cx, cy, R*1.05);
+ face.addColorStop(0, "#f5e8ca");
+ face.addColorStop(0.7, faceTone);
+ face.addColorStop(1, "#dccba3");
  ctx.beginPath(); ctx.arc(cx,cy,R*1.02,0,Math.PI*2);
- ctx.strokeStyle="rgba(0,0,0,0.5)"; ctx.lineWidth=R*0.025; ctx.stroke();
+ ctx.fillStyle = face; ctx.fill();
+ ctx.beginPath(); ctx.arc(cx,cy,R*1.02,0,Math.PI*2);
+ ctx.strokeStyle = "rgba(255,255,255,0.38)"; ctx.lineWidth = R*0.012; ctx.stroke();
 
- // ── 3. Cream parchment face ──
- const fg = ctx.createRadialGradient(cx-R*0.12,cy-R*0.12,0, cx,cy,R);
- fg.addColorStop(0,"#f6edd8"); fg.addColorStop(0.55,"#efe5c8"); fg.addColorStop(1,"#d8cfb0");
- ctx.beginPath(); ctx.arc(cx,cy,R,0,Math.PI*2);
- ctx.fillStyle=fg; ctx.fill();
- // Edge shadow
- ctx.beginPath(); ctx.arc(cx,cy,R,0,Math.PI*2);
- ctx.strokeStyle="rgba(0,0,0,0.14)"; ctx.lineWidth=R*0.018; ctx.stroke();
-
- // ── 4. Color arc (7 equally spaced wedge segments) ──
- const arcOut = R*0.925, arcIn = R*0.815;
- const ARC = [
-  {s:0, e:100/7, c:"#7a0000"},
-  {s:100/7, e:200/7, c:"#ff6b6b"},
-  {s:200/7, e:300/7, c:"#ff9800"},
-  {s:300/7, e:400/7, c:"#ffd400"},
-  {s:400/7, e:500/7, c:"#9bdc65"},
-  {s:500/7, e:600/7, c:"#3fae4a"},
-  {s:600/7, e:100, c:"#006400"},
- ];
- ARC.forEach(seg=>{
-  const a1=toAngle(seg.s), a2=toAngle(seg.e);
+ // color band (7 equal segments)
+ const ARC = ["#650000", "#d94a4a", "#f28c18", "#e4cf2f", "#9ddc6b", "#43a94e", "#0a5d1c"];
+ for(let i=0;i<ARC.length;i++){
+  const s = (i/ARC.length)*100;
+  const e = ((i+1)/ARC.length)*100;
+  const a1 = toAngle(s), a2 = toAngle(e);
   ctx.beginPath();
-  ctx.arc(cx,cy,arcOut,a1,a2,false);
-  ctx.arc(cx,cy,arcIn, a2,a1,true);
-  ctx.closePath(); ctx.fillStyle=seg.c; ctx.fill();
-  // Inner highlight strip
-  ctx.beginPath(); ctx.arc(cx,cy,arcIn+(arcOut-arcIn)*0.18,a1,a2,false);
-  ctx.strokeStyle="rgba(255,255,255,0.20)"; ctx.lineWidth=R*0.026; ctx.stroke();
- });
- // Segment dividers
- [0,100/7,200/7,300/7,400/7,500/7,600/7,100].forEach(v=>{
-  const a=toAngle(v);
-  ctx.beginPath();
-  ctx.moveTo(cx+arcIn*Math.cos(a), cy+arcIn*Math.sin(a));
-  ctx.lineTo(cx+arcOut*Math.cos(a),cy+arcOut*Math.sin(a));
-  ctx.strokeStyle="rgba(0,0,0,0.45)"; ctx.lineWidth=1.2; ctx.stroke();
- });
-
- // ── 5. Tick marks ──
- const TOUT = R*0.79;
- for(let v=0;v<=100;v++){
-  const a=toAngle(v);
-  const isMaj=v%10===0, isMid=v%5===0;
-  const tLen = isMaj?R*0.175:isMid?R*0.10:R*0.055;
-  const lw  = isMaj?R*0.023:isMid?R*0.013:R*0.007;
-  ctx.beginPath();
-  ctx.moveTo(cx+TOUT*Math.cos(a), cy+TOUT*Math.sin(a));
-  ctx.lineTo(cx+(TOUT-tLen)*Math.cos(a), cy+(TOUT-tLen)*Math.sin(a));
-  ctx.strokeStyle="#111"; ctx.lineWidth=lw; ctx.lineCap="round"; ctx.stroke();
+  ctx.arc(cx,cy,bandOut,a1,a2,false);
+  ctx.arc(cx,cy,bandIn,a2,a1,true);
+  ctx.closePath();
+  ctx.fillStyle = ARC[i];
+  ctx.fill();
  }
- // Triangular arrow pointers at 0 and 100
- [0,100].forEach(v=>{
-  const a=toAngle(v), pr=TOUT+R*0.012, sz=R*0.038;
-  ctx.save();
-  ctx.translate(cx+pr*Math.cos(a), cy+pr*Math.sin(a));
-  ctx.rotate(a+Math.PI/2);
+
+ // outer fine hash marks
+ ctx.strokeStyle = dark;
+ ctx.lineCap = "butt";
+ for(let v=0;v<=100;v++){
+  const a = toAngle(v);
+  const major = v%10===0;
+  const five = v%5===0;
+  const len = major ? R*0.16 : five ? R*0.09 : R*0.055;
+  const lw = major ? R*0.013 : five ? R*0.009 : R*0.0045;
   ctx.beginPath();
-  ctx.moveTo(0,-sz*1.2); ctx.lineTo(sz*0.55,sz*0.6); ctx.lineTo(-sz*0.55,sz*0.6);
-  ctx.closePath(); ctx.fillStyle="#111"; ctx.fill();
+  ctx.moveTo(cx + tickOuter*Math.cos(a), cy + tickOuter*Math.sin(a));
+  ctx.lineTo(cx + (tickOuter-len)*Math.cos(a), cy + (tickOuter-len)*Math.sin(a));
+  ctx.lineWidth = lw;
+  ctx.stroke();
+ }
+
+ // triangular major markers every 20 points
+ [0,20,40,60,80,100].forEach(v=>{
+  const a = toAngle(v);
+  const rr = tickOuter + R*0.005;
+  const sz = R*0.05;
+  ctx.save();
+  ctx.translate(cx + rr*Math.cos(a), cy + rr*Math.sin(a));
+  ctx.rotate(a + Math.PI/2);
+  ctx.beginPath();
+  ctx.moveTo(0,-sz*1.05);
+  ctx.lineTo(sz*0.46, sz*0.38);
+  ctx.lineTo(-sz*0.46, sz*0.38);
+  ctx.closePath();
+  ctx.fillStyle = dark;
+  ctx.fill();
   ctx.restore();
  });
 
- // ── 6. Numbers ──
- const NUM_R = R*0.545;
- ctx.textAlign="center"; ctx.textBaseline="middle"; ctx.fillStyle="#111";
- for(let v=0;v<=100;v+=10){
-  const a=toAngle(v), x=cx+NUM_R*Math.cos(a), y=cy+NUM_R*Math.sin(a);
-  const fs = v%20===0 ? R*0.108 : R*0.090;
-  ctx.font=`bold ${fs.toFixed(1)}px -apple-system,"Helvetica Neue",Arial,sans-serif`;
-  ctx.fillText(String(v),x,y);
+ // numerals
+ ctx.fillStyle = dark;
+ ctx.textAlign = "center";
+ ctx.textBaseline = "middle";
+ const numR = R*0.63;
+ for(let v=0; v<=100; v+=10){
+  const a = toAngle(v);
+  const x = cx + numR*Math.cos(a);
+  const y = cy + numR*Math.sin(a);
+  const major20 = v%20===0;
+  const fontSize = major20 ? R*0.132 : R*0.09;
+  ctx.font = `${major20 ? '700' : '500'} ${fontSize.toFixed(1)}px "Arial Narrow","Helvetica Neue Condensed",Arial,sans-serif`;
+  ctx.fillText(String(v), x, y);
  }
 
- // ── 7. "CPI" italic serif label (replaces "Auto Meter" branding) ──
- ctx.font=`italic ${(R*0.105).toFixed(1)}px Georgia,"Times New Roman",serif`;
- ctx.fillStyle="#111"; ctx.textAlign="center"; ctx.textBaseline="middle";
- ctx.fillText(String(scoreLabel||"CPI"), cx+R*0.13, cy+R*0.285);
+ // score label
+ ctx.font = `700 ${(R*0.10).toFixed(1)}px Arial,sans-serif`;
+ ctx.fillText(String(scoreLabel||"CPI"), cx, cy + R*0.18);
 
- // ── 8. Needle (tapered, pointed) ──
+ // needle
  ctx.save();
- ctx.translate(cx,cy); ctx.rotate(na);
+ ctx.translate(cx,cy);
+ ctx.rotate(na);
+ const needleColor = success ? dark : "#b10000";
  ctx.beginPath();
- ctx.moveTo(-R*0.155, -R*0.026);
- ctx.lineTo(R*0.62,  -R*0.013);
- ctx.lineTo(R*0.73,  0);
- ctx.lineTo(R*0.62,  R*0.013);
- ctx.lineTo(-R*0.155, R*0.026);
+ ctx.moveTo(-R*0.13, -R*0.02);
+ ctx.lineTo(R*0.69, -R*0.011);
+ ctx.lineTo(R*0.78, 0);
+ ctx.lineTo(R*0.69, R*0.011);
+ ctx.lineTo(-R*0.13, R*0.02);
  ctx.closePath();
- ctx.fillStyle=needleColor; ctx.fill();
- // Highlight line
+ ctx.fillStyle = needleColor;
+ ctx.fill();
  ctx.beginPath();
- ctx.moveTo(-R*0.10, -R*0.009); ctx.lineTo(R*0.60, -R*0.004);
- ctx.strokeStyle="rgba(255,255,255,0.22)"; ctx.lineWidth=R*0.007; ctx.stroke();
+ ctx.moveTo(-R*0.10, -R*0.006);
+ ctx.lineTo(R*0.64, -R*0.003);
+ ctx.strokeStyle = "rgba(255,255,255,0.28)";
+ ctx.lineWidth = R*0.005;
+ ctx.stroke();
  ctx.restore();
 
-  // ── 9. Metric window ──
+ // mbs window
  if(success && tipValue){
-  const bw = R*0.95, bh = R*0.22;
-  const bx = cx - bw/2, by = cy + R*0.38;
+  const bw = R*0.72, bh = R*0.18;
+  const bx = cx - bw/2, by = cy + R*0.37;
   ctx.beginPath();
-  ctx.roundRect ? ctx.roundRect(bx, by, bw, bh, R*0.04) : ctx.rect(bx, by, bw, bh);
-  ctx.fillStyle = "#0c1608";
+  if(ctx.roundRect) ctx.roundRect(bx, by, bw, bh, R*0.012); else ctx.rect(bx, by, bw, bh);
+  ctx.fillStyle = "#d9df4c";
   ctx.fill();
-  ctx.strokeStyle = "#7dbf58"; ctx.lineWidth = R*0.01; ctx.stroke();
-  ctx.fillStyle = "#7fff67";
+  ctx.strokeStyle = "rgba(0,0,0,0.45)";
+  ctx.lineWidth = R*0.008;
+  ctx.stroke();
+  ctx.fillStyle = dark;
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
-  ctx.font=`700 ${(R*0.055).toFixed(1)}px -apple-system,"Helvetica Neue",Arial,sans-serif`;
-  ctx.fillText(String(tipLabel||"MBS"), cx, by + bh*0.28);
-  ctx.font=`800 ${(R*0.078).toFixed(1)}px -apple-system,"Helvetica Neue",Arial,sans-serif`;
-  ctx.fillText(String(tipValue), cx, by + bh*0.68);
+  ctx.font = `700 ${(R*0.055).toFixed(1)}px Arial,sans-serif`;
+  ctx.fillText(String(tipValue), cx, by + bh*0.54);
+  ctx.font = `500 ${(R*0.078).toFixed(1)}px "Arial Narrow",Arial,sans-serif`;
+  ctx.fillText(String(tipLabel||"MBS"), cx, by + bh + R*0.11);
  }
 
- // ── 10. Center hub ──
- const hubGr = ctx.createRadialGradient(cx-R*0.022,cy-R*0.022,0, cx,cy,R*0.092);
- hubGr.addColorStop(0,"#808080"); hubGr.addColorStop(0.45,"#383838"); hubGr.addColorStop(1,"#111");
- ctx.beginPath(); ctx.arc(cx,cy,R*0.092,0,Math.PI*2); ctx.fillStyle=hubGr; ctx.fill();
- ctx.beginPath(); ctx.arc(cx,cy,R*0.092,0,Math.PI*2);
- ctx.strokeStyle="#555"; ctx.lineWidth=R*0.012; ctx.stroke();
- ctx.beginPath(); ctx.arc(cx,cy,R*0.030,0,Math.PI*2); ctx.fillStyle="#606060"; ctx.fill();
- ctx.beginPath(); ctx.arc(cx,cy,R*0.013,0,Math.PI*2); ctx.fillStyle="#aaa"; ctx.fill();
+ // hub
+ const hub = ctx.createRadialGradient(cx-R*0.02, cy-R*0.02, 0, cx, cy, R*0.09);
+ hub.addColorStop(0, "#6a6a6a");
+ hub.addColorStop(0.55, "#272727");
+ hub.addColorStop(1, "#0c0c0c");
+ ctx.beginPath(); ctx.arc(cx,cy,R*0.085,0,Math.PI*2); ctx.fillStyle = hub; ctx.fill();
+ ctx.beginPath(); ctx.arc(cx,cy,R*0.03,0,Math.PI*2); ctx.fillStyle = "#4f4f4f"; ctx.fill();
 }
 
 // Sweep needle 0→CPI in 1.4s ease-in-out, then dither ±0.8 CPI
@@ -5567,8 +5572,8 @@ const _sssel=$("summarySessionSelect"); if(_sssel) _sssel.onchange=()=>openSumma
 const _ssprev=$("summaryPrevBtn"); if(_ssprev) _ssprev.onclick=()=>{ const s=$("summarySessionSelect"); if(!s||!s.options.length) return; s.selectedIndex=Math.max(0, s.selectedIndex-1); if(s.onchange) s.onchange(); };
 const _ssnext=$("summaryNextBtn"); if(_ssnext) _ssnext.onclick=()=>{ const s=$("summarySessionSelect"); if(!s||!s.options.length) return; s.selectedIndex=Math.min(s.options.length-1, s.selectedIndex+1); if(s.onchange) s.onchange(); };
 const _spsel=$("speedometerSessionSelect"); if(_spsel) _spsel.onchange=()=>openSpeedometerSession(Number(_spsel.value));
-const _spprev=$("speedometerPrevBtn"); if(_spprev) _spprev.onclick=()=>{ const s=$("speedometerSessionSelect"); if(!s||!s.options.length) return; s.selectedIndex=Math.max(0, s.selectedIndex-1); if(s.onchange) s.onchange(); };
-const _spnext=$("speedometerNextBtn"); if(_spnext) _spnext.onclick=()=>{ const s=$("speedometerSessionSelect"); if(!s||!s.options.length) return; s.selectedIndex=Math.min(s.options.length-1, s.selectedIndex+1); if(s.onchange) s.onchange(); };
+const _spprev=$("speedometerPrevBtn"); if(_spprev) _spprev.onclick=()=>{ const s=$("speedometerSessionSelect"); if(!s||!s.options.length) return; s.selectedIndex=Math.min(s.options.length-1, s.selectedIndex+1); if(s.onchange) s.onchange(); };
+const _spnext=$("speedometerNextBtn"); if(_spnext) _spnext.onclick=()=>{ const s=$("speedometerSessionSelect"); if(!s||!s.options.length) return; s.selectedIndex=Math.max(0, s.selectedIndex-1); if(s.onchange) s.onchange(); };
 const _spm4=$("speedometerMode2ToggleBtn"); if(_spm4) _spm4.onclick=()=>{ state.speedometerMode2Metric = String(state.speedometerMode2Metric||"cpi").toLowerCase()==="cpi" ? "cpa" : "cpi"; openSpeedometerSession(getSpeedometerSelectedIndex()); };
 const _sactsel=$("speedometerActionSelect"); if(_sactsel) _sactsel.onchange=()=>openSpeedometerMenuSelection();
 const _sadmin=$("speedAdminBtn"); if(_sadmin) _sadmin.onclick=()=>openAdminFromOverlay("outcomeOverlay");
@@ -5785,7 +5790,6 @@ function getMode2SpeedometerMetric(result){
   mbsText,
   boxes:[
    {label:"CPA", value:Number.isFinite(cpa)?`${Number(cpa).toFixed(1)} / 100`:"—"},
-   {label:"MBS", value:mbsText},
    {label:"Disposition", value:dispositionText}
   ]
  };
