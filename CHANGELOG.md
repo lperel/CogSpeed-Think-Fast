@@ -1,3 +1,12 @@
+## V664
+- moved Speedometer CPI/CPA label into the upper dial sector so the live needle no longer obscures it
+- made calibration and sustained/final self-paced background blue slightly darker while keeping them matched
+
+V663
+- Graph legend now says “Green diamond = SP-FS”.
+- Enlarged MBS label and window text on Speedometer dial.
+- Calibration and Sustained phases continue to use the same light blue test background.
+
 ## V662
 - Reverted to the clean live-drawn Speedometer with a vintage-style spear needle.
 - Increased MBS label prominence on the dial and kept MBS in the rectangular window.

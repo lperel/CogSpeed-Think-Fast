@@ -2,7 +2,7 @@
 // CogSpeed source
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V662";
+const APP_VERSION = "V664";
 
 // ═══════════════════════════════════════════════════
 // Current behavior summary (historical details live in CHANGELOG.md)
@@ -317,7 +317,7 @@ syncReleaseUI();
 
 function getPhaseBackgroundColor(){
  const phase=String(state.phase||"");
- const LIGHT_BLUE = "#b9dcff";   // calibration + sustained/final self-paced
+ const LIGHT_BLUE = "#a9d0fb";   // calibration + sustained/final self-paced (slightly darker)
  const MEDIUM_BLUE = "#6f9fd6";  // adaptive / recovery / fixed machine-paced
  if(phase==="calibration") return LIGHT_BLUE;
  if(phase==="mode2_sustained"||phase==="mode2_final") return LIGHT_BLUE;
@@ -3808,10 +3808,10 @@ function drawSpeedometer(canvas, scoreValue, success, scoreLabel="CPI", tipLabel
   ctx.fillText(String(v), x, y);
  }
 
- // explicit score label
- ctx.font = `700 ${(R*0.108).toFixed(1)}px Arial,sans-serif`;
+ // explicit score label — keep it in the upper unused sector so the needle does not obscure it
+ ctx.font = `700 ${(R*0.104).toFixed(1)}px Arial,sans-serif`;
  ctx.fillStyle = dark;
- ctx.fillText(String(scoreLabel||"CPI"), cx, cy + R*0.17);
+ ctx.fillText(String(scoreLabel||"CPI"), cx, cy - R*0.50);
 
  // vintage-style spear needle
  ctx.save();
@@ -6445,7 +6445,7 @@ function drawPerformanceOverTimeChart(canvas,hist){
   ctx.fillStyle="#d6a7ff";
   ctx.fillRect(PAD.left+272, PAD.top-22, 8, 8);
   ctx.fillText(cpaLegend, PAD.left+288, PAD.top-14);
-  ctx.fillStyle="#88ff88"; ctx.fillText("◆ SP-FS", PAD.left+420, PAD.top-14);
+  ctx.fillStyle="#88ff88"; ctx.fillText("Green diamond = SP-FS", PAD.left+360, PAD.top-14);
 
   const legendY = PAD.top + cH + 38;
   ctx.fillStyle = "#ff4d4f"; ctx.fillRect(PAD.left, legendY, 12, 8);
