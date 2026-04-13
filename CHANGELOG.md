@@ -1188,7 +1188,7 @@ It is meant to provide a readable history without overloading inline code commen
 - Clarified the separation from Admin Full Reset, which is broader and does not specifically mean session-history deletion.
 
 
-## V660
+## V661
 - Restored SP-FS item 5 wording to **"Okay, about normal"** while keeping the acronym as **SP-FS**.
 - Changed test-phase backgrounds to blue tones: calibration = light blue; adaptive/recovery/fixed machine-paced = medium blue; sustained/final self-paced = light blue.
-- Updated all package version wiring to V660.
+- Updated all package version wiring to V661.
