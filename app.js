@@ -2,7 +2,7 @@
 // CogSpeed source
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V654";
+const APP_VERSION = "V656";
 
 // ═══════════════════════════════════════════════════
 // Current behavior summary (historical details live in CHANGELOG.md)
@@ -219,7 +219,7 @@ const LINE_PATTERNS={
 const SAMN_PERELLI=[
  [7,"Full alert, wide awake"],
  [6,"Very lively, responsive, but not at peak"],
- [5,"Okay, about normal"],
+ [5,"Restless / interrupted sleep"],
  [4,"Less than sharp, let down"],
  [3,"Feeling dull, losing focus"],
  [2,"Very difficult to concentrate, groggy"],
@@ -1026,7 +1026,7 @@ function maybeTriggerTerminalRule(){
    if(avg2==null) return false;
    state.mode2Triggered = true;
    state.mode2AdaptiveMbsMs = avg2;
-   const sustainedStartFactor = Number(settings.mode2SustainedStartFactor)||1.2;
+   const sustainedStartFactor = Number(settings.mode2SustainedStartFactor)||DEFAULTS.mode2SustainedStartFactor;
    const sustainedRate = clamp(avg2 * sustainedStartFactor, Number(settings.minDurationMs)||600, Number(settings.maxDurationMs)||3500);
    state.mode2SustainedPresentationRateMs = sustainedRate;
    state.mode2SustainedPresented = 0;
@@ -1441,7 +1441,7 @@ function openTrial(kind){
   state.presentedRoundDuration = Math.round(state.duration);
   state.mode2SustainedPresented += 1;
   phaseLabel.textContent=`Mode 2 Sustained · ${Math.round(state.duration)}ms`;
-  setStatus(`Mode 2 sustained trials at MBS × ${(Number(settings.mode2SustainedStartFactor)||1.2).toFixed(1)}`);
+  setStatus(`Mode 2 sustained trials at MBS × ${(Number(settings.mode2SustainedStartFactor)||DEFAULTS.mode2SustainedStartFactor).toFixed(1)}`);
  }else if(kind==="recovery"){
   clearTimer();
   state.duration=null; state.lastFrameDuration=null; state.presentedRoundDuration=null;
@@ -3679,6 +3679,17 @@ ${getResultsMetricExplanationText(result)}`;
 let _speedoRaf = null;
 
 
+const speedometerVintageImage = (()=>{
+ let img=null, started=false;
+ return {
+  get(){
+   if(!img){ img=new Image(); }
+   if(!started){ started=true; img.src="speedo.jpg"; }
+   return img;
+  }
+ };
+})();
+
 function drawSpeedometer(canvas, scoreValue, success, scoreLabel="CPI", tipLabel="MBS", tipValue=null){
  const dpr = window.devicePixelRatio||1;
  const W = canvas.offsetWidth||380;
@@ -3701,33 +3712,8 @@ function drawSpeedometer(canvas, scoreValue, success, scoreLabel="CPI", tipLabel
  const faceTone = "#efe2c2";
  const dark = "#17130f";
 
- // outer bezel / chrome
- ctx.beginPath(); ctx.arc(cx,cy,R*1.22,0,Math.PI*2);
- ctx.fillStyle = "#111"; ctx.fill();
- const bezel = ctx.createLinearGradient(cx-R*1.22, cy-R*1.22, cx+R*1.22, cy+R*1.22);
- bezel.addColorStop(0.00,"#fbfbfb");
- bezel.addColorStop(0.10,"#b9b9b9");
- bezel.addColorStop(0.24,"#efefef");
- bezel.addColorStop(0.52,"#717171");
- bezel.addColorStop(0.78,"#f1f1f1");
- bezel.addColorStop(1.00,"#8f8f8f");
- ctx.beginPath(); ctx.arc(cx,cy,R*1.18,0,Math.PI*2);
- ctx.fillStyle = bezel; ctx.fill();
- ctx.beginPath(); ctx.arc(cx,cy,R*1.11,0,Math.PI*2);
- ctx.strokeStyle = "rgba(0,0,0,0.55)"; ctx.lineWidth = R*0.018; ctx.stroke();
-
- // dial face
- const face = ctx.createRadialGradient(cx-R*0.08, cy-R*0.12, 0, cx, cy, R*1.05);
- face.addColorStop(0, "#f5e8ca");
- face.addColorStop(0.7, faceTone);
- face.addColorStop(1, "#dccba3");
- ctx.beginPath(); ctx.arc(cx,cy,R*1.02,0,Math.PI*2);
- ctx.fillStyle = face; ctx.fill();
- ctx.beginPath(); ctx.arc(cx,cy,R*1.02,0,Math.PI*2);
- ctx.strokeStyle = "rgba(255,255,255,0.38)"; ctx.lineWidth = R*0.012; ctx.stroke();
-
- // color band (7 equal segments)
- const ARC = ["#650000", "#d94a4a", "#f28c18", "#e4cf2f", "#9ddc6b", "#43a94e", "#0a5d1c"];
+ // outer performance band (7 equal segments)
+ const ARC = ["#650000", "#c93333", "#f28c18", "#e4cf2f", "#9ddc6b", "#43a94e", "#0a5d1c"];
  for(let i=0;i<ARC.length;i++){
   const s = (i/ARC.length)*100;
   const e = ((i+1)/ARC.length)*100;
@@ -3739,6 +3725,46 @@ function drawSpeedometer(canvas, scoreValue, success, scoreLabel="CPI", tipLabel
   ctx.fillStyle = ARC[i];
   ctx.fill();
  }
+
+ // vintage dial image (fallback to painted face if not ready)
+ const img = speedometerVintageImage.get();
+ const imgRadius = R*1.18;
+ const imgSize = imgRadius*2;
+ if(img && img.complete && img.naturalWidth){
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(cx, cy, imgRadius, 0, Math.PI*2);
+  ctx.closePath();
+  ctx.clip();
+  ctx.drawImage(img, cx-imgRadius, cy-imgRadius, imgSize, imgSize);
+  ctx.restore();
+ } else {
+  // fallback vintage cream dial
+  ctx.beginPath(); ctx.arc(cx,cy,R*1.22,0,Math.PI*2);
+  ctx.fillStyle = "#111"; ctx.fill();
+  const bezel = ctx.createLinearGradient(cx-R*1.22, cy-R*1.22, cx+R*1.22, cy+R*1.22);
+  bezel.addColorStop(0.00,"#fbfbfb");
+  bezel.addColorStop(0.10,"#b9b9b9");
+  bezel.addColorStop(0.24,"#efefef");
+  bezel.addColorStop(0.52,"#717171");
+  bezel.addColorStop(0.78,"#f1f1f1");
+  bezel.addColorStop(1.00,"#8f8f8f");
+  ctx.beginPath(); ctx.arc(cx,cy,R*1.18,0,Math.PI*2);
+  ctx.fillStyle = bezel; ctx.fill();
+  const face = ctx.createRadialGradient(cx-R*0.08, cy-R*0.12, 0, cx, cy, R*1.05);
+  face.addColorStop(0, "#f5e8ca");
+  face.addColorStop(0.7, faceTone);
+  face.addColorStop(1, "#dccba3");
+  ctx.beginPath(); ctx.arc(cx,cy,R*1.02,0,Math.PI*2);
+  ctx.fillStyle = face; ctx.fill();
+ }
+
+ // subtle inner shadow to seat the image inside the color band
+ ctx.beginPath();
+ ctx.arc(cx,cy,bandIn-R*0.01,0,Math.PI*2);
+ ctx.strokeStyle = "rgba(0,0,0,0.22)";
+ ctx.lineWidth = R*0.012;
+ ctx.stroke();
 
  // outer fine hash marks
  ctx.strokeStyle = dark;
@@ -3790,8 +3816,9 @@ function drawSpeedometer(canvas, scoreValue, success, scoreLabel="CPI", tipLabel
  }
 
  // score label
- ctx.font = `700 ${(R*0.10).toFixed(1)}px Arial,sans-serif`;
- ctx.fillText(String(scoreLabel||"CPI"), cx, cy + R*0.18);
+ ctx.fillStyle = dark;
+ ctx.font = `700 ${(R*0.06).toFixed(1)}px Arial,sans-serif`;
+ ctx.fillText(String(scoreLabel||"CPI"), cx, cy + R*0.23);
 
  // needle
  ctx.save();
@@ -3903,8 +3930,7 @@ function syncSummarySessionSelect(selectedIdx){
  if(s.options.length){
   s.value = String(wanted);
   if(String(s.value)!==String(wanted)){
-   const fallbackPos = orderedIdx.indexOf(wanted);
-   s.selectedIndex = fallbackPos>=0 ? fallbackPos : 0;
+   s.selectedIndex = Math.max(0, Math.min(s.options.length-1, wanted));
   }
  }
 }
@@ -4161,8 +4187,7 @@ function syncSpeedometerSessionSelect(selectedIdx){
  if(s.options.length){
   s.value = String(wanted);
   if(String(s.value)!==String(wanted)){
-   const fallbackPos = orderedIdx.indexOf(wanted);
-   s.selectedIndex = fallbackPos>=0 ? fallbackPos : 0;
+   s.selectedIndex = Math.max(0, Math.min(s.options.length-1, wanted));
   }
  }
 }
@@ -5793,9 +5818,9 @@ function renderSpfGaugeForResult(result){
 function getSleepQualityBadge(result){
  const label = String(result?.sleepLog?.qualityLabel || "").trim();
  const key = label.toLowerCase();
- if(key==="poor") return {icon:"⬤", color:"#d9514e", text:"Poor"};
- if(key==="restless") return {icon:"◐", color:"#f1c14b", text:"Restless"};
- if(key==="good") return {icon:"●", color:"#72d572", text:"Good"};
+ if(key==="poor") return {icon:"😵‍💫", color:"#d9514e", text:"Poor"};
+ if(key==="restless") return {icon:"🥱", color:"#f1c14b", text:"Restless"};
+ if(key==="good") return {icon:"😴", color:"#72d572", text:"Good"};
  if(result?.sleepSinceLastTest==="no") return {icon:"—", color:"#9fb4c8", text:"No sleep"};
  return {icon:"—", color:"#9fb4c8", text:"—"};
 }
@@ -6350,7 +6375,7 @@ function drawPerformanceOverTimeChart(canvas,hist){
   function sleepQualityColor(r){
     const q = String(r?.sleepLog?.qualityLabel || "").trim().toLowerCase();
     if(q==="poor") return "#ff4d4f";
-    if(q==="okay") return "#ffd84d";
+    if(q==="restless") return "#ffd84d";
     if(q==="good") return "#46d36a";
     return null;
   }
