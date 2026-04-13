@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
   <meta name="theme-color" content="#0b1830"/>
   <link rel="manifest" href="manifest.json"/>
-  <title>CogSpeed® V651</title>
+  <title>CogSpeed® V654</title>
     <style>
 
     :root{--bg:#091426;--bg2:#132746;--panel:#0d1b33;--panel2:#10213e;--text:#f5fbff;--muted:#d7e7f8;--edge:#4f6f99;--accent:#7fd7ff;--probe:#00f0ff}
@@ -358,7 +358,7 @@
       <img src="CogSpeed.jpeg" alt="CogSpeed logo" style="width:min(78vw,420px);max-width:100%;height:auto;display:block;object-fit:contain;border:1px solid #2f5fb8;box-shadow:0 2px 16px rgba(0,0,0,.25)"/>
     </div>
     <div style="flex:1;display:flex;flex-direction:column;justify-content:flex-start;align-items:center;gap:clamp(6px,1.2dvh,14px);padding-top:10px">
-      <div style="text-align:center"><span class="badge" style="font-size:11px;padding:2px 10px" id="versionBadge">V651</span></div>
+      <div style="text-align:center"><span class="badge" style="font-size:11px;padding:2px 10px" id="versionBadge">V654</span></div>
       <div style="text-align:center">
         <span style="font-size:clamp(20px,3.6dvh,34px);font-weight:900;font-style:italic;letter-spacing:.12em;color:var(--accent);text-transform:uppercase;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;text-shadow:0 0 12px rgba(127,215,255,0.6)">Think Fast!</span>
       </div>
@@ -536,7 +536,7 @@
 <div id="sleepPromptOverlay" class="overlay hidden">
   <div class="modal modal-page">
     <h2 style="font-size:clamp(24px,4dvh,32px)">Sleep</h2>
-    <p class="modal-hint" style="font-size:clamp(15px,2.2dvh,18px)">Did you sleep since your last test?</p>
+    <p class="modal-hint" style="font-size:clamp(15px,2.2dvh,18px)">Have you slept before this test?</p>
     <div style="display:flex;flex-direction:column;gap:10px;flex:1;justify-content:center">
       <button class="ctrl-btn" id="sleepPromptYesBtn" style="font-size:22px;font-weight:900;min-height:64px">Yes</button>
       <button class="ctrl-btn" id="sleepPromptNoBtn" style="font-size:22px;font-weight:900;min-height:64px">No</button>
@@ -568,7 +568,7 @@
 <div id="sleepOverlay" class="overlay hidden">
   <div class="modal modal-page">
     <h2 style="font-size:clamp(24px,4dvh,32px)">Sleep Logger</h2>
-    <p class="modal-hint" style="font-size:clamp(15px,2.2dvh,18px)">How did you sleep before this test?</p>
+    <p class="modal-hint" style="font-size:clamp(15px,2.2dvh,18px)">If yes, enter when you went to sleep and when you woke up before this test.</p>
     <div id="sleepTimeFormatHint" style="margin-top:2px;margin-bottom:10px;padding:8px 10px;border:1px solid rgba(127,215,255,0.22);border-radius:10px;background:rgba(127,215,255,0.06);font-size:13px;color:var(--muted)">Use the time format shown by your device when entering sleep and wake times.</div>
 
     <div class="field-row">
@@ -613,7 +613,7 @@
       <label>Sleep quality</label>
       <div style="display:flex;gap:10px;margin-top:8px">
         <button id="sleepQualityPoorBtn" class="ctrl-btn" style="flex:1;font-size:18px">Poor</button>
-        <button id="sleepQualityOkayBtn" class="ctrl-btn" style="flex:1;font-size:18px">Okay</button>
+        <button id="sleepQualityOkayBtn" class="ctrl-btn" style="flex:1;font-size:18px">Restless</button>
         <button id="sleepQualityGoodBtn" class="ctrl-btn" style="flex:1;font-size:18px">Good</button>
       </div>
     </div>
@@ -726,9 +726,10 @@
   <div id="speedometerWrap" class="speedometer-brain-bg" style="width:min(88vw,42vh,460px);aspect-ratio:1/1;flex-shrink:0;margin-top:4px">
     <canvas id="speedometerCanvas" style="width:100%;height:100%;display:block"></canvas>
   </div>
-  <div id="spfGaugeWrap" style="width:min(92vw,720px);margin:2px auto 10px;flex-shrink:0">
+  <div id="spfGaugeWrap" style="width:min(92vw,720px);margin:2px auto 8px;flex-shrink:0">
     <canvas id="spfGaugeCanvas" width="900" height="180" style="width:100%;height:auto;display:block"></canvas>
   </div>
+  <div id="speedometerSleepMetrics" class="summary-grid" style="width:min(92vw,560px);margin:0 auto 10px;grid-template-columns:1fr 1fr;gap:8px"></div>
   <!-- SUCCESS! / Test Failed label -->
   <div id="outcomeText" class="outcome-text" style="margin:8px 0 6px;font-size:clamp(24px,6vw,48px)"></div>
   <div id="outcomeReasonText" style="margin:0 0 10px;font-size:clamp(14px,3.5vw,22px);color:var(--muted);text-align:center;max-width:min(92vw,720px)"></div>
@@ -947,7 +948,7 @@
     <span id="fatigueOut">—</span>
     <span id="modeLabel">Subject mode</span>
     <span id="phaseLabel">Ready</span>
-    <span id="statusLine">CogSpeed V651</span>
+    <span id="statusLine">CogSpeed V654</span>
     <span id="rateOut">—</span>
     <span id="blocksOut">0</span>
     <span id="recoveryOut">0</span>
@@ -972,6 +973,6 @@
   <div class="resp-grid" id="respGrid"></div>
 </div>
 
-<script src="app.js?v=651" defer></script>
+<script src="app.js?v=654" defer></script>
 </body>
 </html>

@@ -1,3 +1,8 @@
+## V654
+- Sleep Logger prompt changed to “Have you slept before this test?”
+- Sleep Logger main instruction clarified for entered sleep/wake times before this test
+- Sleep quality middle option renamed from Okay to Restless throughout UI/results
+
 ## V651
 - Restored the original analog-style Speedometer look with a cream dial face, black ticks/numerals, chrome bezel, and rectangular MBS window while keeping the 7-band outer color arc.
 

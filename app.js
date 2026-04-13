@@ -2,7 +2,7 @@
 // CogSpeed source
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V651";
+const APP_VERSION = "V654";
 
 // ═══════════════════════════════════════════════════
 // Current behavior summary (historical details live in CHANGELOG.md)
@@ -3408,6 +3408,7 @@ Total Trial Presentations: ${totalPresentations}
 Total Test Duration: ${result.testMode==="mode2"&&timing?formatDuration(timing.totalMs):totalDuration}
 Fatigue (SP-FS): ${spf}
 Sleep: ${sleepLine.replace(/^SLEEP:\s*/,'')}
+${formatSleepSummaryMetricsLine(result)}
 ${selfPacedLine}
 ${mode1AdaptiveBlock || mode2AdaptiveBlock || 'ADAPTIVE MACHINE-PACED PHASE: Not used in this mode'}
 CPI: ${cpiDisplay}
@@ -3451,6 +3452,7 @@ FATIGUE (SP-FS)
  Pre-test rating: ${spf}
 ${formatSleepLine(result)}
 ${formatTimeSinceLastSleepLine(result)||""}
+${formatSleepSummaryMetricsLine(result)}
 ${hr}
 SELF-PACED CALIBRATION (SPC)
  Total self-paced responses: ${result.selfPacedResponseCount}
@@ -3486,6 +3488,7 @@ FATIGUE (SP-FS)
  Pre-test rating: ${spf}
 ${formatSleepLine(result)}
 ${formatTimeSinceLastSleepLine(result)||""}
+${formatSleepSummaryMetricsLine(result)}
 ${hr}
 SELF-PACED CALIBRATION
  Total self-paced responses: ${result.selfPacedResponseCount}
@@ -3549,6 +3552,7 @@ FATIGUE (SP-FS)
  Pre-test rating: ${spf}
 ${formatSleepLine(result)}
 ${formatTimeSinceLastSleepLine(result)||""}
+${formatSleepSummaryMetricsLine(result)}
 ${hr}
 SELF-PACED CALIBRATION
  Total self-paced responses: ${result.selfPacedResponseCount}
@@ -3643,6 +3647,7 @@ FATIGUE (SP-FS)
  Pre-test rating: ${spf}
 ${formatSleepLine(result)}
 ${formatTimeSinceLastSleepLine(result)||""}
+${formatSleepSummaryMetricsLine(result)}
 ${hr}
 CALIBRATION
  Average RT: ${result.calibrationAverageMs!=null?result.calibrationAverageMs.toFixed(1)+" ms":"—"}
@@ -4932,7 +4937,7 @@ const TUT_STEPS = [
       <strong style="color:rgba(255,255,255,0.85)">Just respond as fast as you can.</strong>
      </div>
      <div style="margin-top:10px;padding:8px 12px;background:rgba(127,215,255,0.08);border:1px solid rgba(127,215,255,0.3);border-radius:10px;font-size:13px;color:rgba(200,230,255,0.85);line-height:1.5">
-      <span style="color:#7fd7ff;font-weight:700">Up next:</span> First go to the Sleep Logger path. If you did not sleep since your last test, answer No there. Then rate your fatigue (SP-FS), then the test begins!
+      <span style="color:#7fd7ff;font-weight:700">Up next:</span> First go to the Sleep Logger path. If you have not slept before this test, answer No there. Then rate your fatigue (SP-FS), then the test begins!
      </div>
     </div>
    </div>`;
@@ -5203,6 +5208,14 @@ function formatTimeSinceLastSleepLine(result){
  if(mins==null) return null;
  return `Hours awake before test: ${formatElapsedDuration(mins)}`;
 }
+function formatSleepSummaryMetricsLine(result){
+ const awakeMins = computeTimeSinceLastSleepMinutes(result);
+ const sleptMins = result?.sleepLog?.durationMinutes!=null ? Number(result.sleepLog.durationMinutes) : (result?.sleepSinceLastTest==="no" ? 0 : null);
+ const quality = getSleepQualityBadge(result);
+ const awakeText = awakeMins!=null ? formatElapsedDuration(awakeMins) : "—";
+ const sleptText = sleptMins!=null ? formatSleepDuration(sleptMins) : "—";
+ return `Total Hours Awake: ${awakeText}   Total Hours Slept: ${sleptText}   Sleep Quality: ${quality.icon} ${quality.text}`;
+}
 function computeSleepDurationMinutes(bed,wake){
  const b=parseSleepTimeToMinutes(bed), w=parseSleepTimeToMinutes(wake);
  if(b==null || w==null) return null;
@@ -5249,7 +5262,7 @@ function formatSleepLine(result){
  if(slept==="no"){
   const lastWakeIso = sl?.lastWakeDateTimeIso || null;
   const wakePart = lastWakeIso ? ` · Last wake: ${new Date(lastWakeIso).toLocaleString()}` : "";
-  return `SLEEP: No sleep before test · Hours asleep: ${formatSleepDuration(0)}${wakePart}`;
+  return `SLEEP: No sleep before this test · Hours asleep: ${formatSleepDuration(0)}${wakePart}`;
  }
  return "SLEEP: Not entered";
 }
@@ -5276,7 +5289,7 @@ function updateSleepLoggerUI(){
 function setSleepQuality(score){
  state.sleepLog = state.sleepLog || {};
  state.sleepLog.qualityScore = score;
- state.sleepLog.qualityLabel = score===1 ? "Poor" : score===2 ? "Okay" : score===3 ? "Good" : null;
+ state.sleepLog.qualityLabel = score===1 ? "Poor" : score===2 ? "Restless" : score===3 ? "Good" : null;
  const map = {1:$("sleepQualityPoorBtn"), 2:$("sleepQualityOkayBtn"), 3:$("sleepQualityGoodBtn")};
  [1,2,3].forEach(k=>{
   const btn=map[k];
@@ -5435,13 +5448,13 @@ $("fatigueBackBtn").onclick=()=>{ if(state.sleepSinceLastTest==="yes") showOnly(
 
 $("sleepPromptYesBtn").onclick=()=>{
  showSleepLogger();
- setStatus("Sleep since last test: Yes");
+ setStatus("Sleep before this test: Yes");
 };
 $("sleepPromptNoBtn").onclick=()=>{
  state.sleepSinceLastTest="no";
  state.sleepLog=null;
  showLastWakeOverlay();
- setStatus("Sleep since last test: No");
+ setStatus("Sleep before this test: No");
 };
 
 $("sleepBedtimeInput").addEventListener("input", (e)=>{ syncSleepInputCanonical(e.currentTarget); updateSleepLoggerUI(); });
@@ -5777,6 +5790,41 @@ function renderSpfGaugeForResult(result){
  drawSpfGauge(canvas, spf);
 }
 
+function getSleepQualityBadge(result){
+ const label = String(result?.sleepLog?.qualityLabel || "").trim();
+ const key = label.toLowerCase();
+ if(key==="poor") return {icon:"⬤", color:"#d9514e", text:"Poor"};
+ if(key==="restless") return {icon:"◐", color:"#f1c14b", text:"Restless"};
+ if(key==="good") return {icon:"●", color:"#72d572", text:"Good"};
+ if(result?.sleepSinceLastTest==="no") return {icon:"—", color:"#9fb4c8", text:"No sleep"};
+ return {icon:"—", color:"#9fb4c8", text:"—"};
+}
+
+function renderSpeedometerSleepMetrics(result){
+ const wrap = $("speedometerSleepMetrics");
+ if(!wrap) return;
+ const awakeMins = computeTimeSinceLastSleepMinutes(result);
+ const sleptMins = result?.sleepLog?.durationMinutes!=null ? Number(result.sleepLog.durationMinutes) : (result?.sleepSinceLastTest==="no" ? 0 : null);
+ const quality = getSleepQualityBadge(result);
+ const awakeText = awakeMins!=null ? formatElapsedDuration(awakeMins) : "—";
+ const sleptText = sleptMins!=null ? formatSleepDuration(sleptMins) : "—";
+ wrap.innerHTML = `
+  <div class="summary-card">
+    <div class="summary-card-label">Total Hours Awake</div>
+    <div class="summary-card-val" style="font-size:20px">${awakeText}</div>
+  </div>
+  <div class="summary-card">
+    <div class="summary-card-label">Total Hours Slept</div>
+    <div class="summary-card-val" style="font-size:20px;display:flex;align-items:center;justify-content:center;gap:10px;flex-wrap:wrap">
+      <span>${sleptText}</span>
+      <span style="display:inline-flex;align-items:center;gap:6px;color:${quality.color};font-size:18px;font-weight:800">
+        <span aria-hidden="true" style="font-size:20px;line-height:1">${quality.icon}</span>
+        <span>${quality.text}</span>
+      </span>
+    </div>
+  </div>`;
+}
+
 function getMode2SpeedometerMetric(result){
  const pref = String(state.speedometerMode2Metric||"cpi").toLowerCase()==="cpi" ? "cpi" : "cpa";
  const mbs = Number(result && (result.mode2AdaptiveMbsMs!=null ? result.mode2AdaptiveMbsMs : result.averageLast2BlockingScoresMs));
@@ -5861,6 +5909,7 @@ function renderSpeedometerOutcome(result, sessionIndex){
  stopSpeedometer();
  setTimeout(()=>animateSpeedometer(canvas, cps, success, scoreLabel, metricLabel, metricValueText), 80);
  renderSpfGaugeForResult(result);
+ renderSpeedometerSleepMetrics(result);
  setTestingQuiet(false);
 }
 
@@ -6353,7 +6402,7 @@ function drawPerformanceOverTimeChart(canvas,hist){
   ctx.fillStyle = "#ff4d4f"; ctx.fillRect(PAD.left, legendY, 12, 8);
   ctx.fillStyle = "#d7e7f8"; ctx.fillText("Sleep: Poor", PAD.left+18, legendY+8);
   ctx.fillStyle = "#ffd84d"; ctx.fillRect(PAD.left+92, legendY, 12, 8);
-  ctx.fillStyle = "#d7e7f8"; ctx.fillText("Okay", PAD.left+110, legendY+8);
+  ctx.fillStyle = "#d7e7f8"; ctx.fillText("Restless", PAD.left+110, legendY+8);
   ctx.fillStyle = "#46d36a"; ctx.fillRect(PAD.left+156, legendY, 12, 8);
   ctx.fillStyle = "#d7e7f8"; ctx.fillText("Good", PAD.left+174, legendY+8);
 }
@@ -6595,7 +6644,7 @@ function formatLastPerfTimeText(){
     const cpa = isMode2Sustained && r.cpa!=null ? `CPA ${Number(r.cpa).toFixed(1)}` : null;
     const disp = isMode2Sustained && r.dispositionCode ? r.dispositionCode : null;
     const spf = r.samnPerelli && r.samnPerelli.score!=null ? r.samnPerelli.score : "—";
-    const sleep = r.sleepLog && r.sleepLog.qualityLabel ? r.sleepLog.qualityLabel : (r.sleepSinceLastTest==="no" ? "No sleep since last test" : "—");
+    const sleep = r.sleepLog && r.sleepLog.qualityLabel ? r.sleepLog.qualityLabel : (r.sleepSinceLastTest==="no" ? "No sleep before this test" : "—");
     const cpaStr = cpa ? ` | ${cpa}${disp?" ("+disp+")":""}` : "";
     return `${i+1}. ${when} | ${isMode2Sustained?"SPI":"CPI"} ${cpi} | ${isMode2Sustained?"CSR/SBLP":"MBS"} ${mbs}${cpaStr} | SP-FS ${spf} | Sleep ${sleep}`;
   });
