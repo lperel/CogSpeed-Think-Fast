@@ -1,3 +1,10 @@
+## V662
+- Reverted to the clean live-drawn Speedometer with a vintage-style spear needle.
+- Increased MBS label prominence on the dial and kept MBS in the rectangular window.
+- Made the Mode 2 Speedometer toggle fully switch the summary boxes between CPA/Disposition and CPI/MBS.
+- Reworked the outer dial arc to seven bands aligned to the disposition score ranges.
+- Made CPA markers on the Performance Over Date and Time Graph more visually distinct and added a clearer offset square marker.
+
 V658
 - Vintage dial: masked baked-in image needle so only the live needle remains.
 

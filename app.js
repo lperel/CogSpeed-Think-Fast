@@ -2,7 +2,7 @@
 // CogSpeed source
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V661";
+const APP_VERSION = "V662";
 
 // ═══════════════════════════════════════════════════
 // Current behavior summary (historical details live in CHANGELOG.md)
@@ -3709,8 +3709,8 @@ function drawSpeedometer(canvas, scoreValue, success, scoreLabel="CPI", tipLabel
  const A_SWEEP = 240*Math.PI/180;
  function toAngle(v){ return A_START + (Math.max(0,Math.min(100,v))/100)*A_SWEEP; }
  const na = toAngle(scoreValue);
- const bandOut = R*1.06;
- const bandIn  = R*0.93;
+ const bandOut = R*1.12;
+ const bandIn  = R*0.95;
  const tickOuter = R*0.89;
  const faceTone = "#efe2c2";
  const dark = "#17130f";
@@ -3740,17 +3740,23 @@ function drawSpeedometer(canvas, scoreValue, success, scoreLabel="CPI", tipLabel
  ctx.beginPath(); ctx.arc(cx,cy,R*1.02,0,Math.PI*2);
  ctx.strokeStyle = "rgba(255,255,255,0.38)"; ctx.lineWidth = R*0.012; ctx.stroke();
 
- // color band (7 equal segments)
- const ARC = ["#650000", "#d94a4a", "#f28c18", "#e4cf2f", "#9ddc6b", "#43a94e", "#0a5d1c"];
- for(let i=0;i<ARC.length;i++){
-  const s = (i/ARC.length)*100;
-  const e = ((i+1)/ARC.length)*100;
-  const a1 = toAngle(s), a2 = toAngle(e);
+ // disposition-based outer arc: 2 red bands, orange, yellow, 3 green bands
+ const arcBands = [
+  {s:0, e:15, c:"#650000"},
+  {s:15, e:30, c:"#cf2020"},
+  {s:30, e:45, c:"#f28c18"},
+  {s:45, e:65, c:"#e4cf2f"},
+  {s:65, e:76.6667, c:"#9ddc6b"},
+  {s:76.6667, e:88.3333, c:"#43a94e"},
+  {s:88.3333, e:100, c:"#0a5d1c"}
+ ];
+ for(const b of arcBands){
+  const a1 = toAngle(b.s), a2 = toAngle(b.e);
   ctx.beginPath();
   ctx.arc(cx,cy,bandOut,a1,a2,false);
   ctx.arc(cx,cy,bandIn,a2,a1,true);
   ctx.closePath();
-  ctx.fillStyle = ARC[i];
+  ctx.fillStyle = b.c;
   ctx.fill();
  }
 
@@ -3770,7 +3776,6 @@ function drawSpeedometer(canvas, scoreValue, success, scoreLabel="CPI", tipLabel
   ctx.stroke();
  }
 
- // triangular major markers every 20 points
  [0,20,40,60,80,100].forEach(v=>{
   const a = toAngle(v);
   const rr = tickOuter + R*0.005;
@@ -3803,33 +3808,43 @@ function drawSpeedometer(canvas, scoreValue, success, scoreLabel="CPI", tipLabel
   ctx.fillText(String(v), x, y);
  }
 
- // score label
- ctx.font = `700 ${(R*0.10).toFixed(1)}px Arial,sans-serif`;
- ctx.fillText(String(scoreLabel||"CPI"), cx, cy + R*0.18);
+ // explicit score label
+ ctx.font = `700 ${(R*0.108).toFixed(1)}px Arial,sans-serif`;
+ ctx.fillStyle = dark;
+ ctx.fillText(String(scoreLabel||"CPI"), cx, cy + R*0.17);
 
- // needle
+ // vintage-style spear needle
  ctx.save();
  ctx.translate(cx,cy);
  ctx.rotate(na);
  const needleColor = success ? dark : "#b10000";
  ctx.beginPath();
- ctx.moveTo(-R*0.13, -R*0.02);
- ctx.lineTo(R*0.69, -R*0.011);
- ctx.lineTo(R*0.78, 0);
- ctx.lineTo(R*0.69, R*0.011);
- ctx.lineTo(-R*0.13, R*0.02);
+ ctx.moveTo(-R*0.18, 0);
+ ctx.lineTo(-R*0.07, -R*0.028);
+ ctx.lineTo(R*0.54, -R*0.016);
+ ctx.lineTo(R*0.84, 0);
+ ctx.lineTo(R*0.54, R*0.016);
+ ctx.lineTo(-R*0.07, R*0.028);
  ctx.closePath();
  ctx.fillStyle = needleColor;
  ctx.fill();
  ctx.beginPath();
- ctx.moveTo(-R*0.10, -R*0.006);
- ctx.lineTo(R*0.64, -R*0.003);
- ctx.strokeStyle = "rgba(255,255,255,0.28)";
+ ctx.moveTo(-R*0.09, 0);
+ ctx.lineTo(-R*0.26, -R*0.045);
+ ctx.lineTo(-R*0.31, 0);
+ ctx.lineTo(-R*0.26, R*0.045);
+ ctx.closePath();
+ ctx.fillStyle = success ? "#2a2218" : "#7a0000";
+ ctx.fill();
+ ctx.beginPath();
+ ctx.moveTo(-R*0.05, -R*0.004);
+ ctx.lineTo(R*0.72, -R*0.002);
+ ctx.strokeStyle = "rgba(255,255,255,0.22)";
  ctx.lineWidth = R*0.005;
  ctx.stroke();
  ctx.restore();
 
- // mbs window
+ // MBS window and label
  if(success && tipValue){
   const bw = R*0.72, bh = R*0.18;
   const bx = cx - bw/2, by = cy + R*0.37;
@@ -3843,13 +3858,12 @@ function drawSpeedometer(canvas, scoreValue, success, scoreLabel="CPI", tipLabel
   ctx.fillStyle = dark;
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
-  ctx.font = `700 ${(R*0.055).toFixed(1)}px Arial,sans-serif`;
+  ctx.font = `700 ${(R*0.068).toFixed(1)}px Arial,sans-serif`;
   ctx.fillText(String(tipValue), cx, by + bh*0.54);
-  ctx.font = `500 ${(R*0.078).toFixed(1)}px "Arial Narrow",Arial,sans-serif`;
-  ctx.fillText(String(tipLabel||"MBS"), cx, by + bh + R*0.11);
+  ctx.font = `700 ${(R*0.108).toFixed(1)}px Arial,sans-serif`;
+  ctx.fillText(String(tipLabel||"MBS"), cx, by - R*0.07);
  }
 
- // hub
  const hub = ctx.createRadialGradient(cx-R*0.02, cy-R*0.02, 0, cx, cy, R*0.09);
  hub.addColorStop(0, "#6a6a6a");
  hub.addColorStop(0.55, "#272727");
@@ -5844,14 +5858,21 @@ function getMode2SpeedometerMetric(result){
  const cpa = Number(result && result.cpa);
  const dispositionText = result && (result.dispositionCode || result.dispositionLabel) ? `${result.dispositionCode||"—"} ${result.dispositionLabel||"—"}` : "—";
  const mbsText = Number.isFinite(mbs)?`${Number(mbs).toFixed(1)} ms`:"—";
+ const cpiText = Number.isFinite(cpi)?`${Number(cpi).toFixed(1)} / 100`:"—";
+ const cpaText = Number.isFinite(cpa)?`${Number(cpa).toFixed(1)} / 100`:"—";
  return {
   score:pref!=="cpi" ? (Number.isFinite(cpa)?Math.max(0,Math.min(100,cpa)):0) : (Number.isFinite(cpi)?Math.max(0,Math.min(100,cpi)):0),
   scoreLabel:pref!=="cpi" ? "CPA" : "CPI",
   mbsText,
-  boxes:[
-   {label:"CPA", value:Number.isFinite(cpa)?`${Number(cpa).toFixed(1)} / 100`:"—"},
-   {label:"Disposition", value:dispositionText}
-  ]
+  boxes: pref!=="cpi"
+   ? [
+      {label:"CPA", value:cpaText},
+      {label:"Disposition", value:dispositionText}
+     ]
+   : [
+      {label:"CPI", value:cpiText},
+      {label:"MBS", value:mbsText}
+     ]
  };
 }
 
@@ -6308,7 +6329,10 @@ function drawPerformanceOverTimeChart(canvas,hist){
     });
   }
 
-  function drawLine(vals, yFunc, color, style){
+  function drawLine(vals, yFunc, color, style, opts={}){
+    const markerDx = Number(opts.markerDx)||0;
+    const markerSize = Number(opts.markerSize)||4.2;
+    const strokeMarker = !!opts.strokeMarker;
     ctx.strokeStyle=color;
     ctx.lineWidth=2.5;
     ctx.beginPath();
@@ -6322,14 +6346,19 @@ function drawPerformanceOverTimeChart(canvas,hist){
 
     vals.forEach((v,i)=>{
       if(v==null) return;
-      const x=xOf(i), y=yFunc(v,i);
+      const x=xOf(i)+markerDx, y=yFunc(v,i);
       ctx.fillStyle=color;
       if(style==="diamond"){
-        ctx.save(); ctx.translate(x,y); ctx.rotate(Math.PI/4); ctx.fillRect(-4,-4,8,8); ctx.restore();
+        ctx.save(); ctx.translate(x,y); ctx.rotate(Math.PI/4); ctx.fillRect(-markerSize,-markerSize,markerSize*2,markerSize*2); ctx.restore();
       }else if(style==="square"){
-        ctx.fillRect(x-4.2,y-4.2,8.4,8.4);
+        if(strokeMarker){
+          ctx.strokeStyle = "#f6e7ff";
+          ctx.lineWidth = 1.5;
+          ctx.strokeRect(x-markerSize-1, y-markerSize-1, markerSize*2+2, markerSize*2+2);
+        }
+        ctx.fillRect(x-markerSize,y-markerSize,markerSize*2,markerSize*2);
       }else{
-        ctx.beginPath(); ctx.arc(x,y,4.2,0,Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.arc(x,y,markerSize,0,Math.PI*2); ctx.fill();
       }
     });
   }
@@ -6383,7 +6412,7 @@ function drawPerformanceOverTimeChart(canvas,hist){
 
   drawLine(spfVals, v=>yRightFromSpf(v), "#88ff88", "diamond");
   drawCombinedPerfMarkers(scoreVals, metricVals);
-  drawLine(cpaVals, v=>yLeftFromScore(v), "#d6a7ff", "square");
+  drawLine(cpaVals, v=>yLeftFromScore(v), "#d6a7ff", "square", {markerDx:10, markerSize:5.4, strokeMarker:true});
 
   const sleepBarY = PAD.top + cH + 18;
   const sleepBarH = 10;
