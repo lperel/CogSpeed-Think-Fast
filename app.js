@@ -2,7 +2,7 @@
 // CogSpeed source
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V658";
+const APP_VERSION = "V659";
 
 // ═══════════════════════════════════════════════════
 // Current behavior summary (historical details live in CHANGELOG.md)
@@ -219,7 +219,7 @@ const LINE_PATTERNS={
 const SAMN_PERELLI=[
  [7,"Full alert, wide awake"],
  [6,"Very lively, responsive, but not at peak"],
- [5,"Restless / interrupted sleep"],
+ [5,"Okay, about normal"],
  [4,"Less than sharp, let down"],
  [3,"Feeling dull, losing focus"],
  [2,"Very difficult to concentrate, groggy"],
@@ -317,9 +317,12 @@ syncReleaseUI();
 
 function getPhaseBackgroundColor(){
  const phase=String(state.phase||"");
- if(phase==="calibration") return "#8f8f8f";
- if(phase==="mode2_sustained"||phase==="mode2_final") return "#979797";
- return "#7d7d7d";
+ const LIGHT_BLUE = "#b9dcff";   // calibration + sustained/final self-paced
+ const MEDIUM_BLUE = "#6f9fd6";  // adaptive / recovery / fixed machine-paced
+ if(phase==="calibration") return LIGHT_BLUE;
+ if(phase==="mode2_sustained"||phase==="mode2_final") return LIGHT_BLUE;
+ if(phase==="paced"||phase==="paced_fixed"||phase==="recovery"||phase==="terminal_recovery") return MEDIUM_BLUE;
+ return MEDIUM_BLUE;
 }
 function applyPhaseBackground(){
  const ts=$("testScreen");
