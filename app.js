@@ -2,7 +2,7 @@
 // CogSpeed source
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V656";
+const APP_VERSION = "V657";
 
 // ═══════════════════════════════════════════════════
 // Current behavior summary (historical details live in CHANGELOG.md)
@@ -3728,9 +3728,10 @@ function drawSpeedometer(canvas, scoreValue, success, scoreLabel="CPI", tipLabel
 
  // vintage dial image (fallback to painted face if not ready)
  const img = speedometerVintageImage.get();
- const imgRadius = R*1.18;
+ const imageReady = !!(img && img.complete && img.naturalWidth);
+ const imgRadius = bandIn - R*0.03;
  const imgSize = imgRadius*2;
- if(img && img.complete && img.naturalWidth){
+ if(imageReady){
   ctx.save();
   ctx.beginPath();
   ctx.arc(cx, cy, imgRadius, 0, Math.PI*2);
@@ -3766,53 +3767,55 @@ function drawSpeedometer(canvas, scoreValue, success, scoreLabel="CPI", tipLabel
  ctx.lineWidth = R*0.012;
  ctx.stroke();
 
- // outer fine hash marks
- ctx.strokeStyle = dark;
- ctx.lineCap = "butt";
- for(let v=0;v<=100;v++){
-  const a = toAngle(v);
-  const major = v%10===0;
-  const five = v%5===0;
-  const len = major ? R*0.16 : five ? R*0.09 : R*0.055;
-  const lw = major ? R*0.013 : five ? R*0.009 : R*0.0045;
-  ctx.beginPath();
-  ctx.moveTo(cx + tickOuter*Math.cos(a), cy + tickOuter*Math.sin(a));
-  ctx.lineTo(cx + (tickOuter-len)*Math.cos(a), cy + (tickOuter-len)*Math.sin(a));
-  ctx.lineWidth = lw;
-  ctx.stroke();
- }
+ if(!imageReady){
+  // outer fine hash marks
+  ctx.strokeStyle = dark;
+  ctx.lineCap = "butt";
+  for(let v=0;v<=100;v++){
+   const a = toAngle(v);
+   const major = v%10===0;
+   const five = v%5===0;
+   const len = major ? R*0.16 : five ? R*0.09 : R*0.055;
+   const lw = major ? R*0.013 : five ? R*0.009 : R*0.0045;
+   ctx.beginPath();
+   ctx.moveTo(cx + tickOuter*Math.cos(a), cy + tickOuter*Math.sin(a));
+   ctx.lineTo(cx + (tickOuter-len)*Math.cos(a), cy + (tickOuter-len)*Math.sin(a));
+   ctx.lineWidth = lw;
+   ctx.stroke();
+  }
 
- // triangular major markers every 20 points
- [0,20,40,60,80,100].forEach(v=>{
-  const a = toAngle(v);
-  const rr = tickOuter + R*0.005;
-  const sz = R*0.05;
-  ctx.save();
-  ctx.translate(cx + rr*Math.cos(a), cy + rr*Math.sin(a));
-  ctx.rotate(a + Math.PI/2);
-  ctx.beginPath();
-  ctx.moveTo(0,-sz*1.05);
-  ctx.lineTo(sz*0.46, sz*0.38);
-  ctx.lineTo(-sz*0.46, sz*0.38);
-  ctx.closePath();
+  // triangular major markers every 20 points
+  [0,20,40,60,80,100].forEach(v=>{
+   const a = toAngle(v);
+   const rr = tickOuter + R*0.005;
+   const sz = R*0.05;
+   ctx.save();
+   ctx.translate(cx + rr*Math.cos(a), cy + rr*Math.sin(a));
+   ctx.rotate(a + Math.PI/2);
+   ctx.beginPath();
+   ctx.moveTo(0,-sz*1.05);
+   ctx.lineTo(sz*0.46, sz*0.38);
+   ctx.lineTo(-sz*0.46, sz*0.38);
+   ctx.closePath();
+   ctx.fillStyle = dark;
+   ctx.fill();
+   ctx.restore();
+  });
+
+  // numerals
   ctx.fillStyle = dark;
-  ctx.fill();
-  ctx.restore();
- });
-
- // numerals
- ctx.fillStyle = dark;
- ctx.textAlign = "center";
- ctx.textBaseline = "middle";
- const numR = R*0.63;
- for(let v=0; v<=100; v+=10){
-  const a = toAngle(v);
-  const x = cx + numR*Math.cos(a);
-  const y = cy + numR*Math.sin(a);
-  const major20 = v%20===0;
-  const fontSize = major20 ? R*0.132 : R*0.09;
-  ctx.font = `${major20 ? '700' : '500'} ${fontSize.toFixed(1)}px "Arial Narrow","Helvetica Neue Condensed",Arial,sans-serif`;
-  ctx.fillText(String(v), x, y);
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  const numR = R*0.63;
+  for(let v=0; v<=100; v+=10){
+   const a = toAngle(v);
+   const x = cx + numR*Math.cos(a);
+   const y = cy + numR*Math.sin(a);
+   const major20 = v%20===0;
+   const fontSize = major20 ? R*0.132 : R*0.09;
+   ctx.font = `${major20 ? '700' : '500'} ${fontSize.toFixed(1)}px "Arial Narrow","Helvetica Neue Condensed",Arial,sans-serif`;
+   ctx.fillText(String(v), x, y);
+  }
  }
 
  // score label
