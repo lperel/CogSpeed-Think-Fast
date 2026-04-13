@@ -2,7 +2,7 @@
 // CogSpeed source
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V657";
+const APP_VERSION = "V658";
 
 // ═══════════════════════════════════════════════════
 // Current behavior summary (historical details live in CHANGELOG.md)
@@ -3739,6 +3739,29 @@ function drawSpeedometer(canvas, scoreValue, success, scoreLabel="CPI", tipLabel
   ctx.clip();
   ctx.drawImage(img, cx-imgRadius, cy-imgRadius, imgSize, imgSize);
   ctx.restore();
+
+  // mask the photographed needle baked into the vintage face image
+  // so only the live CogSpeed needle is visible.
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(cx, cy, imgRadius - R*0.015, 0, Math.PI*2);
+  ctx.closePath();
+  ctx.clip();
+  const bakedNeedleAngle = 214 * Math.PI / 180;
+  ctx.strokeStyle = faceTone;
+  ctx.lineCap = "round";
+  ctx.lineWidth = R*0.13;
+  ctx.beginPath();
+  ctx.moveTo(cx, cy);
+  ctx.lineTo(cx + (R*0.92)*Math.cos(bakedNeedleAngle), cy + (R*0.92)*Math.sin(bakedNeedleAngle));
+  ctx.stroke();
+  ctx.lineWidth = R*0.09;
+  ctx.strokeStyle = "rgba(245,232,202,0.92)";
+  ctx.beginPath();
+  ctx.moveTo(cx, cy);
+  ctx.lineTo(cx + (R*0.94)*Math.cos(bakedNeedleAngle), cy + (R*0.94)*Math.sin(bakedNeedleAngle));
+  ctx.stroke();
+  ctx.restore();
  } else {
   // fallback vintage cream dial
   ctx.beginPath(); ctx.arc(cx,cy,R*1.22,0,Math.PI*2);
@@ -3844,6 +3867,15 @@ function drawSpeedometer(canvas, scoreValue, success, scoreLabel="CPI", tipLabel
  ctx.lineWidth = R*0.005;
  ctx.stroke();
  ctx.restore();
+
+ // center cap covers the vintage photo hub and keeps the live needle clean.
+ ctx.beginPath();
+ ctx.arc(cx, cy, R*0.055, 0, Math.PI*2);
+ ctx.fillStyle = dark;
+ ctx.fill();
+ ctx.strokeStyle = "rgba(255,255,255,0.18)";
+ ctx.lineWidth = R*0.008;
+ ctx.stroke();
 
  // mbs window
  if(success && tipValue){

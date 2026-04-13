@@ -1,3 +1,6 @@
+V658
+- Vintage dial: masked baked-in image needle so only the live needle remains.
+
 ## V657
 - Sleep Logger prompt changed to “Have you slept before this test?”
 - Sleep Logger main instruction clarified for entered sleep/wake times before this test
