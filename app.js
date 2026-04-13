@@ -2,7 +2,7 @@
 // CogSpeed source
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V664";
+const APP_VERSION = "V665";
 
 // ═══════════════════════════════════════════════════
 // Current behavior summary (historical details live in CHANGELOG.md)
@@ -6445,7 +6445,14 @@ function drawPerformanceOverTimeChart(canvas,hist){
   ctx.fillStyle="#d6a7ff";
   ctx.fillRect(PAD.left+272, PAD.top-22, 8, 8);
   ctx.fillText(cpaLegend, PAD.left+288, PAD.top-14);
-  ctx.fillStyle="#88ff88"; ctx.fillText("Green diamond = SP-FS", PAD.left+360, PAD.top-14);
+  const spLegendY = PAD.top + 4;
+  ctx.fillStyle="#88ff88";
+  ctx.save();
+  ctx.translate(PAD.left+7, spLegendY+4);
+  ctx.rotate(Math.PI/4);
+  ctx.fillRect(-3.8,-3.8,7.6,7.6);
+  ctx.restore();
+  ctx.fillText("Green diamond = SP-FS", PAD.left+18, spLegendY+8);
 
   const legendY = PAD.top + cH + 38;
   ctx.fillStyle = "#ff4d4f"; ctx.fillRect(PAD.left, legendY, 12, 8);

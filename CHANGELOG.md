@@ -1,4 +1,4 @@
-## V664
+## V665
 - moved Speedometer CPI/CPA label into the upper dial sector so the live needle no longer obscures it
 - made calibration and sustained/final self-paced background blue slightly darker while keeping them matched
 
