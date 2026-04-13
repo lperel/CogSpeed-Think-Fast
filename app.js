@@ -2,7 +2,7 @@
 // CogSpeed source
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V665";
+const APP_VERSION = "V666";
 
 // ═══════════════════════════════════════════════════
 // Current behavior summary (historical details live in CHANGELOG.md)
@@ -3808,36 +3808,28 @@ function drawSpeedometer(canvas, scoreValue, success, scoreLabel="CPI", tipLabel
   ctx.fillText(String(v), x, y);
  }
 
- // explicit score label — keep it in the upper unused sector so the needle does not obscure it
+ // explicit score label — keep it low on the dial so the needle does not obscure it
  ctx.font = `700 ${(R*0.104).toFixed(1)}px Arial,sans-serif`;
  ctx.fillStyle = dark;
- ctx.fillText(String(scoreLabel||"CPI"), cx, cy - R*0.50);
+ ctx.fillText(String(scoreLabel||"CPI"), cx, cy + R*0.22);
 
- // vintage-style spear needle
+ // vintage-style spear needle without a rear tail
  ctx.save();
  ctx.translate(cx,cy);
  ctx.rotate(na);
  const needleColor = success ? dark : "#b10000";
  ctx.beginPath();
- ctx.moveTo(-R*0.18, 0);
- ctx.lineTo(-R*0.07, -R*0.028);
+ ctx.moveTo(R*0.02, 0);
+ ctx.lineTo(R*0.12, -R*0.028);
  ctx.lineTo(R*0.54, -R*0.016);
  ctx.lineTo(R*0.84, 0);
  ctx.lineTo(R*0.54, R*0.016);
- ctx.lineTo(-R*0.07, R*0.028);
+ ctx.lineTo(R*0.12, R*0.028);
  ctx.closePath();
  ctx.fillStyle = needleColor;
  ctx.fill();
  ctx.beginPath();
- ctx.moveTo(-R*0.09, 0);
- ctx.lineTo(-R*0.26, -R*0.045);
- ctx.lineTo(-R*0.31, 0);
- ctx.lineTo(-R*0.26, R*0.045);
- ctx.closePath();
- ctx.fillStyle = success ? "#2a2218" : "#7a0000";
- ctx.fill();
- ctx.beginPath();
- ctx.moveTo(-R*0.05, -R*0.004);
+ ctx.moveTo(R*0.08, -R*0.004);
  ctx.lineTo(R*0.72, -R*0.002);
  ctx.strokeStyle = "rgba(255,255,255,0.22)";
  ctx.lineWidth = R*0.005;
@@ -5169,30 +5161,47 @@ function formatElapsedDuration(mins){
  const h=Math.floor(rem/60), m=rem%60;
  return days>0 ? `${days}d ${h}h ${m}m` : `${h}h ${m}m`;
 }
-function deriveWakeDateTimeIso(wakeTime, testIso){
+function applyRelativeDay(baseDate, dayTag){
+ const d = new Date(baseDate);
+ if(!isFinite(d.getTime())) return null;
+ const tag = String(dayTag||"today").trim().toLowerCase();
+ if(tag==="yesterday") d.setDate(d.getDate()-1);
+ return d;
+}
+function deriveWakeDateTimeIso(wakeTime, testIso, wakeDayTag="today"){
  const wakeMins = parseSleepTimeToMinutes(wakeTime);
  if(wakeMins==null || !testIso) return null;
  const testDate = new Date(testIso);
  if(!isFinite(testDate.getTime())) return null;
- const wakeDate = new Date(testDate);
+ const wakeDate = applyRelativeDay(testDate, wakeDayTag);
+ if(!wakeDate) return null;
  wakeDate.setHours(Math.floor(wakeMins/60), wakeMins%60, 0, 0);
- if(wakeDate.getTime() > testDate.getTime()) wakeDate.setDate(wakeDate.getDate()-1);
+ if(String(wakeDayTag||"today").toLowerCase()==="today" && wakeDate.getTime() > testDate.getTime()) wakeDate.setDate(wakeDate.getDate()-1);
  return wakeDate.toISOString();
 }
-function deriveSleepWindowForCurrentTest(bedTime, wakeTime, referenceIso, durationOverrideMinutes=null){
+function deriveSleepWindowForCurrentTest(bedTime, wakeTime, referenceIso, durationOverrideMinutes=null, bedDayTag="yesterday", wakeDayTag="today"){
  const computedDurationMinutes = computeSleepDurationMinutes(bedTime, wakeTime);
  const durationMinutes = durationOverrideMinutes!=null ? durationOverrideMinutes : computedDurationMinutes;
- const wakeIso = deriveWakeDateTimeIso(wakeTime, referenceIso);
+ const wakeIso = deriveWakeDateTimeIso(wakeTime, referenceIso, wakeDayTag);
  if(durationMinutes==null || !wakeIso) return null;
  const wakeDate = new Date(wakeIso);
  if(!isFinite(wakeDate.getTime())) return null;
- const bedDate = new Date(wakeDate.getTime() - durationMinutes*60000);
+ let bedDate = applyRelativeDay(wakeDate, bedDayTag);
+ if(!bedDate) return null;
+ const bedMins = parseSleepTimeToMinutes(bedTime);
+ if(bedMins==null) return null;
+ bedDate.setHours(Math.floor(bedMins/60), bedMins%60, 0, 0);
+ if(durationOverrideMinutes==null){
+  const fallbackBedDate = new Date(wakeDate.getTime() - durationMinutes*60000);
+  const delta = Math.abs(fallbackBedDate.getTime() - bedDate.getTime());
+  if(delta > 36*60*60*1000) bedDate = fallbackBedDate;
+ }
  const referenceDate = new Date(referenceIso || Date.now());
  if(!isFinite(referenceDate.getTime())) return null;
- return { bedDate, wakeDate, durationMinutes, computedDurationMinutes, referenceDate, usedDurationOverride: durationOverrideMinutes!=null };
+ return { bedDate, wakeDate, durationMinutes, computedDurationMinutes, referenceDate, usedDurationOverride: durationOverrideMinutes!=null, bedDayTag, wakeDayTag };
 }
-function validateSleepWindowForCurrentTest(bedTime, wakeTime, referenceIso, durationOverrideMinutes=null){
- const window = deriveSleepWindowForCurrentTest(bedTime, wakeTime, referenceIso, durationOverrideMinutes);
+function validateSleepWindowForCurrentTest(bedTime, wakeTime, referenceIso, durationOverrideMinutes=null, bedDayTag="yesterday", wakeDayTag="today"){
+ const window = deriveSleepWindowForCurrentTest(bedTime, wakeTime, referenceIso, durationOverrideMinutes, bedDayTag, wakeDayTag);
  if(!window) return { ok:false, message:"Enter both sleep and wake times." };
  const { bedDate, wakeDate, durationMinutes, referenceDate } = window;
  if(durationMinutes < 10) return { ok:false, message:"Sleep duration is too short. Enter at least 10 minutes for a cat nap or correct the times." };
@@ -5240,7 +5249,7 @@ function formatSleepSummaryMetricsLine(result){
  const quality = getSleepQualityBadge(result);
  const awakeText = awakeMins!=null ? formatElapsedDuration(awakeMins) : "—";
  const sleptText = sleptMins!=null ? formatSleepDuration(sleptMins) : "—";
- return `Total Hours Awake: ${awakeText}   Total Hours Slept: ${sleptText}   Sleep Quality: ${quality.icon} ${quality.text}`;
+ return `Since last waking: Total hours awake ${awakeText}   Total hours last slept ${sleptText}   Sleep Quality: ${formatSleepQualityText(result)}`;
 }
 function computeSleepDurationMinutes(bed,wake){
  const b=parseSleepTimeToMinutes(bed), w=parseSleepTimeToMinutes(wake);
@@ -5280,17 +5289,16 @@ function formatSleepLine(result){
  if(slept==="yes"){
   const bed = formatClockForDisplay(sl?.bedtime || null);
   const wake = formatClockForDisplay(sl?.wakeTime || null);
-  const dur = sl?.durationMinutes!=null ? formatSleepDuration(sl.durationMinutes) : "—";
-  const manualPart = sl?.durationOverrideMinutes!=null ? " (manual)" : "";
-  const qualityPart = (sl?.qualityLabel && sl?.qualityScore!=null) ? ` · Quality: ${sl.qualityLabel} (${sl.qualityScore}/3)` : "";
-  return `SLEEP: Yes · Hours asleep: ${dur}${manualPart} · Bed ${bed} → Wake ${wake}${qualityPart}`;
+  const bedTag = formatSleepDayTag(sl?.bedDayTag);
+  const wakeTag = formatSleepDayTag(sl?.wakeDayTag);
+  return `Bed ${bed}${bedTag ? ` (${bedTag})` : ""} → Wake ${wake}${wakeTag ? ` (${wakeTag})` : ""}`;
  }
  if(slept==="no"){
   const lastWakeIso = sl?.lastWakeDateTimeIso || null;
-  const wakePart = lastWakeIso ? ` · Last wake: ${new Date(lastWakeIso).toLocaleString()}` : "";
-  return `SLEEP: No sleep before this test · Hours asleep: ${formatSleepDuration(0)}${wakePart}`;
+  const wakePart = lastWakeIso ? `Last wake: ${new Date(lastWakeIso).toLocaleString()}` : "No sleep before this test";
+  return wakePart;
  }
- return "SLEEP: Not entered";
+ return "Sleep: Not entered";
 }
 
 
@@ -5394,7 +5402,9 @@ function continueFromSleepLogger(){
  const bed=getSleepInputCanonicalValue("sleepBedtimeInput");
  const wake=getSleepInputCanonicalValue("sleepWakeInput");
  const durationOverrideMinutes=getSleepDurationOverrideMinutes();
- const validation = validateSleepWindowForCurrentTest(bed, wake, new Date().toISOString(), durationOverrideMinutes);
+ const bedDay = String($("sleepBedDaySelect")?.value||"yesterday");
+ const wakeDay = String($("sleepWakeDaySelect")?.value||"today");
+ const validation = validateSleepWindowForCurrentTest(bed, wake, new Date().toISOString(), durationOverrideMinutes, bedDay, wakeDay);
  if(!validation.ok){
   setStatus(validation.message);
   const warn=$("sleepWarnBox");
@@ -5408,6 +5418,9 @@ function continueFromSleepLogger(){
  state.sleepLog.wakeTime = wake || null;
  state.sleepLog.durationMinutes = duration;
  state.sleepLog.durationOverrideMinutes = durationOverrideMinutes!=null ? durationOverrideMinutes : null;
+ state.sleepLog.bedDayTag = bedDay;
+ state.sleepLog.wakeDayTag = wakeDay;
+ state.sleepLog.bedDateTimeIso = validation.window.bedDate.toISOString();
  state.sleepLog.wakeDateTimeIso = validation.window.wakeDate.toISOString();
  if(state.sleepLog.qualityScore==null){
   delete state.sleepLog.qualityScore;
@@ -5485,6 +5498,8 @@ $("sleepPromptNoBtn").onclick=()=>{
 
 $("sleepBedtimeInput").addEventListener("input", (e)=>{ syncSleepInputCanonical(e.currentTarget); updateSleepLoggerUI(); });
 $("sleepWakeInput").addEventListener("input", (e)=>{ syncSleepInputCanonical(e.currentTarget); updateSleepLoggerUI(); });
+$("sleepBedDaySelect")?.addEventListener("change", ()=>updateSleepLoggerUI());
+$("sleepWakeDaySelect")?.addEventListener("change", ()=>updateSleepLoggerUI());
 ["sleepBedHourInput","sleepBedMinuteInput","sleepWakeHourInput","sleepWakeMinuteInput"].forEach(id=>{
  const el=$(id); if(el) el.addEventListener("input", ()=>updateSleepLoggerUI());
 });
@@ -5818,12 +5833,23 @@ function renderSpfGaugeForResult(result){
 
 function getSleepQualityBadge(result){
  const label = String(result?.sleepLog?.qualityLabel || "").trim();
+ const score = result?.sleepLog?.qualityScore!=null ? Number(result.sleepLog.qualityScore) : null;
  const key = label.toLowerCase();
- if(key==="poor") return {icon:"😵‍💫", color:"#d9514e", text:"Poor"};
- if(key==="restless") return {icon:"🥱", color:"#f1c14b", text:"Restless"};
- if(key==="good") return {icon:"😴", color:"#72d572", text:"Good"};
- if(result?.sleepSinceLastTest==="no") return {icon:"—", color:"#9fb4c8", text:"No sleep"};
- return {icon:"—", color:"#9fb4c8", text:"—"};
+ if(key==="poor") return {icon:"😵‍💫", color:"#d9514e", text:"Poor", score};
+ if(key==="restless") return {icon:"🥱", color:"#f1c14b", text:"Restless", score};
+ if(key==="good") return {icon:"😴", color:"#72d572", text:"Good", score};
+ if(result?.sleepSinceLastTest==="no") return {icon:"—", color:"#9fb4c8", text:"No sleep", score:null};
+ return {icon:"—", color:"#9fb4c8", text:"—", score:null};
+}
+function formatSleepQualityText(result){
+ const q = getSleepQualityBadge(result);
+ return q.score!=null && q.text && q.text!=="—" ? `${q.text} (${q.score}/3)` : q.text;
+}
+function formatSleepDayTag(tag){
+ const t = String(tag||"").trim().toLowerCase();
+ if(t==="yesterday") return "Yesterday";
+ if(t==="today") return "Today";
+ return t ? t.charAt(0).toUpperCase()+t.slice(1) : "";
 }
 
 function renderSpeedometerSleepMetrics(result){
@@ -5834,18 +5860,19 @@ function renderSpeedometerSleepMetrics(result){
  const quality = getSleepQualityBadge(result);
  const awakeText = awakeMins!=null ? formatElapsedDuration(awakeMins) : "—";
  const sleptText = sleptMins!=null ? formatSleepDuration(sleptMins) : "—";
+ const qualityText = formatSleepQualityText(result);
  wrap.innerHTML = `
   <div class="summary-card">
-    <div class="summary-card-label">Total Hours Awake</div>
-    <div class="summary-card-val" style="font-size:20px">${awakeText}</div>
+    <div class="summary-card-label">Since last waking</div>
+    <div class="summary-card-val" style="font-size:18px">Total hours awake ${awakeText}</div>
   </div>
   <div class="summary-card">
-    <div class="summary-card-label">Total Hours Slept</div>
-    <div class="summary-card-val" style="font-size:20px;display:flex;align-items:center;justify-content:center;gap:10px;flex-wrap:wrap">
-      <span>${sleptText}</span>
+    <div class="summary-card-label">Most recent sleep</div>
+    <div class="summary-card-val" style="font-size:18px;display:flex;align-items:center;justify-content:center;gap:10px;flex-wrap:wrap">
+      <span>Total hours last slept ${sleptText}</span>
       <span style="display:inline-flex;align-items:center;gap:6px;color:${quality.color};font-size:18px;font-weight:800">
         <span aria-hidden="true" style="font-size:20px;line-height:1">${quality.icon}</span>
-        <span>${quality.text}</span>
+        <span>Sleep Quality: ${qualityText}</span>
       </span>
     </div>
   </div>`;

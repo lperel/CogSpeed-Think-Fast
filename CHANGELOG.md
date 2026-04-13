@@ -1,3 +1,8 @@
+## V666
+- Sleep metrics wording updated to "Since last waking" / "Total hours last slept" with sleep quality score and bed/wake day tags.
+- Sleep Logger now includes Yesterday/Today selectors for sleep and wake times.
+- Speedometer needle tail removed and CPI/CPA label moved to bottom of dial.
+
 ## V665
 - moved Speedometer CPI/CPA label into the upper dial sector so the live needle no longer obscures it
 - made calibration and sustained/final self-paced background blue slightly darker while keeping them matched
