@@ -2,7 +2,7 @@
 // CogSpeed source
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V659";
+const APP_VERSION = "V660";
 
 // ═══════════════════════════════════════════════════
 // Current behavior summary (historical details live in CHANGELOG.md)
@@ -3751,18 +3751,18 @@ function drawSpeedometer(canvas, scoreValue, success, scoreLabel="CPI", tipLabel
   ctx.closePath();
   ctx.clip();
   const bakedNeedleAngle = 214 * Math.PI / 180;
-  ctx.strokeStyle = faceTone;
   ctx.lineCap = "round";
-  ctx.lineWidth = R*0.13;
+  ctx.strokeStyle = faceTone;
+  ctx.lineWidth = R*0.18;
   ctx.beginPath();
-  ctx.moveTo(cx, cy);
-  ctx.lineTo(cx + (R*0.92)*Math.cos(bakedNeedleAngle), cy + (R*0.92)*Math.sin(bakedNeedleAngle));
+  ctx.moveTo(cx - (R*0.26)*Math.cos(bakedNeedleAngle), cy - (R*0.26)*Math.sin(bakedNeedleAngle));
+  ctx.lineTo(cx + (R*0.98)*Math.cos(bakedNeedleAngle), cy + (R*0.98)*Math.sin(bakedNeedleAngle));
   ctx.stroke();
-  ctx.lineWidth = R*0.09;
-  ctx.strokeStyle = "rgba(245,232,202,0.92)";
+  ctx.strokeStyle = "rgba(245,232,202,0.98)";
+  ctx.lineWidth = R*0.11;
   ctx.beginPath();
-  ctx.moveTo(cx, cy);
-  ctx.lineTo(cx + (R*0.94)*Math.cos(bakedNeedleAngle), cy + (R*0.94)*Math.sin(bakedNeedleAngle));
+  ctx.moveTo(cx - (R*0.22)*Math.cos(bakedNeedleAngle), cy - (R*0.22)*Math.sin(bakedNeedleAngle));
+  ctx.lineTo(cx + (R*0.99)*Math.cos(bakedNeedleAngle), cy + (R*0.99)*Math.sin(bakedNeedleAngle));
   ctx.stroke();
   ctx.restore();
  } else {
@@ -3844,10 +3844,21 @@ function drawSpeedometer(canvas, scoreValue, success, scoreLabel="CPI", tipLabel
   }
  }
 
- // score label
+ // score label plaque
+ const scorePlaqueW = R*0.36, scorePlaqueH = R*0.13;
+ const scorePlaqueX = cx - scorePlaqueW/2, scorePlaqueY = cy + R*0.14;
+ ctx.beginPath();
+ if(ctx.roundRect) ctx.roundRect(scorePlaqueX, scorePlaqueY, scorePlaqueW, scorePlaqueH, R*0.025); else ctx.rect(scorePlaqueX, scorePlaqueY, scorePlaqueW, scorePlaqueH);
+ ctx.fillStyle = "rgba(245,232,202,0.88)";
+ ctx.fill();
+ ctx.strokeStyle = "rgba(23,19,15,0.28)";
+ ctx.lineWidth = R*0.006;
+ ctx.stroke();
  ctx.fillStyle = dark;
- ctx.font = `700 ${(R*0.06).toFixed(1)}px Arial,sans-serif`;
- ctx.fillText(String(scoreLabel||"CPI"), cx, cy + R*0.23);
+ ctx.font = `700 ${(R*0.075).toFixed(1)}px Arial,sans-serif`;
+ ctx.textAlign = "center";
+ ctx.textBaseline = "middle";
+ ctx.fillText(String(scoreLabel||"CPI"), cx, scorePlaqueY + scorePlaqueH*0.56);
 
  // needle
  ctx.save();
@@ -3894,10 +3905,10 @@ function drawSpeedometer(canvas, scoreValue, success, scoreLabel="CPI", tipLabel
   ctx.fillStyle = dark;
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
+  ctx.font = `700 ${(R*0.06).toFixed(1)}px Arial,sans-serif`;
+  ctx.fillText(String(tipLabel||"MBS"), cx, by - R*0.08);
   ctx.font = `700 ${(R*0.055).toFixed(1)}px Arial,sans-serif`;
   ctx.fillText(String(tipValue), cx, by + bh*0.54);
-  ctx.font = `500 ${(R*0.078).toFixed(1)}px "Arial Narrow",Arial,sans-serif`;
-  ctx.fillText(String(tipLabel||"MBS"), cx, by + bh + R*0.11);
  }
 
  // hub
@@ -6266,9 +6277,10 @@ function drawPerformanceOverTimeChart(canvas,hist){
   // Performance-over-time graph always plots CPI as the blue dot.
   // The orange MBS ring is drawn around the same CPI position by design.
   const leftMetricLabel = "MBS ms";
-  const leftScoreLabel = "CPI";
+  const leftScoreLabel = "CPI / CPA";
   const dotLegend = "Blue dot = CPI";
   const ringLegend = "Orange circle = MBS";
+  const cpaLegend = "Purple square = CPA";
 
   function xOf(i){
     if(n<=1) return PAD.left + cW/2;
@@ -6376,6 +6388,8 @@ function drawPerformanceOverTimeChart(canvas,hist){
       ctx.fillStyle=color;
       if(style==="diamond"){
         ctx.save(); ctx.translate(x,y); ctx.rotate(Math.PI/4); ctx.fillRect(-4,-4,8,8); ctx.restore();
+      }else if(style==="square"){
+        ctx.fillRect(x-4.2,y-4.2,8.4,8.4);
       }else{
         ctx.beginPath(); ctx.arc(x,y,4.2,0,Math.PI*2); ctx.fill();
       }
@@ -6409,6 +6423,7 @@ function drawPerformanceOverTimeChart(canvas,hist){
 
   const scoreVals = slice.map(r=>perfSessionCpi(r));
   const metricVals = slice.map(r=>perfSessionMs(r));
+  const cpaVals = slice.map(r=>r && r.testMode==="mode2" && r.mode2Triggered && Number.isFinite(Number(r.cpa)) ? Number(r.cpa) : null);
   const spfVals = slice.map(r=>r && r.samnPerelli && r.samnPerelli.score!=null ? Number(r.samnPerelli.score) : null);
   function sleepQualityColor(r){
     const q = String(r?.sleepLog?.qualityLabel || "").trim().toLowerCase();
@@ -6459,7 +6474,10 @@ function drawPerformanceOverTimeChart(canvas,hist){
   ctx.stroke();
   ctx.fillStyle="#ffb357";
   ctx.fillText(ringLegend, PAD.left+150, PAD.top-14);
-  ctx.fillStyle="#88ff88"; ctx.fillText("◆ SP-FS", PAD.left+272, PAD.top-14);
+  ctx.fillStyle="#d6a7ff";
+  ctx.fillRect(PAD.left+272, PAD.top-22, 8, 8);
+  ctx.fillText(cpaLegend, PAD.left+288, PAD.top-14);
+  ctx.fillStyle="#88ff88"; ctx.fillText("◆ SP-FS", PAD.left+420, PAD.top-14);
 
   const legendY = PAD.top + cH + 38;
   ctx.fillStyle = "#ff4d4f"; ctx.fillRect(PAD.left, legendY, 12, 8);
