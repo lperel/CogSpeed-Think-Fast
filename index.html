@@ -568,13 +568,13 @@
 <div id="sleepOverlay" class="overlay hidden">
   <div class="modal modal-page">
     <h2 style="font-size:clamp(24px,4dvh,32px)">Sleep Logger</h2>
-    <p class="modal-hint" style="font-size:clamp(15px,2.2dvh,18px)">If yes, enter when you went to sleep and when you woke up before this test.</p>
+    <p class="modal-hint" style="font-size:clamp(15px,2.2dvh,18px)">If yes, enter when you went to sleep and when you woke up before this test. Include whether each time was Yesterday or Today.</p>
     <div id="sleepTimeFormatHint" style="margin-top:2px;margin-bottom:10px;padding:8px 10px;border:1px solid rgba(127,215,255,0.22);border-radius:10px;background:rgba(127,215,255,0.06);font-size:13px;color:var(--muted)">Use the time format shown by your device when entering sleep and wake times.</div>
 
     <div class="field-row">
-      <label>Went to sleep at<div class="field-hint">Enter your sleep start time clearly</div></label>
+      <label>Went to sleep at<div class="field-hint">Enter your sleep start time clearly and mark Yesterday or Today</div></label>
       <div id="sleepBedtime24Wrap">
-        <div style="display:flex;gap:8px;align-items:center"><input id="sleepBedtimeInput" type="time" style="font-size:18px;flex:1"><select id="sleepBedDaySelect" style="flex:0 0 120px;padding:12px;border:1px solid var(--edge);border-radius:12px;background:#0a1629;color:var(--text);font-size:16px;font-weight:600"><option value="yesterday">Yesterday</option><option value="today">Today</option></select></div>
+        <div style="display:flex;gap:8px;align-items:center"><input id="sleepBedtimeInput" type="time" style="font-size:18px;flex:1"></div>
       </div>
       <div id="sleepBedtime12Wrap" class="hidden">
         <div style="display:flex;gap:8px;align-items:center">
@@ -585,12 +585,16 @@
           <button id="sleepBedPmBtn" type="button" class="ctrl-btn" style="flex:1;font-size:18px;min-height:56px">PM</button>
         </div>
       </div>
+      <div style="display:flex;gap:10px;align-items:center;margin-top:8px">
+        <div style="font-size:14px;color:var(--muted);font-weight:700;min-width:112px">Day marker</div>
+        <select id="sleepBedDaySelect" style="flex:0 0 150px;padding:12px;border:1px solid var(--edge);border-radius:12px;background:#0a1629;color:var(--text);font-size:16px;font-weight:700"><option value="yesterday">Yesterday</option><option value="today">Today</option></select>
+      </div>
     </div>
 
     <div class="field-row">
-      <label>Woke up at<div class="field-hint">Enter your wake time clearly</div></label>
+      <label>Woke up at<div class="field-hint">Enter your wake time clearly and mark Yesterday or Today</div></label>
       <div id="sleepWake24Wrap">
-        <div style="display:flex;gap:8px;align-items:center"><input id="sleepWakeInput" type="time" style="font-size:18px;flex:1"><select id="sleepWakeDaySelect" style="flex:0 0 120px;padding:12px;border:1px solid var(--edge);border-radius:12px;background:#0a1629;color:var(--text);font-size:16px;font-weight:600"><option value="yesterday">Yesterday</option><option value="today" selected>Today</option></select></div>
+        <div style="display:flex;gap:8px;align-items:center"><input id="sleepWakeInput" type="time" style="font-size:18px;flex:1"></div>
       </div>
       <div id="sleepWake12Wrap" class="hidden">
         <div style="display:flex;gap:8px;align-items:center">
@@ -973,6 +977,6 @@
   <div class="resp-grid" id="respGrid"></div>
 </div>
 
-<script src="app.js?v=666" defer></script>
+<script src="app.js?v=668" defer></script>
 </body>
 </html>

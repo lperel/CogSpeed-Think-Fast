@@ -1,3 +1,6 @@
+V668
+- Sleep Logger now shows Yesterday / Today day-marker selectors prominently for both bedtime and wake time in all time-entry modes.
+
 ## V666
 - Sleep metrics wording updated to "Since last waking" / "Total hours last slept" with sleep quality score and bed/wake day tags.
 - Sleep Logger now includes Yesterday/Today selectors for sleep and wake times.
