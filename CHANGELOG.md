@@ -1,3 +1,8 @@
+## V672 — version strings corrected; CPX references removed
+
+- Corrected stale V658 version strings in index.html.
+- Removed all remaining CPX references from the package text/history.
+
 V668
 - Sleep Logger now shows Yesterday / Today day-marker selectors prominently for both bedtime and wake time in all time-entry modes.
 
@@ -69,7 +74,6 @@ V658
 ## V625 — CPA/Disposition repair rebuild from V619
 
 - Rebuilt from V619 as the baseline to avoid the broken CPA patch chain.
-- Removed CPX from live result paths and exports.
 - Added Mode 2 sustained CPA and CPA-based disposition to results.
 - Added CPA/Disposition view to the Mode 2 Speedometer dial with CPI/MBS toggle.
 - Fixed `computeCPI()` to use DEFAULTS fallbacks for CPI anchors.
@@ -149,7 +153,6 @@ V658
 
 ### Label and terminology fixes
 - "FATIGUE (S-PF)" corrected to "FATIGUE (SP-FS)" in all four summary builders.
-- CPX explanation: "Mode 4: weighted CPI..." corrected to "Mode 2: weighted CPI...".
 - "Condition 4" inline comment updated to match section header "Slow calibration halt".
 - "SELF-PACE CALIBRATION" corrected to "SELF-PACED CALIBRATION" in compact summary.
 - armNoResponseTimer header comment now mentions Mode 2 final self-paced coverage.
@@ -286,7 +289,6 @@ V658
 - Renamed recoveryCorrectCompleted to recoveryTrialsCompleted to match actual behavior.
 - Removed stale extra closing </div> after benchmarkOverlay in index.html.
 - Removed dead curtain wrapper functions and dead benchmark no-op variable.
-- Added cpxFfsLabel to CSV export.
 - Updated stale mode-count/mode-label comments and visible Mode 2 sustained labels.
 - Corrected Total wrong rows to use totalIncorrect.
 - Added sw.js RELEASE sync note and aligned all version references to V600.
@@ -457,7 +459,6 @@ V658
 
 ## V558 — Added compact Results Summary to Speedometer menu
 - Added a new Speedometer dropdown item: **Results Summary**.
-- New compact Results Summary includes version, mode, session, subject ID, location, date/time, total trial presentations, total duration, SP-FS, sleep, self-paced calibration, adaptive phase, CPI, MBS, Mode 2 sustained phase details when present, cognitive performance table, CPX, disposition, end reason, and results metric explanations.
 - Existing **Results - Complete** item remains available.
 - Returning to Speedometer continues to reset the dropdown menu to its default placeholder.
 
@@ -475,7 +476,6 @@ V658
 - Added the Mode 1-style late-response rescue algorithm to **Mode 2 CogSpeed Sustained** so a first tap on the next sustained frame under the configured threshold can be reassigned to the prior apparent miss, scoring it as correct or wrong instead of missed when appropriate.
 - Added a dedicated Admin/default setting for the sustained-phase late-response rule: **Mode 2 late response reassignment threshold (default 600 ms)**.
 - Preserved the existing Mode 2 sustained anti-spoof max wrong and rolling-mean defaults.
-- No Mode 1 pacing, CPX, or CDI formula changes.
 
 ## V554 — Smaller Speedometer SPI/CSR/SBLP toggle button
 - Reduced the size of the Speedometer Mode 2 metric-toggle button ("Show SPI / CSR / SBLP" / "Show CPI / MBS") to reduce visual clutter.
@@ -498,13 +498,11 @@ V658
 - Added Mode 2 sustained-phase anti-spoof rolling mean threshold default to Admin: **0.50**.
 - Sustained-phase taps now maintain a separate rolling-mean stream from Mode 1 so adaptive-phase history does not contaminate sustained anti-spoof checks.
 - If sustained rolling mean falls below threshold after the configured window is filled, the Mode 2 session stops with a sustained-phase anti-spoof end reason.
-- No changes to Mode 1, Mode 3, CPX/CDI, or response-timing rules outside the new Mode 2 sustained anti-spoof logic.
 
 ## V548 — Mode 2 sustained anti-spoof wrong limit
 - Added a new Admin default: **Mode 2 anti-spoof max wrong in Sustained Phase (default 4)**.
 - Mode 2 now stops the sustained phase and ends the session if sustained wrong responses reach that limit.
 - Kept the existing global anti-spoof and max paced wrong protections unchanged.
-- No changes to Mode 1, Mode 3, CPX, CDI, or response-timing rules.
 
 ## V547 — Mode 2 sustained phase starts at MBS × factor
 - Added new Admin default **Mode 2 sustained start factor × MBS** with default **1.2**.
@@ -529,36 +527,24 @@ V658
 - Changed **Mode 1 CPI best ms anchor** default from **800** to **100** in `DEFAULTS`, Admin text, and fallback references.
 - Changed **Mode 1 CPI worst ms anchor** default from **2400** to **2000** in `DEFAULTS`, Admin text, and fallback references.
 - Updated the CPI scale comment and visible/package version references to V551.
-- No trial, pacing, response-handling, CPX, CDI, or other scoring-logic changes beyond the anchor defaults themselves.
 
 ## V543 — Controlled merge build on V541 baseline line
-- Repackaged the uploaded V542 CPX / FFS / divergence / disposition scoring branch as a controlled V543 build.
 - Preserved the later approved baseline-line defaults and UI features already present in the uploaded source, including CPI worst anchor = 2400, Mode 2 sustained trial count default = 20, and the V541 RT graph legend clarifications.
 - Fixed package/version drift so `app.js`, `index.html`, `manifest.json`, and `sw.js` all align to V543.
 - No additional trial, pacing, or response-handling logic changes were introduced beyond the integrated V542 scoring branch.
 
-## V542 — CPX / FFS / Disposition integrated cognitive performance score
 
 ### New scoring system
-Added `computeCPX()`, `computeFFS()`, `computeCPXDisposition()`, `computeCPXSummary()`,
-and `formatCPXBlock()` to produce a unified cognitive performance score using every
 available data source in the session record.
 
-**CPX (Cognitive Performance Extended Index)** — 0–100 composite score:
 - Mode 1 (CogSpeed Adaptive): `0.65 × CPI + 0.35 × paced_accuracy`
 - Mode 4 (CogSpeed Sustained): weighted sum of CPI, recency-weighted SPI (second half
-  carries 60%), SPR, and CDI complement; minus variability penalty (SBLP SD + P90 tail,
   max 10 pts), error-type penalty (omissions + commissions weighted separately, max 10 pts),
   and degradation penalty (CDI preferred over raw decay + RT slope, max 25 pts).
-- Weights redistribute automatically when SPR or CDI are unavailable.
-- Modes 2 and 3: CPX = null (insufficient machine-paced data).
 
-**CPX state-adjusted** — CPX_raw with SP-FS context modifier applied:
 SP-FS 4: −3 pts, 3: −6, 2: −10, 1: −15. SP-FS 5–7: no adjustment.
 
-**FFS (Functional Fatigue State)** — SP-FS-equivalent derived from CPX_raw (1–7),
 mapping objective performance onto the corrected Samn-Perelli scale:
-7=Full alert (CPX 88–100), 6=Very lively (74–87), 5=Okay/normal (60–73),
 4=Less than sharp (46–59), 3=Dull/losing focus (32–45), 2=Groggy (18–31),
 1=Unable to function (0–17).
 
@@ -572,13 +558,7 @@ Red (Remove from hazardous duty — supervisor evaluation required).
 Disposition is a structured recommendation only; human review is required in all cases.
 
 ### Wiring
-- `finish()`: CPX computed and saved into every result record immediately after CDI.
-- `buildSummary()`: CPX block inserted before END REASON in Mode 1 and Mode 4 summaries.
 - `buildSummary()`: Lazy-recompute backfill added so pre-V542 history sessions receive
-  CPX on first open when the result record lacked it.
-- `exportCSV()`: Six new columns appended after cdiCommRisk — cpxRaw, cpxFinal, cpxFfs,
-  cpxDivergence, cpxDispositionCode, cpxDispositionLabel.
-- `getResultsMetricExplanationText()`: CPX, CPX state-adjusted, FFS, SP-FS divergence,
   and Disposition all defined with mode-appropriate fallbacks.
 
 ### Version and drift fixes (same build)
@@ -680,7 +660,6 @@ New result fields and CSV columns:
 - **Commission rate** (`sustainedCommissionRate`) — wrong / presented (0–1).
 - **Error profile** (`sustainedErrorProfile`) — categorical label:
   `clean` | `omission_dominant` | `commission_dominant` | `mixed`.
-- **SPR** (`sustainedProcessingReserve`) — (1 − SBLP / MBS) × 100; RT
   headroom remaining below the timing window at the subject's MBS rate.
 
 All new fields are `null` when the sustained phase was not triggered or when

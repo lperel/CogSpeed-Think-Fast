@@ -2,7 +2,7 @@
 // CogSpeed source
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V668";
+const APP_VERSION = "V672";
 
 // ═══════════════════════════════════════════════════
 // Current behavior summary (historical details live in CHANGELOG.md)
@@ -358,16 +358,6 @@ function resolveResultContext(resultOverride, sessionIndex, sourceHint){
  }
  return {result:null, index:null, source:'none'};
 }
-function applySummarySourceDiagnostic(result, sessionIndex, sourceText){
- // Production UI: do not prepend internal source diagnostics into user-visible summaries.
- return;
-}
-function applySpeedometerSourceDiagnostic(result, sessionIndex, sourceText){
- const info=$('speedometerSessionInfo');
- if(!info) return;
- info.textContent = "";
- info.style.display = "none";
-}
 
 // ─── Utilities ───
 function randInt(min,max){ return Math.floor(Math.random()*(max-min+1))+min; }
@@ -595,9 +585,12 @@ async function captureGeo(){
  if(!pos){ state.geo={...base,status:"denied"}; return; }
  state.geo={...base,status:"ok",latitude:pos.coords.latitude,longitude:pos.coords.longitude,accuracy_m:pos.coords.accuracy};
  try{
-  // Nominatim reverse geocode: fire-and-forget, no AbortController timeout.
-  // Browser sends User-Agent automatically which satisfies Nominatim attribution requirements.
-  const r=await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${pos.coords.latitude}&lon=${pos.coords.longitude}`,{headers:{"Accept":"application/json"}});
+  // Nominatim reverse geocode with a short AbortController timeout so a vanished
+  // network does not leave a dangling request. Browser sends User-Agent automatically.
+  const ac = (typeof AbortController !== "undefined") ? new AbortController() : null;
+  const timeoutId = ac ? setTimeout(()=>ac.abort(), 4000) : null;
+  const r=await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${pos.coords.latitude}&lon=${pos.coords.longitude}`,{headers:{"Accept":"application/json"}, ...(ac?{signal:ac.signal}:{})});
+  if(timeoutId) clearTimeout(timeoutId);
   const d=await r.json(); state.geo.address=d.display_name||"";
  }catch(e){ state.geo.address_error="geocode_failed"; }
 }
@@ -631,8 +624,10 @@ function makeTrial(kind,lastCorrectPos,lastProbe){
  for(let attempt=0;attempt<500;attempt++){
   const probeFamily=Math.random()<0.5?"dots":"lines";
   const probeCount=randInt(1,6);
-  // Reject if same probe as previous trial — never show the same probe twice in a row
-  if(lastProbe&&probeFamily===lastProbe.family&&probeCount===lastProbe.count) continue;
+  // Prefer not to repeat the same probe twice in a row, but relax that constraint
+  // after repeated misses in the generator so trial creation does not burn CPU.
+  const enforceNoSameProbe = attempt < 50;
+  if(enforceNoSameProbe && lastProbe&&probeFamily===lastProbe.family&&probeCount===lastProbe.count) continue;
   const probePattern=probeFamily==="dots"?DOT_PATTERNS[probeCount]:LINE_PATTERNS[probeCount];
   const oppFamily=probeFamily==="dots"?"lines":"dots";
   const correctPos=(()=>{
@@ -1366,7 +1361,6 @@ function finish(){
  try{
   setFlowDiagnostic("FINISH_RENDER", `FINISH_RENDER — ${result.endReason||"Run complete"}`);
   buildSummary(result);
-  applySummarySourceDiagnostic(result, state.activeSessionIndex, state.activeResultSource);
   state.lastResultText = $("summaryText") ? $("summaryText").textContent : "";
  }catch(err){
   console.error("finish render failed", err);
@@ -2500,7 +2494,7 @@ function formatModePooledRankSection(mode){
 
 function csvCell(v){
  const s = v==null ? "" : String(v);
- return /[",\n]/.test(s) ? `"${s.replace(/"/g,'""')}"` : s;
+ return /[",\n\r]/.test(s) ? `"${s.replace(/"/g,'""')}"` : s;
 }
 
 function exportCSV(){
@@ -3682,16 +3676,6 @@ ${getResultsMetricExplanationText(result)}`;
 let _speedoRaf = null;
 
 
-const speedometerVintageImage = (()=>{
- let img=null, started=false;
- return {
-  get(){
-   if(!img){ img=new Image(); }
-   if(!started){ started=true; img.src="speedo.jpg"; }
-   return img;
-  }
- };
-})();
 
 function drawSpeedometer(canvas, scoreValue, success, scoreLabel="CPI", tipLabel="MBS", tipValue=null){
  const dpr = window.devicePixelRatio||1;
@@ -3947,7 +3931,6 @@ function openSummarySession(sessionIndex, variant){
 Reason: ${ctx.result && ctx.result.endReason ? ctx.result.endReason : "Run complete"}
 Render error: ${err && err.message ? err.message : err}`;
  }
- try{ applySummarySourceDiagnostic(ctx.result, ctx.index, ctx.source); }catch(e){}
  try{ updateStartPageLinks(); }catch(e){}
  setTestingQuiet(false);
 }
@@ -3961,7 +3944,7 @@ Render error: ${err && err.message ? err.message : err}`;
 function computeMode2SustainedRtTails(rtLog){
  const entries = Array.isArray(rtLog) ? rtLog : [];
  const correctRTs = entries
-  .filter(e => e && e.phase==="mode2_sustained" && Number.isFinite(Number(e.rt)))
+  .filter(e => e && e.phase==="mode2_sustained" && e.outcome==="correct" && Number.isFinite(Number(e.rt)))
   .map(e => Number(e.rt));
  if(!correctRTs.length) return {
   sustainedCorrectRtP90Ms:null,
@@ -4223,7 +4206,6 @@ function showResultsPage(resultOverride){
     console.error("showResultsPage delayed render failed", err);
     if(outcome) outcome.classList.remove("hidden");
     try{ syncOutcomeStatusText(ctx.result || {endReason:state.endReason||"Run complete"}); }catch(e){}
-    try{ applySpeedometerSourceDiagnostic(ctx.result, ctx.index, ctx.source); }catch(e){}
    }finally{
     try{ updateStartPageLinks(); }catch(e){}
    }
@@ -4233,7 +4215,6 @@ function showResultsPage(resultOverride){
   if(thinking) thinking.classList.add("hidden");
   if(outcome) outcome.classList.remove("hidden");
   try{ syncOutcomeStatusText(ctx.result || {endReason:state.endReason||"Run complete"}); }catch(e){}
-  try{ applySpeedometerSourceDiagnostic(ctx.result, ctx.index, ctx.source); }catch(e){}
   try{ updateStartPageLinks(); }catch(e){}
  }
 }
@@ -5651,15 +5632,9 @@ async function cogspeedDevReset(){
  Object.keys(localStorage).forEach(k=>{ if(k.startsWith("cogspeed_")||k.startsWith("cogblock_")) localStorage.removeItem(k); });
  return true;
 }
-async function cogspeedResetter(){ return cogspeedDevReset(); }
-async function cogspeedClearSWCache(){ return cogspeedClearCachesOnly(); }
-async function cogspeedFullDevReset(){ return cogspeedDevReset(); }
 window.cogspeedDeregisterServiceWorkers=cogspeedDeregisterServiceWorkers;
 window.cogspeedClearCachesOnly=cogspeedClearCachesOnly;
 window.cogspeedDevReset=cogspeedDevReset;
-window.cogspeedResetter=cogspeedResetter;
-window.cogspeedClearSWCache=cogspeedClearSWCache;
-window.cogspeedFullDevReset=cogspeedFullDevReset;
 
 // ─── Init ───
 modeLabel.textContent="Subject mode";
@@ -5955,7 +5930,6 @@ function renderSpeedometerOutcome(result, sessionIndex){
       : (latestIdx!=null ? latestIdx : 0));
  setActiveResultContext(result, idx>=0?idx:null, idx>=0?"rendered from history":"rendered current result");
  if(idx>=0){ syncSpeedometerSessionSelect(idx); }
- applySpeedometerSourceDiagnostic(result, idx>=0?idx:null, state.activeResultSource);
  const mode2Toggle=$("speedometerMode2ToggleBtn");
  if(mode2Toggle){
   if(isMode2Speedometer){
@@ -6067,10 +6041,20 @@ const perfGraphState = {
   toDate: ""
 };
 
+function isPerfFailureSession(r){
+  if(!r) return false;
+  const endReason = String(r.endReason || "");
+  const lower = endReason.toLowerCase();
+  if(/^failed/i.test(endReason) || endReason.includes("Retest") || endReason.includes("Practice!")) return true;
+  // Anti-spoof rule for Mode 2: an early stop from sustained rolling-mean threshold
+  // or wrong-limit is a failed / invalid session and should not plot partial success.
+  if(r.testMode === "mode2" && (lower.includes("rolling mean below threshold in sustained phase") || lower.includes("too many wrongs in sustained phase") || lower.includes("wrong limit in sustained phase") || lower.includes("wrong-fail threshold"))) return true;
+  return false;
+}
+
 function perfSessionMs(r){
   if(!r) return null;
-  const endReason = String(r.endReason || "");
-  const failed = /^FAILED/i.test(endReason) || /^Failed/i.test(endReason) || endReason.includes("Retest") || endReason.includes("Practice!");
+  const failed = isPerfFailureSession(r);
   if(failed) return Number(settings.cpiWorstMs)||DEFAULTS.cpiWorstMs;
   // Performance-over-time graph uses CPI as the plotted score for every mode.
   // The orange ring is a visual companion marker for MBS and intentionally sits
@@ -6093,13 +6077,22 @@ function perfSessionMs(r){
 
 function perfSessionCpi(r){
   if(!r) return null;
-  const endReason = String(r.endReason || "");
-  const failed = /^FAILED/i.test(endReason) || /^Failed/i.test(endReason) || endReason.includes("Retest") || endReason.includes("Practice!");
+  if(r.testMode === "mode3") return null;
+  const failed = isPerfFailureSession(r);
   if(failed) return 0;
   const explicit = Number(r.cognitivePerformanceIndex);
   if(Number.isFinite(explicit)) return explicit;
   const ms = perfSessionMs(r);
   return ms!=null ? computeCPI(ms) : null;
+}
+
+function perfSessionCpiEstimated(r){
+  if(!r || r.testMode !== "mode2") return false;
+  if(isPerfFailureSession(r)) return false;
+  const explicit = Number(r.cognitivePerformanceIndex);
+  if(Number.isFinite(explicit)) return false;
+  const ms = perfSessionMs(r);
+  return ms!=null;
 }
 
 function getSessionUtcMs(r){
@@ -6390,7 +6383,7 @@ function drawPerformanceOverTimeChart(canvas,hist){
     });
   }
 
-  function drawCombinedPerfMarkers(scoreVals, metricVals){
+  function drawCombinedPerfMarkers(scoreVals, metricVals, estimatedFlags=[]){
     ctx.strokeStyle="#7fd7ff";
     ctx.lineWidth=2.5;
     ctx.beginPath();
@@ -6410,13 +6403,22 @@ function drawPerformanceOverTimeChart(canvas,hist){
       const y = yLeftFromScore(score);
       ctx.beginPath(); ctx.arc(x,y,5.8,0,Math.PI*2);
       ctx.strokeStyle="#ffb357"; ctx.lineWidth=2.2; ctx.stroke();
+      const estimated = !!estimatedFlags[i];
       ctx.beginPath(); ctx.arc(x,y,2.8,0,Math.PI*2);
-      ctx.fillStyle="#7fd7ff"; ctx.fill();
+      if(estimated){
+        ctx.strokeStyle="#7fd7ff";
+        ctx.lineWidth=1.8;
+        ctx.stroke();
+      }else{
+        ctx.fillStyle="#7fd7ff";
+        ctx.fill();
+      }
     });
   }
 
   const scoreVals = slice.map(r=>perfSessionCpi(r));
   const metricVals = slice.map(r=>perfSessionMs(r));
+  const estimatedScoreFlags = slice.map(r=>perfSessionCpiEstimated(r));
   const cpaVals = slice.map(r=>r && r.testMode==="mode2" && r.mode2Triggered && Number.isFinite(Number(r.cpa)) ? Number(r.cpa) : null);
   const spfVals = slice.map(r=>r && r.samnPerelli && r.samnPerelli.score!=null ? Number(r.samnPerelli.score) : null);
   function sleepQualityColor(r){
@@ -6438,7 +6440,7 @@ function drawPerformanceOverTimeChart(canvas,hist){
   }
 
   drawLine(spfVals, v=>yRightFromSpf(v), "#88ff88", "diamond");
-  drawCombinedPerfMarkers(scoreVals, metricVals);
+  drawCombinedPerfMarkers(scoreVals, metricVals, estimatedScoreFlags);
   drawLine(cpaVals, v=>yLeftFromScore(v), "#d6a7ff", "square", {markerDx:10, markerSize:5.4, strokeMarker:true});
 
   const sleepBarY = PAD.top + cH + 18;
@@ -6462,6 +6464,13 @@ function drawPerformanceOverTimeChart(canvas,hist){
   ctx.fill();
   ctx.fillStyle="#7fd7ff";
   ctx.fillText(dotLegend, PAD.left+18, PAD.top-14);
+  ctx.beginPath();
+  ctx.arc(PAD.left+118, PAD.top-18, 2.8, 0, Math.PI*2);
+  ctx.strokeStyle="#7fd7ff";
+  ctx.lineWidth=1.8;
+  ctx.stroke();
+  ctx.fillStyle="#d7e7f8";
+  ctx.fillText("Open blue center = estimated CPI", PAD.left+126, PAD.top-14);
   ctx.beginPath();
   ctx.arc(PAD.left+138, PAD.top-18, 5.6, 0, Math.PI*2);
   ctx.strokeStyle="#ffb357";
