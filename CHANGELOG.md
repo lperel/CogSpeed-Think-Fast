@@ -1,3 +1,26 @@
+## V677
+- Fixed APP_VERSION mismatch so live JS, storage namespace, static HTML, and service worker all align on V677.
+- Marked Mode 2 sustained wrong-response limit stops as failures in both isTestSuccess() and isPerfFailureSession().
+- Removed duplicate Results Metric Explanations paragraphs for recovery ratio, lapse rate, and block formation efficiency.
+- Revised CPA factor 8 explanation to describe rapid block formation neutrally and operationally.
+
+## V676
+- Fixed Mode 2 CPA max-reduction-factor fallback so Admin field 54 honors valid numeric inputs without forcing 0.9 on falsy values.
+- Updated performance-over-time text export to use CPI/MBS wording for Mode 2 instead of stale SPI/CSR-SBLP labels.
+- Changed Mode 2 CPA CV% and drift descriptors to use correct-only sustained RTs for consistency scoring.
+
+## V674
+- Added the new Mode 2 CPA factor defaults to the Admin page defaults/help block so fields 49–57 now show the live default bucket specs and max reduction cap in one place.
+
+# CogSpeed Change Log
+
+## V673
+- Expanded Mode 2 CPA to use sustained RT CV%, recovery÷calibration RT ratio, sustained-phase lapse rate, and block formation efficiency.
+- Enforced Admin field 54 (Mode 2 CPA max total reduction factor × CPI) as a real cap on total negative CPA adjustment.
+- Replaced raw SD bucket defaults with CV% bucket defaults in Admin and results text for better scale invariance across subjects.
+- Added new CPA metrics to CSV export, Results - Complete, and metric explanations.
+- Documented the semantic shift: cpaSdWeighting now reflects CV-based weighting for new sessions; old sessions may retain prior SD-based values.
+
 ## V672 — version strings corrected; CPX references removed
 
 - Corrected stale V658 version strings in index.html.

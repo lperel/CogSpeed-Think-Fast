@@ -2,7 +2,7 @@
 // CogSpeed source
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V672";
+const APP_VERSION = "V677";
 
 // ═══════════════════════════════════════════════════
 // Current behavior summary (historical details live in CHANGELOG.md)
@@ -103,9 +103,12 @@ const DEFAULTS={
  mode2CpaCorrectBuckets:"0-10:0;11-12:0.1;13-14:0.2;15-18:0.3;19-20:0.4",
  mode2CpaWrongBuckets:"0-0:0.1;1-4:0;5-8:-0.2;9-12:-0.3;13-15:-0.5;16-18:-0.8;19-20:-0.9",
  mode2CpaMissedBuckets:"0-2:0.1;3-4:0;5-8:-0.2;9-12:-0.3;13-15:-0.5;16-18:-0.8;19-20:-0.9",
- mode2CpaSdBuckets:"0-200:0.2;201-300:0.1;301-400:0;401-500:-0.1;501-700:-0.2;701-inf:-0.3",
+ mode2CpaCvBuckets:"0-10:0.2;10.01-15:0.1;15.01-20:0;20.01-30:-0.1;30.01-50:-0.2;50.01-inf:-0.3",
  mode2CpaDriftBuckets:"0-10:0;10.0001-30:-0.01;30.0001-40:-0.05;40.0001-inf:-0.1",
- mode2CpaMaxReductionFactor:0.9
+ mode2CpaMaxReductionFactor:0.9,
+ mode2CpaRecoveryRatioBuckets:"0-1.10:0;1.11-1.25:-0.05;1.26-1.50:-0.10;1.51-inf:-0.20",
+ mode2CpaLapseRateBuckets:"0-5:0;5.01-15:-0.05;15.01-30:-0.10;30.01-inf:-0.20",
+ mode2CpaEfficiencyBuckets:"0-10:-0.03;10.01-30:0;30.01-50:-0.03;50.01-inf:-0.07"
 };
 
 // ═══════════════════════════════════════════════════════════════
@@ -178,13 +181,16 @@ const ADMIN_FIELDS=[
  ["RecoveryInterTrialDelayMsStart","47. Recovery inter-trial delay at start (ms, default 0)","number"],
  ["ResumeToPacedDelayMs","48. Resume-to-paced delay after recovery (ms, default 0)","number"],
 
- // 49-54. Mode 2 CPA editable defaults
+ // 49-57. Mode 2 CPA editable defaults
  ["mode2CpaCorrectBuckets","49. Mode 2 CPA correct buckets (min-max:multiplier; ...)","text"],
  ["mode2CpaWrongBuckets","50. Mode 2 CPA wrong buckets (min-max:multiplier; ...)","text"],
  ["mode2CpaMissedBuckets","51. Mode 2 CPA missed buckets (min-max:multiplier; ...)","text"],
- ["mode2CpaSdBuckets","52. Mode 2 CPA sustained RT SD buckets (min-max:multiplier; ...)","text"],
+ ["mode2CpaCvBuckets","52. Mode 2 CPA sustained RT CV% buckets — CV=(SD÷mean)×100; 0–10%=consistent; 50%+=erratic (min-max:multiplier; ...)","text"],
  ["mode2CpaDriftBuckets","53. Mode 2 CPA drift % buckets (min-max:multiplier; ...)","text"],
- ["mode2CpaMaxReductionFactor","54. Mode 2 CPA max reduction factor × CPI (default 0.9)","number"],
+ ["mode2CpaMaxReductionFactor","54. Mode 2 CPA max total reduction factor × CPI — caps downward adjustments (default 0.9)","number"],
+ ["mode2CpaRecoveryRatioBuckets","55. Mode 2 CPA recovery÷calibration RT ratio buckets — 1.0=no drift; 1.5=50% slower in recovery (min-max:multiplier; ...)","text"],
+ ["mode2CpaLapseRateBuckets","56. Mode 2 CPA sustained-phase lapse rate% buckets — lapse: correct RT > 2× median sustained RT; 0=no lapses (min-max:multiplier; ...)","text"],
+ ["mode2CpaEfficiencyBuckets","57. Mode 2 CPA block efficiency buckets — adaptive trials÷blocks; 0–10=rapid; 10–30=normal; 30+=unstable threshold (min-max:multiplier; ...)","text"],
 ];
 
 // ─── Patterns ───
@@ -2130,9 +2136,33 @@ function renderAdmin(){
  note.textContent = [
   "Mode 2 CPA editable defaults",
   "Format for bucket fields: min-max:multiplier; min-max:multiplier",
-  "Use inf for an open-ended upper bound (example: 701-inf:-0.3).",
-  "Example correct buckets: 0-10:0;11-12:0.1;13-14:0.2;15-18:0.3;19-20:0.4",
-  "Drift buckets use percent slowing, and negative drift is still forced to 0 before bucketing."
+  "Use inf for an open-ended upper bound (example: 50.01-inf:-0.2).",
+  "",
+  "Current default bucket specs:",
+  `49 Correct: ${DEFAULTS.mode2CpaCorrectBuckets}`,
+  `50 Wrong: ${DEFAULTS.mode2CpaWrongBuckets}`,
+  `51 Missed: ${DEFAULTS.mode2CpaMissedBuckets}`,
+  `52 CV%: ${DEFAULTS.mode2CpaCvBuckets}`,
+  `53 Drift %: ${DEFAULTS.mode2CpaDriftBuckets}`,
+  `54 Max reduction factor × CPI: ${DEFAULTS.mode2CpaMaxReductionFactor}`,
+  `55 Recovery ratio: ${DEFAULTS.mode2CpaRecoveryRatioBuckets}`,
+  `56 Lapse rate %: ${DEFAULTS.mode2CpaLapseRateBuckets}`,
+  `57 Block efficiency: ${DEFAULTS.mode2CpaEfficiencyBuckets}`,
+  "",
+  "Field 52 — CV% buckets: CV = (sustained RT SD ÷ mean RT) × 100.",
+  "  0–10% = very consistent responding (positive weight).",
+  "  Above 30% = highly variable (penalty).",
+  "Field 55 — Recovery ratio: mean recovery RT ÷ calibration avg RT.",
+  "  1.0 = no drift; 1.5 = 50% slower during recovery trials.",
+  "Field 56 — Lapse rate%: lapse defined as correct RT > 2× median sustained RT.",
+  "  0% = no lapses; 30%+ = frequent ceiling breaches.",
+  "Field 57 — Block efficiency: adaptive paced trials ÷ block count.",
+  "  <10 = blocks formed very rapidly (poor threshold stability).",
+  "  10–30 = typical range. >50 = highly unstable threshold.",
+  "Field 54 — Max reduction cap: total CPA reduction is limited to this × CPI.",
+  "  Default 0.9 means CPA cannot fall below CPI × (1 – 0.9) = 10% of CPI.",
+  "",
+  "Drift buckets use percent slowing; negative drift is forced to 0 before bucketing."
  ].join("\n");
  w.appendChild(note);
 }
@@ -2504,7 +2534,7 @@ function exportCSV(){
   "sleepSinceLastTest","sleepBedtime","sleepWakeTime","sleepWakeDateTimeIso","sleepDurationMinutes","sleepQualityLabel","sleepQualityScore",
   "pacedCorrect","pacedWrong","spRestartWrong","meanPacedRtMs","pacedRtSd",
   "avgFrameOvershootMs","maxFrameOvershootMs","avgRafIntervalMs","maxRafIntervalMs",
-  "cpa","cpaBaseCpi","cpaCorrectWeighting","cpaWrongWeighting","cpaMissedWeighting","cpaSdWeighting","cpaDriftWeighting","cpaSustainedResponseSdMs","cpaEarlyMedianRtMs","cpaLateMedianRtMs","cpaSustainedDriftRatio","dispositionCode","dispositionLabel",
+  "cpa","cpaBaseCpi","cpaCorrectWeighting","cpaWrongWeighting","cpaMissedWeighting","cpaSdWeighting","cpaDriftWeighting","cpaRecoveryWeighting","cpaLapseWeighting","cpaEfficiencyWeighting","cpaSustainedResponseSdMs","cpaSustainedCvPct","cpaEarlyMedianRtMs","cpaLateMedianRtMs","cpaSustainedDriftRatio","cpaRecoveryCalibRatio","cpaLapseRatePct","cpaTrialsPerBlock","dispositionCode","dispositionLabel",
   "testDurationMs","endReason","location"];
  const rows=h.map((r,i)=>[
   i+1,
@@ -2547,10 +2577,17 @@ function exportCSV(){
   r.cpaMissedWeighting!=null?r.cpaMissedWeighting.toFixed(1):"",
   r.cpaSdWeighting!=null?r.cpaSdWeighting.toFixed(1):"",
   r.cpaDriftWeighting!=null?r.cpaDriftWeighting.toFixed(1):"",
+  r.cpaRecoveryWeighting!=null?r.cpaRecoveryWeighting.toFixed(1):"",
+  r.cpaLapseWeighting!=null?r.cpaLapseWeighting.toFixed(1):"",
+  r.cpaEfficiencyWeighting!=null?r.cpaEfficiencyWeighting.toFixed(1):"",
   r.cpaSustainedResponseSdMs!=null?r.cpaSustainedResponseSdMs.toFixed(1):"",
+  r.cpaSustainedCvPct!=null?r.cpaSustainedCvPct.toFixed(1):"",
   r.cpaEarlyMedianRtMs!=null?r.cpaEarlyMedianRtMs.toFixed(1):"",
   r.cpaLateMedianRtMs!=null?r.cpaLateMedianRtMs.toFixed(1):"",
   r.cpaSustainedDriftRatio!=null?r.cpaSustainedDriftRatio:"",
+  r.cpaRecoveryCalibRatio!=null?r.cpaRecoveryCalibRatio.toFixed(2):"",
+  r.cpaLapseRatePct!=null?r.cpaLapseRatePct.toFixed(1):"",
+  r.cpaTrialsPerBlock!=null?r.cpaTrialsPerBlock.toFixed(1):"",
   r.dispositionCode||"",
   r.dispositionLabel||"",
   r.testDurationMs!=null?Math.round(r.testDurationMs):"",
@@ -3119,7 +3156,7 @@ function isTestSuccess(resultOrReason){
  // Mode 2 final self-paced no-response must be checked before failHints,
  // because "no response" is in both the end reason and the failHints list.
  if(lower.includes("mode 2 final self-paced: no response")) return !!(result && result.mode2Triggered);
- const failHints=["failed","retest","practice","erratic responses","not responding in time","no response","too many blocks","too many wrong","anti-spoof","rolling mean","wrong window"];
+ const failHints=["failed","retest","practice","erratic responses","not responding in time","no response","too many blocks","too many wrong","anti-spoof","rolling mean","wrong window","wrong-response limit reached"];
  if(failHints.some(h=>lower.includes(h))) return false;
  if(lower.startsWith("convergent")) return true;
  if(lower.includes("mode 2 cogspeed sustained complete")) return true;
@@ -3273,7 +3310,16 @@ RESULTS METRIC EXPLANATIONS
  SBLP (Sustained Blocking Limit Performance) = average RT of correct sustained responses during Mode 2 sustained segment, but defined as 0 when CSR = 0.${usesMode4Metrics?"":" Not used in this mode."}
  SBLP P90 = 90th-percentile correct sustained RT; conservative ceiling estimate.${usesMode4Metrics?"":" Not used in this mode."}
  SPI (Sustained Processing Index) = normalized 0 - 100 index based on CSR.${usesMode4Metrics?"":" Not used in this mode."}
- CPA (Cognitive Performance Ability) = Mode 2 combined end-state score (0–100): CPI adjusted by sustained-phase weightings for correct count, wrong count, missed count, response RT variability (SD), and positive drift (late vs early median RT). Computed for Mode 2 only.${usesMode4Metrics?"":" Not used in this mode."}
+ CPA (Cognitive Performance Ability) = Mode 2 combined end-state score (0–100). CPA starts with CPI, then applies eight Mode 2 factors that reward stronger sustained performance and penalize degraded or unstable sustained performance. Computed for Mode 2 only.${usesMode4Metrics?"":" Not used in this mode."}
+ CPA factor 1 — Sustained Correct Weighting = reward based on the number of correct sustained responses. More correct sustained responses increase CPA because they show the subject could continue matching the sustained presentation rate accurately.${usesMode4Metrics?"":" Not used in this mode."}
+ CPA factor 2 — Sustained Wrong Weighting = adjustment based on the number of wrong sustained responses. More wrong sustained responses reduce CPA because they indicate impaired discrimination or loss of control under load.${usesMode4Metrics?"":" Not used in this mode."}
+ CPA factor 3 — Sustained Missed Weighting = adjustment based on the number of missed sustained responses. More misses reduce CPA because they indicate the subject could not keep up with the sustained presentation rate.${usesMode4Metrics?"":" Not used in this mode."}
+ CPA factor 4 — Sustained RT CV% Weighting = adjustment based on coefficient of variation of correct sustained RTs: CV = (SD ÷ mean RT) × 100. Lower CV% means more consistent sustained responding; higher CV% means more erratic timing.${usesMode4Metrics?"":" Not used in this mode."}
+ CPA factor 5 — Drift Weighting = adjustment based on positive slowing from early median sustained RT to late median sustained RT. It measures how much the subject slows down across the sustained phase. Negative drift is forced to 0 before weighting.${usesMode4Metrics?"":" Not used in this mode."}
+ CPA factor 6 — Recovery÷Calibration RT Ratio Weighting = adjustment based on mean recovery-trial RT divided by calibration average RT. A ratio near 1.0 means self-paced speed stayed near baseline; higher values indicate within-session slowing even during recovery trials.${usesMode4Metrics?"":" Not used in this mode."}
+ CPA factor 7 — Lapse Rate Weighting = adjustment based on the percent of correct sustained responses that are slower than 2× the median correct sustained RT. It captures unusually slow lapses that may not dominate the mean RT but still suggest degraded performance.${usesMode4Metrics?"":" Not used in this mode."}
+ CPA factor 8 — Block Formation Efficiency Weighting = adjustment based on adaptive paced trials divided by block count. 10–30 trials per block is the typical range. Values below 10 mean blocks formed very rapidly — the presentation rate exceeded threshold within only a few trials. Values above 50 indicate the threshold shifted or was inconsistent throughout the adaptive phase.${usesMode4Metrics?"":" Not used in this mode."}
+ CPA max total reduction cap = the total of all negative CPA adjustments is limited by the Admin max reduction factor × CPI. This prevents multiple mild penalties from driving CPA implausibly low in one session.${usesMode4Metrics?"":" Not used in this mode."}
  Disposition = operational recommendation derived from CPA score. GREEN (Clear): CPA > 65. YELLOW (Monitor / human review recommended): CPA 45–64. ORANGE (Human review required): CPA 30–44. RED (Remove from hazardous duty): CPA < 30. CogSpeed disposition is a structured recommendation requiring human review — not a standalone fitness determination.${usesMode4Metrics?"":" Not used in this mode."}`;
 }
 
@@ -3601,12 +3647,19 @@ CPA — COGNITIVE PERFORMANCE ABILITY
  Sustained correct weighting: ${result.cpaCorrectWeighting!=null?(result.cpaCorrectWeighting>=0?"+":"")+result.cpaCorrectWeighting.toFixed(1):"—"}
  Sustained wrong weighting: ${result.cpaWrongWeighting!=null?(result.cpaWrongWeighting>=0?"+":"")+result.cpaWrongWeighting.toFixed(1):"—"}
  Sustained missed weighting: ${result.cpaMissedWeighting!=null?(result.cpaMissedWeighting>=0?"+":"")+result.cpaMissedWeighting.toFixed(1):"—"}
- Sustained RT SD weighting: ${result.cpaSdWeighting!=null?(result.cpaSdWeighting>=0?"+":"")+result.cpaSdWeighting.toFixed(1):"—"}
+ Sustained RT CV% weighting: ${result.cpaSdWeighting!=null?(result.cpaSdWeighting>=0?"+":"")+result.cpaSdWeighting.toFixed(1):"—"}
  Drift weighting: ${result.cpaDriftWeighting!=null?(result.cpaDriftWeighting>=0?"+":"")+result.cpaDriftWeighting.toFixed(1):"—"}
+ Recovery RT ratio weighting: ${result.cpaRecoveryWeighting!=null?(result.cpaRecoveryWeighting>=0?"+":"")+result.cpaRecoveryWeighting.toFixed(1):"—"}
+ Lapse rate weighting: ${result.cpaLapseWeighting!=null?(result.cpaLapseWeighting>=0?"+":"")+result.cpaLapseWeighting.toFixed(1):"—"}
+ Block efficiency weighting: ${result.cpaEfficiencyWeighting!=null?(result.cpaEfficiencyWeighting>=0?"+":"")+result.cpaEfficiencyWeighting.toFixed(1):"—"}
  Sustained response RT SD: ${result.cpaSustainedResponseSdMs!=null?result.cpaSustainedResponseSdMs.toFixed(1)+" ms":"—"}
+ Sustained RT CV%: ${result.cpaSustainedCvPct!=null?result.cpaSustainedCvPct.toFixed(1)+"%":"—"}
  Early median sustained RT: ${result.cpaEarlyMedianRtMs!=null?result.cpaEarlyMedianRtMs.toFixed(1)+" ms":"—"}
  Late median sustained RT: ${result.cpaLateMedianRtMs!=null?result.cpaLateMedianRtMs.toFixed(1)+" ms":"—"}
  Drift ratio: ${result.cpaSustainedDriftRatio!=null?(result.cpaSustainedDriftRatio*100).toFixed(1)+"%":"—"}
+ Recovery÷calib RT ratio: ${result.cpaRecoveryCalibRatio!=null?result.cpaRecoveryCalibRatio.toFixed(2):"—"}
+ Sustained-phase lapse rate: ${result.cpaLapseRatePct!=null?result.cpaLapseRatePct.toFixed(1)+"%":"—"}
+ Block formation efficiency: ${result.cpaTrialsPerBlock!=null?result.cpaTrialsPerBlock.toFixed(1)+" trials/block":"—"}
 ${hr}
 FINAL SELF-PACED TRIALS
  Final self-paced trials target / presented: ${result.mode2FinalTrialTargetCount!=null?result.mode2FinalTrialTargetCount:(result.mode2FinalTrialsPresented||0)} / ${result.mode2FinalTrialsPresented||0}
@@ -4026,76 +4079,152 @@ function parseBucketSpec(spec, fallback){
 }
 function computeMode2CPA(result){
  const blank = {
-  cpa:null,
-  cpaBaseCpi:null,
-  cpaCorrectWeighting:null,
-  cpaWrongWeighting:null,
+  cpa:null, cpaBaseCpi:null,
+  cpaCorrectWeighting:null, cpaWrongWeighting:null,
   cpaMissedWeighting:null,
   cpaSdWeighting:null,
   cpaDriftWeighting:null,
+  cpaRecoveryWeighting:null,
+  cpaLapseWeighting:null,
+  cpaEfficiencyWeighting:null,
   cpaSustainedResponseSdMs:null,
+  cpaSustainedCvPct:null,
   cpaSustainedDriftRatio:null,
-  cpaEarlyMedianRtMs:null,
-  cpaLateMedianRtMs:null
+  cpaEarlyMedianRtMs:null, cpaLateMedianRtMs:null,
+  cpaRecoveryCalibRatio:null,
+  cpaLapseRatePct:null,
+  cpaTrialsPerBlock:null
  };
  if(!result || result.testMode!=="mode2" || !result.mode2Triggered) return blank;
+
  const cpi = Number(result.mode2CpiFromMbs!=null ? result.mode2CpiFromMbs : result.cognitivePerformanceIndex);
  if(!Number.isFinite(cpi)) return blank;
+
  const correct = Number(result.mode2SustainedCorrect)||0;
- const wrong = Number(result.mode2SustainedWrong)||0;
- const missed = Number(result.mode2SustainedMissed)||0;
- const responded = getMode2SustainedRespondedEntries(result.rtLog);
- const respondedRTs = responded.map(e => Number(e.rt)).filter(Number.isFinite);
- const responseSd = respondedRTs.length >= 2 ? stdDev(respondedRTs) : null;
- let earlyMedian = null, lateMedian = null, driftRatio = 0;
- if(respondedRTs.length >= 2){
-  const half = Math.floor(respondedRTs.length / 2);
-  const early = respondedRTs.slice(0, half);
-  const late = respondedRTs.slice(half);
+ const wrong   = Number(result.mode2SustainedWrong)||0;
+ const missed  = Number(result.mode2SustainedMissed)||0;
+
+ const log = Array.isArray(result.rtLog) ? result.rtLog : [];
+
+ // Sustained RT descriptors are based on correct sustained responses only.
+ // CV% should reflect the stability of valid sustained processing rather than
+ // mixing in wrong-response timings, which can distort consistency estimates.
+ const sustainedCorrectRTs = log
+  .filter(e=>e && e.phase==="mode2_sustained" && e.outcome==="correct" && Number.isFinite(Number(e.rt)))
+  .map(e=>Number(e.rt));
+ const responseSd   = sustainedCorrectRTs.length>=2 ? stdDev(sustainedCorrectRTs) : null;
+ const responseMean = sustainedCorrectRTs.length>=1 ? mean(sustainedCorrectRTs) : null;
+ const responseCvPct = (responseSd!=null && responseMean!=null && responseMean>0)
+  ? (responseSd/responseMean)*100 : null;
+
+ // Drift compares early and late medians of correct sustained RTs and converts
+ // slowing to a positive-only percentage. Improvement never reduces the score.
+ let earlyMedian=null, lateMedian=null, driftRatio=0;
+ if(sustainedCorrectRTs.length>=2){
+  const half=Math.floor(sustainedCorrectRTs.length/2);
+  const early=sustainedCorrectRTs.slice(0,half), late=sustainedCorrectRTs.slice(half);
   if(early.length && late.length){
-   earlyMedian = median(early);
-   lateMedian = median(late);
-   if(Number.isFinite(earlyMedian) && earlyMedian > 0 && Number.isFinite(lateMedian)){
-    driftRatio = Math.max(0, (lateMedian - earlyMedian) / earlyMedian);
-   }
+   earlyMedian=median(early); lateMedian=median(late);
+   if(Number.isFinite(earlyMedian) && earlyMedian>0 && Number.isFinite(lateMedian))
+    driftRatio=Math.max(0,(lateMedian-earlyMedian)/earlyMedian);
   }
  }
- const correctBuckets = parseBucketSpec(settings.mode2CpaCorrectBuckets, [[0,10,0],[11,12,0.1],[13,14,0.2],[15,18,0.3],[19,20,0.4]]);
- const wrongBuckets = parseBucketSpec(settings.mode2CpaWrongBuckets, [[0,0,0.1],[1,4,0],[5,8,-0.2],[9,12,-0.3],[13,15,-0.5],[16,18,-0.8],[19,20,-0.9]]);
- const missedBuckets = parseBucketSpec(settings.mode2CpaMissedBuckets, [[0,2,0.1],[3,4,0],[5,8,-0.2],[9,12,-0.3],[13,15,-0.5],[16,18,-0.8],[19,20,-0.9]]);
- const sdBuckets = parseBucketSpec(settings.mode2CpaSdBuckets, [[0,200,0.2],[201,300,0.1],[301,400,0],[401,500,-0.1],[501,700,-0.2],[701,Number.POSITIVE_INFINITY,-0.3]]);
- const driftBuckets = parseBucketSpec(settings.mode2CpaDriftBuckets, [[0,10,0],[10.0001,30,-0.01],[30.0001,40,-0.05],[40.0001,Number.POSITIVE_INFINITY,-0.10]]);
- const correctAdj = clampCpaFactorDelta(cpi * bucketedCpaMultiplier(correct, correctBuckets), cpi);
- const wrongAdj = clampCpaFactorDelta(cpi * bucketedCpaMultiplier(wrong, wrongBuckets), cpi);
- const missedAdj = clampCpaFactorDelta(cpi * bucketedCpaMultiplier(missed, missedBuckets), cpi);
- const sdAdj = responseSd != null
-  ? clampCpaFactorDelta(cpi * bucketedCpaMultiplier(responseSd, sdBuckets), cpi)
-  : 0; // no adj when fewer than 2 sustained RTs exist
- // Drift uses the bucketed weighting rule for positive slowing only.
- // 0–10% = 0; 11–30% = -1% CPI; 31–40% = -5% CPI; 41%+ = -10% CPI.
- // Drift penalty (bucketed, positive drift only — negative drift = no penalty):
- //   1–10%  slowing → 0
- //   11–30% slowing → -(CPI × 0.01)
- //   31–40% slowing → -(CPI × 0.05)
- //   41%+   slowing → -(CPI × 0.10)
- const driftPct = driftRatio * 100;
- const driftAdj = clampCpaFactorDelta(cpi * bucketedCpaMultiplier(driftPct, driftBuckets), cpi);
- const rawCpa = cpi + correctAdj + wrongAdj + missedAdj + sdAdj + driftAdj;
+
+ // Recovery-to-calibration ratio measures whether self-paced recovery trials
+ // became slower than the original self-paced calibration baseline.
+ const recoveryRTs = log
+  .filter(e=>e && e.phase==="recovery" && Number.isFinite(Number(e.rt)))
+  .map(e=>Number(e.rt));
+ const calibAvg = result.calibrationAverageMs!=null ? Number(result.calibrationAverageMs) : null;
+ const recoveryMeanRT = recoveryRTs.length>=1 ? mean(recoveryRTs) : null;
+ const recoveryCalibRatio = (recoveryMeanRT!=null && calibAvg!=null && calibAvg>0)
+  ? recoveryMeanRT/calibAvg : null;
+
+ // Lapse rate focuses on the tail of correct sustained RTs. A lapse is any
+ // correct sustained response slower than 2× the median correct sustained RT.
+ const sustainedMedianRT = sustainedCorrectRTs.length ? median(sustainedCorrectRTs) : null;
+ const lapseThreshold = sustainedMedianRT!=null ? 2*sustainedMedianRT : null;
+ const lapseCount = lapseThreshold!=null
+  ? sustainedCorrectRTs.filter(rt=>rt>lapseThreshold).length : 0;
+ const lapseRatePct = (lapseThreshold!=null && sustainedCorrectRTs.length>0)
+  ? (lapseCount/sustainedCorrectRTs.length)*100 : null;
+
+ // Block formation efficiency measures how many adaptive paced trials were
+ // needed to form each block. Very low values suggest rapid failure; very high
+ // values suggest an unstable threshold during adaptation.
+ const blockCount = Number(result.blockCount)||0;
+ const adaptiveTrials = log.filter(e=>e && [
+  "paced","paced_wrong","paced_late_correct","paced_late_wrong","missed"
+ ].includes(e.phase)).length;
+ const trialsPerBlock = (blockCount>0 && adaptiveTrials>0)
+  ? adaptiveTrials/blockCount : null;
+
+ const correctBuckets = parseBucketSpec(settings.mode2CpaCorrectBuckets,
+  [[0,10,0],[11,12,0.1],[13,14,0.2],[15,18,0.3],[19,20,0.4]]);
+ const wrongBuckets = parseBucketSpec(settings.mode2CpaWrongBuckets,
+  [[0,0,0.1],[1,4,0],[5,8,-0.2],[9,12,-0.3],[13,15,-0.5],[16,18,-0.8],[19,20,-0.9]]);
+ const missedBuckets = parseBucketSpec(settings.mode2CpaMissedBuckets,
+  [[0,2,0.1],[3,4,0],[5,8,-0.2],[9,12,-0.3],[13,15,-0.5],[16,18,-0.8],[19,20,-0.9]]);
+ const cvBuckets = parseBucketSpec(settings.mode2CpaCvBuckets,
+  [[0,10,0.2],[10.01,15,0.1],[15.01,20,0],[20.01,30,-0.1],[30.01,50,-0.2],[50.01,Number.POSITIVE_INFINITY,-0.3]]);
+ const driftBuckets = parseBucketSpec(settings.mode2CpaDriftBuckets,
+  [[0,10,0],[10.0001,30,-0.01],[30.0001,40,-0.05],[40.0001,Number.POSITIVE_INFINITY,-0.10]]);
+ const recoveryBuckets = parseBucketSpec(settings.mode2CpaRecoveryRatioBuckets,
+  [[0,1.10,0],[1.11,1.25,-0.05],[1.26,1.50,-0.10],[1.51,Number.POSITIVE_INFINITY,-0.20]]);
+ const lapseBuckets = parseBucketSpec(settings.mode2CpaLapseRateBuckets,
+  [[0,5,0],[5.01,15,-0.05],[15.01,30,-0.10],[30.01,Number.POSITIVE_INFINITY,-0.20]]);
+ const efficiencyBuckets = parseBucketSpec(settings.mode2CpaEfficiencyBuckets,
+  [[0,10,-0.03],[10.01,30,0],[30.01,50,-0.03],[50.01,Number.POSITIVE_INFINITY,-0.07]]);
+
+ const correctAdj = clampCpaFactorDelta(cpi*bucketedCpaMultiplier(correct,correctBuckets), cpi);
+ const wrongAdj = clampCpaFactorDelta(cpi*bucketedCpaMultiplier(wrong,wrongBuckets), cpi);
+ const missedAdj = clampCpaFactorDelta(cpi*bucketedCpaMultiplier(missed,missedBuckets), cpi);
+ const cvAdj = responseCvPct!=null
+  ? clampCpaFactorDelta(cpi*bucketedCpaMultiplier(responseCvPct,cvBuckets), cpi) : 0;
+ const driftPct = driftRatio*100;
+ const driftAdj = clampCpaFactorDelta(cpi*bucketedCpaMultiplier(driftPct,driftBuckets), cpi);
+ const recoveryAdj = recoveryCalibRatio!=null
+  ? clampCpaFactorDelta(cpi*bucketedCpaMultiplier(recoveryCalibRatio,recoveryBuckets), cpi) : 0;
+ const lapseAdj = lapseRatePct!=null
+  ? clampCpaFactorDelta(cpi*bucketedCpaMultiplier(lapseRatePct,lapseBuckets), cpi) : 0;
+ const efficiencyAdj = trialsPerBlock!=null
+  ? clampCpaFactorDelta(cpi*bucketedCpaMultiplier(trialsPerBlock,efficiencyBuckets), cpi) : 0;
+
+ // Field 54 is enforced here for the first time. The cap limits total negative
+ // CPA adjustment so several mild penalties do not compound into an implausibly
+ // low end-state ability estimate.
+ const maxReductionFactorRaw = Number(settings.mode2CpaMaxReductionFactor);
+ const maxReductionFactor = clamp(Number.isFinite(maxReductionFactorRaw) ? maxReductionFactorRaw : DEFAULTS.mode2CpaMaxReductionFactor, 0, 1);
+ const allAdj = correctAdj+wrongAdj+missedAdj+cvAdj+driftAdj+recoveryAdj+lapseAdj+efficiencyAdj;
+ const minAllowed = -maxReductionFactor * cpi;
+ const cappedAllAdj = Math.max(minAllowed, allAdj);
+
+ const rawCpa = cpi + cappedAllAdj;
  const cpa = Math.max(0, Math.min(100, rawCpa));
- const r1 = v => v != null && Number.isFinite(Number(v)) ? Number(Number(v).toFixed(1)) : null;
- const r3 = v => v != null && Number.isFinite(Number(v)) ? Number(Number(v).toFixed(3)) : null;
+
+ const r1 = v=>v!=null&&Number.isFinite(Number(v))?Number(Number(v).toFixed(1)):null;
+ const r2 = v=>v!=null&&Number.isFinite(Number(v))?Number(Number(v).toFixed(2)):null;
+ const r3 = v=>v!=null&&Number.isFinite(Number(v))?Number(Number(v).toFixed(3)):null;
+
  return {
   cpa: r1(cpa),
   cpaBaseCpi: r1(cpi),
   cpaCorrectWeighting: r1(correctAdj),
   cpaWrongWeighting: r1(wrongAdj),
   cpaMissedWeighting: r1(missedAdj),
-  cpaSdWeighting: r1(sdAdj),
-  cpaDriftWeighting: r1(driftAdj),       // negative value = bucketed drift penalty
+  cpaSdWeighting: r1(cvAdj),
+  cpaDriftWeighting: r1(driftAdj),
+  cpaRecoveryWeighting: r1(recoveryAdj),
+  cpaLapseWeighting: r1(lapseAdj),
+  cpaEfficiencyWeighting: r1(efficiencyAdj),
   cpaSustainedResponseSdMs: r1(responseSd),
+  cpaSustainedCvPct: r1(responseCvPct),
   cpaSustainedDriftRatio: r3(driftRatio),
   cpaEarlyMedianRtMs: r1(earlyMedian),
-  cpaLateMedianRtMs: r1(lateMedian)
+  cpaLateMedianRtMs: r1(lateMedian),
+  cpaRecoveryCalibRatio: r2(recoveryCalibRatio),
+  cpaLapseRatePct: r1(lapseRatePct),
+  cpaTrialsPerBlock: r1(trialsPerBlock)
  };
 }
 
@@ -6048,7 +6177,7 @@ function isPerfFailureSession(r){
   if(/^failed/i.test(endReason) || endReason.includes("Retest") || endReason.includes("Practice!")) return true;
   // Anti-spoof rule for Mode 2: an early stop from sustained rolling-mean threshold
   // or wrong-limit is a failed / invalid session and should not plot partial success.
-  if(r.testMode === "mode2" && (lower.includes("rolling mean below threshold in sustained phase") || lower.includes("too many wrongs in sustained phase") || lower.includes("wrong limit in sustained phase") || lower.includes("wrong-fail threshold"))) return true;
+  if(r.testMode === "mode2" && (lower.includes("rolling mean below threshold in sustained phase") || lower.includes("wrong-response limit reached in sustained phase"))) return true;
   return false;
 }
 
@@ -6731,14 +6860,16 @@ function formatLastPerfTimeText(){
   const rows = h.map((r,i)=>{
     const when = r.time ? new Date(r.time).toLocaleString() : `Session ${i+1}`;
     const isMode2Sustained = r.testMode==="mode2";
-    const cpi = isMode2Sustained && r.sustainedProcessingIndex!=null ? Math.round(Number(r.sustainedProcessingIndex)) : (r.cognitivePerformanceIndex!=null ? Math.round(Number(r.cognitivePerformanceIndex)) : "—");
-    const mbs = isMode2Sustained ? (r.correctSustainedResponses!=null ? `${Math.round(Number(r.correctSustainedResponses))} CSR` : (r.sustainedBlockLimitPerformanceMs!=null ? Math.round(Number(r.sustainedBlockLimitPerformanceMs))+" ms" : "—")) : (r.averageLast2BlockingScoresMs!=null ? Math.round(Number(r.averageLast2BlockingScoresMs))+" ms" : "—");
+    const cpi = r.cognitivePerformanceIndex!=null ? Math.round(Number(r.cognitivePerformanceIndex)) : "—";
+    const mbs = isMode2Sustained
+      ? (r.sustainedBlockLimitPerformanceMs!=null ? Math.round(Number(r.sustainedBlockLimitPerformanceMs))+" ms" : "—")
+      : (r.averageLast2BlockingScoresMs!=null ? Math.round(Number(r.averageLast2BlockingScoresMs))+" ms" : "—");
     const cpa = isMode2Sustained && r.cpa!=null ? `CPA ${Number(r.cpa).toFixed(1)}` : null;
     const disp = isMode2Sustained && r.dispositionCode ? r.dispositionCode : null;
     const spf = r.samnPerelli && r.samnPerelli.score!=null ? r.samnPerelli.score : "—";
     const sleep = r.sleepLog && r.sleepLog.qualityLabel ? r.sleepLog.qualityLabel : (r.sleepSinceLastTest==="no" ? "No sleep before this test" : "—");
     const cpaStr = cpa ? ` | ${cpa}${disp?" ("+disp+")":""}` : "";
-    return `${i+1}. ${when} | ${isMode2Sustained?"SPI":"CPI"} ${cpi} | ${isMode2Sustained?"CSR/SBLP":"MBS"} ${mbs}${cpaStr} | SP-FS ${spf} | Sleep ${sleep}`;
+    return `${i+1}. ${when} | CPI ${cpi} | MBS ${mbs}${cpaStr} | SP-FS ${spf} | Sleep ${sleep}`;
   });
   return "Performance Over Date and Time Graph\n\n" + rows.join("\n");
 }
