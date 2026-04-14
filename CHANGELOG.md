@@ -1,3 +1,6 @@
+## V678
+- Updated to V678 and applied maintenance patches.
+
 ## V677
 - Fixed APP_VERSION mismatch so live JS, storage namespace, static HTML, and service worker all align on V677.
 - Marked Mode 2 sustained wrong-response limit stops as failures in both isTestSuccess() and isPerfFailureSession().

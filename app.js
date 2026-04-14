@@ -2,7 +2,7 @@
 // CogSpeed source
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V677";
+const APP_VERSION = "V678";
 
 // ═══════════════════════════════════════════════════
 // Current behavior summary (historical details live in CHANGELOG.md)
@@ -238,21 +238,6 @@ function loadSettings(){
  if(!s) return {...DEFAULTS};
  const m={...DEFAULTS};
  Object.keys(DEFAULTS).forEach(k=>{ if(s[k]!==undefined) m[k]=s[k]; });
- if(m.mode3TrialLimit===DEFAULTS.mode3TrialLimit && s.mode2TrialLimit!==undefined) m.mode3TrialLimit = s.mode2TrialLimit;
- if(m.mode3MaxDurationMs===DEFAULTS.mode3MaxDurationMs && s.mode2MaxDurationMs!==undefined) m.mode3MaxDurationMs = s.mode2MaxDurationMs;
- if(m.mode4CalibrationTrials===DEFAULTS.mode4CalibrationTrials && s.mode3CalibrationTrials!==undefined) m.mode4CalibrationTrials = s.mode3CalibrationTrials;
- if(m.mode4PacedTrialLimit===DEFAULTS.mode4PacedTrialLimit && s.mode3PacedTrialLimit!==undefined) m.mode4PacedTrialLimit = s.mode3PacedTrialLimit;
- if(m.mode4BaselineFactor===DEFAULTS.mode4BaselineFactor && s.mode3BaselineFactor!==undefined) m.mode4BaselineFactor = s.mode3BaselineFactor;
- if(m.mode4MaxDurationMs===DEFAULTS.mode4MaxDurationMs && s.mode3MaxDurationMs!==undefined) m.mode4MaxDurationMs = s.mode3MaxDurationMs;
- if(m.mode2SustainedStartFactor===DEFAULTS.mode2SustainedStartFactor && s.mode4SustainedStartFactor!==undefined) m.mode2SustainedStartFactor = s.mode4SustainedStartFactor;
- if(m.mode2SustainedTrialCount===DEFAULTS.mode2SustainedTrialCount && s.mode4SustainedTrialCount!==undefined) m.mode2SustainedTrialCount = s.mode4SustainedTrialCount;
- if(m.mode2SustainedWrongFailPercent===DEFAULTS.mode2SustainedWrongFailPercent && s.mode4SustainedWrongFailPercent!==undefined) m.mode2SustainedWrongFailPercent = s.mode4SustainedWrongFailPercent;
- if(m.mode2SustainedRollMeanWindow===DEFAULTS.mode2SustainedRollMeanWindow && s.mode4SustainedRollMeanWindow!==undefined) m.mode2SustainedRollMeanWindow = s.mode4SustainedRollMeanWindow;
- if(m.mode2SustainedRollMeanThreshold===DEFAULTS.mode2SustainedRollMeanThreshold && s.mode4SustainedRollMeanThreshold!==undefined) m.mode2SustainedRollMeanThreshold = s.mode4SustainedRollMeanThreshold;
- if(m.mode2LateResponseThresholdMs===DEFAULTS.mode2LateResponseThresholdMs && s.mode4LateResponseThresholdMs!==undefined) m.mode2LateResponseThresholdMs = s.mode4LateResponseThresholdMs;
- if(m.mode2FinalTrialCount===DEFAULTS.mode2FinalTrialCount && s.mode4FinalTrialCount!==undefined) m.mode2FinalTrialCount = s.mode4FinalTrialCount;
- // Legacy migration only: older builds saved the same preference as use12HourTime (1/0).
- if(!m.timeFormat) m.timeFormat = (s.use12HourTime===0 || s.use12HourTime==="0") ? "24" : "12";
  return m;
 }
 function saveSettings(){ localStorage.setItem(`${STORAGE_PREFIX}_settings`,JSON.stringify(settings)); }
@@ -1385,7 +1370,6 @@ function finish(){
  }
 }
 
-
 // ─── Open trial ───
 // ─── TRIAL LIFECYCLE ──────────────────────────────────────────
 // openTrial(): opens one trial for calibration/paced/recovery/terminal.
@@ -1394,7 +1378,6 @@ function finish(){
 // onPacedFrameEnd(): fires when paced frame expires (subject missed or
 //  wrong). Increments miss streak → triggers block if ≥2 true misses.
 // ──────────────────────────────────────────────────────────────
-
 
 function openTrial(kind){
  clearTimer();
@@ -1553,7 +1536,7 @@ function finalizePendingPriorMiss(){
 //   Applies the provisional pacing result for Frame 1 only if Frame 2 finished with no own response.
 //   If Frame 2 later gets its own >=600 ms response, this provisional pacing result is discarded
 //   and Frame 2's own pacing result replaces it.
-function finalizeMode4PendingPriorMiss(){
+function finalizeMode2SustainedPendingMiss(){
  if(!state.mode2PendingPriorMiss) return false;
  const pm = state.mode2PendingPriorMiss;
  state.mode2PendingPriorMiss = null;
@@ -1603,7 +1586,7 @@ if(state.phase==="paced_fixed"){
  }
 if(state.phase==="mode2_sustained"){
   if(state.mode2PendingPriorMiss){
-   finalizeMode4PendingPriorMiss();
+   finalizeMode2SustainedPendingMiss();
   }
   const frameTiming = harvestActiveFrameTiming(performance.now());
   const truelyMissed=state.current&&!state.current.resolved&&!state.hadResponse;
@@ -1923,7 +1906,7 @@ function handleTap(index,eventTimeStamp){
   }
 
   if(state.mode2PendingPriorMiss){
-   finalizeMode4PendingPriorMiss();
+   finalizeMode2SustainedPendingMiss();
   }
   const timingSummary = harvestActiveFrameTiming(performance.now());
 
@@ -2601,7 +2584,6 @@ function exportCSV(){
  setTimeout(()=>{ try{URL.revokeObjectURL(a.href);}catch(e){} try{a.remove();}catch(e){} },250);
 }
 
-
 // ─── FX (steam + sparks from each gear corner) ───
 let _fxRaf=null, _fxParticles=[];
 function startFX(){
@@ -2719,7 +2701,6 @@ function computeAge(bMonth, bYear){
 
 // Current profile being edited
 let _profileGenderSelected = "";
-
 
 let _profileTimeFormat = null;
 
@@ -2911,7 +2892,6 @@ function showOnly(id){
  getOverlayElements().forEach(el=>el.classList[el===target?"remove":"add"]("hidden"));
  try{ refreshUpdateBannerVisibility(); }catch(e){}
 }
-
 
 function hasActiveTestInProgress(){
  return !["idle","finished"].includes(String(state.phase||"idle"));
@@ -3296,7 +3276,6 @@ RANKED TARGET / POSITION AVERAGES — POOLED SAME-MODE SESSIONS
 ${formatModePooledRankSection(result.testMode)}`;
 }
 
-
 function getResultsMetricExplanationText(result){
  const hr="─────────────────────────";
  const mode=(result&&result.testMode)||"mode1";
@@ -3322,7 +3301,6 @@ RESULTS METRIC EXPLANATIONS
  CPA max total reduction cap = the total of all negative CPA adjustments is limited by the Admin max reduction factor × CPI. This prevents multiple mild penalties from driving CPA implausibly low in one session.${usesMode4Metrics?"":" Not used in this mode."}
  Disposition = operational recommendation derived from CPA score. GREEN (Clear): CPA > 65. YELLOW (Monitor / human review recommended): CPA 45–64. ORANGE (Human review required): CPA 30–44. RED (Remove from hazardous duty): CPA < 30. CogSpeed disposition is a structured recommendation requiring human review — not a standalone fitness determination.${usesMode4Metrics?"":" Not used in this mode."}`;
 }
-
 
 // ─── Mode 2 timing breakdown ─────────────────────────────────
 // Splits total test time into adaptive phase vs sustained+final phase.
@@ -3396,7 +3374,6 @@ function computeMode2WrongBreakdown(result){
  blank.total = blank.calibration + blank.adaptive + blank.recovery + blank.sustained + blank.finalSelfPaced;
  return blank;
 }
-
 
 function buildResultsSummaryCompact(result){
  const el=$("summaryText"); if(!el) return;
@@ -3728,8 +3705,6 @@ ${getResultsMetricExplanationText(result)}`;
 // ──────────────────────────────────────────────────────────────
 let _speedoRaf = null;
 
-
-
 function drawSpeedometer(canvas, scoreValue, success, scoreLabel="CPI", tipLabel="MBS", tipValue=null){
  const dpr = window.devicePixelRatio||1;
  const W = canvas.offsetWidth||380;
@@ -3988,7 +3963,6 @@ Render error: ${err && err.message ? err.message : err}`;
  setTestingQuiet(false);
 }
 
-
 // ─── Mode 2 Sustained Phase RT Tail Metrics ───────────────────
 // Computes P90 and Max of correct sustained RTs from rtLog.
 // Input:  rtLog array (full session trial log)
@@ -4043,7 +4017,6 @@ function getMode2SustainedRespondedEntries(rtLog){
  const log = Array.isArray(rtLog) ? rtLog : [];
  return log.filter(e => e && ["mode2_sustained","mode2_sustained_wrong"].includes(e.phase) && Number.isFinite(Number(e.rt)));
 }
-
 
 function parseBucketSpec(spec, fallback){
  try{
@@ -4190,9 +4163,9 @@ function computeMode2CPA(result){
  const efficiencyAdj = trialsPerBlock!=null
   ? clampCpaFactorDelta(cpi*bucketedCpaMultiplier(trialsPerBlock,efficiencyBuckets), cpi) : 0;
 
- // Field 54 is enforced here for the first time. The cap limits total negative
- // CPA adjustment so several mild penalties do not compound into an implausibly
- // low end-state ability estimate.
+ // Field 54 max-reduction cap: limits total negative CPA adjustment so that
+ // several mild penalties do not compound into an implausibly low end-state
+ // ability estimate.
  const maxReductionFactorRaw = Number(settings.mode2CpaMaxReductionFactor);
  const maxReductionFactor = clamp(Number.isFinite(maxReductionFactorRaw) ? maxReductionFactorRaw : DEFAULTS.mode2CpaMaxReductionFactor, 0, 1);
  const allAdj = correctAdj+wrongAdj+missedAdj+cvAdj+driftAdj+recoveryAdj+lapseAdj+efficiencyAdj;
@@ -4238,7 +4211,6 @@ function computeDispositionFromCPA(result){
  if(cpa >= 30) return { dispositionCode:"ORANGE", dispositionLabel:"Human review required" };
  return { dispositionCode:"RED", dispositionLabel:"Remove from Hazardous Duty" };
 }
-
 
 function getSpeedometerSelectedIndex(){
  const s=$("speedometerSessionSelect");
@@ -4347,7 +4319,6 @@ function showResultsPage(resultOverride){
   try{ updateStartPageLinks(); }catch(e){}
  }
 }
-
 
 // ─── Session control ───
 // ─── SESSION STATE MANAGEMENT ─────────────────────────────────
@@ -4877,7 +4848,6 @@ function buildTutProbe(pulsing){
  </div>`;
 }
 
-
 function buildTutGearGridAnimated(showPatterns){
  let html = `<style>
   @keyframes tutPairFlash {
@@ -5134,7 +5104,6 @@ function tutSetStep(n){
 // Appears after Pattern Refresher, before SP-FS page.
 // Skip button on every step.
 // ──────────────────────────────────────────────────────────────
-
 
 function normalizeSleepTimeValue(v){
  if(v==null) return null;
@@ -5411,7 +5380,6 @@ function formatSleepLine(result){
  return "Sleep: Not entered";
 }
 
-
 function updateSleepLoggerUI(){
  const bed=getSleepInputCanonicalValue("sleepBedtimeInput");
  const wake=getSleepInputCanonicalValue("sleepWakeInput");
@@ -5627,8 +5595,6 @@ $("lastWakeBackBtn").onclick=()=>showOnly("sleepPromptOverlay");
 
 $("sleepPromptBackBtn").onclick=()=>goToStartPage();
 
-
-
 const _fsb=$("fatigueStartBtn");
 if(_fsb) _fsb.onclick=startTest;
 let _adminUnlocked = false;
@@ -5818,12 +5784,9 @@ if ("serviceWorker" in navigator) {
  });
 }
 
-
 $("summaryRankedBtn").onclick=()=>{ const selected=state.history[getSummarySelectedIndex()]; if(!selected) return; buildRankedSummary(selected); $("summaryOverlay").classList.add("hidden"); $("rankedOverlay").classList.remove("hidden"); };
 
 try{ updateStartPageLinks(); }catch(e){}
-
-
 
 function drawSpfGauge(canvas, spf){
  if(!canvas) return;
@@ -6085,7 +6048,6 @@ function syncOutcomeStatusText(result){
  if(orr) orr.textContent = (result && result.endReason) ? result.endReason : "Run complete";
 }
 
-
 function openSpeedometerMenuSelection(){
  const sel=$("speedometerActionSelect");
  if(!sel) return;
@@ -6131,7 +6093,6 @@ $("trialLogCloseBtn").onclick=()=>{ $("trialLogOverlay").classList.add("hidden")
 
 const _rrab=$("rateRtAdminBtn"); if(_rrab) _rrab.onclick=()=>openAdminFromOverlay("rateRtOverlay");
 
-
 const _apt=$("adminPerfTimeBtn"); if(_apt) _apt.onclick=()=>{ $("adminOverlay").classList.add("hidden"); openPerformanceOverTimePage(); };
 
 const _ptb=$("perfTimeBackBtn"); if(_ptb) _ptb.onclick=()=>{ $("perfTimeOverlay").classList.add("hidden"); openSpeedometerPage(); };
@@ -6141,11 +6102,7 @@ const _rsp=$("rankedSpeedometerBtn"); if(_rsp) _rsp.onclick=()=>{ $("rankedOverl
 const _rrs=$("rankedRestartBtn"); if(_rrs) _rrs.onclick=()=>{ $("rankedOverlay").classList.add("hidden"); goToStartPage(); };
 const _rra=$("rankedAdminBtn"); if(_rra) _rra.onclick=()=>openAdminFromOverlay("rankedOverlay");
 
-
-
-
 const _rateRtCloseBtn=$("rateRtCloseBtn"); if(_rateRtCloseBtn) _rateRtCloseBtn.onclick=()=>{ $("rateRtOverlay").classList.add("hidden"); openSpeedometerPage(); };
-
 
 const _arg=$("adminResponseGraphBtn"); if(_arg) _arg.onclick=()=>{ openResponseGraphPage(true); };
 const _fgs=$("fullGraphSpeedometerBtn"); if(_fgs) _fgs.onclick=()=>{ $("fullGraphOverlay").classList.add("hidden"); openSpeedometerPage(); };
@@ -6159,9 +6116,6 @@ const _ssp=$("speedStartPageBtn"); if(_ssp) _ssp.onclick=()=>{ hideAllOverlays()
 // Opens from Speedometer. Provides recipient selection and a
 // dropdown for which results data to include in the email.
 // Includes links back to Speedometer and Start.
-
-
-
 
 /* ===== Performance vs Time graph ===== */
 const perfGraphState = {
@@ -6628,7 +6582,6 @@ function drawPerformanceOverTimeChart(canvas,hist){
   ctx.fillStyle = "#d7e7f8"; ctx.fillText("Good", PAD.left+174, legendY+8);
 }
 
-
 function getLastGraphableResult(){
  const h = state.history || [];
  for(let i=h.length-1;i>=0;i--){
@@ -6744,7 +6697,6 @@ function openPerformanceOverTimePage(){
 }
 /* ===== end Performance vs Time graph section ===== */
 
-
 /* ===== E-Mail Select wiring ===== */
 function openEmailSelectPage(){
   hideAllOverlays();
@@ -6785,7 +6737,6 @@ function wireEmailSelectControls(){
     };
   }
 
-
   if(dataSel && dataSel.dataset.emailWired !== "1"){
     dataSel.dataset.emailWired = "1";
     dataSel.onchange = ()=>{
@@ -6805,7 +6756,6 @@ function wireEmailSelectControls(){
 }
 
 /* ===== end E-Mail Select wiring ===== */
-
 
 /* ===== E-mail draft action ===== */
 function formatLastTrialLogText(last){
@@ -6842,7 +6792,6 @@ function formatLastRankedText(last){
     return "Ranked Target / Position Averages are not available.";
   }
 }
-
 
 function formatLastResponseGraphText(last){
   if(!last || !Array.isArray(last.rtLog) || !last.rtLog.length) return "No response-time graph data available.";
@@ -6912,9 +6861,7 @@ function buildEmailBodyFromSelection(){
   return state.lastResultText || JSON.stringify(last||{}, null, 2);
 }
 
-
 /* ===== end E-mail draft action ===== */
-
 
 /* ===== Editable recipient field ===== */
 function getEditableEmailRecipient(){
@@ -6981,7 +6928,6 @@ function wireEmailDraftAction(){
   }
 }
 /* ===== end Editable recipient field ===== */
-
 
 window.addEventListener("resize", ()=>{
  const last = state.history && state.history.length ? state.history[state.history.length-1] : null;
