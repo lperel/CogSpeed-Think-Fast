@@ -1338,7 +1338,7 @@ function finish(){
   setFlowDiagnostic("FINISH_SAVE", `FINISH_SAVE — ${result.endReason||"Run complete"}`);
   state.history.push(result);
   localStorage.setItem(`${STORAGE_PREFIX}_history`,JSON.stringify(state.history));
-  state.speedometerLatestSessionIndex = state.history.length-1;
+  state.speedometerLatestSessionIndex = state.history.length-1; // Reserved for possible future Speedometer auto-focus; currently not read elsewhere.
   setActiveResultContext(result, state.history.length-1, "saved history");
   try{ syncSummarySessionSelect(state.history.length-1); }catch(e){}
   try{ syncSpeedometerSessionSelect(state.history.length-1); }catch(e){}
@@ -1845,8 +1845,8 @@ function handleTap(index,eventTimeStamp){
   }
   state.hadResponse=true;
   state.totalResponses+=1; state.totalIncorrect+=1; state.pacedErrors+=1; state.fixedPacedWrong+=1;
-  if(checkMaxPacedWrong()) return;
   logTrial({phase:"paced_fixed_wrong",rt,outcome:"wrong",responseIndex:index,timing:timingSummary,pacing:{nextRateMs:state.duration,rateChangeMs:0,rateChangeReason:"Fixed machine-paced"}});
+  if(checkMaxPacedWrong()) return;
   flashBtn(index,false);
   if(state.fixedPacedPresented >= (Number(settings.mode4PacedTrialLimit)||140)){ state.endReason="Required responses reached"; finish(); return; }
   openTrial("paced_fixed"); return;
@@ -1930,8 +1930,8 @@ function handleTap(index,eventTimeStamp){
    state.endReason=`Mode 2 CogSpeed Sustained stopped: wrong-response limit reached in Sustained Phase (${state.mode2SustainedWrong}/${sustainedWrongLimit}).`;
    finish(); return;
   }
-  if(checkMaxPacedWrong()) return;
   logTrial({phase:"mode2_sustained_wrong",rt,outcome:"wrong",responseIndex:index,timing:timingSummary,pacing:{nextRateMs:state.duration,rateChangeMs:0,rateChangeReason:"Mode 2 sustained fixed rate (MBS × factor)"}});
+  if(checkMaxPacedWrong()) return;
   flashBtn(index,false);
   // Do NOT call openTrial here — the RAF frame timer must run to full duration.
   // onPacedFrameEnd() will advance to the next trial when the window expires.
@@ -1990,7 +1990,6 @@ function handleTap(index,eventTimeStamp){
   }else{
    state.totalIncorrect += 1;
    state.pacedErrors += 1;
-   if(checkMaxPacedWrong()) return;
 
    const savedCurrent = state.current;
    const savedPresented = state.presentedRoundDuration;
@@ -2000,6 +1999,7 @@ function handleTap(index,eventTimeStamp){
    const lateLogSeq = state.rtLog.length ? state.rtLog[state.rtLog.length-1].seq : null;
    state.current = savedCurrent;
    state.presentedRoundDuration = savedPresented;
+   if(checkMaxPacedWrong()) return;
 
    flashBtn(index,false);
    if(recordAnswer(false)) return;
@@ -2044,9 +2044,9 @@ function handleTap(index,eventTimeStamp){
  // Second tap on an already-resolved paced trial counts as wrong and slows pacing.
  state.hadResponse=true;
  state.totalResponses+=1; state.totalIncorrect+=1; state.pacedErrors+=1;
- if(checkMaxPacedWrong()) return;
  const pacing = applyPacing(null,false);
  logTrial({phase:"paced_wrong",rt,outcome:"wrong",responseIndex:index,timing:frameTiming,pacing});
+ if(checkMaxPacedWrong()) return;
  flashBtn(index,false); recordAnswer(false);
 }
 
@@ -3280,26 +3280,26 @@ function getResultsMetricExplanationText(result){
  const hr="─────────────────────────";
  const mode=(result&&result.testMode)||"mode1";
  const usesMode1Metrics = mode==="mode1";
- const usesMode4Metrics = mode==="mode2";
+ const usesMode2Metrics = mode==="mode2"; // Mode 2 sustained metrics/CPA explanations only.
  return `${hr}
 RESULTS METRIC EXPLANATIONS
- MBS (Max Blocking Score) = Average in ms of last 2 blocks within 250 ms.${usesMode1Metrics||usesMode4Metrics?"":" Not used in this mode."}
- CPI (Cognitive Processing Index) = normalized 0 - 100 index based on MBS.${usesMode1Metrics||usesMode4Metrics?"":" Not used in this mode."}
- CSR (Correct Sustained Responses) = number of correct sustained responses in the Mode 2 sustained segment.${usesMode4Metrics?"":" Not used in this mode."}
- SBLP (Sustained Blocking Limit Performance) = average RT of correct sustained responses during Mode 2 sustained segment, but defined as 0 when CSR = 0.${usesMode4Metrics?"":" Not used in this mode."}
- SBLP P90 = 90th-percentile correct sustained RT; conservative ceiling estimate.${usesMode4Metrics?"":" Not used in this mode."}
- SPI (Sustained Processing Index) = normalized 0 - 100 index based on CSR.${usesMode4Metrics?"":" Not used in this mode."}
- CPA (Cognitive Performance Ability) = Mode 2 combined end-state score (0–100). CPA starts with CPI, then applies eight Mode 2 factors that reward stronger sustained performance and penalize degraded or unstable sustained performance. Computed for Mode 2 only.${usesMode4Metrics?"":" Not used in this mode."}
- CPA factor 1 — Sustained Correct Weighting = reward based on the number of correct sustained responses. More correct sustained responses increase CPA because they show the subject could continue matching the sustained presentation rate accurately.${usesMode4Metrics?"":" Not used in this mode."}
- CPA factor 2 — Sustained Wrong Weighting = adjustment based on the number of wrong sustained responses. More wrong sustained responses reduce CPA because they indicate impaired discrimination or loss of control under load.${usesMode4Metrics?"":" Not used in this mode."}
- CPA factor 3 — Sustained Missed Weighting = adjustment based on the number of missed sustained responses. More misses reduce CPA because they indicate the subject could not keep up with the sustained presentation rate.${usesMode4Metrics?"":" Not used in this mode."}
- CPA factor 4 — Sustained RT CV% Weighting = adjustment based on coefficient of variation of correct sustained RTs: CV = (SD ÷ mean RT) × 100. Lower CV% means more consistent sustained responding; higher CV% means more erratic timing.${usesMode4Metrics?"":" Not used in this mode."}
- CPA factor 5 — Drift Weighting = adjustment based on positive slowing from early median sustained RT to late median sustained RT. It measures how much the subject slows down across the sustained phase. Negative drift is forced to 0 before weighting.${usesMode4Metrics?"":" Not used in this mode."}
- CPA factor 6 — Recovery÷Calibration RT Ratio Weighting = adjustment based on mean recovery-trial RT divided by calibration average RT. A ratio near 1.0 means self-paced speed stayed near baseline; higher values indicate within-session slowing even during recovery trials.${usesMode4Metrics?"":" Not used in this mode."}
- CPA factor 7 — Lapse Rate Weighting = adjustment based on the percent of correct sustained responses that are slower than 2× the median correct sustained RT. It captures unusually slow lapses that may not dominate the mean RT but still suggest degraded performance.${usesMode4Metrics?"":" Not used in this mode."}
- CPA factor 8 — Block Formation Efficiency Weighting = adjustment based on adaptive paced trials divided by block count. 10–30 trials per block is the typical range. Values below 10 mean blocks formed very rapidly — the presentation rate exceeded threshold within only a few trials. Values above 50 indicate the threshold shifted or was inconsistent throughout the adaptive phase.${usesMode4Metrics?"":" Not used in this mode."}
- CPA max total reduction cap = the total of all negative CPA adjustments is limited by the Admin max reduction factor × CPI. This prevents multiple mild penalties from driving CPA implausibly low in one session.${usesMode4Metrics?"":" Not used in this mode."}
- Disposition = operational recommendation derived from CPA score. GREEN (Clear): CPA > 65. YELLOW (Monitor / human review recommended): CPA 45–64. ORANGE (Human review required): CPA 30–44. RED (Remove from hazardous duty): CPA < 30. CogSpeed disposition is a structured recommendation requiring human review — not a standalone fitness determination.${usesMode4Metrics?"":" Not used in this mode."}`;
+ MBS (Max Blocking Score) = Average in ms of last 2 blocks within 250 ms.${usesMode1Metrics||usesMode2Metrics?"":" Not used in this mode."}
+ CPI (Cognitive Processing Index) = normalized 0 - 100 index based on MBS.${usesMode1Metrics||usesMode2Metrics?"":" Not used in this mode."}
+ CSR (Correct Sustained Responses) = number of correct sustained responses in the Mode 2 sustained segment.${usesMode2Metrics?"":" Not used in this mode."}
+ SBLP (Sustained Blocking Limit Performance) = average RT of correct sustained responses during Mode 2 sustained segment, but defined as 0 when CSR = 0.${usesMode2Metrics?"":" Not used in this mode."}
+ SBLP P90 = 90th-percentile correct sustained RT; conservative ceiling estimate.${usesMode2Metrics?"":" Not used in this mode."}
+ SPI (Sustained Processing Index) = normalized 0 - 100 index based on CSR.${usesMode2Metrics?"":" Not used in this mode."}
+ CPA (Cognitive Performance Ability) = Mode 2 combined end-state score (0–100). CPA starts with CPI, then applies eight Mode 2 factors that reward stronger sustained performance and penalize degraded or unstable sustained performance. Computed for Mode 2 only.${usesMode2Metrics?"":" Not used in this mode."}
+ CPA factor 1 — Sustained Correct Weighting = reward based on the number of correct sustained responses. More correct sustained responses increase CPA because they show the subject could continue matching the sustained presentation rate accurately.${usesMode2Metrics?"":" Not used in this mode."}
+ CPA factor 2 — Sustained Wrong Weighting = adjustment based on the number of wrong sustained responses. More wrong sustained responses reduce CPA because they indicate impaired discrimination or loss of control under load.${usesMode2Metrics?"":" Not used in this mode."}
+ CPA factor 3 — Sustained Missed Weighting = adjustment based on the number of missed sustained responses. More misses reduce CPA because they indicate the subject could not keep up with the sustained presentation rate.${usesMode2Metrics?"":" Not used in this mode."}
+ CPA factor 4 — Sustained RT CV% Weighting = adjustment based on coefficient of variation of correct sustained RTs: CV = (SD ÷ mean RT) × 100. Lower CV% means more consistent sustained responding; higher CV% means more erratic timing.${usesMode2Metrics?"":" Not used in this mode."}
+ CPA factor 5 — Drift Weighting = adjustment based on positive slowing from early median sustained RT to late median sustained RT. It measures how much the subject slows down across the sustained phase. Negative drift is forced to 0 before weighting.${usesMode2Metrics?"":" Not used in this mode."}
+ CPA factor 6 — Recovery÷Calibration RT Ratio Weighting = adjustment based on mean recovery-trial RT divided by calibration average RT. A ratio near 1.0 means self-paced speed stayed near baseline; higher values indicate within-session slowing even during recovery trials.${usesMode2Metrics?"":" Not used in this mode."}
+ CPA factor 7 — Lapse Rate Weighting = adjustment based on the percent of correct sustained responses that are slower than 2× the median correct sustained RT. It captures unusually slow lapses that may not dominate the mean RT but still suggest degraded performance.${usesMode2Metrics?"":" Not used in this mode."}
+ CPA factor 8 — Block Formation Efficiency Weighting = adjustment based on adaptive paced trials divided by block count. 10–30 trials per block is the typical range. Values below 10 mean blocks formed very rapidly — the presentation rate exceeded threshold within only a few trials. Values above 50 indicate the threshold shifted or was inconsistent throughout the adaptive phase.${usesMode2Metrics?"":" Not used in this mode."}
+ CPA max total reduction cap = the total of all negative CPA adjustments is limited by the Admin max reduction factor × CPI. This prevents multiple mild penalties from driving CPA implausibly low in one session.${usesMode2Metrics?"":" Not used in this mode."}
+ Disposition = operational recommendation derived from CPA score. GREEN (Clear): CPA > 65. YELLOW (Monitor / human review recommended): CPA 45–64. ORANGE (Human review required): CPA 30–44. RED (Remove from hazardous duty): CPA < 30. CogSpeed disposition is a structured recommendation requiring human review — not a standalone fitness determination.${usesMode2Metrics?"":" Not used in this mode."}`;
 }
 
 // ─── Mode 2 timing breakdown ─────────────────────────────────
@@ -5471,11 +5471,13 @@ function showFatigueOverlay(){
 }
 
 // Sleep Logger save path:
-// - parse current entry mode (12-hour structured fields or 24-hour input)
-// - save canonical HH:MM times
-// - compute durationMinutes
-// - save wakeDateTimeIso anchored to the session date so Results can
-//   compute hours awake before test from the current test wake entry only
+// - read the active entry mode (12-hour structured fields or 24-hour input)
+// - keep canonical HH:MM values for bedtime and wake time
+// - carry the separate Yesterday/Today day markers for both entries
+// - validate the full sleep window against the current test date/time
+// - compute durationMinutes from the validated window or the optional override
+// - save bedDateTimeIso / wakeDateTimeIso so Results can compute hours awake
+//   from the current test's recorded wake entry only
 function continueFromSleepLogger(){
  const bed=getSleepInputCanonicalValue("sleepBedtimeInput");
  const wake=getSleepInputCanonicalValue("sleepWakeInput");
@@ -5702,6 +5704,8 @@ const _sssel=$("summarySessionSelect"); if(_sssel) _sssel.onchange=()=>openSumma
 const _ssprev=$("summaryPrevBtn"); if(_ssprev) _ssprev.onclick=()=>{ const s=$("summarySessionSelect"); if(!s||!s.options.length) return; s.selectedIndex=Math.max(0, s.selectedIndex-1); if(s.onchange) s.onchange(); };
 const _ssnext=$("summaryNextBtn"); if(_ssnext) _ssnext.onclick=()=>{ const s=$("summarySessionSelect"); if(!s||!s.options.length) return; s.selectedIndex=Math.min(s.options.length-1, s.selectedIndex+1); if(s.onchange) s.onchange(); };
 const _spsel=$("speedometerSessionSelect"); if(_spsel) _spsel.onchange=()=>openSpeedometerSession(Number(_spsel.value));
+// Speedometer session list is sorted newest-first. Therefore Prev moves to an older session
+// (higher selectedIndex) and Next moves to a newer session (lower selectedIndex).
 const _spprev=$("speedometerPrevBtn"); if(_spprev) _spprev.onclick=()=>{ const s=$("speedometerSessionSelect"); if(!s||!s.options.length) return; s.selectedIndex=Math.min(s.options.length-1, s.selectedIndex+1); if(s.onchange) s.onchange(); };
 const _spnext=$("speedometerNextBtn"); if(_spnext) _spnext.onclick=()=>{ const s=$("speedometerSessionSelect"); if(!s||!s.options.length) return; s.selectedIndex=Math.max(0, s.selectedIndex-1); if(s.onchange) s.onchange(); };
 const _spm4=$("speedometerMode2ToggleBtn"); if(_spm4) _spm4.onclick=()=>{ state.speedometerMode2Metric = String(state.speedometerMode2Metric||"cpi").toLowerCase()==="cpi" ? "cpa" : "cpi"; openSpeedometerSession(getSpeedometerSelectedIndex()); };
@@ -6128,7 +6132,7 @@ function isPerfFailureSession(r){
   if(!r) return false;
   const endReason = String(r.endReason || "");
   const lower = endReason.toLowerCase();
-  if(/^failed/i.test(endReason) || endReason.includes("Retest") || endReason.includes("Practice!")) return true;
+  if(/^failed/i.test(endReason) || endReason.includes("Retest") || lower.includes("practice!")) return true;
   // Anti-spoof rule for Mode 2: an early stop from sustained rolling-mean threshold
   // or wrong-limit is a failed / invalid session and should not plot partial success.
   if(r.testMode === "mode2" && (lower.includes("rolling mean below threshold in sustained phase") || lower.includes("wrong-response limit reached in sustained phase"))) return true;

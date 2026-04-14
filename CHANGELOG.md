@@ -1,5 +1,14 @@
 ## V678
-- Updated to V678 and applied maintenance patches.
+- Renamed misnamed `usesMode4Metrics` to `usesMode2Metrics` in Results Metric Explanations. Logic was already correct for Mode 2; this is a maintenance-safety cleanup to prevent future stale interpretation.
+- Added a clarifying code comment on Speedometer Prev/Next navigation: the list is sorted newest-first, so Prev intentionally moves to an older session and Next to a newer one.
+- Focused audit completed on the packaged V678 build.
+- Fixed a real Sleep Logger wiring bug: `app.js` already read and listened to `sleepWakeDaySelect`, but `index.html` did not include that control. The wake-entry day marker is now present so wake-time validation and saved sleep windows match the UI.
+- Clarified the Sleep Logger save-path comment so it explicitly documents canonical time storage, separate day markers, validated date-time windows, and persisted ISO timestamps.
+- Re-ran package/version alignment and basic static audit checks: `APP_VERSION`, visible HTML labels, `app.js?v=678`, `manifest.json`, and `sw.js` all match V678.
+- JavaScript syntax check passed for `app.js` and `sw.js`.
+- Fixed paced_late_wrong state restoration so state.current and presentedRoundDuration are restored before any early return from the paced wrong-limit check.
+- Fixed performance-failure classification so all-caps "NEED MORE PRACTICE!" sessions are recognized as failed / invalid sessions.
+- Noted that speedometerLatestSessionIndex is currently reserved / unused to avoid future confusion.
 
 ## V677
 - Fixed APP_VERSION mismatch so live JS, storage namespace, static HTML, and service worker all align on V677.
