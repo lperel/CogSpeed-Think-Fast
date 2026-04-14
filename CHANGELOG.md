@@ -1,11 +1,26 @@
-## V678
+## V681
+- Rebuilt from the wording-refresh branch as a fully versioned V681 package.
+- Hardened success classification in isTestSuccess() so wording-only end-message changes do not flip completed sessions to Failed.
+- Added direct recognition for Mode 1/2/3/4 completion prefixes and refreshed time-complete wording.
+- Preserved legacy success-string recognition for older stored sessions.
+- Corrected isPerfFailureSession() so refreshed practice/retest wording and refreshed Mode 2 sustained-stop wording are classified as failed sessions in the Performance Over Date and Time chart.
+- Fixed the failed-session regex to use a real word-boundary (\b) matcher.
+
+## V680
+- Advanced the V679 wording-refresh rebuild to V680 so the package filename, APP_VERSION, visible labels, app.js cache-bust, and service-worker release all move together.
+- Fixed stale end-reason classifier matching in `isTestSuccess()` so the refreshed success wording maps correctly to successful outcomes on the Speedometer and legacy success strings remain recognized.
+- Fixed stale end-reason classifier matching in `isPerfFailureSession()` so refreshed practice/retest strings and refreshed Mode 2 sustained-stop strings are correctly treated as failed/non-plottable sessions on the Performance Over Date and Time graph.
+
+## V679
+- Advanced the approved wording-refresh rebuild to V679 so the package filename, APP_VERSION, visible labels, app.js cache-bust, and service-worker release all move together.
+- Fixed success/failure status classification so refreshed end-message wording still maps completed sessions to Success on the Speedometer.
 - Replaced session-end user-facing messages with clearer, more consistent wording while preserving the exact ending logic by category: success, practice/retest, threshold stops, and time-limit stops.
 - Renamed misnamed `usesMode4Metrics` to `usesMode2Metrics` in Results Metric Explanations. Logic was already correct for Mode 2; this is a maintenance-safety cleanup to prevent future stale interpretation.
 - Added a clarifying code comment on Speedometer Prev/Next navigation: the list is sorted newest-first, so Prev intentionally moves to an older session and Next to a newer one.
-- Focused audit completed on the packaged V678 build.
+- Focused audit completed on the packaged V679 build.
 - Fixed a real Sleep Logger wiring bug: `app.js` already read and listened to `sleepWakeDaySelect`, but `index.html` did not include that control. The wake-entry day marker is now present so wake-time validation and saved sleep windows match the UI.
 - Clarified the Sleep Logger save-path comment so it explicitly documents canonical time storage, separate day markers, validated date-time windows, and persisted ISO timestamps.
-- Re-ran package/version alignment and basic static audit checks: `APP_VERSION`, visible HTML labels, `app.js?v=678`, `manifest.json`, and `sw.js` all match V678.
+- Re-ran package/version alignment and basic static audit checks: `APP_VERSION`, visible HTML labels, `app.js?v=679`, `manifest.json`, and `sw.js` all match V679.
 - JavaScript syntax check passed for `app.js` and `sw.js`.
 - Fixed paced_late_wrong state restoration so state.current and presentedRoundDuration are restored before any early return from the paced wrong-limit check.
 - Fixed performance-failure classification so all-caps "NEED MORE PRACTICE!" sessions are recognized as failed / invalid sessions.

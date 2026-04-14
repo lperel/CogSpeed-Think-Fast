@@ -2,7 +2,7 @@
 // CogSpeed source
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V678";
+const APP_VERSION = "V681";
 
 // ═══════════════════════════════════════════════════
 // Current behavior summary (historical details live in CHANGELOG.md)
@@ -3130,27 +3130,40 @@ function updateStartPageLinks(){
 
 function isTestSuccess(resultOrReason){
  const result = (resultOrReason && typeof resultOrReason === "object") ? resultOrReason : null;
- const reason=String(result ? (result.endReason||"") : (resultOrReason||"")).trim();
+ const reason = String(result ? (result.endReason||"") : (resultOrReason||"")).trim();
  if(!reason) return false;
- const lower=reason.toLowerCase();
- // Mode 2 final self-paced no-response must be checked before failHints,
- // because "no response" is in both the end reason and the failHints list.
+ const lower = reason.toLowerCase();
+ const mode = String(result && result.testMode ? result.testMode : "").toLowerCase();
+ // Mode 2 final self-paced no-response must be checked before generic failure hints,
+ // because the phrase "no response" otherwise looks like a failure even when the
+ // session already qualified for the successful Mode 2 completion path.
  if(lower.includes("mode 2 final self-paced: no response")) return !!(result && result.mode2Triggered);
- const failHints=["failed","retest","practice","erratic responses","not responding in time","no response","too many blocks","too many wrong","anti-spoof","rolling mean","wrong window","wrong-response limit reached"];
- if(failHints.some(h=>lower.includes(h))) return false;
- if(lower.startsWith("convergent")) return true;
- if(lower.includes("mode 2 cogspeed sustained complete")) return true;
- if(lower==="required responses reached") return true;
- if(lower==="required test time reached") return true;
- if(lower==="time limit reached"){
-  if(result && result.testMode==="mode2"){
-   const sustainedPresented = Number(result.mode2SustainedPresented!=null ? result.mode2SustainedPresented : result.sustainedTrialsPresented);
-   const sustainedCorrect = Number(result.mode2SustainedCorrect!=null ? result.mode2SustainedCorrect : result.correctSustainedResponses);
-   if(result.mode2Triggered || sustainedPresented>0 || sustainedCorrect>0) return true;
+ // Success phrases first: wording-only refreshes must not flip completed sessions to Failed.
+ if(lower.startsWith("mode 1 complete:")) return true;
+ if(lower.startsWith("mode 2 complete:")) return true;
+ if(lower.startsWith("mode 3 complete:")) return true;
+ if(lower.startsWith("mode 4 complete:")) return true;
+ if(lower.startsWith("test complete:") && lower.includes("required test time reached")) return true;
+ if(lower.startsWith("convergent") || lower.includes("convergent block criterion")) return true;
+ if(lower.includes("mode 2 cogspeed sustained complete") || lower.includes("sustained segment finished after")) return true;
+ if(lower === "required responses reached" || lower.includes("required responses completed")) return true;
+ if(lower === "required test time reached" || lower.includes("required test time reached")) return true;
+ if(lower === "time limit reached" || lower.includes("maximum test time reached")){
+  if(mode === "mode2"){
+   const sustainedPresented = Number(result && (result.mode2SustainedPresented!=null ? result.mode2SustainedPresented : result.sustainedTrialsPresented));
+   const sustainedCorrect = Number(result && (result.mode2SustainedCorrect!=null ? result.mode2SustainedCorrect : result.correctSustainedResponses));
+   const finalCorrect = Number(result && (result.mode2FinalCorrect!=null ? result.mode2FinalCorrect : result.finalSelfPacedCorrect));
+   if((result && result.mode2Triggered) || sustainedPresented>0 || sustainedCorrect>0 || finalCorrect>0) return true;
   }
   return false;
  }
- if(lower==="run complete") return !!(result && Number.isFinite(Number(result.cognitivePerformanceIndex)));
+ const failHints = [
+  "failed","retest","practice","erratic responses","not responding in time",
+  "no response","too many blocks","too many wrong","anti-spoof","rolling mean",
+  "wrong window","wrong-response limit reached"
+ ];
+ if(failHints.some(h => lower.includes(h))) return false;
+ if(lower === "run complete") return !!(result && Number.isFinite(Number(result.cognitivePerformanceIndex)));
  return false;
 }
 
@@ -6132,10 +6145,14 @@ function isPerfFailureSession(r){
   if(!r) return false;
   const endReason = String(r.endReason || "");
   const lower = endReason.toLowerCase();
-  if(/^failed/i.test(endReason) || endReason.includes("Retest") || lower.includes("practice!")) return true;
-  // Anti-spoof rule for Mode 2: an early stop from sustained rolling-mean threshold
-  // or wrong-limit is a failed / invalid session and should not plot partial success.
-  if(r.testMode === "mode2" && (lower.includes("rolling mean below threshold in sustained phase") || lower.includes("wrong-response limit reached in sustained phase"))) return true;
+  if(/^failed/i.test(endReason) || lower.includes("retest") || lower.includes("practice")) return true;
+  // Anti-spoof and sustained-stop endings for Mode 2 are failed / invalid sessions.
+  if(r.testMode === "mode2" && (
+    lower.includes("rolling mean below threshold in sustained phase") ||
+    lower.includes("sustained-phase average performance fell below threshold") ||
+    lower.includes("wrong-response limit reached in sustained phase") ||
+    lower.includes("sustained-phase wrong-response limit reached")
+  )) return true;
   return false;
 }
 
