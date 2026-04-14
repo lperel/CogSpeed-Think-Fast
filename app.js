@@ -530,10 +530,10 @@ function armNoResponseTimer(){
  }
  state.absoluteNoResponseTimer=setTimeout(()=>{
   state.endReason = state.phase==="calibration"
-   ? "NO RESPONSE — Retest"
+   ? "No response detected — please retest."
    : state.phase==="mode2_final"
-   ? "Mode 2 final self-paced: overall max time reached"
-   : "NOT RESPONDING IN TIME — Retest";
+   ? "Test stopped: maximum test time reached."
+   : "Responses were too slow to continue — please retest.";
   finish();
  }, ms);
 }
@@ -543,7 +543,7 @@ function armMaxTestTimer(msOverride){
  const ms=Math.max(0, baseMs);
  state.maxTestRemainingMs = ms;
  state.maxTestDeadlineMs = performance.now()+ms;
- state.maxTestTimer=setTimeout(()=>{ state.endReason=(isMode3()||isMode4())?"Required test time reached":"Time limit reached"; finish(); },ms);
+ state.maxTestTimer=setTimeout(()=>{ state.endReason=(isMode3()||isMode4())?"Test complete: required test time reached.":"Test stopped: maximum test time reached."; finish(); },ms);
 }
 function noteAnyResponse(){
  if(state.phase==="calibration" || state.phase==="recovery" || state.phase==="terminal_recovery"){
@@ -934,7 +934,7 @@ function logTrial({phase,rt,outcome,responseIndex,counted,timing,pacing}){
 // ─── ANSWER RECORDING + ANTI-SPOOF ───────────────────────────
 // recordAnswer(): updates rolling mean + wrong-window checks.
 // ANTI-SPOOF — ROLLING MEAN: if correct% < 50% in last 8 taps
-//  → "TOO MANY WRONG RESPONSES! — Retest"
+//  → stop with the rolling-mean threshold message below.
 // ANTI-SPOOF — WRONG WINDOW: if >4 wrong in last 5 taps → stop.
 // Misses (isMiss=true) excluded from both checks (taps only).
 // ──────────────────────────────────────────────────────────────
@@ -946,7 +946,7 @@ function trialMatches(trial,index){ return trial&&index===trial.correctPos; }
 // ──────────────────────────────────────────────────────
 function checkMaxPacedWrong(){
  const limit=Number(settings.maxPacedWrong)||20;
- if(state.pacedErrors>=limit){ state.endReason=`FAILED: reached paced wrong-tap limit (${limit})`; finish(); return true; }
+ if(state.pacedErrors>=limit){ state.endReason=`Test stopped: paced wrong-response limit reached (${limit}).`; finish(); return true; }
  return false;
 }
 
@@ -960,7 +960,7 @@ function checkMode2SustainedRollingMean(ok){
   const ratio=state.mode2SustainedRollMeanLog.filter(v=>v===true).length/win;
   const thresh=Number(settings.mode2SustainedRollMeanThreshold)||0.50;
   if(ratio<thresh){
-   state.endReason=`Mode 2 CogSpeed Sustained stopped: rolling mean below threshold in Sustained Phase (${win} responses, threshold ${thresh})`;
+   state.endReason=`Mode 2 stopped: sustained-phase average performance fell below threshold (${win} responses, threshold ${thresh}).`;
    finish();
    return true;
   }
@@ -978,11 +978,11 @@ function recordAnswer(ok,isMiss){
   if(state.rollMeanLog.length===win){
    const ratio=state.rollMeanLog.filter(v=>v===true).length/win;
    const thresh=Number(settings.rollMeanThreshold)||0.50;
-   if(ratio<thresh){ state.endReason=`FAILED: rolling mean below threshold (${win} responses, threshold ${thresh})`; finish(); return true; }
+   if(ratio<thresh){ state.endReason=`Test stopped: recent average performance fell below the allowed threshold (${win} responses, threshold ${thresh}).`; finish(); return true; }
   }
   const wc=state.lastFiveAnswers.filter(v=>v===false).length;
   if(state.lastFiveAnswers.length===settings.wrongWindowSize&&wc>=settings.wrongThresholdStop){
-   state.endReason=`FAILED: too many wrong in last ${settings.wrongWindowSize} responses`; finish(); return true;
+   state.endReason=`Test stopped: too many wrong responses in the most recent ${settings.wrongWindowSize} trials.`; finish(); return true;
   }
  }
  updateMetrics(); return false;
@@ -1055,11 +1055,11 @@ function failCalibration(reason){ state.endReason=reason; finish(); }
 //
 // CHECK ADEQUATELY TRAINED:
 //   calibrationErrors >= calibrationStopErrors (default 4)
-//   → fail with "TOO MANY WRONG RESPONSES — Practice!"
+//   → fail with the calibration wrong-response practice/retest message
 //
 // CHECK RESPONSE SPEED:
 //   any correct measured calibration RT > calibrationStopSlowMs (default 6000)
-//   → fail with "NOT RESPONDING IN TIME — Practice!"
+//   → fail with the calibration too-slow practice/retest message
 //
 // DETERMINE BASELINE RT FOR MODE 1 AND MODE 3:
 //   avg of the required number of CORRECT measured calibration RTs
@@ -1067,7 +1067,7 @@ function failCalibration(reason){ state.endReason=reason; finish(); }
 //
 // Slow calibration halt:
 //   avg correct measured calibration RT > calibrationStopSlowMs
-//   → "NEED MORE PRACTICE!"
+//   → "Calibration performance indicates more practice is needed before testing."
 //
 // NO-RESPONSE TIMEOUTS: first trial=10s, subsequent=6s
 // ──────────────────────────────────────────────────────────────
@@ -1083,7 +1083,7 @@ function failCalibration(reason){ state.endReason=reason; finish(); }
 function finishCalibration(){
  const avg=mean(state.calibrationRTs.length?state.calibrationRTs:state.selfPacedRTs);
  if(isMode3()){
-  state.endReason = state.endReason || "Required responses reached";
+  state.endReason = state.endReason || "Mode 3 complete: required responses completed.";
   finish(); return;
  }
  if(isMode4()){
@@ -1097,7 +1097,7 @@ function finishCalibration(){
  }
  // Slow calibration halt: avg RT too slow — needs more practice
  if(avg>settings.calibrationStopSlowMs){
-  state.endReason="NEED MORE PRACTICE!";
+  state.endReason="Calibration performance indicates more practice is needed before testing.";
   finish(); return;
  }
  state.duration=clamp(avg*settings.initialPacedPercent,settings.minDurationMs,settings.maxDurationMs);
@@ -1517,7 +1517,7 @@ function finalizePendingPriorMiss(){
 
   const maxB = Math.max(2, Number(settings.maxBlockCount) || 6);
   if(state.overloads.length >= maxB){
-   state.endReason = "ERRATIC RESPONSES — Retest";
+   state.endReason = "Performance was too inconsistent to continue — please retest.";
    finish();
    return true;
   }
@@ -1578,7 +1578,7 @@ if(state.phase==="paced_fixed"){
    state.missedTrials+=1;
   }
   if(state.fixedPacedPresented >= (Number(settings.mode4PacedTrialLimit)||140)){
-   state.endReason="Required responses reached";
+   state.endReason="Mode 4 complete: required responses completed.";
    finish(); return;
   }
   openTrial("paced_fixed");
@@ -1647,7 +1647,7 @@ if(state.phase==="mode2_sustained"){
   // confirmed and is applied forward to Frame 3.
   applyPendingLatePacingIfAny();
 
-  if(state.totalTrials>=settings.maxTrialCount){ state.endReason="ERRATIC RESPONSES — Retest"; finish(); }
+  if(state.totalTrials>=settings.maxTrialCount){ state.endReason="Performance was too inconsistent to continue — please retest."; finish(); }
   else openTrial("paced");
   return;
  }
@@ -1658,7 +1658,7 @@ if(state.phase==="mode2_sustained"){
  state.pendingPriorMiss = null;
  state.pendingLatePacing = null;
 
- if(state.totalTrials>=settings.maxTrialCount){ state.endReason="ERRATIC RESPONSES — Retest"; finish(); }
+ if(state.totalTrials>=settings.maxTrialCount){ state.endReason="Performance was too inconsistent to continue — please retest."; finish(); }
  else openTrial("paced");
 }
 
@@ -1714,13 +1714,13 @@ function handleTap(index,eventTimeStamp){
     state.calibrationErrors+=1; updateMetrics();
     const calWrongLimit=Math.max(1,Number(settings.calibrationStopErrors)||4);
     if(state.calibrationErrors>=calWrongLimit){
-      failCalibration(`TOO MANY WRONG RESPONSES — Practice! (${state.calibrationErrors}/${calWrongLimit})`);
+      failCalibration(`Too many wrong responses during practice/calibration — please practice and retest. (${state.calibrationErrors}/${calWrongLimit})`);
       return;
     }
    }else if(includeInAverages){
     // Only CORRECT measured trials count toward calibration average and target count.
     if(rt>settings.calibrationStopSlowMs){
-      failCalibration("NOT RESPONDING IN TIME — Practice!");
+      failCalibration("Responses were too slow during practice/calibration — please practice and retest.");
       return;
     }
     state.calibrationRTs.push(rt);
@@ -1745,7 +1745,7 @@ function handleTap(index,eventTimeStamp){
 
   if(isMode3()){
    if(state.calibrationTrialIndex >= (Number(settings.mode3TrialLimit)||150)){
-     state.endReason="Required responses reached";
+     state.endReason="Mode 3 complete: required responses completed.";
      finishCalibration();
    }else{
      openTrial("calibration");
@@ -1759,17 +1759,17 @@ function handleTap(index,eventTimeStamp){
      state.calibrationErrors += 1;
      const calWrongLimit=Math.max(1,Number(settings.calibrationStopErrors)||4);
      if(state.calibrationErrors>=calWrongLimit){
-       failCalibration(`TOO MANY WRONG RESPONSES — Practice! (${state.calibrationErrors}/${calWrongLimit})`);
+       failCalibration(`Too many wrong responses during practice/calibration — please practice and retest. (${state.calibrationErrors}/${calWrongLimit})`);
        return;
      }
    }
    if(ok && includeInAverages && rt>settings.calibrationStopSlowMs){
-     failCalibration("NOT RESPONDING IN TIME — Practice!");
+     failCalibration("Responses were too slow during practice/calibration — please practice and retest.");
      return;
    }
    // End only after warmups are done AND we have the required number of CORRECT measured trials.
    if(state.calibrationRTs.length >= mode4MeasuredTarget){
-     state.endReason="Required responses reached";
+     state.endReason="Mode 4 complete: required responses completed.";
      finishCalibration();
    }else{
      openTrial("calibration");
@@ -1810,7 +1810,7 @@ function handleTap(index,eventTimeStamp){
   }else{
    state.spCorrectStreak=0; state.spWrongCount+=1; state.recoveryErrors+=1;
    const limit=Math.max(1,Number(settings.spRestartWrongLimit)||3);
-   if(state.spWrongCount>=limit){ state.endReason=`FAILED: reached SP restart wrong-tap limit (${limit})`; finish(); return; }
+   if(state.spWrongCount>=limit){ state.endReason=`Test stopped: self-paced restart wrong-response limit reached (${limit}).`; finish(); return; }
    setStatus(`SP Restart: ${state.spWrongCount}/${limit} wrong`);
    setTimeout(()=>openTrial("recovery"), Number(settings.RecoveryInterTrialDelayMsStart)||0);
   }
@@ -1828,7 +1828,7 @@ function handleTap(index,eventTimeStamp){
   state.current.resolved=true;
   state.recoveryTrialsCompleted+=1;
   const need=2;
-  if(state.recoveryTrialsCompleted>=need){ state.endReason=`Convergent blocks — ${state.terminalBlockReason||"2 consecutive blocks within threshold"}. Completed ${need} final trials.`; finish(); return; }
+  if(state.recoveryTrialsCompleted>=need){ state.endReason=`Mode 1 complete: convergent block criterion reached and ${need} final self-paced trials completed.`; finish(); return; }
   setTimeout(()=>openTrial("terminal_recovery"), Number(settings.RecoveryInterTrialDelayMsStart)||0);
   return;
  }
@@ -1840,7 +1840,7 @@ function handleTap(index,eventTimeStamp){
   if(state.current&&!state.current.resolved&&trialMatches(state.current,index)){
    state.current.resolved=true; state.totalResponses+=1; state.totalCorrect+=1; state.fixedPacedCorrect+=1; state.pacedRTs.push(rt);
    logTrial({phase:"paced_fixed",rt,outcome:"correct",responseIndex:index,timing:timingSummary,pacing:{nextRateMs:state.duration,rateChangeMs:0,rateChangeReason:"Fixed machine-paced"}}); flashBtn(index,true);
-   if(state.fixedPacedPresented >= (Number(settings.mode4PacedTrialLimit)||140)){ state.endReason="Required responses reached"; finish(); return; }
+   if(state.fixedPacedPresented >= (Number(settings.mode4PacedTrialLimit)||140)){ state.endReason="Mode 4 complete: required responses completed."; finish(); return; }
    openTrial("paced_fixed"); return;
   }
   state.hadResponse=true;
@@ -1848,7 +1848,7 @@ function handleTap(index,eventTimeStamp){
   logTrial({phase:"paced_fixed_wrong",rt,outcome:"wrong",responseIndex:index,timing:timingSummary,pacing:{nextRateMs:state.duration,rateChangeMs:0,rateChangeReason:"Fixed machine-paced"}});
   if(checkMaxPacedWrong()) return;
   flashBtn(index,false);
-  if(state.fixedPacedPresented >= (Number(settings.mode4PacedTrialLimit)||140)){ state.endReason="Required responses reached"; finish(); return; }
+  if(state.fixedPacedPresented >= (Number(settings.mode4PacedTrialLimit)||140)){ state.endReason="Mode 4 complete: required responses completed."; finish(); return; }
   openTrial("paced_fixed"); return;
  }
 
@@ -1892,7 +1892,7 @@ function handleTap(index,eventTimeStamp){
     flashBtn(index,false);
     checkMode2SustainedRollingMean(false);
     if(state.mode2SustainedWrong >= sustainedWrongLimit){
-     state.endReason=`Mode 2 CogSpeed Sustained stopped: wrong-response limit reached in Sustained Phase (${state.mode2SustainedWrong}/${sustainedWrongLimit}).`;
+     state.endReason=`Mode 2 stopped: sustained-phase wrong-response limit reached (${state.mode2SustainedWrong}/${sustainedWrongLimit}).`;
      finish(); return;
     }
     if(checkMaxPacedWrong()) return;
@@ -1927,7 +1927,7 @@ function handleTap(index,eventTimeStamp){
    logTrial({phase:"mode2_sustained_wrong",rt,outcome:"wrong",responseIndex:index,timing:timingSummary,pacing:{nextRateMs:state.duration,rateChangeMs:0,rateChangeReason:"Mode 2 sustained fixed rate (MBS × factor)"}});
    flashBtn(index,false);
    checkMode2SustainedRollingMean(false);
-   state.endReason=`Mode 2 CogSpeed Sustained stopped: wrong-response limit reached in Sustained Phase (${state.mode2SustainedWrong}/${sustainedWrongLimit}).`;
+   state.endReason=`Mode 2 stopped: sustained-phase wrong-response limit reached (${state.mode2SustainedWrong}/${sustainedWrongLimit}).`;
    finish(); return;
   }
   logTrial({phase:"mode2_sustained_wrong",rt,outcome:"wrong",responseIndex:index,timing:timingSummary,pacing:{nextRateMs:state.duration,rateChangeMs:0,rateChangeReason:"Mode 2 sustained fixed rate (MBS × factor)"}});
@@ -1948,7 +1948,7 @@ function handleTap(index,eventTimeStamp){
   logTrial({phase:"mode2_final",rt,outcome:ok?"correct":"wrong",responseIndex:index});
   const need=Math.max(1, Number(settings.mode2FinalTrialCount)||2);
   if(state.mode2FinalTrialsPresented>=need){
-   state.endReason=`Mode 2 CogSpeed Sustained complete. Presented ${Math.max(1, Number(settings.mode2SustainedTrialCount)||20)} sustained trial(s) at ${state.mode2SustainedPresentationRateMs!=null?Math.round(state.mode2SustainedPresentationRateMs):"—"} ms, CSR ${state.mode2SustainedCorrect||0}, and ${need} final self-paced trial(s).`;
+   state.endReason=`Mode 2 complete: sustained segment finished after ${Math.max(1, Number(settings.mode2SustainedTrialCount)||20)} sustained trial(s) at ${state.mode2SustainedPresentationRateMs!=null?Math.round(state.mode2SustainedPresentationRateMs):"—"} ms, followed by ${need} final self-paced trial(s).`;
    finish(); return;
   }
   openTrial("mode2_final");

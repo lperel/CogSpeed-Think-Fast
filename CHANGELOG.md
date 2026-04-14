@@ -1,4 +1,5 @@
 ## V678
+- Replaced session-end user-facing messages with clearer, more consistent wording while preserving the exact ending logic by category: success, practice/retest, threshold stops, and time-limit stops.
 - Renamed misnamed `usesMode4Metrics` to `usesMode2Metrics` in Results Metric Explanations. Logic was already correct for Mode 2; this is a maintenance-safety cleanup to prevent future stale interpretation.
 - Added a clarifying code comment on Speedometer Prev/Next navigation: the list is sorted newest-first, so Prev intentionally moves to an older session and Next to a newer one.
 - Focused audit completed on the packaged V678 build.
