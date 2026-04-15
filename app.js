@@ -2,7 +2,7 @@
 // CogSpeed source
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V688";
+const APP_VERSION = "V689";
 
 // ═══════════════════════════════════════════════════
 // Current behavior summary (historical details live in CHANGELOG.md)
@@ -3173,7 +3173,7 @@ function computeFitDutyNextReminderAt(s, now=new Date()){
  const latest = getLatestCompletedMode2Result(s?.fitDutyIgnoreIncomplete!==false);
  let minutes = Math.max(60, Number(s.fitDutyDefaultIntervalHr||4) * 60);
  if(latest){
-  const cpi = Number(latest.cpiValue!=null ? latest.cpiValue : latest.cpi);
+  const cpi = Number(latest.cognitivePerformanceIndex);
   const spf = (latest.samnPerelli && latest.samnPerelli.score != null)
     ? Number(latest.samnPerelli.score) : 0;
   const minMin = Math.max(5, Number(s.fitDutyMinIntervalMin)||30);
@@ -3289,11 +3289,7 @@ function showSchedulerReminderModal(){
 function startMode2FromSchedulerReminder(){
  $("schedulerReminderOverlay")?.classList.add("hidden");
  schedulerState.settings.lastReminderResult = "Completed";
- schedulerState.settings.nextTestAt = computeNextSchedulerReminderAt(schedulerState.settings, new Date());
- schedulerState.settings.nextReason = computeNextSchedulerReason(schedulerState.settings);
- persistActiveSchedulerSettings();
- refreshSchedulerStatus();
- armSchedulerReminderTimer();
+ scheduleNextReminderFromNow();
  settings.testMode = "mode2";
  saveSettings();
  showSleepPrompt();
@@ -3312,11 +3308,7 @@ function snoozeSchedulerReminder(){
 function skipSchedulerReminder(){
  $("schedulerReminderOverlay")?.classList.add("hidden");
  schedulerState.settings.lastReminderResult = "Skipped";
- schedulerState.settings.nextTestAt = computeNextSchedulerReminderAt(schedulerState.settings, new Date());
- schedulerState.settings.nextReason = computeNextSchedulerReason(schedulerState.settings);
- persistActiveSchedulerSettings();
- refreshSchedulerStatus();
- armSchedulerReminderTimer();
+ scheduleNextReminderFromNow();
  setStatus("Mode 2 reminder skipped");
 }
 // Fires the local in-app reminder UI and optional sound/voice for the next scheduled Mode 2 test.

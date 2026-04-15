@@ -1,3 +1,7 @@
+## V689
+- Fixed Fit for Duty CPI extraction to read `cognitivePerformanceIndex` from saved results, so CPI-based reminder branching works again.
+- Reused `scheduleNextReminderFromNow()` in reminder action paths to remove stale dead-code drift and keep recompute/persist/rearm logic in one place.
+
 # V688 — 2026-04-15
 - Hardened service worker install so optional media-cache failures do not abort installation.
 - Fixed Scheduler Device Test service worker status so PASS requires an active controller.
