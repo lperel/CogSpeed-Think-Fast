@@ -41,8 +41,9 @@ const STORAGE_PREFIX = `cogspeed_v${RELEASE}`;
 // All configurable test parameters. Changes here affect ALL users.
 // Admin panel allows per-device override (localStorage only).
 // To permanently change a default, edit here and push to GitHub.
-// NOTE: keep DEFAULTS, ADMIN_FIELDS labels, CPI comments, and any table
-// fallbacks aligned. Recent cleanup removed several stale mismatches.
+// NOTE: keep DEFAULTS, ADMIN_FIELDS labels, CPI comments, personal-baseline
+// threshold text, and any table fallbacks aligned. Recent cleanup removed
+// several stale mismatches.
 // ═══════════════════════════════════════════════════════════════
 // ═══════════════════════════════════════════════════════════════
 // FOUR TEST MODES
@@ -96,6 +97,7 @@ const DEFAULTS={
  calibrationStopSlowMs:6000,
  cpiBestMs:1000,
  cpiWorstMs:2400,
+ personalBaselineMinMbs:1800,
  deviceBenchmarkEnabled:0,
  timeFormat:"12",
  lateResponseThresholdMs:600, // first response <600ms on next frame may belong to prior frame; a second >=600ms response belongs to current frame
@@ -118,28 +120,26 @@ const DEFAULTS={
 // Drives the admin form UI and maps to DEFAULTS keys above.
 // ═══════════════════════════════════════════════════════════════
 const ADMIN_FIELDS=[
- // 1. Admin passcode
+ // 1-2. Device / test selection
  ["adminPasscode","1. Admin passcode","text"],
+ ["testMode","2. Test mode","select:mode1|mode2|mode3|mode4"],
 
- // 2-14. Global defaults used across all modes, ordered by use in the test
- ["initialUnusedCalibrationTrials","2. Warm-up calibration trials (default 1)","number"],
- ["initialMeasuredCalibrationTrials","3. Measured calibration trials (default 7)","number"],
- ["calibrationFirstNoResponseMs","4. Calibration first-trial no-response (ms, default 10000)","number"],
- ["calibrationNoResponseMs","5. Calibration later-trial no-response (ms, default 6000)","number"],
- ["calibrationStopErrors","6. Calibration stop after N wrong (default 4)","number"],
- ["calibrationStopSlowMs","7. Calibration avg RT limit (ms, default 6000)","number"],
- ["minDurationMs","8. MP frame minimum duration (ms, default 600)","number"],
- ["maxDurationMs","9. MP frame maximum duration (ms, default 3500)","number"],
- ["maxTestDurationMs","10. Max total test time (ms, default 150000)","number"],
- ["wrongWindowSize","11. Anti-spoof wrong window size (default 5)","number"],
- ["wrongThresholdStop","12. Anti-spoof max wrong in window (default 4)","number"],
- ["rollMeanWindow","13. Anti-spoof rolling mean window (default 10)","number"],
- ["rollMeanThreshold","14. Anti-spoof rolling mean threshold (default 0.50)","number"],
+ // 3-15. Shared startup / calibration / anti-spoof settings, in program-use order
+ ["initialUnusedCalibrationTrials","3. Warm-up calibration trials (default 1)","number"],
+ ["initialMeasuredCalibrationTrials","4. Measured calibration trials (default 7)","number"],
+ ["calibrationFirstNoResponseMs","5. Calibration first-trial no-response (ms, default 10000)","number"],
+ ["calibrationNoResponseMs","6. Calibration later-trial no-response (ms, default 6000)","number"],
+ ["calibrationStopErrors","7. Calibration stop after N wrong (default 4)","number"],
+ ["calibrationStopSlowMs","8. Calibration avg RT limit (ms, default 6000)","number"],
+ ["minDurationMs","9. MP frame minimum duration (ms, default 600)","number"],
+ ["maxDurationMs","10. MP frame maximum duration (ms, default 3500)","number"],
+ ["maxTestDurationMs","11. Max total test time (ms, default 150000)","number"],
+ ["wrongWindowSize","12. Anti-spoof wrong window size (default 5)","number"],
+ ["wrongThresholdStop","13. Anti-spoof max wrong in window (default 4)","number"],
+ ["rollMeanWindow","14. Anti-spoof rolling mean window (default 10)","number"],
+ ["rollMeanThreshold","15. Anti-spoof rolling mean threshold (default 0.50)","number"],
 
- // 15. Test mode selector
- ["testMode","15. Test mode","select:mode1|mode2|mode3|mode4"],
-
- // 16-31. Mode 1 CogSpeed Adapted, ordered by use
+ // 16-35. Mode 1 CogSpeed Adapted, in program-use order
  ["initialPacedPercent","16. Mode 1 MP start: % of calibration avg (default 1.2)","number"],
  ["consecutiveMissesForBlock","17. Mode 1 misses to trigger block (default 2)","number"],
  ["blockRestartPercent","18. Mode 1 restart multiplier after block (default 1.3 = 130% of block baseline)","number"],
@@ -149,49 +149,48 @@ const ADMIN_FIELDS=[
  ["correctSpeedupFactor","22. Mode 1 MP correct formula factor (default 0.30)","number"],
  ["minSpeedupOnCorrectMs","23. Mode 1 MP minimum speedup on correct (ms, default 50)","number"],
  ["maxSpeedupOnCorrectMs","24. Mode 1 MP maximum speedup on correct (ms, default 200)","number"],
- ["recoveryNoResponseMs","25. Mode 1 recovery no-response timeout (ms, default 10000)","number"],
- ["maxBlockCount","26. Mode 1 max total blocks before fail (default 6)","number"],
- ["qualifyingBlockGapMs","27. Mode 1 qualifying block max gap (ms, default 250)","number"],
- ["maxTrialCount","28. Mode 1 max paced trials (default 180)","number"],
- ["maxPacedWrong","29. Mode 1 max paced wrong before fail (default 20)","number"],
- ["cpiBestMs","30. Mode 1 CPI best ms anchor (default 1000)","number"],
- ["cpiWorstMs","31. Mode 1 CPI worst ms anchor (default 2400)","number"],
+ ["lateResponseThresholdMs","25. Mode 1 late response reassignment threshold (ms, default 600)","number"],
+ ["recoveryNoResponseMs","26. Mode 1 recovery no-response timeout (ms, default 10000)","number"],
+ ["RecoveryInterTrialDelayMsStart","27. Recovery inter-trial delay at start (ms, default 0)","number"],
+ ["ResumeToPacedDelayMs","28. Resume-to-paced delay after recovery (ms, default 0)","number"],
+ ["maxBlockCount","29. Mode 1 max total blocks before fail (default 6)","number"],
+ ["qualifyingBlockGapMs","30. Mode 1 qualifying block max gap (ms, default 250)","number"],
+ ["maxTrialCount","31. Mode 1 max paced trials (default 180)","number"],
+ ["maxPacedWrong","32. Mode 1 max paced wrong before fail (default 20)","number"],
+ ["cpiBestMs","33. Mode 1 CPI best ms anchor (default 1000)","number"],
+ ["cpiWorstMs","34. Mode 1 CPI worst ms anchor (default 2400)","number"],
+ ["personalBaselineMinMbs","35. Personal Baseline minimum qualifying MBS (ms, default 1800)","number"],
 
- // 32-38. Mode 2 CogSpeed Sustained
- ["mode2SustainedStartFactor","32. Mode 2 sustained start factor × MBS (default 1.1)","number"],
- ["mode2SustainedTrialCount","33. Mode 2 sustained trials at MBS × factor (default 20)","number"],
- ["mode2SustainedWrongFailPercent","34. Mode 2 wrong-fail threshold for sustained phase (default 50% of sustained trials)","number"],
- ["mode2SustainedRollMeanWindow","35. Mode 2 anti-spoof rolling mean window in Sustained Phase (default 10)","number"],
- ["mode2SustainedRollMeanThreshold","36. Mode 2 anti-spoof rolling mean threshold in Sustained Phase (default 0.50)","number"],
- ["mode2LateResponseThresholdMs","37. Mode 2 late response reassignment threshold (ms, default 600)","number"],
- ["mode2FinalTrialCount","38. Mode 2 final self-paced trials (default 2)","number"],
+ // 36-50. Mode 2 CogSpeed Sustained, in program-use order
+ ["mode2SustainedStartFactor","36. Mode 2 sustained start factor × MBS (default 1.1)","number"],
+ ["mode2SustainedTrialCount","37. Mode 2 sustained trials at MBS × factor (default 20)","number"],
+ ["mode2SustainedWrongFailPercent","38. Mode 2 wrong-fail threshold for sustained phase (default 50% of sustained trials)","number"],
+ ["mode2SustainedRollMeanWindow","39. Mode 2 anti-spoof rolling mean window in Sustained Phase (default 10)","number"],
+ ["mode2SustainedRollMeanThreshold","40. Mode 2 anti-spoof rolling mean threshold in Sustained Phase (default 0.50)","number"],
+ ["mode2LateResponseThresholdMs","41. Mode 2 late response reassignment threshold (ms, default 600)","number"],
+ ["mode2FinalTrialCount","42. Mode 2 final self-paced trials (default 2)","number"],
+ ["mode2CpaCorrectBuckets","43. Mode 2 CPA correct buckets (min-max:multiplier; ...)","text"],
+ ["mode2CpaWrongBuckets","44. Mode 2 CPA wrong buckets (min-max:multiplier; ...)","text"],
+ ["mode2CpaMissedBuckets","45. Mode 2 CPA missed buckets (min-max:multiplier; ...)","text"],
+ ["mode2CpaCvBuckets","46. Mode 2 CPA sustained RT CV% buckets — CV=(SD÷mean)×100; 0–10%=consistent; 50%+=erratic (min-max:multiplier; ...)","text"],
+ ["mode2CpaDriftBuckets","47. Mode 2 CPA drift % buckets (min-max:multiplier; ...)","text"],
+ ["mode2CpaMaxReductionFactor","48. Mode 2 CPA max total reduction factor × CPI — caps downward adjustments (default 0.9)","number"],
+ ["mode2CpaRecoveryRatioBuckets","49. Mode 2 CPA recovery÷calibration RT ratio buckets — 1.0=no drift; 1.5=50% slower in recovery (min-max:multiplier; ...)","text"],
+ ["mode2CpaLapseRateBuckets","50. Mode 2 CPA sustained-phase lapse rate% buckets — lapse: correct RT > 2× median sustained RT; 0=no lapses (min-max:multiplier; ...)","text"],
+ ["mode2CpaEfficiencyBuckets","51. Mode 2 CPA block efficiency buckets — adaptive trials÷blocks; 0–10=rapid; 10–30=normal; 30+=unstable threshold (min-max:multiplier; ...)","text"],
 
- // 39-40. Mode 3 Self-paced
- ["mode3TrialLimit","39. Mode 3 self-paced trial limit (default 150)","number"],
- ["mode3MaxDurationMs","40. Mode 3 total duration ms (default 120000)","number"],
+ // 52-53. Mode 3 Self-paced
+ ["mode3TrialLimit","52. Mode 3 self-paced trial limit (default 150)","number"],
+ ["mode3MaxDurationMs","53. Mode 3 total duration ms (default 120000)","number"],
 
- // 41-44. Mode 4 Machine-paced
- ["mode4CalibrationTrials","41. Mode 4 self-paced calibration trials (default 10)","number"],
- ["mode4BaselineFactor","42. Mode 4 MP baseline factor from cal avg (default 1.3)","number"],
- ["mode4PacedTrialLimit","43. Mode 4 fixed machine-paced trial limit (default 140)","number"],
- ["mode4MaxDurationMs","44. Mode 4 total duration ms (default 120000)","number"],
+ // 54-57. Mode 4 Machine-paced
+ ["mode4CalibrationTrials","54. Mode 4 self-paced calibration trials (default 10)","number"],
+ ["mode4BaselineFactor","55. Mode 4 MP baseline factor from cal avg (default 1.3)","number"],
+ ["mode4PacedTrialLimit","56. Mode 4 fixed machine-paced trial limit (default 140)","number"],
+ ["mode4MaxDurationMs","57. Mode 4 total duration ms (default 120000)","number"],
 
- // 45-48. Cross-mode utilities / diagnostics
- ["deviceBenchmarkEnabled","45. Device benchmark (0=off, 1=on)","number"],
- ["lateResponseThresholdMs","46. Mode 1 late response reassignment threshold (ms, default 600)","number"],
- ["RecoveryInterTrialDelayMsStart","47. Recovery inter-trial delay at start (ms, default 0)","number"],
- ["ResumeToPacedDelayMs","48. Resume-to-paced delay after recovery (ms, default 0)","number"],
-
- // 49-57. Mode 2 CPA editable defaults
- ["mode2CpaCorrectBuckets","49. Mode 2 CPA correct buckets (min-max:multiplier; ...)","text"],
- ["mode2CpaWrongBuckets","50. Mode 2 CPA wrong buckets (min-max:multiplier; ...)","text"],
- ["mode2CpaMissedBuckets","51. Mode 2 CPA missed buckets (min-max:multiplier; ...)","text"],
- ["mode2CpaCvBuckets","52. Mode 2 CPA sustained RT CV% buckets — CV=(SD÷mean)×100; 0–10%=consistent; 50%+=erratic (min-max:multiplier; ...)","text"],
- ["mode2CpaDriftBuckets","53. Mode 2 CPA drift % buckets (min-max:multiplier; ...)","text"],
- ["mode2CpaMaxReductionFactor","54. Mode 2 CPA max total reduction factor × CPI — caps downward adjustments (default 0.9)","number"],
- ["mode2CpaRecoveryRatioBuckets","55. Mode 2 CPA recovery÷calibration RT ratio buckets — 1.0=no drift; 1.5=50% slower in recovery (min-max:multiplier; ...)","text"],
- ["mode2CpaLapseRateBuckets","56. Mode 2 CPA sustained-phase lapse rate% buckets — lapse: correct RT > 2× median sustained RT; 0=no lapses (min-max:multiplier; ...)","text"],
- ["mode2CpaEfficiencyBuckets","57. Mode 2 CPA block efficiency buckets — adaptive trials÷blocks; 0–10=rapid; 10–30=normal; 30+=unstable threshold (min-max:multiplier; ...)","text"],
+ // 58. Diagnostics
+ ["deviceBenchmarkEnabled","58. Device benchmark (0=off, 1=on)","number"]
 ];
 
 // ─── Patterns ───
@@ -3019,7 +3018,7 @@ function getLatestCompletedMode2Label(){
  A session qualifies only if:
  - testMode is mode1 or mode2
  - session is not failed
- - adaptive-phase MBS > 1500 ms
+ - adaptive-phase MBS > personalBaselineMinMbs (default 1800 ms)
  - Samn-Perelli score is 5, 6, or 7
 
  Failed sessions remain in general session history only and are never
@@ -3041,12 +3040,18 @@ function getAdaptivePhaseMbs(result){
  }
  return null;
 }
+
+function getPersonalBaselineMinMbs(){
+ const v = Number(settings.personalBaselineMinMbs);
+ return Number.isFinite(v) && v>0 ? v : 1800;
+}
 function isBaselineQualifyingSession(result){
  if(!result) return false;
  if(!(result.testMode==="mode1" || result.testMode==="mode2")) return false;
  if(isPerfFailureSession(result)) return false;
  const mbs = getAdaptivePhaseMbs(result);
- if(!Number.isFinite(mbs) || !(mbs > 1500)) return false;
+ const minMbs = getPersonalBaselineMinMbs();
+ if(!Number.isFinite(mbs) || !(mbs > minMbs)) return false;
  const spfs = Number(result?.samnPerelli?.score);
  return spfs===5 || spfs===6 || spfs===7;
 }
@@ -3164,7 +3169,7 @@ function openPersonalBaselinePage(sessionIndex){
  if(statusEl) statusEl.textContent = statusText;
  if(metaEl){
   const sessionTime = result.time ? new Date(result.time).toLocaleString() : "—";
-  metaEl.innerHTML = `<div><strong>Subject:</strong> ${escapeHtml(String(result.subjectId||"—"))}</div><div><strong>Baseline as of session:</strong> ${escapeHtml(sessionTime)}</div><div><strong>Qualifying sessions available:</strong> ${baseline.qualifyingCount} / 5</div><div style="margin-top:6px">Rolling baseline uses the most recent 5 qualifying Mode 1 / Mode 2 adaptive-phase MBS scores with MBS &gt; 1500 ms, SP-FS 5–7, and no failed sessions.</div>`;
+  metaEl.innerHTML = `<div><strong>Subject:</strong> ${escapeHtml(String(result.subjectId||"—"))}</div><div><strong>Baseline as of session:</strong> ${escapeHtml(sessionTime)}</div><div><strong>Qualifying sessions available:</strong> ${baseline.qualifyingCount} / 5</div><div style="margin-top:6px">Rolling baseline uses the most recent 5 qualifying Mode 1 / Mode 2 adaptive-phase MBS scores with MBS &gt; ${getPersonalBaselineMinMbs()} ms, SP-FS 5–7, and no failed sessions.</div>`;
  }
  if(graphEl) graphEl.innerHTML = buildPersonalBaselineSvg(rows, baseline.established ? baseline.averageMbs : null);
  if(tbody){
@@ -5960,7 +5965,7 @@ const TUT_STEPS = [
       CogSpeed works best when you build your own personal Baseline. Your Baseline is a rolling average of your last 5 qualifying Mode 1 or Mode 2 MBS scores.
      </div>
      <div style="margin-top:12px;font-size:14px;line-height:1.6;color:rgba(220,235,255,0.88);background:rgba(127,215,255,0.08);border:1px solid rgba(127,215,255,0.22);border-radius:12px;padding:10px 12px">
-      Baseline sessions must be non-failed tests with <strong>MBS above 1500 ms</strong> and <strong>SP-FS of 5, 6, or 7</strong>. This helps CogSpeed track changes from your own normal level and capture learning effects over time.
+      Baseline sessions must be non-failed tests with <strong>MBS above ${getPersonalBaselineMinMbs()} ms</strong> and <strong>SP-FS of 5, 6, or 7</strong>. This helps CogSpeed track changes from your own normal level and capture learning effects over time.
      </div>
     </div>
    </div>`;

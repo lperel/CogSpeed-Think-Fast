@@ -1,4 +1,9 @@
 ## V692
+- Personal Baseline graph now uses the live Admin baseline MBS threshold in its displayed text.
+- Speedometer dropdown reordered so Personal Baseline is second from bottom and E-mail is last.
+- Added editable Admin default for Personal Baseline minimum qualifying MBS.
+- Raised the Personal Baseline qualifying MBS default from 1500 ms to 1800 ms.
+- Reordered Admin defaults to follow the program’s actual usage flow more closely.
 - Revised CPA labels and explanatory text to reflect actual bucket behavior without changing the CPA formula.
 - Updated the Start page layout: enlarged About CogSpeed and Speedometer, moved them directly under Continue, and moved Privacy Policy and Terms of Service to the bottom corners while leaving the admin link unchanged.
 - Corrected packaged version-string literals in `index.html` so the title, version badge, and status line all ship as V692 instead of stale V688 placeholders.
@@ -41,7 +46,7 @@
 # V685 — 2026-04-15
 
 - Added Personal Baseline as a rolling average of the most recent 5 qualifying Mode 1 / Mode 2 adaptive-phase MBS scores.
-- Baseline qualifies only for non-failed sessions with adaptive-phase MBS > 1500 ms and SP-FS 5, 6, or 7.
+- Baseline qualifies only for non-failed sessions with adaptive-phase MBS > 1800 ms and SP-FS 5, 6, or 7.
 - Personal Baseline now appears on the Speedometer and in Results Summary pages.
 - Added Speedometer dropdown item `Download Personal Baseline` as the last menu item; it downloads a self-contained HTML report with status block, table, and graph.
 - Fixed a critical Mode 2 duration bug: sustained-only elapsed subtraction now uses the logged `durationMs` field and no longer double-counts with `+ rt`.
