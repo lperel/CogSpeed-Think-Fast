@@ -1048,7 +1048,7 @@ function failCalibration(reason){ state.endReason=reason; finish(); }
 // Measured calibration phase:
 //   After warmups, keep presenting self-paced trials until the number of
 //   CORRECT measured responses reaches initialMeasuredCalibrationTrials
-//   (default 5).
+//   (default 7).
 //
 // IMPORTANT:
 //   Wrong-response RTs are NEVER included in calibration averaging.
@@ -1166,6 +1166,10 @@ function finishCalibration(){
 //      - the earlier provisional pacing calculation for Frame 1 is IGNORED
 //
 // This rule reduces false misses while preserving the visible frame timing.
+// IMPORTANT: every CORRECT response must speed up pacing. If the formula would
+// otherwise land at neutral or slowdown (for example a late-rescue correct where
+// effectiveRt > Frame 1 duration), apply the minimum correct-response speedup
+// instead so correctness always moves the next paced frame faster.
 // After any actual applied update, clamp baseline to:
 //   [settings.minDurationMs, settings.maxDurationMs]
 // ──────────────────────────────────────────────────────────────
@@ -1187,8 +1191,8 @@ function calculatePacingTransition(currentDuration,rt,correct){
     deltaMs = -speedupMag;
     reason = "Correct speedup";
   }else{
-    deltaMs = Math.min(100, deltaMs);
-    reason = "Correct response slowdown";
+    deltaMs = -minSpeed;
+    reason = "Correct speedup (late, minimum)";
   }
   const next=clamp(before+deltaMs,settings.minDurationMs,settings.maxDurationMs);
   return {presentedRateMs:before,nextRateMs:next,rateChangeMs:Math.round(next-before),rateChangeReason:reason};
@@ -1562,6 +1566,10 @@ function finalizeMode2SustainedPendingMiss(){
  return false;
 }
 
+// Late-rescue corrects can produce effectiveRt > Frame 1 duration because the
+// recovered tap lands on the next frame and Frame 1 duration is added back in.
+// calculatePacingTransition() still treats that as a correct response and
+// applies the minimum speedup so correctness always speeds pacing up.
 function applyPendingLatePacingIfAny(){
  if(!state.pendingLatePacing) return;
  const p = state.pendingLatePacing;
@@ -5246,7 +5254,7 @@ function resetTrialStateOnly(){
  state.activeFrameTiming=null; state.frameOvershootLog=[]; state.rafIntervalLog=[];
  state.mode2Triggered=false; state.mode2AdaptiveMbsMs=null; state.mode2SustainedPresentationRateMs=null;
  state.mode2SustainedPresented=0; state.mode2SustainedCorrect=0; state.mode2SustainedWrong=0; state.mode2SustainedMissed=0;
- state.mode2SustainedCorrectRTs=[]; state.mode2FinalTrialsPresented=0; state.mode2FinalCorrect=0; state.mode2FinalWrong=0; state.mode2FinalRTs=[]; state.speedometerMode2Metric="cpi"; state.summaryVariant="complete";
+ state.mode2SustainedCorrectRTs=[]; state.mode2FinalTrialsPresented=0; state.mode2FinalCorrect=0; state.mode2FinalWrong=0; state.mode2FinalRTs=[]; state.summaryVariant="complete";
  updateCPIDisplay(null); updateMetrics(); setProbeIdle(); setTestingQuiet(false);
 }
 function resetPretestEntryState(){
@@ -6714,7 +6722,7 @@ renderFatigueChecklist();
 renderRefresher();
 updateMetrics();
 
-initIntroAutoAdvance(); // app.js loads with defer so DOMContentLoaded has already fired
+initIntroAutoAdvance(); // app.js loads with defer so DOMContentLoaded has already fired; introGif.complete also handles the cached-GIF case where load fired before the listener attached, so restart() is called directly and auto-advance still starts.
 
 if ("serviceWorker" in navigator) {
  window.addEventListener("load", async () => {
