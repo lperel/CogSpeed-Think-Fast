@@ -1,3 +1,8 @@
+## V690
+- Speedometer baseline menu now opens an in-app Personal Baseline page instead of downloading a file.
+- Added Personal Baseline overlay with baseline status, graph, and table for the viewed session.
+- Speedometer menu label changed from Download Personal Baseline to Personal Baseline.
+
 ## V689
 - Fixed Fit for Duty CPI extraction to read `cognitivePerformanceIndex` from saved results, so CPI-based reminder branching works again.
 - Reused `scheduleNextReminderFromNow()` in reminder action paths to remove stale dead-code drift and keep recompute/persist/rearm logic in one place.

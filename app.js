@@ -2,7 +2,7 @@
 // CogSpeed source
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V689";
+const APP_VERSION = "V690";
 
 // ═══════════════════════════════════════════════════
 // Current behavior summary (historical details live in CHANGELOG.md)
@@ -3145,26 +3145,33 @@ function buildPersonalBaselineSvg(rows, avg){
  parts.push(`<text x="${W/2}" y="${H-12}" fill="#9fb4c8" text-anchor="middle" font-family="Arial,sans-serif" font-size="13">Qualifying session order (oldest to newest within current rolling baseline)</text></svg>`);
  return parts.join('');
 }
-function downloadPersonalBaselineForSession(sessionIndex){
- const ctx = resolveResultContext(null, sessionIndex, "download personal baseline");
+function openPersonalBaselinePage(sessionIndex){
+ const ctx = resolveResultContext(null, sessionIndex, "personal baseline");
  const result = ctx.result;
- if(!result){ setStatus("No session available for baseline download"); return; }
+ if(!result){ setStatus("No session available for Personal Baseline"); return; }
  const baseline = getPersonalBaselineForResult(result);
  const rows = baseline.lastFive || [];
- const generatedAt = new Date().toLocaleString();
  const statusText = baseline.established ? `Baseline: ${baseline.averageMbs} ms` : "Baseline not yet established, Test again.";
- const avgRow = baseline.established ? `<tr><td colspan="3" style="font-weight:700">Average</td><td style="font-weight:700;text-align:right">${baseline.averageMbs}</td><td></td></tr>` : "";
- const tableRows = rows.map((row,idx)=>`<tr><td>${idx+1}</td><td>${escapeHtml(row.time ? new Date(row.time).toLocaleString() : "—")}</td><td>${escapeHtml(row.modeLabel||formatModeTag(row.testMode))}</td><td style="text-align:right">${Number(row.mbs).toFixed(1)}</td><td style="text-align:right">${row.spfs}</td></tr>`).join('');
- const svg = buildPersonalBaselineSvg(rows, baseline.established ? baseline.averageMbs : null);
- const html = `<!doctype html><html><head><meta charset="utf-8"><title>CogSpeed Personal Baseline</title><style>body{font-family:Arial,sans-serif;background:#06101c;color:#eef6ff;margin:24px}h1,h2{color:#7fd7ff}table{border-collapse:collapse;width:100%;max-width:980px;background:#081321}th,td{border:1px solid #27435f;padding:8px 10px}th{background:#0f2138} .muted{color:#b9c8d6} .card{background:#081321;border:1px solid #27435f;border-radius:12px;padding:16px;max-width:980px;margin:0 0 18px 0}</style></head><body><h1>Personal Baseline</h1><div class="card"><div><strong>Subject:</strong> ${escapeHtml(String(result.subjectId||"—"))}</div><div><strong>Date generated:</strong> ${escapeHtml(generatedAt)}</div><div><strong>Baseline as of session:</strong> ${escapeHtml(result.time ? new Date(result.time).toLocaleString() : "—")}</div><div><strong>Qualifying sessions available:</strong> ${baseline.qualifyingCount} / 5</div><div><strong>Status:</strong> ${escapeHtml(statusText)}</div><div class="muted" style="margin-top:8px">Rolling baseline uses the most recent 5 qualifying Mode 1 / Mode 2 adaptive-phase MBS scores with MBS &gt; 1500 ms, SP-FS 5–7, and no failed sessions.</div></div><div class="card">${svg}</div><div class="card"><h2>Last 5 Qualifying MBS Scores</h2><table><thead><tr><th>#</th><th>Date / Time</th><th>Mode</th><th>MBS (ms)</th><th>SP-FS</th></tr></thead><tbody>${tableRows || '<tr><td colspan="5">No qualifying baseline sessions yet.</td></tr>'}${avgRow}</tbody></table></div></body></html>`;
- const blob = new Blob([html], {type:"text/html;charset=utf-8"});
- const a = document.createElement("a");
- a.href = URL.createObjectURL(blob);
- a.download = `cogspeed-personal-baseline-${String(result.subjectId||"subject").replace(/[^a-z0-9._-]+/gi,'_')}.html`;
- document.body.appendChild(a);
- a.click();
- setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); }, 1000);
- setStatus("Downloaded Personal Baseline");
+ const statusEl = $("personalBaselineStatus");
+ const metaEl = $("personalBaselineMeta");
+ const graphEl = $("personalBaselineGraph");
+ const table = $("personalBaselineTable");
+ const tbody = table ? table.querySelector("tbody") : null;
+ if(statusEl) statusEl.textContent = statusText;
+ if(metaEl){
+  const sessionTime = result.time ? new Date(result.time).toLocaleString() : "—";
+  metaEl.innerHTML = `<div><strong>Subject:</strong> ${escapeHtml(String(result.subjectId||"—"))}</div><div><strong>Baseline as of session:</strong> ${escapeHtml(sessionTime)}</div><div><strong>Qualifying sessions available:</strong> ${baseline.qualifyingCount} / 5</div><div style="margin-top:6px">Rolling baseline uses the most recent 5 qualifying Mode 1 / Mode 2 adaptive-phase MBS scores with MBS &gt; 1500 ms, SP-FS 5–7, and no failed sessions.</div>`;
+ }
+ if(graphEl) graphEl.innerHTML = buildPersonalBaselineSvg(rows, baseline.established ? baseline.averageMbs : null);
+ if(tbody){
+  const bodyRows = rows.map((row,idx)=>`<tr><td style="padding:8px;border-bottom:1px solid var(--edge)">${idx+1}</td><td style="padding:8px;border-bottom:1px solid var(--edge)">${escapeHtml(row.time ? new Date(row.time).toLocaleString() : "—")}</td><td style="padding:8px;border-bottom:1px solid var(--edge)">${escapeHtml(row.modeLabel||formatModeTag(row.testMode))}</td><td style="padding:8px;border-bottom:1px solid var(--edge);text-align:right">${Number(row.mbs).toFixed(1)}</td><td style="padding:8px;border-bottom:1px solid var(--edge);text-align:right">${row.spfs}</td></tr>`).join('');
+  const avgRow = baseline.established ? `<tr><td style="padding:8px"></td><td style="padding:8px"><strong>Average</strong></td><td style="padding:8px"></td><td style="padding:8px;text-align:right"><strong>${baseline.averageMbs}</strong></td><td style="padding:8px"></td></tr>` : "";
+  tbody.innerHTML = bodyRows || '<tr><td colspan="5" style="padding:10px">No qualifying baseline sessions yet.</td></tr>';
+  if(avgRow) tbody.insertAdjacentHTML("beforeend", avgRow);
+ }
+ $("outcomeOverlay").classList.add("hidden");
+ $("personalBaselineOverlay").classList.remove("hidden");
+ setStatus("Personal Baseline");
 }
 // Fit for Duty uses the most recent completed valid local Mode 2 plus SP-FS.
 // Lower CPI and lower SP-FS (more fatigued/impaired) shorten the next interval.
@@ -6999,7 +7006,7 @@ function openSpeedometerMenuSelection(){
  if(choice==="ranked"){ $("outcomeOverlay").classList.add("hidden"); stopSpeedometer(); buildRankedSummary(state.history[idx]); $("rankedOverlay").classList.remove("hidden"); return; }
  if(choice==="rate_rt"){ $("outcomeOverlay").classList.add("hidden"); stopSpeedometer(); buildRateRtOverlay(idx); $("rateRtOverlay").classList.remove("hidden"); return; }
  if(choice==="email"){ stopSpeedometer(); openEmailSelectPage(); return; }
- if(choice==="download_personal_baseline"){ stopSpeedometer(); downloadPersonalBaselineForSession(idx); return; }
+ if(choice==="personal_baseline" || choice==="download_personal_baseline"){ stopSpeedometer(); openPersonalBaselinePage(idx); return; }
 }
 
 function openSpeedometerPage(sessionIndex){
@@ -7038,6 +7045,9 @@ const _pta=$("perfTimeAdminBtn"); if(_pta) _pta.onclick=()=>openAdminFromOverlay
 const _rsp=$("rankedSpeedometerBtn"); if(_rsp) _rsp.onclick=()=>{ $("rankedOverlay").classList.add("hidden"); openSpeedometerPage(); };
 const _rrs=$("rankedRestartBtn"); if(_rrs) _rrs.onclick=()=>{ $("rankedOverlay").classList.add("hidden"); goToStartPage(); };
 const _rra=$("rankedAdminBtn"); if(_rra) _rra.onclick=()=>openAdminFromOverlay("rankedOverlay");
+const _pbs=$("personalBaselineSpeedometerBtn"); if(_pbs) _pbs.onclick=()=>{ $("personalBaselineOverlay").classList.add("hidden"); openSpeedometerPage(); };
+const _pbst=$("personalBaselineStartBtn"); if(_pbst) _pbst.onclick=()=>{ $("personalBaselineOverlay").classList.add("hidden"); goToStartPage(); };
+const _pba=$("personalBaselineAdminBtn"); if(_pba) _pba.onclick=()=>openAdminFromOverlay("personalBaselineOverlay");
 
 const _rateRtCloseBtn=$("rateRtCloseBtn"); if(_rateRtCloseBtn) _rateRtCloseBtn.onclick=()=>{ $("rateRtOverlay").classList.add("hidden"); openSpeedometerPage(); };
 

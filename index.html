@@ -958,7 +958,7 @@
         <option value="rate_rt">Presentation Rate Versus Response Time Graph</option>
         <option value="ranked">Ranked Averages</option>
         <option value="email">E-Mail Select</option>
-        <option value="download_personal_baseline">Download Personal Baseline</option>
+        <option value="personal_baseline">Personal Baseline</option>
       </select>
     </div>
     <button id="speedAdminBtn" style="width:100%;justify-self:stretch;background:none;border:none;color:rgba(127,215,255,0.38);font-size:12px;padding:8px 10px;cursor:pointer;font-family:inherit;letter-spacing:.05em">Admin</button>
@@ -1000,6 +1000,27 @@
 </div>
 
 
+
+<!-- ═══ PERSONAL BASELINE OVERLAY ═══ -->
+<div id="personalBaselineOverlay" class="overlay hidden">
+  <div class="modal" style="max-width:min(98vw,1080px)">
+    <div style="text-align:center;margin-bottom:10px"><span class="badge">Personal Baseline</span></div>
+    <div id="personalBaselineStatus" class="admin-note" style="text-align:center;margin-bottom:10px;color:var(--text);font-size:16px;font-weight:700">Baseline not yet established, Test again.</div>
+    <div id="personalBaselineMeta" style="margin:0 auto 10px;max-width:980px;color:var(--muted);font-size:14px;line-height:1.45;text-align:center"></div>
+    <div id="personalBaselineGraph" style="margin:0 auto 12px;max-width:980px;background:#081321;border:1px solid var(--edge);border-radius:12px;padding:12px;overflow:auto"></div>
+    <div style="background:#060e1a;border:1px solid var(--edge);border-radius:12px;padding:10px;overflow:auto">
+      <table id="personalBaselineTable" style="width:100%;border-collapse:collapse;color:var(--text);font-size:14px">
+        <thead><tr><th style="text-align:left;padding:8px;border-bottom:1px solid var(--edge)">#</th><th style="text-align:left;padding:8px;border-bottom:1px solid var(--edge)">Date / Time</th><th style="text-align:left;padding:8px;border-bottom:1px solid var(--edge)">Mode</th><th style="text-align:right;padding:8px;border-bottom:1px solid var(--edge)">MBS (ms)</th><th style="text-align:right;padding:8px;border-bottom:1px solid var(--edge)">SP-FS</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px;margin-top:12px;flex-wrap:wrap">
+      <button class="ctrl-btn" id="personalBaselineSpeedometerBtn" style="flex:1">Speedometer</button>
+      <button class="ctrl-btn" id="personalBaselineStartBtn" style="flex:1">Back to Start</button>
+      <button id="personalBaselineAdminBtn" style="background:none;border:none;color:rgba(127,215,255,0.38);font-size:12px;padding:6px 10px;cursor:pointer;font-family:inherit;letter-spacing:.05em">Admin</button>
+    </div>
+  </div>
+</div>
 
 <!-- ═══ EMAIL SELECT OVERLAY ═══ -->
 <div id="emailOverlay" class="overlay hidden">
@@ -1168,6 +1189,6 @@
   <div class="resp-grid" id="respGrid"></div>
 </div>
 
-<script src="app.js?v=689" defer></script>
+<script src="app.js?v=690" defer></script>
 </body>
 </html>
