@@ -1,3 +1,11 @@
+## V682
+- Added a new Mode 2 Scheduler on the asterisk / Profile page for saved subjects only.
+- Scheduler supports 3 local schedule types: Anytime, Personal, and Fit for Duty.
+- Added local bundled alert sounds (Soft Chime, Beep, Double Beep) plus optional device text-to-speech voice alerts.
+- Added Scheduler Status and Scheduler Device Test sections, including local-save, text, sound, voice, notification, and 1-minute background reminder checks.
+- Added code comments that explain what the Scheduler does, how to use it, and its key limits: saved subject only, one device only, and device-dependent closed-app alerts.
+- Advanced package versioning to V682 and aligned APP_VERSION, visible labels, app.js cache-bust, service worker release, manifest, and packaged audio assets.
+
 ## V681
 - Rebuilt from the wording-refresh branch as a fully versioned V681 package.
 - Hardened success classification in isTestSuccess() so wording-only end-message changes do not flip completed sessions to Failed.

@@ -2,7 +2,7 @@
 // CogSpeed source
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V681";
+const APP_VERSION = "V682";
 
 // ═══════════════════════════════════════════════════
 // Current behavior summary (historical details live in CHANGELOG.md)
@@ -24,9 +24,10 @@ const STORAGE_PREFIX = `cogspeed_v${RELEASE}`;
 (function(){
  const VER=`${STORAGE_PREFIX}_profileguard`, key="cogspeed_version";
  const preserve = new Set([`${STORAGE_PREFIX}_profile`, key]);
+ const preservePrefixes = ["cogspeed_scheduler_"];
  if(localStorage.getItem(key)!==VER){
   Object.keys(localStorage).forEach(k=>{
-   if((k.startsWith("cogspeed_")||k.startsWith("cogblock_")) && !preserve.has(k)){
+   if((k.startsWith("cogspeed_")||k.startsWith("cogblock_")) && !preserve.has(k) && !preservePrefixes.some(prefix=>k.startsWith(prefix))){
     localStorage.removeItem(k);
    }
   });
@@ -2657,6 +2658,606 @@ function stopFX(){ if(_fxRaf){ cancelAnimationFrame(_fxRaf); _fxRaf=null; } }
 
 // ═══════════════════════════════════════════════════════════════
 // SECTION: REGISTRATION — PROFILE
+// ═══════════════════════════════════════════════════════════════
+// SECTION: MODE 2 SCHEDULER
+// Local per-subject reminder system stored on this device only.
+//
+// What it does:
+// - Lets a saved subject schedule the next recommended Mode 2 test.
+// - Supports 3 schedule types: Anytime, Personal, and Fit for Duty.
+// - Uses only local device storage; Guest cannot use Scheduler.
+// - Uses bundled local sounds plus optional device text-to-speech.
+//
+// How to use it:
+// 1) Open the asterisk / Profile page.
+// 2) Turn Scheduler ON for a saved email subject.
+// 3) Choose Anytime, Personal, or Fit for Duty.
+// 4) Save the profile. CogSpeed computes and stores the next reminder.
+// 5) CogSpeed shows due reminders while the app is open and can test
+//    notification/device capabilities from this page.
+//
+// Important limits:
+// - Scheduler is for one saved subject on one device only.
+// - Guest cannot save or run Scheduler.
+// - Closed-app notifications depend on device/browser support and are tested
+//   explicitly in the Scheduler Device Test section.
+// ═══════════════════════════════════════════════════════════════
+const SCHEDULER_SOUND_FILES = {
+ soft_chime: "audio/scheduler-soft-chime.wav",
+ beep: "audio/scheduler-beep.wav",
+ double_beep: "audio/scheduler-double-beep.wav"
+};
+
+const DEFAULT_SCHEDULER_SETTINGS = {
+ enabled:false,
+ type:"anytime", // anytime | personal | fit_duty
+ personalMode:"interval", // interval | daily_times
+ personalIntervalHours:4,
+ personalWindowStart:"08:00",
+ personalWindowEnd:"20:00",
+ personalTimes:[
+  {enabled:false,time:"08:00"},
+  {enabled:false,time:"12:00"},
+  {enabled:false,time:"16:00"},
+  {enabled:false,time:"20:00"},
+  {enabled:false,time:"09:00"},
+  {enabled:false,time:"18:00"}
+ ],
+ fitDutyMinIntervalMin:30,
+ fitDutyDefaultIntervalHr:4,
+ fitDutyMaxIntervalHr:12,
+ fitDutyValidOnly:true,
+ fitDutyIgnoreIncomplete:true,
+ alertSound:"soft_chime",
+ voiceEnabled:false,
+ repeatOnce:false,
+ quietHoursEnabled:false,
+ quietStart:"22:00",
+ quietEnd:"06:00",
+ nextTestAt:null,
+ nextReason:"No active reminder",
+ lastReminderResult:"Not yet used",
+ deviceTest:{
+  installed:"UNKNOWN",
+  localSave:"UNKNOWN",
+  text:"UNKNOWN",
+  sound:"UNKNOWN",
+  voice:"DISABLED",
+  permission:"NOT ASKED",
+  serviceWorker:"UNKNOWN",
+  closedApp:"UNKNOWN"
+ }
+};
+
+const schedulerState = {
+ settings: structuredClone(DEFAULT_SCHEDULER_SETTINGS),
+ activeSubjectId: "",
+ reminderTimerId: null,
+ repeatTimerId: null,
+ backgroundTestDueAt: null,
+ backgroundTestPending: false
+};
+
+function getSchedulerStorageKey(subjectId){
+ return `cogspeed_scheduler_${String(subjectId||"").trim().toLowerCase()}`;
+}
+function isGuestSchedulerSubject(v){
+ const s = String(v||"").trim().toLowerCase();
+ return !s || s==="0" || s==="guest" || s==="guest / no email";
+}
+function getCurrentSchedulerSubjectId(){
+ const p = loadProfile();
+ if(p && p.email) return String(p.email).trim().toLowerCase();
+ const sid = String(state.subjectId||"").trim().toLowerCase();
+ if(isValidEmailAddress(sid)) return sid;
+ const input = String($("subjectIdInput")?.value||"").trim().toLowerCase();
+ return isValidEmailAddress(input) ? input : "";
+}
+function loadSchedulerSettings(subjectId){
+ if(!subjectId || isGuestSchedulerSubject(subjectId)) return structuredClone(DEFAULT_SCHEDULER_SETTINGS);
+ try{
+  const raw = localStorage.getItem(getSchedulerStorageKey(subjectId));
+  if(!raw) return structuredClone(DEFAULT_SCHEDULER_SETTINGS);
+  const parsed = JSON.parse(raw);
+  const merged = structuredClone(DEFAULT_SCHEDULER_SETTINGS);
+  Object.assign(merged, parsed||{});
+  merged.personalTimes = Array.isArray(parsed&&parsed.personalTimes) ? parsed.personalTimes.map((row,idx)=>({
+   enabled: !!row.enabled,
+   time: row.time || DEFAULT_SCHEDULER_SETTINGS.personalTimes[idx]?.time || "08:00"
+  })) : structuredClone(DEFAULT_SCHEDULER_SETTINGS.personalTimes);
+  merged.deviceTest = { ...structuredClone(DEFAULT_SCHEDULER_SETTINGS.deviceTest), ...(parsed&&parsed.deviceTest||{}) };
+  return merged;
+ }catch(e){
+  return structuredClone(DEFAULT_SCHEDULER_SETTINGS);
+ }
+}
+function saveSchedulerSettings(subjectId, settingsObj){
+ if(!subjectId || isGuestSchedulerSubject(subjectId)) return false;
+ try{
+  localStorage.setItem(getSchedulerStorageKey(subjectId), JSON.stringify(settingsObj));
+  return true;
+ }catch(e){
+  return false;
+ }
+}
+function clearSchedulerSettings(subjectId){
+ if(!subjectId || isGuestSchedulerSubject(subjectId)) return;
+ try{ localStorage.removeItem(getSchedulerStorageKey(subjectId)); }catch(e){}
+}
+function setToggleButtonState(id,on,activeColor="#7fd7ff") {
+ const btn=$(id); if(!btn) return;
+ btn.style.background = on ? "linear-gradient(180deg,#0d2e5a,#081b36)" : "";
+ btn.style.borderColor = on ? activeColor : "";
+ btn.style.color = on ? activeColor : "";
+}
+function formatSchedulerDateTime(value){
+ if(!value) return "No active reminder";
+ const d = new Date(value);
+ if(!isFinite(d.getTime())) return "No active reminder";
+ return d.toLocaleString();
+}
+function schedulerStatusTypeLabel(type){
+ if(type==="personal") return "Personal";
+ if(type==="fit_duty") return "Fit for Duty";
+ return "Anytime";
+}
+function updateScheduleTypeHelpText(type){
+ const el=$("scheduleTypeHelpText"); if(!el) return;
+ el.textContent = type==="personal"
+  ? "Mode 2 reminders at fixed interval or selected daily times."
+  : type==="fit_duty"
+   ? "Next Mode 2 reminder is based on last completed Mode 2 CPI and SP-FS."
+   : "No reminders. Subject may take Mode 2 at any time.";
+}
+function renderSchedulerStatusFields(s){
+ $("schedulerStatusSubject") && ($("schedulerStatusSubject").textContent = schedulerState.activeSubjectId || "—");
+ $("schedulerStatusType") && ($("schedulerStatusType").textContent = schedulerStatusTypeLabel(s.type));
+ $("schedulerStatusNextTest") && ($("schedulerStatusNextTest").textContent = formatSchedulerDateTime(s.nextTestAt));
+ $("schedulerStatusReason") && ($("schedulerStatusReason").textContent = s.nextReason || "No active reminder");
+ $("schedulerStatusLastCompleted") && ($("schedulerStatusLastCompleted").textContent = getLatestCompletedMode2Label() || "—");
+ $("schedulerStatusLastReminderResult") && ($("schedulerStatusLastReminderResult").textContent = s.lastReminderResult || "Not yet used");
+}
+function renderSchedulerDeviceFields(dt){
+ const map = {
+  schedulerDeviceInstalledResult: dt.installed,
+  schedulerDeviceLocalSaveResult: dt.localSave,
+  schedulerDeviceTextResult: dt.text,
+  schedulerDeviceSoundResult: dt.sound,
+  schedulerDeviceVoiceResult: dt.voice,
+  schedulerDevicePermissionResult: dt.permission,
+  schedulerDeviceServiceWorkerResult: dt.serviceWorker,
+  schedulerDeviceClosedAppResult: dt.closedApp
+ };
+ Object.entries(map).forEach(([id,val])=>{ const el=$(id); if(el) el.textContent = val||"UNKNOWN"; });
+ const summary=$("schedulerDeviceSummary");
+ if(summary){
+  if(dt.localSave==="PASS" && dt.text==="PASS" && dt.closedApp==="CONFIRMED") summary.textContent = "Local scheduling works. In-app reminders work. Closed-app reminders confirmed.";
+  else if(dt.localSave==="PASS" && dt.text==="PASS") summary.textContent = "Local scheduling works. In-app reminders work. Closed-app reminders limited.";
+  else if(dt.localSave==="PASS") summary.textContent = "Local scheduling works. Reminders work only while CogSpeed is open.";
+  else summary.textContent = "Local scheduling not yet tested.";
+ }
+}
+function renderSchedulerSettings(){
+ const s = schedulerState.settings || structuredClone(DEFAULT_SCHEDULER_SETTINGS);
+ const isGuest = !schedulerState.activeSubjectId || isGuestSchedulerSubject(schedulerState.activeSubjectId);
+ const panel=$("profileSchedulerPanel"); if(panel) panel.style.opacity = isGuest ? "0.72" : "1";
+ const guestNote=$("schedulerGuestBlockedNote"); if(guestNote) guestNote.classList.toggle("hidden", !isGuest);
+ const subjectInfo=$("schedulerSubjectInfo"); if(subjectInfo) subjectInfo.textContent = isGuest ? "Saved subject required. Guest cannot use Scheduler." : `Saved subject: ${schedulerState.activeSubjectId} · This Scheduler works on this device only.`;
+ setToggleButtonState("schedulerEnabledOn", !!s.enabled);
+ setToggleButtonState("schedulerEnabledOff", !s.enabled, "#ff9aa8");
+ const offNote=$("schedulerOffNote"); if(offNote) offNote.classList.toggle("hidden", !!s.enabled);
+ const wrap=$("schedulerSettingsWrap"); if(wrap) wrap.classList.toggle("hidden", !s.enabled);
+ setToggleButtonState("scheduleTypeAnytime", s.type==="anytime");
+ setToggleButtonState("scheduleTypePersonal", s.type==="personal");
+ setToggleButtonState("scheduleTypeFitDuty", s.type==="fit_duty");
+ $("personalSchedulePanel")?.classList.toggle("hidden", s.type!=="personal");
+ $("fitDutySchedulePanel")?.classList.toggle("hidden", s.type!=="fit_duty");
+ setToggleButtonState("personalModeInterval", s.personalMode!=="daily_times");
+ setToggleButtonState("personalModeDailyTimes", s.personalMode==="daily_times");
+ $("personalIntervalPanel")?.classList.toggle("hidden", s.personalMode==="daily_times");
+ $("personalDailyTimesPanel")?.classList.toggle("hidden", s.personalMode!=="daily_times");
+ if($("personalIntervalHoursInput")) $("personalIntervalHoursInput").value = s.personalIntervalHours;
+ if($("personalWindowStartInput")) $("personalWindowStartInput").value = s.personalWindowStart;
+ if($("personalWindowEndInput")) $("personalWindowEndInput").value = s.personalWindowEnd;
+ s.personalTimes.forEach((row,idx)=>{ const i=idx+1; if($("personalTime"+i+"Enabled")) $("personalTime"+i+"Enabled").checked = !!row.enabled; if($("personalTime"+i+"Input")) $("personalTime"+i+"Input").value = row.time || "08:00"; });
+ if($("fitDutyMinIntervalInput")) $("fitDutyMinIntervalInput").value = s.fitDutyMinIntervalMin;
+ if($("fitDutyDefaultIntervalInput")) $("fitDutyDefaultIntervalInput").value = s.fitDutyDefaultIntervalHr;
+ if($("fitDutyMaxIntervalInput")) $("fitDutyMaxIntervalInput").value = s.fitDutyMaxIntervalHr;
+ if($("fitDutyValidOnlyToggle")) $("fitDutyValidOnlyToggle").checked = !!s.fitDutyValidOnly;
+ if($("fitDutyIgnoreIncompleteToggle")) $("fitDutyIgnoreIncompleteToggle").checked = !!s.fitDutyIgnoreIncomplete;
+ if($("schedulerAlertSoundSelect")) $("schedulerAlertSoundSelect").value = s.alertSound || "soft_chime";
+ if($("schedulerVoiceEnabledToggle")) $("schedulerVoiceEnabledToggle").checked = !!s.voiceEnabled;
+ $("schedulerVoicePreviewText")?.classList.toggle("hidden", !s.voiceEnabled);
+ if($("schedulerRepeatOnceToggle")) $("schedulerRepeatOnceToggle").checked = !!s.repeatOnce;
+ if($("schedulerQuietHoursToggle")) $("schedulerQuietHoursToggle").checked = !!s.quietHoursEnabled;
+ if($("schedulerQuietStartInput")) $("schedulerQuietStartInput").value = s.quietStart || "22:00";
+ if($("schedulerQuietEndInput")) $("schedulerQuietEndInput").value = s.quietEnd || "06:00";
+ updateScheduleTypeHelpText(s.type);
+ renderSchedulerStatusFields(s);
+ renderSchedulerDeviceFields(s.deviceTest||structuredClone(DEFAULT_SCHEDULER_SETTINGS.deviceTest));
+}
+function collectSchedulerSettingsFromUI(){
+ const prior = schedulerState.settings || structuredClone(DEFAULT_SCHEDULER_SETTINGS);
+ return {
+  enabled: !!prior.enabled,
+  type: prior.type || "anytime",
+  personalMode: prior.personalMode || "interval",
+  personalIntervalHours: Number($("personalIntervalHoursInput")?.value||4),
+  personalWindowStart: $("personalWindowStartInput")?.value || "08:00",
+  personalWindowEnd: $("personalWindowEndInput")?.value || "20:00",
+  personalTimes:[1,2,3,4,5,6].map(i=>({enabled: !!$("personalTime"+i+"Enabled")?.checked, time: $("personalTime"+i+"Input")?.value || DEFAULT_SCHEDULER_SETTINGS.personalTimes[i-1].time})),
+  fitDutyMinIntervalMin: Number($("fitDutyMinIntervalInput")?.value||30),
+  fitDutyDefaultIntervalHr: Number($("fitDutyDefaultIntervalInput")?.value||4),
+  fitDutyMaxIntervalHr: Number($("fitDutyMaxIntervalInput")?.value||12),
+  fitDutyValidOnly: !!$("fitDutyValidOnlyToggle")?.checked,
+  fitDutyIgnoreIncomplete: !!$("fitDutyIgnoreIncompleteToggle")?.checked,
+  alertSound: $("schedulerAlertSoundSelect")?.value || "soft_chime",
+  voiceEnabled: !!$("schedulerVoiceEnabledToggle")?.checked,
+  repeatOnce: !!$("schedulerRepeatOnceToggle")?.checked,
+  quietHoursEnabled: !!$("schedulerQuietHoursToggle")?.checked,
+  quietStart: $("schedulerQuietStartInput")?.value || "22:00",
+  quietEnd: $("schedulerQuietEndInput")?.value || "06:00",
+  nextTestAt: prior.nextTestAt || null,
+  nextReason: prior.nextReason || "No active reminder",
+  lastReminderResult: prior.lastReminderResult || "Not yet used",
+  deviceTest: prior.deviceTest || structuredClone(DEFAULT_SCHEDULER_SETTINGS.deviceTest)
+ };
+}
+function schedulerSetEnabled(on){
+ schedulerState.settings.enabled = !!on;
+ renderSchedulerSettings();
+}
+function schedulerSetType(type){
+ schedulerState.settings.type = type;
+ renderSchedulerSettings();
+}
+function schedulerSetPersonalMode(mode){
+ schedulerState.settings.personalMode = mode;
+ renderSchedulerSettings();
+}
+
+function validateSchedulerSettings(s){
+ if(!s.enabled) return {ok:true};
+ if(s.type==="personal") {
+  if(s.personalMode!=="daily_times") {
+   if(!Number.isFinite(s.personalIntervalHours) || s.personalIntervalHours<1 || s.personalIntervalHours>24) return {ok:false,message:"Repeat every (hours) must be 1 to 24."};
+  } else if(!s.personalTimes.some(x=>x.enabled)) {
+   return {ok:false,message:"Select at least 1 daily reminder time."};
+  }
+ }
+ if(s.type==="fit_duty") {
+  if(s.fitDutyMinIntervalMin < 5) return {ok:false,message:"Minimum interval must be at least 5 minutes."};
+  if(s.fitDutyDefaultIntervalHr < 1) return {ok:false,message:"Default interval must be at least 1 hour."};
+  if(s.fitDutyMaxIntervalHr < s.fitDutyDefaultIntervalHr) return {ok:false,message:"Maximum interval must be greater than or equal to default interval."};
+ }
+ return {ok:true};
+}
+function schedulerTimeToMinutes(t){
+ const m = String(t||"00:00").match(/^(\d{1,2}):(\d{2})$/);
+ if(!m) return 0;
+ return Number(m[1])*60 + Number(m[2]);
+}
+function applyQuietHoursToDate(dateObj, s){
+ if(!s.quietHoursEnabled) return dateObj;
+ const out = new Date(dateObj.getTime());
+ const mins = out.getHours()*60 + out.getMinutes();
+ const start = schedulerTimeToMinutes(s.quietStart);
+ const end = schedulerTimeToMinutes(s.quietEnd);
+ const crosses = start > end;
+ const inside = crosses ? (mins>=start || mins<end) : (mins>=start && mins<end);
+ if(!inside) return out;
+ if(crosses && mins>=start) out.setDate(out.getDate()+1);
+ out.setHours(Math.floor(end/60), end%60, 0, 0);
+ return out;
+}
+function computePersonalNextReminderAt(s, now=new Date()){
+ if(s.personalMode!=="daily_times") {
+  const base = new Date(now.getTime() + Math.max(1,Number(s.personalIntervalHours)||1)*3600000);
+  let out = base;
+  const start = schedulerTimeToMinutes(s.personalWindowStart);
+  const end = schedulerTimeToMinutes(s.personalWindowEnd);
+  const mins = out.getHours()*60 + out.getMinutes();
+  if(mins < start){ out.setHours(Math.floor(start/60), start%60, 0, 0); }
+  else if(mins > end){ out.setDate(out.getDate()+1); out.setHours(Math.floor(start/60), start%60, 0, 0); }
+  return applyQuietHoursToDate(out, s).toISOString();
+ }
+ const enabled = s.personalTimes.filter(x=>x.enabled).map(x=>x.time).sort();
+ if(!enabled.length) return null;
+ for(let addDay=0; addDay<8; addDay++) {
+  for(const t of enabled){
+   const cand = new Date(now);
+   cand.setDate(cand.getDate()+addDay);
+   const mins = schedulerTimeToMinutes(t);
+   cand.setHours(Math.floor(mins/60), mins%60, 0, 0);
+   if(cand.getTime() > now.getTime()+1000) return applyQuietHoursToDate(cand, s).toISOString();
+  }
+ }
+ return null;
+}
+function getLatestCompletedMode2Result(){
+ const h = Array.isArray(state.history) ? state.history : [];
+ for(let i=h.length-1;i>=0;i--){
+  const r = h[i];
+  if((r&&r.testMode)!=="mode2") continue;
+  if((schedulerState.settings?.fitDutyIgnoreIncomplete!==false) && isPerfFailureSession(r)) continue;
+  return r;
+ }
+ return null;
+}
+function getLatestCompletedMode2Label(){
+ const r = getLatestCompletedMode2Result();
+ return r && r.time ? new Date(r.time).toLocaleString() : "";
+}
+function computeFitDutyNextReminderAt(s, now=new Date()){
+ const latest = getLatestCompletedMode2Result();
+ let minutes = Math.max(60, Number(s.fitDutyDefaultIntervalHr||4) * 60);
+ if(latest){
+  const cpi = Number(latest.cpiValue!=null ? latest.cpiValue : latest.cpi);
+  const spf = Number(latest.samnPerelli || latest.spfs || latest.spf || 0);
+  const minMin = Math.max(5, Number(s.fitDutyMinIntervalMin)||30);
+  const defMin = Math.max(minMin, Number(s.fitDutyDefaultIntervalHr||4)*60);
+  const maxMin = Math.max(defMin, Number(s.fitDutyMaxIntervalHr||12)*60);
+  if((Number.isFinite(cpi) && cpi < 25) || spf >= 6) minutes = minMin;
+  else if((Number.isFinite(cpi) && cpi < 50) || spf >= 5) minutes = Math.max(minMin, Math.round(defMin/2));
+  else if((Number.isFinite(cpi) && cpi >= 80) && (spf > 0 && spf <= 2)) minutes = maxMin;
+  else minutes = defMin;
+ }
+ const out = new Date(now.getTime() + minutes*60000);
+ return applyQuietHoursToDate(out, s).toISOString();
+}
+function computeNextSchedulerReason(s){
+ if(!s.enabled || s.type==="anytime") return "No active reminder";
+ if(s.type==="personal") return s.personalMode==="daily_times" ? "Personal daily time" : `Personal interval (${s.personalIntervalHours}h)`;
+ return "Fit for Duty follow-up";
+}
+function computeNextSchedulerReminderAt(s, now=new Date()){
+ if(!s.enabled || s.type==="anytime") return null;
+ return s.type==="personal" ? computePersonalNextReminderAt(s, now) : computeFitDutyNextReminderAt(s, now);
+}
+function persistActiveSchedulerSettings(){
+ if(!schedulerState.activeSubjectId || isGuestSchedulerSubject(schedulerState.activeSubjectId)) return false;
+ return saveSchedulerSettings(schedulerState.activeSubjectId, schedulerState.settings);
+}
+function refreshSchedulerStatus(){
+ renderSchedulerStatusFields(schedulerState.settings || structuredClone(DEFAULT_SCHEDULER_SETTINGS));
+}
+function stopSchedulerTimers(){
+ clearTimeout(schedulerState.reminderTimerId); schedulerState.reminderTimerId = null;
+ clearTimeout(schedulerState.repeatTimerId); schedulerState.repeatTimerId = null;
+}
+function playSchedulerSound(soundKey){
+ if(!soundKey || soundKey==="off") return Promise.resolve(false);
+ const src = SCHEDULER_SOUND_FILES[soundKey];
+ if(!src) return Promise.resolve(false);
+ try{
+  const a = new Audio(src);
+  return a.play().then(()=>true).catch(()=>false);
+ }catch(e){ return Promise.resolve(false); }
+}
+function speakSchedulerPrompt(type){
+ if(!window.speechSynthesis) return false;
+ const msg = type==="fit_duty" ? "CogSpeed reminder. Fit for Duty follow-up recommended." : "CogSpeed reminder. Mode 2 test recommended now.";
+ try{
+  window.speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance(msg);
+  window.speechSynthesis.speak(u);
+  return true;
+ }catch(e){ return false; }
+}
+function scheduleNextReminderFromNow(reasonOverride){
+ const s = schedulerState.settings;
+ s.nextTestAt = computeNextSchedulerReminderAt(s, new Date());
+ s.nextReason = reasonOverride || computeNextSchedulerReason(s);
+ persistActiveSchedulerSettings();
+ refreshSchedulerStatus();
+ armSchedulerReminderTimer();
+}
+function showSchedulerReminderModal(){
+ const s = schedulerState.settings;
+ const body = s.type==="fit_duty" ? "Fit for Duty: Mode 2 follow-up recommended now." : "Personal Schedule: Mode 2 test due now.";
+ try{ if(document.visibilityState !== "visible" && navigator.serviceWorker && navigator.serviceWorker.ready){ navigator.serviceWorker.ready.then(reg=>reg.showNotification?.("CogSpeed Reminder", {body})).catch(()=>{}); } }catch(e){}
+ alert(`CogSpeed Reminder
+
+${body}`);
+ const action = prompt("Type S to Snooze 10 Min, K to Skip, or press OK/Cancel for no action.", "");
+ if(action && /^s$/i.test(action.trim())){
+  s.lastReminderResult = "Snoozed";
+  s.nextTestAt = new Date(Date.now()+10*60*1000).toISOString();
+  s.nextReason = "Snoozed 10 min";
+ }else if(action && /^k$/i.test(action.trim())){
+  s.lastReminderResult = "Skipped";
+  s.nextTestAt = computeNextSchedulerReminderAt(s, new Date());
+  s.nextReason = computeNextSchedulerReason(s);
+ }else{
+  s.lastReminderResult = "Missed";
+  s.nextTestAt = computeNextSchedulerReminderAt(s, new Date());
+  s.nextReason = computeNextSchedulerReason(s);
+ }
+ persistActiveSchedulerSettings();
+ refreshSchedulerStatus();
+ armSchedulerReminderTimer();
+}
+function fireSchedulerReminder(){
+ const s = schedulerState.settings;
+ if(!s?.enabled || !s.nextTestAt) return;
+ playSchedulerSound(s.alertSound).then(ok=>{ const el=$("schedulerSoundTestResult"); if(el && ok) el.textContent = "Sound: PASS"; });
+ if(s.voiceEnabled){ const ok = speakSchedulerPrompt(s.type); const el=$("schedulerVoiceTestResult"); if(el) el.textContent = ok ? "Voice: PASS" : "Voice: FAIL"; }
+ showSchedulerReminderModal();
+ if(s.repeatOnce){
+  clearTimeout(schedulerState.repeatTimerId);
+  schedulerState.repeatTimerId = setTimeout(()=>{
+   playSchedulerSound(s.alertSound);
+   if(s.voiceEnabled) speakSchedulerPrompt(s.type);
+  }, 10*60*1000);
+ }
+}
+function armSchedulerReminderTimer(){
+ stopSchedulerTimers();
+ const nextAt = schedulerState.settings?.nextTestAt;
+ if(!nextAt) return;
+ const delay = Math.max(0, new Date(nextAt).getTime() - Date.now());
+ schedulerState.reminderTimerId = setTimeout(fireSchedulerReminder, delay);
+}
+function schedulerResumeForCurrentProfile(){
+ const subjectId = getCurrentSchedulerSubjectId();
+ schedulerState.activeSubjectId = subjectId || "";
+ schedulerState.settings = loadSchedulerSettings(subjectId);
+ if(subjectId){
+  if(schedulerState.settings.enabled && schedulerState.settings.type!=="anytime" && !schedulerState.settings.nextTestAt){
+   schedulerState.settings.nextTestAt = computeNextSchedulerReminderAt(schedulerState.settings, new Date());
+   schedulerState.settings.nextReason = computeNextSchedulerReason(schedulerState.settings);
+   persistActiveSchedulerSettings();
+  }
+ }
+ renderSchedulerSettings();
+ refreshSchedulerDeviceStatus();
+ armSchedulerReminderTimer();
+}
+function refreshSchedulerDeviceStatus(){
+ const dt = schedulerState.settings?.deviceTest || structuredClone(DEFAULT_SCHEDULER_SETTINGS.deviceTest);
+ dt.installed = (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) || window.navigator.standalone ? "YES" : "NO";
+ dt.permission = (typeof Notification === "undefined") ? "UNSUPPORTED" : (Notification.permission === "granted" ? "GRANTED" : Notification.permission === "denied" ? "DENIED" : "NOT ASKED");
+ dt.serviceWorker = ("serviceWorker" in navigator) ? ((navigator.serviceWorker.controller || navigator.serviceWorker.ready) ? "PASS" : "UNKNOWN") : "FAIL";
+ if(dt.localSave==="UNKNOWN") dt.localSave = schedulerState.activeSubjectId ? "PASS" : "FAIL";
+ if(dt.text==="UNKNOWN") dt.text = "UNKNOWN";
+ if(dt.sound==="UNKNOWN") dt.sound = "UNKNOWN";
+ dt.voice = schedulerState.settings?.voiceEnabled ? (dt.voice==="DISABLED"?"UNKNOWN":dt.voice) : "DISABLED";
+ if(dt.permission!=="GRANTED") dt.closedApp = dt.closedApp==="CONFIRMED" ? "LIMITED" : dt.closedApp;
+ schedulerState.settings.deviceTest = dt;
+ persistActiveSchedulerSettings();
+ renderSchedulerDeviceFields(dt);
+}
+function onSchedulerUiChanged(){
+ schedulerState.settings = { ...schedulerState.settings, ...collectSchedulerSettingsFromUI() };
+ renderSchedulerSettings();
+}
+function onSchedulerSaveSettings(){
+ if(!schedulerState.activeSubjectId || isGuestSchedulerSubject(schedulerState.activeSubjectId)){ setStatus("Scheduler is not available for Guest users."); return; }
+ const proposed = collectSchedulerSettingsFromUI();
+ const check = validateSchedulerSettings(proposed);
+ if(!check.ok){ setStatus(check.message); return; }
+ proposed.deviceTest = schedulerState.settings.deviceTest || structuredClone(DEFAULT_SCHEDULER_SETTINGS.deviceTest);
+ proposed.lastReminderResult = schedulerState.settings.lastReminderResult || "Not yet used";
+ proposed.nextTestAt = computeNextSchedulerReminderAt(proposed, new Date());
+ proposed.nextReason = computeNextSchedulerReason(proposed);
+ schedulerState.settings = proposed;
+ persistActiveSchedulerSettings();
+ renderSchedulerSettings();
+ armSchedulerReminderTimer();
+ setStatus("Scheduler settings saved");
+}
+function onSchedulerTestSave(){
+ if(!schedulerState.activeSubjectId || isGuestSchedulerSubject(schedulerState.activeSubjectId)){ schedulerState.settings.deviceTest.localSave = "FAIL"; renderSchedulerDeviceFields(schedulerState.settings.deviceTest); setStatus("Saved subject required for Scheduler."); return; }
+ const ok = persistActiveSchedulerSettings();
+ schedulerState.settings.deviceTest.localSave = ok ? "PASS" : "FAIL";
+ renderSchedulerDeviceFields(schedulerState.settings.deviceTest);
+ setStatus(ok ? "Scheduler save PASS" : "Scheduler save FAIL");
+}
+function onSchedulerTestText(){
+ const seen = confirm(`CogSpeed reminder test. Mode 2 test recommended now.
+
+Press OK if you saw it.`);
+ schedulerState.settings.deviceTest.text = seen ? "PASS" : "FAIL";
+ persistActiveSchedulerSettings();
+ renderSchedulerDeviceFields(schedulerState.settings.deviceTest);
+ setStatus(seen ? "In-app text PASS" : "In-app text FAIL");
+}
+function onSchedulerTestSound(){
+ playSchedulerSound(schedulerState.settings.alertSound).then(ok=>{
+  const heard = ok && confirm("Did you hear the alert sound? Press OK for Yes.");
+  schedulerState.settings.deviceTest.sound = heard ? "PASS" : "FAIL";
+  const el=$("schedulerSoundTestResult"); if(el) el.textContent = `Sound: ${heard?"PASS":"FAIL"}`;
+  persistActiveSchedulerSettings();
+  renderSchedulerDeviceFields(schedulerState.settings.deviceTest);
+  setStatus(heard ? "In-app sound PASS" : "In-app sound FAIL");
+ });
+}
+function onSchedulerTestVoice(){
+ if(!schedulerState.settings.voiceEnabled){
+  schedulerState.settings.deviceTest.voice = "DISABLED";
+  const el=$("schedulerVoiceTestResult"); if(el) el.textContent = "Voice: DISABLED";
+  renderSchedulerDeviceFields(schedulerState.settings.deviceTest);
+  setStatus("Voice Alert is OFF");
+  return;
+ }
+ const ok = speakSchedulerPrompt("personal");
+ const heard = ok && confirm("Did you hear the voice prompt? Press OK for Yes.");
+ schedulerState.settings.deviceTest.voice = heard ? "PASS" : "FAIL";
+ const el=$("schedulerVoiceTestResult"); if(el) el.textContent = `Voice: ${heard?"PASS":"FAIL"}`;
+ persistActiveSchedulerSettings();
+ renderSchedulerDeviceFields(schedulerState.settings.deviceTest);
+ setStatus(heard ? "In-app voice PASS" : "In-app voice FAIL");
+}
+function onSchedulerTestNotification(){
+ if(typeof Notification === "undefined"){
+  schedulerState.settings.deviceTest.permission = "UNSUPPORTED";
+  schedulerState.settings.deviceTest.closedApp = "UNSUPPORTED";
+  renderSchedulerDeviceFields(schedulerState.settings.deviceTest);
+  setStatus("Notifications unsupported on this device");
+  return;
+ }
+ const finish = (perm)=>{
+  schedulerState.settings.deviceTest.permission = perm === "granted" ? "GRANTED" : perm === "denied" ? "DENIED" : "NOT ASKED";
+  if(perm !== "granted"){
+   schedulerState.settings.deviceTest.closedApp = "LIMITED";
+   persistActiveSchedulerSettings();
+   renderSchedulerDeviceFields(schedulerState.settings.deviceTest);
+   setStatus("Notification permission not granted");
+   return;
+  }
+  try{
+   const body = "CogSpeed notification test.";
+   if(navigator.serviceWorker && navigator.serviceWorker.ready){
+    navigator.serviceWorker.ready.then(reg=>reg.showNotification?.("CogSpeed Reminder", {body})).catch(()=>new Notification("CogSpeed Reminder", {body}));
+   }else{ new Notification("CogSpeed Reminder", {body}); }
+   const got = confirm("A test notification was sent. Press OK if you received it.");
+   schedulerState.settings.deviceTest.closedApp = got ? "LIMITED" : "FAIL";
+   persistActiveSchedulerSettings();
+   renderSchedulerDeviceFields(schedulerState.settings.deviceTest);
+   setStatus(got ? "Notification PASS" : "Notification FAIL");
+  }catch(e){
+   schedulerState.settings.deviceTest.closedApp = "FAIL";
+   persistActiveSchedulerSettings();
+   renderSchedulerDeviceFields(schedulerState.settings.deviceTest);
+   setStatus("Notification FAIL");
+  }
+ };
+ if(Notification.permission === "granted") finish("granted");
+ else Notification.requestPermission().then(finish).catch(()=>finish(Notification.permission));
+}
+function onSchedulerBackgroundTest(){
+ schedulerState.backgroundTestPending = true;
+ schedulerState.backgroundTestDueAt = Date.now() + 60000;
+ schedulerState.settings.deviceTest.closedApp = "UNKNOWN";
+ persistActiveSchedulerSettings();
+ renderSchedulerDeviceFields(schedulerState.settings.deviceTest);
+ setStatus("1-minute background test armed");
+ alert(`Leave CogSpeed in background or close it now. Return in 1 to 2 minutes.`);
+ clearTimeout(schedulerState.reminderTimerId);
+ schedulerState.reminderTimerId = setTimeout(()=>{
+  if(typeof Notification !== "undefined" && Notification.permission === "granted") {
+   try{ if(navigator.serviceWorker && navigator.serviceWorker.ready){ navigator.serviceWorker.ready.then(reg=>reg.showNotification?.("CogSpeed Reminder", {body:"1-minute background reminder test."})).catch(()=>{}); } }catch(e){}
+  }
+  playSchedulerSound(schedulerState.settings.alertSound);
+ }, 60000);
+}
+function maybeFinishBackgroundTest(){
+ if(!schedulerState.backgroundTestPending) return;
+ if(Date.now() < (schedulerState.backgroundTestDueAt||0)) return;
+ schedulerState.backgroundTestPending = false;
+ const got = confirm("Did the 1-minute background reminder arrive? Press OK for Yes.");
+ schedulerState.settings.deviceTest.closedApp = got ? "CONFIRMED" : "LIMITED";
+ persistActiveSchedulerSettings();
+ renderSchedulerDeviceFields(schedulerState.settings.deviceTest);
+ setStatus(got ? "Closed-app alert confirmed" : "Closed-app alert limited");
+}
+function clearSchedulerReminderStatus(){
+ schedulerState.settings.lastReminderResult = "Not yet used";
+ schedulerState.settings.nextReason = computeNextSchedulerReason(schedulerState.settings);
+ persistActiveSchedulerSettings();
+ refreshSchedulerStatus();
+ setStatus("Scheduler reminder status cleared");
+}
 // Collects email (subject ID), birth month/year, gender, email pref.
 // Stored in localStorage: ${STORAGE_PREFIX}_profile
 // Not yet implemented: server-side account/population norms.
@@ -2685,6 +3286,7 @@ function restoreSubjectFromProfile(){
   if(wl) wl.style.display = "block";
   if(we) we.textContent = p.email;
   if(hint) hint.textContent = "";
+  schedulerResumeForCurrentProfile();
  } else {
   if(wl) wl.style.display = "none";
   if(we) we.textContent = "";
@@ -2808,6 +3410,11 @@ function openProfileOverlay(email){
   profileSelectTimeFormat(_profileTimeFormat);
  }
 
+ schedulerState.activeSubjectId = safeEmail || "";
+ schedulerState.settings = loadSchedulerSettings(schedulerState.activeSubjectId);
+ renderSchedulerSettings();
+ refreshSchedulerDeviceStatus();
+ maybeFinishBackgroundTest();
  showOnly("profileOverlay");
 }
 
@@ -2839,10 +3446,21 @@ function saveAndContinueProfile(){
 
  const profile = {email, birthMonth:bMonth, birthYear:bYear,
   gender:_profileGenderSelected, emailResults, timeFormat:settings.timeFormat, updatedAt:Date.now()};
+ schedulerState.activeSubjectId = email;
+ const schedulerDraft = collectSchedulerSettingsFromUI();
+ const schedulerCheck = validateSchedulerSettings(schedulerDraft);
+ if(!schedulerCheck.ok){ setStatus(schedulerCheck.message); return; }
  saveProfile(profile);
 
  state.subjectId = email;
  state.profile = profile;
+ schedulerDraft.deviceTest = schedulerState.settings?.deviceTest || structuredClone(DEFAULT_SCHEDULER_SETTINGS.deviceTest);
+ schedulerDraft.lastReminderResult = schedulerState.settings?.lastReminderResult || "Not yet used";
+ schedulerDraft.nextTestAt = computeNextSchedulerReminderAt(schedulerDraft, new Date());
+ schedulerDraft.nextReason = computeNextSchedulerReason(schedulerDraft);
+ schedulerState.settings = schedulerDraft;
+ persistActiveSchedulerSettings();
+ armSchedulerReminderTimer();
 
  showOnly(_profileReturnTo);
  _profileReturnTo = "refresherOverlay";
@@ -2850,7 +3468,12 @@ function saveAndContinueProfile(){
 }
 
 function resetProfile(){
+ const subjectToClear = getCurrentSchedulerSubjectId();
  clearProfile();
+ clearSchedulerSettings(subjectToClear);
+ stopSchedulerTimers();
+ schedulerState.activeSubjectId = "";
+ schedulerState.settings = structuredClone(DEFAULT_SCHEDULER_SETTINGS);
  _profileGenderSelected = "";
  _profileTimeFormat = getEffectiveTimeFormat();
  const bm=$("profileBirthMonth"); if(bm) bm.value="";
@@ -2863,6 +3486,7 @@ function resetProfile(){
  });
  const msg=$("profileAgeMsg"); if(msg) msg.textContent="";
  profileSelectTimeFormat(_profileTimeFormat);
+ renderSchedulerSettings();
  setStatus("Profile reset");
 }
 
@@ -4395,6 +5019,9 @@ function goToStartPage(){
 }
 function startOverFlow(){
  resetSubjectSessionState(); state.subjectId=null; state.profile=null;
+ stopSchedulerTimers();
+ schedulerState.activeSubjectId = "";
+ schedulerState.settings = structuredClone(DEFAULT_SCHEDULER_SETTINGS);
  fatigueOut.textContent="—"; $("subjectIdInput").value="";
  _adminUnlocked=false;
  // Full reset: clear welcome-back display but preserve saved profile in localStorage
@@ -5554,6 +6181,9 @@ $("subjectNextBtn").onclick=()=>{
  if(!v){ setStatus("Enter your email address"); return; }
  if(v==="0"||v==="guest"){
   state.subjectId="Guest"; state.profile=null;
+  stopSchedulerTimers();
+  schedulerState.activeSubjectId = "";
+  schedulerState.settings = structuredClone(DEFAULT_SCHEDULER_SETTINGS);
   showOnly("refresherOverlay"); setStatus("Continuing as Guest"); return;
  }
  if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)){
@@ -5564,6 +6194,7 @@ $("subjectNextBtn").onclick=()=>{
  const saved=loadProfile();
  if(saved&&saved.email===v){
   state.subjectId=v; state.profile=saved;
+  schedulerResumeForCurrentProfile();
   showOnly("refresherOverlay"); setStatus("Welcome back, "+v);
  } else {
   // New user or different email → collect profile
@@ -5663,6 +6294,29 @@ const _pt24=$("profileTime24Btn"); if(_pt24) _pt24.onclick=(e)=>{ if(e) e.preven
 const _pbm=$("profileBirthMonth"); if(_pbm) _pbm.onchange=validateProfileAge;
 const _pby=$("profileBirthYear"); if(_pby) _pby.oninput=validateProfileAge;
 
+// Scheduler controls on the asterisk / Profile page
+const _seo=$("schedulerEnabledOn"); if(_seo) _seo.onclick=(e)=>{ if(e) e.preventDefault(); if(!schedulerState.activeSubjectId){ setStatus("Saved subject required for Scheduler"); return; } schedulerSetEnabled(true); };
+const _seoff=$("schedulerEnabledOff"); if(_seoff) _seoff.onclick=(e)=>{ if(e) e.preventDefault(); schedulerSetEnabled(false); };
+const _sta=$("scheduleTypeAnytime"); if(_sta) _sta.onclick=(e)=>{ if(e) e.preventDefault(); schedulerSetType("anytime"); };
+const _stp=$("scheduleTypePersonal"); if(_stp) _stp.onclick=(e)=>{ if(e) e.preventDefault(); if(!schedulerState.settings.enabled) schedulerSetEnabled(true); schedulerSetType("personal"); };
+const _stf=$("scheduleTypeFitDuty"); if(_stf) _stf.onclick=(e)=>{ if(e) e.preventDefault(); if(!schedulerState.settings.enabled) schedulerSetEnabled(true); schedulerSetType("fit_duty"); };
+const _pmi=$("personalModeInterval"); if(_pmi) _pmi.onclick=(e)=>{ if(e) e.preventDefault(); schedulerSetPersonalMode("interval"); };
+const _pmd=$("personalModeDailyTimes"); if(_pmd) _pmd.onclick=(e)=>{ if(e) e.preventDefault(); schedulerSetPersonalMode("daily_times"); };
+["personalIntervalHoursInput","personalWindowStartInput","personalWindowEndInput","fitDutyMinIntervalInput","fitDutyDefaultIntervalInput","fitDutyMaxIntervalInput","schedulerAlertSoundSelect","schedulerQuietStartInput","schedulerQuietEndInput"].forEach(id=>{ const el=$(id); if(el){ el.oninput=onSchedulerUiChanged; el.onchange=onSchedulerUiChanged; } });
+["fitDutyValidOnlyToggle","fitDutyIgnoreIncompleteToggle","schedulerVoiceEnabledToggle","schedulerRepeatOnceToggle","schedulerQuietHoursToggle","personalTime1Enabled","personalTime2Enabled","personalTime3Enabled","personalTime4Enabled","personalTime5Enabled","personalTime6Enabled"].forEach(id=>{ const el=$(id); if(el) el.onchange=onSchedulerUiChanged; });
+["personalTime1Input","personalTime2Input","personalTime3Input","personalTime4Input","personalTime5Input","personalTime6Input"].forEach(id=>{ const el=$(id); if(el){ el.oninput=onSchedulerUiChanged; el.onchange=onSchedulerUiChanged; } });
+const _sts=$("schedulerTestSaveBtn"); if(_sts) _sts.onclick=onSchedulerTestSave;
+const _stxt=$("schedulerTestTextBtn"); if(_stxt) _stxt.onclick=onSchedulerTestText;
+const _ssnd=$("schedulerTestSoundBtn"); if(_ssnd) _ssnd.onclick=onSchedulerTestSound;
+const _ssnda=$("schedulerTestSoundAlertBtn"); if(_ssnda) _ssnda.onclick=onSchedulerTestSound;
+const _sv=$("schedulerTestVoiceBtn"); if(_sv) _sv.onclick=onSchedulerTestVoice;
+const _sva=$("schedulerTestVoiceAlertBtn"); if(_sva) _sva.onclick=onSchedulerTestVoice;
+const _snt=$("schedulerTestNotificationBtn"); if(_snt) _snt.onclick=onSchedulerTestNotification;
+const _sbg=$("schedulerBackgroundTestBtn"); if(_sbg) _sbg.onclick=onSchedulerBackgroundTest;
+const _srs=$("schedulerRefreshStatusBtn"); if(_srs) _srs.onclick=()=>{ maybeFinishBackgroundTest(); refreshSchedulerStatus(); refreshSchedulerDeviceStatus(); setStatus("Scheduler status refreshed"); };
+const _scs=$("schedulerClearStatusBtn"); if(_scs) _scs.onclick=clearSchedulerReminderStatus;
+const _srd=$("schedulerRefreshDeviceTestBtn"); if(_srd) _srd.onclick=()=>{ maybeFinishBackgroundTest(); refreshSchedulerDeviceStatus(); setStatus("Device test refreshed"); };
+
 // Welcome back — pre-fill email if profile exists
 (()=>{
  const p=loadProfile();
@@ -5672,6 +6326,7 @@ const _pby=$("profileBirthYear"); if(_pby) _pby.oninput=validateProfileAge;
   const we=$("welcomeEmail"); if(we) we.textContent=p.email;
   const hint=$("subjectHint"); if(hint) hint.textContent="";
  }
+ schedulerResumeForCurrentProfile();
 })();
 $("tutSkipBtn").onclick=()=>tutSkip();
 $("unlockBtn").onclick=()=>{
@@ -6949,6 +7604,10 @@ function wireEmailDraftAction(){
   }
 }
 /* ===== end Editable recipient field ===== */
+
+document.addEventListener("visibilitychange", ()=>{
+ if(document.visibilityState === "visible") maybeFinishBackgroundTest();
+});
 
 window.addEventListener("resize", ()=>{
  const last = state.history && state.history.length ? state.history[state.history.length-1] : null;

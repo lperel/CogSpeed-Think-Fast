@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
   <meta name="theme-color" content="#0b1830"/>
   <link rel="manifest" href="manifest.json"/>
-  <title>CogSpeed® V681</title>
+  <title>CogSpeed® V682</title>
     <style>
 
     :root{--bg:#091426;--bg2:#132746;--panel:#0d1b33;--panel2:#10213e;--text:#f5fbff;--muted:#d7e7f8;--edge:#4f6f99;--accent:#7fd7ff;--probe:#00f0ff}
@@ -358,7 +358,7 @@
       <img src="CogSpeed.jpeg" alt="CogSpeed logo" style="width:min(78vw,420px);max-width:100%;height:auto;display:block;object-fit:contain;border:1px solid #2f5fb8;box-shadow:0 2px 16px rgba(0,0,0,.25)"/>
     </div>
     <div style="flex:1;display:flex;flex-direction:column;justify-content:flex-start;align-items:center;gap:clamp(6px,1.2dvh,14px);padding-top:10px">
-      <div style="text-align:center"><span class="badge" style="font-size:11px;padding:2px 10px" id="versionBadge">V681</span></div>
+      <div style="text-align:center"><span class="badge" style="font-size:11px;padding:2px 10px" id="versionBadge">V682</span></div>
       <div style="text-align:center">
         <span style="font-size:clamp(20px,3.6dvh,34px);font-weight:900;font-style:italic;letter-spacing:.12em;color:var(--accent);text-transform:uppercase;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;text-shadow:0 0 12px rgba(127,215,255,0.6)">Think Fast!</span>
       </div>
@@ -392,7 +392,7 @@
 </div>
 <!-- ═══ PROFILE OVERLAY ═══ -->
 <div id="profileOverlay" class="overlay hidden" style="padding:0;align-items:stretch">
-  <div class="modal" style="max-width:100%;width:100%;border-radius:0;min-height:100dvh;display:flex;flex-direction:column;padding:20px 18px max(16px,env(safe-area-inset-bottom,16px))">
+  <div class="modal" style="max-width:100%;width:100%;border-radius:0;min-height:100dvh;display:flex;flex-direction:column;overflow-y:auto;padding:20px 18px max(16px,env(safe-area-inset-bottom,16px))">
     <div style="position:relative;text-align:center;margin-bottom:14px">
       <img src="GMM FIREBIRD.png" alt="Gray Matter Metrics, LLC logo" style="position:absolute;top:0;right:0;width:56px;height:auto;object-fit:contain;opacity:0.95"/>
       <div style="font-size:22px;font-weight:900;color:var(--accent)">Your Profile</div>
@@ -459,6 +459,177 @@
       <div style="display:flex;gap:10px;margin-top:8px">
         <button type="button" id="profileTime12Btn" class="ctrl-btn" style="flex:1;font-size:17px">12-hour</button>
         <button type="button" id="profileTime24Btn" class="ctrl-btn" style="flex:1;font-size:17px">24-hour</button>
+      </div>
+    </div>
+
+    <!-- MODE 2 Scheduler -->
+    <div id="profileSchedulerPanel" style="margin-bottom:16px;padding:14px;background:rgba(127,215,255,0.06);border:1px solid rgba(127,215,255,0.15);border-radius:12px">
+      <div style="font-size:18px;font-weight:800;color:var(--text);margin-bottom:6px">MODE 2 SCHEDULER</div>
+      <div id="schedulerGuestBlockedNote" class="field-hint hidden" style="margin-bottom:10px;color:#ff9aa8">Scheduler is not available for Guest users. Select or create saved subject.</div>
+      <div id="schedulerSubjectInfo" class="field-hint" style="margin-bottom:10px">Saved subject only. This Scheduler works on this device only.</div>
+
+      <div class="field-row" style="margin-bottom:12px">
+        <label style="font-size:16px">Scheduler</label>
+        <div style="display:flex;gap:10px;margin-top:8px">
+          <button type="button" id="schedulerEnabledOn" class="ctrl-btn" style="flex:1;font-size:16px">Scheduler ON</button>
+          <button type="button" id="schedulerEnabledOff" class="ctrl-btn" style="flex:1;font-size:16px">Scheduler OFF</button>
+        </div>
+        <div id="schedulerOffNote" class="field-hint" style="margin-top:6px">No Mode 2 reminders scheduled.</div>
+      </div>
+
+      <div id="schedulerSettingsWrap">
+        <div class="field-row" style="margin-bottom:12px">
+          <label style="font-size:16px">Schedule Type</label>
+          <div style="display:flex;gap:10px;margin-top:8px;flex-wrap:wrap">
+            <button type="button" id="scheduleTypeAnytime" class="ctrl-btn" style="flex:1 1 120px;font-size:16px">Anytime</button>
+            <button type="button" id="scheduleTypePersonal" class="ctrl-btn" style="flex:1 1 120px;font-size:16px">Personal</button>
+            <button type="button" id="scheduleTypeFitDuty" class="ctrl-btn" style="flex:1 1 120px;font-size:16px">Fit for Duty</button>
+          </div>
+          <div id="scheduleTypeHelpText" class="field-hint" style="margin-top:6px">No reminders. Subject may take Mode 2 at any time.</div>
+        </div>
+
+        <div id="personalSchedulePanel" class="field-row hidden" style="margin-bottom:12px">
+          <label style="font-size:16px">Personal Schedule</label>
+          <div style="display:flex;gap:10px;margin-top:8px">
+            <button type="button" id="personalModeInterval" class="ctrl-btn" style="flex:1;font-size:16px">Every X Hours</button>
+            <button type="button" id="personalModeDailyTimes" class="ctrl-btn" style="flex:1;font-size:16px">Daily Times</button>
+          </div>
+
+          <div id="personalIntervalPanel" style="margin-top:10px">
+            <label style="font-size:15px">Repeat every (hours)</label>
+            <input id="personalIntervalHoursInput" type="number" min="1" max="24" step="1" value="4" style="width:100%;margin-top:6px;padding:12px;border:1px solid var(--edge);border-radius:12px;background:#0a1629;color:var(--text);font-size:17px">
+            <div style="display:flex;gap:10px;margin-top:10px">
+              <div style="flex:1">
+                <label style="font-size:15px">Start reminders at</label>
+                <input id="personalWindowStartInput" type="time" value="08:00" style="width:100%;margin-top:6px;padding:12px;border:1px solid var(--edge);border-radius:12px;background:#0a1629;color:var(--text);font-size:17px">
+              </div>
+              <div style="flex:1">
+                <label style="font-size:15px">Stop reminders at</label>
+                <input id="personalWindowEndInput" type="time" value="20:00" style="width:100%;margin-top:6px;padding:12px;border:1px solid var(--edge);border-radius:12px;background:#0a1629;color:var(--text);font-size:17px">
+              </div>
+            </div>
+            <div class="field-hint" style="margin-top:6px">Next reminder is based on last completed scheduled Mode 2 test.</div>
+          </div>
+
+          <div id="personalDailyTimesPanel" class="hidden" style="margin-top:10px">
+            <div class="field-hint" style="margin-bottom:8px">Select up to 6 daily reminder times.</div>
+            <div style="display:grid;gap:8px">
+              <div style="display:flex;gap:10px;align-items:center"><label style="flex:1"><input id="personalTime1Enabled" type="checkbox"> Use Time 1</label><input id="personalTime1Input" type="time" value="08:00" style="flex:1;padding:10px;border:1px solid var(--edge);border-radius:12px;background:#0a1629;color:var(--text)"></div>
+              <div style="display:flex;gap:10px;align-items:center"><label style="flex:1"><input id="personalTime2Enabled" type="checkbox"> Use Time 2</label><input id="personalTime2Input" type="time" value="12:00" style="flex:1;padding:10px;border:1px solid var(--edge);border-radius:12px;background:#0a1629;color:var(--text)"></div>
+              <div style="display:flex;gap:10px;align-items:center"><label style="flex:1"><input id="personalTime3Enabled" type="checkbox"> Use Time 3</label><input id="personalTime3Input" type="time" value="16:00" style="flex:1;padding:10px;border:1px solid var(--edge);border-radius:12px;background:#0a1629;color:var(--text)"></div>
+              <div style="display:flex;gap:10px;align-items:center"><label style="flex:1"><input id="personalTime4Enabled" type="checkbox"> Use Time 4</label><input id="personalTime4Input" type="time" value="20:00" style="flex:1;padding:10px;border:1px solid var(--edge);border-radius:12px;background:#0a1629;color:var(--text)"></div>
+              <div style="display:flex;gap:10px;align-items:center"><label style="flex:1"><input id="personalTime5Enabled" type="checkbox"> Use Time 5</label><input id="personalTime5Input" type="time" value="09:00" style="flex:1;padding:10px;border:1px solid var(--edge);border-radius:12px;background:#0a1629;color:var(--text)"></div>
+              <div style="display:flex;gap:10px;align-items:center"><label style="flex:1"><input id="personalTime6Enabled" type="checkbox"> Use Time 6</label><input id="personalTime6Input" type="time" value="18:00" style="flex:1;padding:10px;border:1px solid var(--edge);border-radius:12px;background:#0a1629;color:var(--text)"></div>
+            </div>
+            <div class="field-hint" style="margin-top:6px">Missed daily reminder times are skipped. Next reminder will be the next selected time.</div>
+          </div>
+        </div>
+
+        <div id="fitDutySchedulePanel" class="field-row hidden" style="margin-bottom:12px">
+          <label style="font-size:16px">Fit for Duty Schedule</label>
+          <div class="field-hint" style="margin-top:6px">Uses last completed valid Mode 2 only.</div>
+          <div class="field-hint">Uses CPI and SP-FS.</div>
+          <div class="field-hint">Lower CPI and/or higher fatigue may trigger earlier follow-up.</div>
+          <div class="field-hint" style="margin-bottom:8px">Higher CPI and lower fatigue may allow later follow-up.</div>
+          <div style="display:grid;gap:10px">
+            <div>
+              <label style="font-size:15px">Minimum interval (min)</label>
+              <input id="fitDutyMinIntervalInput" type="number" min="5" max="1440" step="5" value="30" style="width:100%;margin-top:6px;padding:12px;border:1px solid var(--edge);border-radius:12px;background:#0a1629;color:var(--text);font-size:17px">
+            </div>
+            <div>
+              <label style="font-size:15px">Default interval (hrs)</label>
+              <input id="fitDutyDefaultIntervalInput" type="number" min="1" max="24" step="1" value="4" style="width:100%;margin-top:6px;padding:12px;border:1px solid var(--edge);border-radius:12px;background:#0a1629;color:var(--text);font-size:17px">
+            </div>
+            <div>
+              <label style="font-size:15px">Maximum interval (hrs)</label>
+              <input id="fitDutyMaxIntervalInput" type="number" min="1" max="72" step="1" value="12" style="width:100%;margin-top:6px;padding:12px;border:1px solid var(--edge);border-radius:12px;background:#0a1629;color:var(--text);font-size:17px">
+            </div>
+          </div>
+          <label style="display:block;margin-top:10px"><input id="fitDutyValidOnlyToggle" type="checkbox" checked> Use completed valid Mode 2 only</label>
+          <label style="display:block;margin-top:6px"><input id="fitDutyIgnoreIncompleteToggle" type="checkbox" checked> Ignore incomplete tests</label>
+          <div class="field-hint" style="margin-top:6px">Guest tests are not used.</div>
+          <div class="field-hint" style="margin-top:4px">Fit for Duty helps time the next Mode 2 test. It does not diagnose impairment or determine legal fitness for duty.</div>
+        </div>
+
+        <div class="field-row" style="margin-bottom:12px">
+          <label style="font-size:16px">ALERT SOUND / VOICE</label>
+          <div class="field-hint" style="margin-top:6px">Choose how Mode 2 Scheduler alerts the subject.</div>
+          <label for="schedulerAlertSoundSelect" style="font-size:15px;margin-top:10px;display:block">Alert Sound</label>
+          <select id="schedulerAlertSoundSelect" style="width:100%;margin-top:6px;padding:12px;border:1px solid var(--edge);border-radius:12px;background:#0a1629;color:var(--text);font-size:17px">
+            <option value="off">Off</option>
+            <option value="soft_chime" selected>Soft Chime</option>
+            <option value="beep">Beep</option>
+            <option value="double_beep">Double Beep</option>
+          </select>
+          <div class="field-hint" style="margin-top:6px">Alert sound uses bundled CogSpeed audio files stored on this device.</div>
+          <div style="display:flex;gap:10px;margin-top:8px">
+            <button type="button" id="schedulerTestSoundBtn" class="ctrl-btn" style="flex:1">Test Sound</button>
+            <button type="button" id="schedulerTestVoiceBtn" class="ctrl-btn" style="flex:1">Test Voice</button>
+          </div>
+          <div id="schedulerSoundTestResult" class="field-hint" style="margin-top:6px">Sound: Not tested</div>
+          <label style="display:block;margin-top:8px"><input id="schedulerVoiceEnabledToggle" type="checkbox"> Voice Alert</label>
+          <div class="field-hint" style="margin-top:4px">Voice uses the device text-to-speech system.</div>
+          <div id="schedulerVoiceTestResult" class="field-hint" style="margin-top:4px">Voice: DISABLED</div>
+          <div id="schedulerVoicePreviewText" class="field-hint hidden" style="margin-top:4px">Voice prompt: &quot;CogSpeed reminder. Mode 2 test recommended now.&quot;</div>
+          <label style="display:block;margin-top:8px"><input id="schedulerRepeatOnceToggle" type="checkbox"> Repeat Once After 10 Min</label>
+          <div class="field-hint" style="margin-top:4px">If no response, repeat the selected sound and voice once after 10 minutes.</div>
+        </div>
+
+        <div class="field-row" style="margin-bottom:12px">
+          <label style="font-size:16px">Quiet Hours</label>
+          <label style="display:block;margin-top:8px"><input id="schedulerQuietHoursToggle" type="checkbox"> Quiet Hours ON</label>
+          <div style="display:flex;gap:10px;margin-top:10px">
+            <div style="flex:1">
+              <label style="font-size:15px">Quiet Start</label>
+              <input id="schedulerQuietStartInput" type="time" value="22:00" style="width:100%;margin-top:6px;padding:12px;border:1px solid var(--edge);border-radius:12px;background:#0a1629;color:var(--text);font-size:17px">
+            </div>
+            <div style="flex:1">
+              <label style="font-size:15px">Quiet End</label>
+              <input id="schedulerQuietEndInput" type="time" value="06:00" style="width:100%;margin-top:6px;padding:12px;border:1px solid var(--edge);border-radius:12px;background:#0a1629;color:var(--text);font-size:17px">
+            </div>
+          </div>
+          <div class="field-hint" style="margin-top:6px">Reminders during Quiet Hours are delayed until Quiet Hours end.</div>
+        </div>
+
+        <div class="field-row" style="margin-bottom:12px">
+          <label style="font-size:16px">Scheduler Status</label>
+          <div class="field-hint" style="margin-top:6px">Current Subject: <span id="schedulerStatusSubject">—</span></div>
+          <div class="field-hint">Schedule Type: <span id="schedulerStatusType">Anytime</span></div>
+          <div class="field-hint">Next Mode 2 Test: <span id="schedulerStatusNextTest">No active reminder</span></div>
+          <div class="field-hint">Reason: <span id="schedulerStatusReason">No active reminder</span></div>
+          <div class="field-hint">Last Completed Mode 2: <span id="schedulerStatusLastCompleted">—</span></div>
+          <div class="field-hint">Last Reminder Result: <span id="schedulerStatusLastReminderResult">Not yet used</span></div>
+          <div style="display:flex;gap:10px;margin-top:8px">
+            <button type="button" id="schedulerRefreshStatusBtn" class="ctrl-btn" style="flex:1">Refresh Status</button>
+            <button type="button" id="schedulerClearStatusBtn" class="ctrl-btn" style="flex:1">Clear Reminder Status</button>
+          </div>
+        </div>
+
+        <div class="field-row" style="margin-bottom:12px">
+          <label style="font-size:16px">Scheduler Device Test</label>
+          <div class="field-hint" style="margin-top:6px">Installed App: <span id="schedulerDeviceInstalledResult">UNKNOWN</span></div>
+          <div class="field-hint">Local Schedule Save: <span id="schedulerDeviceLocalSaveResult">UNKNOWN</span></div>
+          <div class="field-hint">In-App Text: <span id="schedulerDeviceTextResult">UNKNOWN</span></div>
+          <div class="field-hint">In-App Sound: <span id="schedulerDeviceSoundResult">UNKNOWN</span></div>
+          <div class="field-hint">In-App Voice: <span id="schedulerDeviceVoiceResult">DISABLED</span></div>
+          <div class="field-hint">Notification Permission: <span id="schedulerDevicePermissionResult">NOT ASKED</span></div>
+          <div class="field-hint">Service Worker: <span id="schedulerDeviceServiceWorkerResult">UNKNOWN</span></div>
+          <div class="field-hint">Closed-App Alert: <span id="schedulerDeviceClosedAppResult">UNKNOWN</span></div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:8px">
+            <button type="button" id="schedulerTestSaveBtn" class="ctrl-btn">Test Schedule Save</button>
+            <button type="button" id="schedulerTestTextBtn" class="ctrl-btn">Test Text Alert</button>
+            <button type="button" id="schedulerTestSoundAlertBtn" class="ctrl-btn">Test Sound Alert</button>
+            <button type="button" id="schedulerTestVoiceAlertBtn" class="ctrl-btn">Test Voice Alert</button>
+            <button type="button" id="schedulerTestNotificationBtn" class="ctrl-btn">Test Notification</button>
+            <button type="button" id="schedulerBackgroundTestBtn" class="ctrl-btn">1-Min Background Test</button>
+          </div>
+          <button type="button" id="schedulerRefreshDeviceTestBtn" class="ctrl-btn" style="width:100%;margin-top:10px">Refresh Device Test</button>
+        </div>
+
+        <div class="field-row" style="margin-bottom:0">
+          <label style="font-size:16px">Device Summary</label>
+          <div id="schedulerDeviceSummary" class="field-hint" style="margin-top:6px">Local scheduling not yet tested.</div>
+        </div>
       </div>
     </div>
 
@@ -955,7 +1126,7 @@
     <span id="fatigueOut">—</span>
     <span id="modeLabel">Subject mode</span>
     <span id="phaseLabel">Ready</span>
-    <span id="statusLine">CogSpeed V681</span>
+    <span id="statusLine">CogSpeed V682</span>
     <span id="rateOut">—</span>
     <span id="blocksOut">0</span>
     <span id="recoveryOut">0</span>
@@ -980,6 +1151,6 @@
   <div class="resp-grid" id="respGrid"></div>
 </div>
 
-<script src="app.js?v=681" defer></script>
+<script src="app.js?v=682" defer></script>
 </body>
 </html>
