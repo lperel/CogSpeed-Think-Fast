@@ -1,3 +1,18 @@
+# V686 — 2026-04-15
+
+- Speedometer cleanup: removed the repetitive outcome end-reason text directly below Success!/Failed.
+- Preserved the existing detailed session information elsewhere on Speedometer and Results pages.
+
+# V685 — 2026-04-15
+
+- Added Personal Baseline as a rolling average of the most recent 5 qualifying Mode 1 / Mode 2 adaptive-phase MBS scores.
+- Baseline qualifies only for non-failed sessions with adaptive-phase MBS > 1500 ms and SP-FS 5, 6, or 7.
+- Personal Baseline now appears on the Speedometer and in Results Summary pages.
+- Added Speedometer dropdown item `Download Personal Baseline` as the last menu item; it downloads a self-contained HTML report with status block, table, and graph.
+- Fixed a critical Mode 2 duration bug: sustained-only elapsed subtraction now uses the logged `durationMs` field and no longer double-counts with `+ rt`.
+- Fixed scheduler timer state consistency by declaring `bgTestTimerId` in `schedulerState`.
+- Kept scheduler sound/voice timing fixes from V684 and added baseline comments explaining how rolling baseline works and why failed sessions stay in history only.
+
 # V684 — 2026-04-15
 
 - Mode 2 total test duration now excludes sustained fixed-rate trial time; sustained-only duration is reported separately in the results summary.

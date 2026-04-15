@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
   <meta name="theme-color" content="#0b1830"/>
   <link rel="manifest" href="manifest.json"/>
-  <title>CogSpeed® V684</title>
+  <title>CogSpeed® V686</title>
     <style>
 
     :root{--bg:#091426;--bg2:#132746;--panel:#0d1b33;--panel2:#10213e;--text:#f5fbff;--muted:#d7e7f8;--edge:#4f6f99;--accent:#7fd7ff;--probe:#00f0ff}
@@ -358,7 +358,7 @@
       <img src="CogSpeed.jpeg" alt="CogSpeed logo" style="width:min(78vw,420px);max-width:100%;height:auto;display:block;object-fit:contain;border:1px solid #2f5fb8;box-shadow:0 2px 16px rgba(0,0,0,.25)"/>
     </div>
     <div style="flex:1;display:flex;flex-direction:column;justify-content:flex-start;align-items:center;gap:clamp(6px,1.2dvh,14px);padding-top:10px">
-      <div style="text-align:center"><span class="badge" style="font-size:11px;padding:2px 10px" id="versionBadge">V684</span></div>
+      <div style="text-align:center"><span class="badge" style="font-size:11px;padding:2px 10px" id="versionBadge">V686</span></div>
       <div style="text-align:center">
         <span style="font-size:clamp(20px,3.6dvh,34px);font-weight:900;font-style:italic;letter-spacing:.12em;color:var(--accent);text-transform:uppercase;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;text-shadow:0 0 12px rgba(127,215,255,0.6)">Think Fast!</span>
       </div>
@@ -923,6 +923,7 @@
     <canvas id="spfGaugeCanvas" width="900" height="180" style="width:100%;height:auto;display:block"></canvas>
   </div>
   <div id="speedometerSleepMetrics" class="summary-grid" style="width:min(92vw,560px);margin:0 auto 10px;grid-template-columns:1fr 1fr;gap:8px"></div>
+  <div id="speedometerBaselineText" style="margin:0 auto 10px;text-align:center;max-width:min(92vw,720px);font-size:clamp(15px,3.8vw,24px);font-weight:800;color:#7fd7ff">Baseline not yet established, Test again.</div>
   <!-- SUCCESS! / Test Failed label -->
   <div id="outcomeText" class="outcome-text" style="margin:8px 0 6px;font-size:clamp(24px,6vw,48px)"></div>
   <div id="outcomeReasonText" style="margin:0 0 10px;font-size:clamp(14px,3.5vw,22px);color:var(--muted);text-align:center;max-width:min(92vw,720px)"></div>
@@ -957,6 +958,7 @@
         <option value="rate_rt">Presentation Rate Versus Response Time Graph</option>
         <option value="ranked">Ranked Averages</option>
         <option value="email">E-Mail Select</option>
+        <option value="download_personal_baseline">Download Personal Baseline</option>
       </select>
     </div>
     <button id="speedAdminBtn" style="width:100%;justify-self:stretch;background:none;border:none;color:rgba(127,215,255,0.38);font-size:12px;padding:8px 10px;cursor:pointer;font-family:inherit;letter-spacing:.05em">Admin</button>
@@ -1141,7 +1143,7 @@
     <span id="fatigueOut">—</span>
     <span id="modeLabel">Subject mode</span>
     <span id="phaseLabel">Ready</span>
-    <span id="statusLine">CogSpeed V684</span>
+    <span id="statusLine">CogSpeed V686</span>
     <span id="rateOut">—</span>
     <span id="blocksOut">0</span>
     <span id="recoveryOut">0</span>
@@ -1166,6 +1168,6 @@
   <div class="resp-grid" id="respGrid"></div>
 </div>
 
-<script src="app.js?v=684" defer></script>
+<script src="app.js?v=686" defer></script>
 </body>
 </html>

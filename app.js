@@ -2,7 +2,7 @@
 // CogSpeed source
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V684";
+const APP_VERSION = "V686";
 
 // ═══════════════════════════════════════════════════
 // Current behavior summary (historical details live in CHANGELOG.md)
@@ -1258,8 +1258,9 @@ function finish(){
   const blockDiff=state.overloads.length>=2?state.overloads[state.overloads.length-1]-state.overloads[state.overloads.length-2]:null;
   const rawTestDurMs=state.testStartTime!=null?performance.now()-state.testStartTime:null;
   const sustainedOnlyElapsedMs = isMode2() ? ((Array.isArray(state.rtLog)?state.rtLog:[])
-    .filter(e=>e && ["mode2_sustained","mode2_sustained_wrong","mode2_sustained_missed"].includes(e.phase))
-    .reduce((s,e)=>s+(Number(e.presentedDurationMs)||0)+(Number(e.rt)||0),0)) : 0;
+    .filter(e=>e && ["mode2_sustained","mode2_sustained_wrong","mode2_sustained_missed"].includes(e.phase)
+      && Number.isFinite(Number(e.durationMs)))
+    .reduce((s,e)=>s+Number(e.durationMs),0)) : 0;
   // Mode 2 max-time failure should ignore sustained fixed-rate trial time.
   // Keep final self-paced time in the total, but subtract sustained trial time so
   // timing-based stop logic and saved duration align with the intended rule.
@@ -2742,6 +2743,7 @@ const schedulerState = {
  activeSubjectId: "",
  reminderTimerId: null,
  repeatTimerId: null,
+ bgTestTimerId: null,
  backgroundTestDueAt: null,
  backgroundTestPending: false
 };
@@ -2998,6 +3000,168 @@ function getLatestCompletedMode2Result(ignoreIncomplete=true){
 function getLatestCompletedMode2Label(){
  const r = getLatestCompletedMode2Result(false);
  return r && r.time ? new Date(r.time).toLocaleString() : "";
+}
+/*
+ Personal Baseline
+ -----------------
+ Personal Baseline is a rolling subject-specific reference based on the
+ most recent 5 qualifying Mode 1 / Mode 2 adaptive-phase MBS scores.
+
+ Purpose:
+ - provides a current personal reference
+ - updates over time to capture learning effects
+ - excludes failed or low-quality baseline candidates
+
+ A session qualifies only if:
+ - testMode is mode1 or mode2
+ - session is not failed
+ - adaptive-phase MBS > 1500 ms
+ - Samn-Perelli score is 5, 6, or 7
+
+ Failed sessions remain in general session history only and are never
+ included in baseline computation.
+*/
+function isGuestBaselineSubject(v){
+ const s = String(v||"").trim().toLowerCase();
+ return !s || s==="0" || s==="guest" || s==="guest / no email";
+}
+function getAdaptivePhaseMbs(result){
+ if(!result) return null;
+ if(result.testMode==="mode2"){
+  const m = Number(result.mode2AdaptiveMbsMs!=null ? result.mode2AdaptiveMbsMs : result.averageLast2BlockingScoresMs);
+  return Number.isFinite(m) ? m : null;
+ }
+ if(result.testMode==="mode1"){
+  const m = Number(result.averageLast2BlockingScoresMs);
+  return Number.isFinite(m) ? m : null;
+ }
+ return null;
+}
+function isBaselineQualifyingSession(result){
+ if(!result) return false;
+ if(!(result.testMode==="mode1" || result.testMode==="mode2")) return false;
+ if(isPerfFailureSession(result)) return false;
+ const mbs = getAdaptivePhaseMbs(result);
+ if(!Number.isFinite(mbs) || !(mbs > 1500)) return false;
+ const spfs = Number(result?.samnPerelli?.score);
+ return spfs===5 || spfs===6 || spfs===7;
+}
+function mapBaselineRow(result, sourceIndex){
+ return {
+  sourceIndex,
+  sessionNumber: result.sessionNumber!=null ? result.sessionNumber : null,
+  time: result.time || null,
+  testMode: result.testMode,
+  modeLabel: formatModeTag(result.testMode),
+  mbs: getAdaptivePhaseMbs(result),
+  spfs: Number(result?.samnPerelli?.score)
+ };
+}
+function computePersonalBaseline(results, subjectId){
+ const all = Array.isArray(results) ? results : [];
+ const sid = String(subjectId||"").trim();
+ if(!sid || isGuestBaselineSubject(sid)) return {
+  established:false, qualifyingCount:0, averageMbs:null, lastFive:[],
+  statusText:"Baseline not yet established, Test again.", subjectId:sid
+ };
+ const qualifying = all.map((r,idx)=>({r,idx}))
+  .filter(({r})=> String(r?.subjectId||"").trim().toLowerCase()===sid.toLowerCase())
+  .filter(({r})=> isBaselineQualifyingSession(r))
+  .sort((a,b)=> new Date(a.r.time||0)-new Date(b.r.time||0));
+ const lastFive = qualifying.slice(-5).map(({r,idx})=>mapBaselineRow(r, idx));
+ if(lastFive.length < 5){
+  return {
+   established:false,
+   qualifyingCount:qualifying.length,
+   averageMbs:null,
+   lastFive,
+   statusText:"Baseline not yet established, Test again.",
+   subjectId:sid
+  };
+ }
+ const avg = Math.round(lastFive.reduce((sum,row)=>sum + Number(row.mbs||0), 0) / 5);
+ return {
+  established:true,
+  qualifyingCount:qualifying.length,
+  averageMbs:avg,
+  lastFive,
+  statusText:`Baseline: ${avg} ms`,
+  subjectId:sid
+ };
+}
+function getPersonalBaselineForResult(result){
+ const sid = String(result?.subjectId||"").trim();
+ return computePersonalBaseline(state.history, sid);
+}
+function renderSpeedometerBaseline(result){
+ const el = $("speedometerBaselineText");
+ if(!el) return;
+ const baseline = getPersonalBaselineForResult(result);
+ el.textContent = baseline.established ? `Baseline: ${baseline.averageMbs} ms` : "Baseline not yet established, Test again.";
+}
+function getPersonalBaselineSummaryText(result, label="Personal Baseline"){
+ const baseline = getPersonalBaselineForResult(result);
+ return baseline.established ? `${label}: ${baseline.averageMbs} ms` : `${label}: Baseline not yet established, Test again.`;
+}
+function escapeHtml(s){
+ return String(s==null?"":s).replace(/[&<>"]/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]));
+}
+function buildPersonalBaselineSvg(rows, avg){
+ const W=860, H=360, L=72, R=24, T=30, B=48;
+ if(!rows.length){
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}"><rect width="100%" height="100%" fill="#081321"/><text x="${W/2}" y="${H/2}" fill="#c8d7e5" text-anchor="middle" font-family="Arial,sans-serif" font-size="24">No qualifying baseline sessions yet</text></svg>`;
+ }
+ const vals = rows.map(r=>Number(r.mbs)).filter(Number.isFinite);
+ if(Number.isFinite(avg)) vals.push(avg);
+ const minV = Math.min(...vals), maxV = Math.max(...vals);
+ const pad = Math.max(40, Math.round((maxV-minV||100)*0.15));
+ const lo = Math.max(0, minV - pad), hi = maxV + pad;
+ const pw=W-L-R, ph=H-T-B;
+ const x = i => rows.length===1 ? L+pw/2 : L + (pw*(i/(rows.length-1)));
+ const y = v => T + ph - ((v-lo)/(hi-lo||1))*ph;
+ const poly = rows.map((r,i)=>`${x(i).toFixed(1)},${y(r.mbs).toFixed(1)}`).join(' ');
+ let parts=[`<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">`,`<rect width="100%" height="100%" fill="#081321" rx="16"/>`,`<text x="${W/2}" y="22" fill="#7fd7ff" text-anchor="middle" font-family="Arial,sans-serif" font-size="20" font-weight="700">Personal Baseline — Last 5 Qualifying MBS Scores</text>`];
+ for(let i=0;i<5;i++){
+  const v = lo + (hi-lo)*(i/4);
+  const yy = y(v);
+  parts.push(`<line x1="${L}" y1="${yy.toFixed(1)}" x2="${W-R}" y2="${yy.toFixed(1)}" stroke="rgba(255,255,255,0.14)" stroke-width="1"/>`);
+  parts.push(`<text x="${L-10}" y="${(yy+4).toFixed(1)}" fill="#c8d7e5" text-anchor="end" font-family="Arial,sans-serif" font-size="14">${Math.round(v)}</text>`);
+ }
+ parts.push(`<line x1="${L}" y1="${T}" x2="${L}" y2="${H-B}" stroke="#c8d7e5" stroke-width="1.4"/><line x1="${L}" y1="${H-B}" x2="${W-R}" y2="${H-B}" stroke="#c8d7e5" stroke-width="1.4"/>`);
+ if(rows.length>1) parts.push(`<polyline fill="none" stroke="#7fd7ff" stroke-width="3" points="${poly}"/>`);
+ rows.forEach((r,i)=>{
+  const xx=x(i), yy=y(r.mbs);
+  parts.push(`<circle cx="${xx.toFixed(1)}" cy="${yy.toFixed(1)}" r="5.5" fill="#ffd36f" stroke="#ffffff" stroke-width="1.2"/>`);
+  parts.push(`<text x="${xx.toFixed(1)}" y="${H-B+22}" fill="#c8d7e5" text-anchor="middle" font-family="Arial,sans-serif" font-size="12">${i+1}</text>`);
+ });
+ if(Number.isFinite(avg)){
+  const yy=y(avg);
+  parts.push(`<line x1="${L}" y1="${yy.toFixed(1)}" x2="${W-R}" y2="${yy.toFixed(1)}" stroke="#72d572" stroke-width="2" stroke-dasharray="8 6"/>`);
+  parts.push(`<text x="${W-R}" y="${(yy-8).toFixed(1)}" fill="#72d572" text-anchor="end" font-family="Arial,sans-serif" font-size="14" font-weight="700">Average ${Math.round(avg)} ms</text>`);
+ }
+ parts.push(`<text x="${W/2}" y="${H-12}" fill="#9fb4c8" text-anchor="middle" font-family="Arial,sans-serif" font-size="13">Qualifying session order (oldest to newest within current rolling baseline)</text></svg>`);
+ return parts.join('');
+}
+function downloadPersonalBaselineForSession(sessionIndex){
+ const ctx = resolveResultContext(null, sessionIndex, "download personal baseline");
+ const result = ctx.result;
+ if(!result){ setStatus("No session available for baseline download"); return; }
+ const baseline = getPersonalBaselineForResult(result);
+ const rows = baseline.lastFive || [];
+ const generatedAt = new Date().toLocaleString();
+ const statusText = baseline.established ? `Baseline: ${baseline.averageMbs} ms` : "Baseline not yet established, Test again.";
+ const avgRow = baseline.established ? `<tr><td colspan="3" style="font-weight:700">Average</td><td style="font-weight:700;text-align:right">${baseline.averageMbs}</td><td></td></tr>` : "";
+ const tableRows = rows.map((row,idx)=>`<tr><td>${idx+1}</td><td>${escapeHtml(row.time ? new Date(row.time).toLocaleString() : "—")}</td><td>${escapeHtml(row.modeLabel||formatModeTag(row.testMode))}</td><td style="text-align:right">${Number(row.mbs).toFixed(1)}</td><td style="text-align:right">${row.spfs}</td></tr>`).join('');
+ const svg = buildPersonalBaselineSvg(rows, baseline.established ? baseline.averageMbs : null);
+ const html = `<!doctype html><html><head><meta charset="utf-8"><title>CogSpeed Personal Baseline</title><style>body{font-family:Arial,sans-serif;background:#06101c;color:#eef6ff;margin:24px}h1,h2{color:#7fd7ff}table{border-collapse:collapse;width:100%;max-width:980px;background:#081321}th,td{border:1px solid #27435f;padding:8px 10px}th{background:#0f2138} .muted{color:#b9c8d6} .card{background:#081321;border:1px solid #27435f;border-radius:12px;padding:16px;max-width:980px;margin:0 0 18px 0}</style></head><body><h1>Personal Baseline</h1><div class="card"><div><strong>Subject:</strong> ${escapeHtml(String(result.subjectId||"—"))}</div><div><strong>Date generated:</strong> ${escapeHtml(generatedAt)}</div><div><strong>Qualifying sessions available:</strong> ${baseline.qualifyingCount} / 5</div><div><strong>Status:</strong> ${escapeHtml(statusText)}</div><div class="muted" style="margin-top:8px">Rolling baseline uses the most recent 5 qualifying Mode 1 / Mode 2 adaptive-phase MBS scores with MBS &gt; 1500 ms, SP-FS 5–7, and no failed sessions.</div></div><div class="card">${svg}</div><div class="card"><h2>Last 5 Qualifying MBS Scores</h2><table><thead><tr><th>#</th><th>Date / Time</th><th>Mode</th><th>MBS (ms)</th><th>SP-FS</th></tr></thead><tbody>${tableRows || '<tr><td colspan="5">No qualifying baseline sessions yet.</td></tr>'}${avgRow}</tbody></table></div></body></html>`;
+ const blob = new Blob([html], {type:"text/html;charset=utf-8"});
+ const a = document.createElement("a");
+ a.href = URL.createObjectURL(blob);
+ a.download = `cogspeed-personal-baseline-${String(result.subjectId||"subject").replace(/[^a-z0-9._-]+/gi,'_')}.html`;
+ document.body.appendChild(a);
+ a.click();
+ setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+ setStatus("Downloaded Personal Baseline");
 }
 // Fit for Duty uses the most recent completed valid local Mode 2 plus SP-FS.
 // Lower CPI and lower SP-FS (more fatigued/impaired) shorten the next interval.
@@ -4154,6 +4318,7 @@ Total Test Duration${result.testMode==="mode2"?" (excludes sustained MP)":""}: $
 Fatigue (SP-FS): ${spf}
 Sleep: ${sleepLine.replace(/^SLEEP:\s*/,'')}
 ${formatSleepSummaryMetricsLine(result)}
+${getPersonalBaselineSummaryText(result)}
 ${selfPacedLine}
 ${mode1AdaptiveBlock || mode2AdaptiveBlock || 'ADAPTIVE MACHINE-PACED PHASE: Not used in this mode'}
 CPI: ${cpiDisplay}
@@ -4198,6 +4363,7 @@ FATIGUE (SP-FS)
 ${formatSleepLine(result)}
 ${formatTimeSinceLastSleepLine(result)||""}
 ${formatSleepSummaryMetricsLine(result)}
+${getPersonalBaselineSummaryText(result)}
 ${hr}
 SELF-PACED CALIBRATION (SPC)
  Total self-paced responses: ${result.selfPacedResponseCount}
@@ -4234,6 +4400,7 @@ FATIGUE (SP-FS)
 ${formatSleepLine(result)}
 ${formatTimeSinceLastSleepLine(result)||""}
 ${formatSleepSummaryMetricsLine(result)}
+${getPersonalBaselineSummaryText(result)}
 ${hr}
 SELF-PACED CALIBRATION
  Total self-paced responses: ${result.selfPacedResponseCount}
@@ -4299,6 +4466,7 @@ FATIGUE (SP-FS)
 ${formatSleepLine(result)}
 ${formatTimeSinceLastSleepLine(result)||""}
 ${formatSleepSummaryMetricsLine(result)}
+${getPersonalBaselineSummaryText(result)}
 ${hr}
 SELF-PACED CALIBRATION
  Total self-paced responses: ${result.selfPacedResponseCount}
@@ -4401,6 +4569,7 @@ FATIGUE (SP-FS)
 ${formatSleepLine(result)}
 ${formatTimeSinceLastSleepLine(result)||""}
 ${formatSleepSummaryMetricsLine(result)}
+${getPersonalBaselineSummaryText(result)}
 ${hr}
 CALIBRATION
  Average RT: ${result.calibrationAverageMs!=null?result.calibrationAverageMs.toFixed(1)+" ms":"—"}
@@ -6804,6 +6973,7 @@ function renderSpeedometerOutcome(result, sessionIndex){
  setTimeout(()=>animateSpeedometer(canvas, cps, success, scoreLabel, metricLabel, metricValueText), 80);
  renderSpfGaugeForResult(result);
  renderSpeedometerSleepMetrics(result);
+ renderSpeedometerBaseline(result);
  setTestingQuiet(false);
 }
 
@@ -6813,7 +6983,13 @@ function syncOutcomeStatusText(result){
  const ok = !!(result && isTestSuccess(result));
  ot.textContent = ok ? "Success!" : "Failed";
  ot.className = "outcome-text " + (ok ? "success" : "failed");
- if(orr) orr.textContent = (result && result.endReason) ? result.endReason : "Run complete";
+ // Speedometer outcome text is intentionally concise: show only Success!/Failed
+ // and suppress the detailed endReason line here because it is repetitive with
+ // the session details shown elsewhere on the Speedometer and Results pages.
+ if(orr){
+  orr.textContent = "";
+  orr.style.display = "none";
+ }
 }
 
 function openSpeedometerMenuSelection(){
@@ -6831,6 +7007,7 @@ function openSpeedometerMenuSelection(){
  if(choice==="ranked"){ $("outcomeOverlay").classList.add("hidden"); stopSpeedometer(); buildRankedSummary(state.history[idx]); $("rankedOverlay").classList.remove("hidden"); return; }
  if(choice==="rate_rt"){ $("outcomeOverlay").classList.add("hidden"); stopSpeedometer(); buildRateRtOverlay(idx); $("rateRtOverlay").classList.remove("hidden"); return; }
  if(choice==="email"){ stopSpeedometer(); openEmailSelectPage(); return; }
+ if(choice==="download_personal_baseline"){ stopSpeedometer(); downloadPersonalBaselineForSession(idx); return; }
 }
 
 function openSpeedometerPage(sessionIndex){
