@@ -2,7 +2,7 @@
 // CogSpeed source
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V686";
+const APP_VERSION = "V688";
 
 // ═══════════════════════════════════════════════════
 // Current behavior summary (historical details live in CHANGELOG.md)
@@ -2692,9 +2692,9 @@ function stopFX(){ if(_fxRaf){ cancelAnimationFrame(_fxRaf); _fxRaf=null; } }
 //   explicitly in the Scheduler Device Test section.
 // ═══════════════════════════════════════════════════════════════
 const SCHEDULER_SOUND_FILES = {
- soft_chime: "audio/scheduler-soft-chime.wav",
- beep: "audio/scheduler-beep.wav",
- double_beep: "audio/scheduler-double-beep.wav"
+ soft_chime: "scheduler-soft-chime.wav",
+ beep: "scheduler-beep.wav",
+ double_beep: "scheduler-double-beep.wav"
 };
 
 const DEFAULT_SCHEDULER_SETTINGS = {
@@ -3057,15 +3057,17 @@ function mapBaselineRow(result, sourceIndex){
   spfs: Number(result?.samnPerelli?.score)
  };
 }
-function computePersonalBaseline(results, subjectId){
+function computePersonalBaseline(results, subjectId, cutoffTime=null){
  const all = Array.isArray(results) ? results : [];
  const sid = String(subjectId||"").trim();
  if(!sid || isGuestBaselineSubject(sid)) return {
   established:false, qualifyingCount:0, averageMbs:null, lastFive:[],
   statusText:"Baseline not yet established, Test again.", subjectId:sid
  };
+ const cutoffMs = cutoffTime ? new Date(cutoffTime).getTime() : null;
  const qualifying = all.map((r,idx)=>({r,idx}))
   .filter(({r})=> String(r?.subjectId||"").trim().toLowerCase()===sid.toLowerCase())
+  .filter(({r})=> cutoffMs==null || new Date(r?.time||0).getTime() <= cutoffMs)
   .filter(({r})=> isBaselineQualifyingSession(r))
   .sort((a,b)=> new Date(a.r.time||0)-new Date(b.r.time||0));
  const lastFive = qualifying.slice(-5).map(({r,idx})=>mapBaselineRow(r, idx));
@@ -3091,7 +3093,8 @@ function computePersonalBaseline(results, subjectId){
 }
 function getPersonalBaselineForResult(result){
  const sid = String(result?.subjectId||"").trim();
- return computePersonalBaseline(state.history, sid);
+ const cutoffTime = result?.time || null;
+ return computePersonalBaseline(state.history, sid, cutoffTime);
 }
 function renderSpeedometerBaseline(result){
  const el = $("speedometerBaselineText");
@@ -3153,7 +3156,7 @@ function downloadPersonalBaselineForSession(sessionIndex){
  const avgRow = baseline.established ? `<tr><td colspan="3" style="font-weight:700">Average</td><td style="font-weight:700;text-align:right">${baseline.averageMbs}</td><td></td></tr>` : "";
  const tableRows = rows.map((row,idx)=>`<tr><td>${idx+1}</td><td>${escapeHtml(row.time ? new Date(row.time).toLocaleString() : "—")}</td><td>${escapeHtml(row.modeLabel||formatModeTag(row.testMode))}</td><td style="text-align:right">${Number(row.mbs).toFixed(1)}</td><td style="text-align:right">${row.spfs}</td></tr>`).join('');
  const svg = buildPersonalBaselineSvg(rows, baseline.established ? baseline.averageMbs : null);
- const html = `<!doctype html><html><head><meta charset="utf-8"><title>CogSpeed Personal Baseline</title><style>body{font-family:Arial,sans-serif;background:#06101c;color:#eef6ff;margin:24px}h1,h2{color:#7fd7ff}table{border-collapse:collapse;width:100%;max-width:980px;background:#081321}th,td{border:1px solid #27435f;padding:8px 10px}th{background:#0f2138} .muted{color:#b9c8d6} .card{background:#081321;border:1px solid #27435f;border-radius:12px;padding:16px;max-width:980px;margin:0 0 18px 0}</style></head><body><h1>Personal Baseline</h1><div class="card"><div><strong>Subject:</strong> ${escapeHtml(String(result.subjectId||"—"))}</div><div><strong>Date generated:</strong> ${escapeHtml(generatedAt)}</div><div><strong>Qualifying sessions available:</strong> ${baseline.qualifyingCount} / 5</div><div><strong>Status:</strong> ${escapeHtml(statusText)}</div><div class="muted" style="margin-top:8px">Rolling baseline uses the most recent 5 qualifying Mode 1 / Mode 2 adaptive-phase MBS scores with MBS &gt; 1500 ms, SP-FS 5–7, and no failed sessions.</div></div><div class="card">${svg}</div><div class="card"><h2>Last 5 Qualifying MBS Scores</h2><table><thead><tr><th>#</th><th>Date / Time</th><th>Mode</th><th>MBS (ms)</th><th>SP-FS</th></tr></thead><tbody>${tableRows || '<tr><td colspan="5">No qualifying baseline sessions yet.</td></tr>'}${avgRow}</tbody></table></div></body></html>`;
+ const html = `<!doctype html><html><head><meta charset="utf-8"><title>CogSpeed Personal Baseline</title><style>body{font-family:Arial,sans-serif;background:#06101c;color:#eef6ff;margin:24px}h1,h2{color:#7fd7ff}table{border-collapse:collapse;width:100%;max-width:980px;background:#081321}th,td{border:1px solid #27435f;padding:8px 10px}th{background:#0f2138} .muted{color:#b9c8d6} .card{background:#081321;border:1px solid #27435f;border-radius:12px;padding:16px;max-width:980px;margin:0 0 18px 0}</style></head><body><h1>Personal Baseline</h1><div class="card"><div><strong>Subject:</strong> ${escapeHtml(String(result.subjectId||"—"))}</div><div><strong>Date generated:</strong> ${escapeHtml(generatedAt)}</div><div><strong>Baseline as of session:</strong> ${escapeHtml(result.time ? new Date(result.time).toLocaleString() : "—")}</div><div><strong>Qualifying sessions available:</strong> ${baseline.qualifyingCount} / 5</div><div><strong>Status:</strong> ${escapeHtml(statusText)}</div><div class="muted" style="margin-top:8px">Rolling baseline uses the most recent 5 qualifying Mode 1 / Mode 2 adaptive-phase MBS scores with MBS &gt; 1500 ms, SP-FS 5–7, and no failed sessions.</div></div><div class="card">${svg}</div><div class="card"><h2>Last 5 Qualifying MBS Scores</h2><table><thead><tr><th>#</th><th>Date / Time</th><th>Mode</th><th>MBS (ms)</th><th>SP-FS</th></tr></thead><tbody>${tableRows || '<tr><td colspan="5">No qualifying baseline sessions yet.</td></tr>'}${avgRow}</tbody></table></div></body></html>`;
  const blob = new Blob([html], {type:"text/html;charset=utf-8"});
  const a = document.createElement("a");
  a.href = URL.createObjectURL(blob);
@@ -3362,7 +3365,7 @@ function refreshSchedulerDeviceStatus(){
  const dt = schedulerState.settings?.deviceTest || structuredClone(DEFAULT_SCHEDULER_SETTINGS.deviceTest);
  dt.installed = (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) || window.navigator.standalone ? "YES" : "NO";
  dt.permission = (typeof Notification === "undefined") ? "UNSUPPORTED" : (Notification.permission === "granted" ? "GRANTED" : Notification.permission === "denied" ? "DENIED" : "NOT ASKED");
- dt.serviceWorker = ("serviceWorker" in navigator) ? ((navigator.serviceWorker.controller || navigator.serviceWorker.ready) ? "PASS" : "UNKNOWN") : "FAIL";
+ dt.serviceWorker = ("serviceWorker" in navigator) ? (navigator.serviceWorker.controller ? "PASS" : "UNKNOWN") : "FAIL";
  if(dt.localSave==="UNKNOWN") dt.localSave = schedulerState.activeSubjectId ? "PASS" : "FAIL";
  if(dt.text==="UNKNOWN") dt.text = "UNKNOWN";
  if(dt.sound==="UNKNOWN") dt.sound = "UNKNOWN";
@@ -3394,6 +3397,10 @@ function saveSchedulerDraftFromUi(){
  renderSchedulerSettings();
  armSchedulerReminderTimer();
  return { ok:true };
+}
+function onSchedulerSaveSettings(){
+ const res = saveSchedulerDraftFromUi();
+ setStatus(res.ok ? "Scheduler settings saved." : (res.message || "Scheduler settings not saved."));
 }
 function onSchedulerTestSave(){
  if(!schedulerState.activeSubjectId || isGuestSchedulerSubject(schedulerState.activeSubjectId)){ schedulerState.settings.deviceTest.localSave = "FAIL"; renderSchedulerDeviceFields(schedulerState.settings.deviceTest); setStatus("Saved subject required for Scheduler."); return; }
@@ -6978,18 +6985,11 @@ function renderSpeedometerOutcome(result, sessionIndex){
 }
 
 function syncOutcomeStatusText(result){
- const ot=$("outcomeText"), orr=$("outcomeReasonText");
+ const ot=$("outcomeText");
  if(!ot) return;
  const ok = !!(result && isTestSuccess(result));
  ot.textContent = ok ? "Success!" : "Failed";
  ot.className = "outcome-text " + (ok ? "success" : "failed");
- // Speedometer outcome text is intentionally concise: show only Success!/Failed
- // and suppress the detailed endReason line here because it is repetitive with
- // the session details shown elsewhere on the Speedometer and Results pages.
- if(orr){
-  orr.textContent = "";
-  orr.style.display = "none";
- }
 }
 
 function openSpeedometerMenuSelection(){

@@ -1,3 +1,14 @@
+# V688 — 2026-04-15
+- Hardened service worker install so optional media-cache failures do not abort installation.
+- Fixed Scheduler Device Test service worker status so PASS requires an active controller.
+- Hardened offline fallback to return cached or network index.html instead of resolving to undefined.
+
+# V687 — 2026-04-15
+- Fixed scheduler save-button drift by adding a real Save Scheduler Settings button and handler.
+- Fixed Personal Baseline to compute historically as of the viewed session time instead of using future sessions.
+- Moved scheduler audio files to the package root; updated playback paths and service-worker cache list.
+- Removed vestigial Speedometer outcome-reason element after the concise outcome cleanup.
+
 # V686 — 2026-04-15
 
 - Speedometer cleanup: removed the repetitive outcome end-reason text directly below Success!/Failed.
