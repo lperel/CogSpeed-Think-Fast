@@ -1,4 +1,8 @@
 ## V692
+- Reordered Admin defaults to match program-use order more closely across shared flow, Mode 1, Mode 2 runtime, Mode 3, Mode 4, and Mode 2 CPA editable defaults.
+- Corrected the Admin-page Mode 2 CPA editable-default numbering and explanatory text so fields 49–57 match the displayed bucket/default specs.
+- Removed the bundled About PDF from the package.
+- Added a tutorial Back 1 Page button on every tutorial page.
 - Personal Baseline graph now uses the live Admin baseline MBS threshold in its displayed text.
 - Speedometer dropdown reordered so Personal Baseline is second from bottom and E-mail is last.
 - Added editable Admin default for Personal Baseline minimum qualifying MBS.

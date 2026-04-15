@@ -161,7 +161,7 @@ const ADMIN_FIELDS=[
  ["cpiWorstMs","34. Mode 1 CPI worst ms anchor (default 2400)","number"],
  ["personalBaselineMinMbs","35. Personal Baseline minimum qualifying MBS (ms, default 1800)","number"],
 
- // 36-50. Mode 2 CogSpeed Sustained, in program-use order
+ // 36-42. Mode 2 runtime flow settings, in program-use order
  ["mode2SustainedStartFactor","36. Mode 2 sustained start factor × MBS (default 1.1)","number"],
  ["mode2SustainedTrialCount","37. Mode 2 sustained trials at MBS × factor (default 20)","number"],
  ["mode2SustainedWrongFailPercent","38. Mode 2 wrong-fail threshold for sustained phase (default 50% of sustained trials)","number"],
@@ -169,25 +169,27 @@ const ADMIN_FIELDS=[
  ["mode2SustainedRollMeanThreshold","40. Mode 2 anti-spoof rolling mean threshold in Sustained Phase (default 0.50)","number"],
  ["mode2LateResponseThresholdMs","41. Mode 2 late response reassignment threshold (ms, default 600)","number"],
  ["mode2FinalTrialCount","42. Mode 2 final self-paced trials (default 2)","number"],
- ["mode2CpaCorrectBuckets","43. Mode 2 CPA correct buckets (min-max:multiplier; ...)","text"],
- ["mode2CpaWrongBuckets","44. Mode 2 CPA wrong buckets (min-max:multiplier; ...)","text"],
- ["mode2CpaMissedBuckets","45. Mode 2 CPA missed buckets (min-max:multiplier; ...)","text"],
- ["mode2CpaCvBuckets","46. Mode 2 CPA sustained RT CV% buckets — CV=(SD÷mean)×100; 0–10%=consistent; 50%+=erratic (min-max:multiplier; ...)","text"],
- ["mode2CpaDriftBuckets","47. Mode 2 CPA drift % buckets (min-max:multiplier; ...)","text"],
- ["mode2CpaMaxReductionFactor","48. Mode 2 CPA max total reduction factor × CPI — caps downward adjustments (default 0.9)","number"],
- ["mode2CpaRecoveryRatioBuckets","49. Mode 2 CPA recovery÷calibration RT ratio buckets — 1.0=no drift; 1.5=50% slower in recovery (min-max:multiplier; ...)","text"],
- ["mode2CpaLapseRateBuckets","50. Mode 2 CPA sustained-phase lapse rate% buckets — lapse: correct RT > 2× median sustained RT; 0=no lapses (min-max:multiplier; ...)","text"],
- ["mode2CpaEfficiencyBuckets","51. Mode 2 CPA block efficiency buckets — adaptive trials÷blocks; 0–10=rapid; 10–30=normal; 30+=unstable threshold (min-max:multiplier; ...)","text"],
 
- // 52-53. Mode 3 Self-paced
- ["mode3TrialLimit","52. Mode 3 self-paced trial limit (default 150)","number"],
- ["mode3MaxDurationMs","53. Mode 3 total duration ms (default 120000)","number"],
+ // 43-45. Mode 3 Self-paced, in program-use order
+ ["mode3TrialLimit","43. Mode 3 self-paced trial limit (default 150)","number"],
+ ["mode3MaxDurationMs","44. Mode 3 total duration ms (default 120000)","number"],
 
- // 54-57. Mode 4 Machine-paced
- ["mode4CalibrationTrials","54. Mode 4 self-paced calibration trials (default 10)","number"],
- ["mode4BaselineFactor","55. Mode 4 MP baseline factor from cal avg (default 1.3)","number"],
- ["mode4PacedTrialLimit","56. Mode 4 fixed machine-paced trial limit (default 140)","number"],
- ["mode4MaxDurationMs","57. Mode 4 total duration ms (default 120000)","number"],
+ // 45-48. Mode 4 Machine-paced, in program-use order
+ ["mode4CalibrationTrials","45. Mode 4 self-paced calibration trials (default 10)","number"],
+ ["mode4BaselineFactor","46. Mode 4 MP baseline factor from cal avg (default 1.3)","number"],
+ ["mode4PacedTrialLimit","47. Mode 4 fixed machine-paced trial limit (default 140)","number"],
+ ["mode4MaxDurationMs","48. Mode 4 total duration ms (default 120000)","number"],
+
+ // 49-57. Mode 2 CPA editable defaults
+ ["mode2CpaCorrectBuckets","49. Mode 2 CPA correct buckets (min-max:multiplier; ...)","text"],
+ ["mode2CpaWrongBuckets","50. Mode 2 CPA wrong buckets (min-max:multiplier; ...)","text"],
+ ["mode2CpaMissedBuckets","51. Mode 2 CPA missed buckets (min-max:multiplier; ...)","text"],
+ ["mode2CpaCvBuckets","52. Mode 2 CPA CV% buckets — CV=(sustained RT SD ÷ mean RT) × 100; 0–10%=very consistent; >30%=high variability penalty (min-max:multiplier; ...)","text"],
+ ["mode2CpaDriftBuckets","53. Mode 2 CPA drift % buckets — percent slowing; negative drift forced to 0 before bucketing (min-max:multiplier; ...)","text"],
+ ["mode2CpaMaxReductionFactor","54. Mode 2 CPA max reduction factor × CPI — cap on total CPA reduction (default 0.9)","number"],
+ ["mode2CpaRecoveryRatioBuckets","55. Mode 2 CPA recovery ratio buckets — mean recovery RT ÷ calibration avg RT; 1.0=no drift; 1.5=50% slower in recovery (min-max:multiplier; ...)","text"],
+ ["mode2CpaLapseRateBuckets","56. Mode 2 CPA lapse rate % buckets — lapse: correct RT > 2× median sustained RT; 0%=no lapses; 30%+=frequent ceiling breaches (min-max:multiplier; ...)","text"],
+ ["mode2CpaEfficiencyBuckets","57. Mode 2 CPA block efficiency buckets — adaptive paced trials ÷ block count; <10=rapid blocks; 10–30=typical; >50=highly unstable threshold (min-max:multiplier; ...)","text"],
 
  // 58. Diagnostics
  ["deviceBenchmarkEnabled","58. Device benchmark (0=off, 1=on)","number"]
@@ -6002,13 +6004,23 @@ function tutSetStep(n){
  if(content) content.innerHTML = TUT_STEPS[n].build();
 
  // Direct button labeling/layout logic
+ const backBtn=$("tutBackBtn");
  const nextBtn=$("tutNextBtn");
  const skipBtn=$("tutSkipBtn");
- if(nextBtn && skipBtn){
+ if(backBtn && nextBtn && skipBtn){
+  backBtn.style.width="100%";
   nextBtn.style.width="100%";
   skipBtn.style.width="100%";
+  backBtn.style.minHeight="52px";
   nextBtn.style.minHeight="52px";
   skipBtn.style.minHeight="52px";
+
+  backBtn.textContent="← Back 1 Page";
+  backBtn.style.background="";
+  backBtn.style.borderColor="";
+  backBtn.style.color="";
+  backBtn.style.opacity = n===0 ? "0.45" : "0.9";
+  backBtn.disabled = n===0;
 
   if(n===0){
    nextBtn.textContent="TUTORIAL";
@@ -6477,6 +6489,10 @@ function tutNext(){
  showOnly("tutorialExitOverlay");
 }
 
+function tutBack(){
+ if(_tutStep > 0) tutSetStep(_tutStep - 1);
+}
+
 function tutSkip(){
  $("tutorialOverlay").classList.add("hidden");
  showOnly("tutorialExitOverlay");
@@ -6511,6 +6527,9 @@ $("subjectNextBtn").onclick=()=>{
 $("skipRefresherBtn").onclick=()=>{
  showTutorial(); setStatus("Tutorial");
 };
+$("tutBackBtn").onclick=()=>tutBack();
+$("tutNextBtn").onclick=()=>tutNext();
+$("tutSkipBtn").onclick=()=>tutSkip();
 $("refBackBtn").onclick=()=>goToStartPage();
  try{ updateStartPageLinks(); }catch(e){}
 
