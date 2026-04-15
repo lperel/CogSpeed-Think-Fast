@@ -234,13 +234,6 @@ const SAMN_PERELLI=[
 ];
 
 // ─── Settings ───
-/**
- * Load device-local admin settings.
- *
- * Settings are version-namespaced through STORAGE_PREFIX so incompatible
- * historical defaults do not silently bleed into the current build. Missing
- * keys fall back to DEFAULTS to keep new fields forward-compatible.
- */
 function loadSettings(){
  const s=JSON.parse(localStorage.getItem(`${STORAGE_PREFIX}_settings`)||"null");
  if(!s) return {...DEFAULTS};
@@ -248,7 +241,6 @@ function loadSettings(){
  Object.keys(DEFAULTS).forEach(k=>{ if(s[k]!==undefined) m[k]=s[k]; });
  return m;
 }
-/** Persist current admin settings for this device/build only. */
 function saveSettings(){ localStorage.setItem(`${STORAGE_PREFIX}_settings`,JSON.stringify(settings)); }
 let settings=loadSettings();
 
@@ -260,36 +252,6 @@ let settings=loadSettings();
 //   - resetSubjectSessionState()  = full subject/session reset
 // Several recent regressions came from clearing the wrong fields at the
 // wrong time (especially sleep fields and guest/profile state).
-//
-// FIELD GUIDE
-// - phase / duration / blockDuration / blockRestartBaseline:
-//   live execution mode and pacing baselines for the current test.
-// - current / previous / trialOpenedAt / presentedRoundDuration:
-//   the currently displayed trial, prior trial, and timing context needed for
-//   pacing, response scoring, and late-response reassignment.
-// - overloads / recoveries / recoveryTrialsCompleted / spCorrectStreak /
-//   spWrongCount / terminalBlockReason:
-//   Mode 1 block-and-recovery bookkeeping.
-// - history / activeResult / activeSessionIndex / activeResultSource /
-//   summaryVariant / speedometerLatestSessionIndex:
-//   saved-session navigation and currently viewed result context.
-// - totalTrials / totalResponses / totalCorrect / totalIncorrect / missedTrials /
-//   pacedErrors / recoveryErrors / rtLog / rollMeanLog:
-//   cross-session counters and logs used by summaries/graphs.
-// - calibrationTrialIndex / calibrationRTs / calibrationErrors / pacedRTs /
-//   selfPacedRTs / fixedPaced*:
-//   mode-specific timing collections used to derive CPI, MBS, and outcome text.
-// - pendingPriorMiss / pendingLatePacing / mode2PendingPriorMiss:
-//   late-response grace-window state. These fields are easy to break; keep them
-//   aligned with finalizePendingPriorMiss(), finalizeMode2SustainedPendingMiss(),
-//   applyPendingLatePacingIfAny(), and onPacedFrameEnd().
-// - sleepSinceLastTest / sleepLog / samnPerelli / geo / benchmark:
-//   pretest contextual data saved with results.
-// - mode2*:
-//   Mode 2 adaptive, sustained, and final self-paced state. These drive CPA,
-//   disposition text, scheduler baseline logic, and Speedometer Mode 2 views.
-// - speedometerMode2Metric:
-//   current UI toggle between CPI/MBS and CPA/Disposition for Mode 2 results. 
 const state={
  phase:"idle", duration:null, blockDuration:null, blockRestartBaseline:null, profile:null,
  current:null, previous:null, unresolvedStreak:0,
@@ -337,13 +299,6 @@ const stimGrid=$("stimGrid"), probeCell=$("probeCell"), probeInner=$("probeInner
    cpiOut=$("cpiOut"), statusLine=$("statusLine"), resultBox=$("resultBox"),
    phaseLabel=$("phaseLabel"), modeLabel=$("modeLabel");
 
-/**
- * Synchronize all visible version labels from APP_VERSION.
- *
- * Static HTML still includes startup-safe placeholders, but this function is
- * the runtime source of truth for the tab title, start-page badge, and status
- * line once app.js has loaded.
- */
 function syncReleaseUI(){
  document.title = `CogSpeed ${APP_VERSION}`;
  const badge = $("versionBadge");
@@ -1126,12 +1081,6 @@ function failCalibration(reason){ state.endReason=reason; finish(); }
 //          IMPORTANT: mode4CalibrationTrials means CORRECT MEASURED trials;
 //          initialUnusedCalibrationTrials warmups are added on top and
 //          wrong measured trials do not count toward the target or the average.
-/**
- * Finish self-paced calibration and transition into the active mode.
- *
- * Calibration excludes warm-up trials, validates early failure conditions, and
- * computes the baseline timing values used by later adaptive or fixed pacing.
- */
 function finishCalibration(){
  const avg=mean(state.calibrationRTs.length?state.calibrationRTs:state.selfPacedRTs);
  if(isMode3()){
@@ -1220,12 +1169,6 @@ function finishCalibration(){
 // After any actual applied update, clamp baseline to:
 //   [settings.minDurationMs, settings.maxDurationMs]
 // ──────────────────────────────────────────────────────────────
-/**
- * Calculate the next paced duration after a scored adaptive response.
- *
- * Used by adaptive paced logic to turn one response into the next presentation
- * rate before clamping it to the configured min/max boundaries.
- */
 function calculatePacingTransition(currentDuration,rt,correct){
  if(!isFinite(currentDuration)) return null;
  const before=currentDuration;
@@ -1254,9 +1197,6 @@ function calculatePacingTransition(currentDuration,rt,correct){
  const next=clamp(before+wrongSlow,settings.minDurationMs,settings.maxDurationMs);
  return {presentedRateMs:before,nextRateMs:next,rateChangeMs:Math.round(next-before),rateChangeReason:"Wrong slowdown"};
 }
-/**
- * Apply adaptive pacing after a scored response and update state.duration.
- */
 function applyPacing(rt,correct){
  const transition = calculatePacingTransition(state.duration, rt, correct);
  if(!transition) return null;
@@ -1303,10 +1243,6 @@ function failOpenResultsHandoff(result, stage, err){
  try{ renderSpeedometerOutcome(fallbackResult); }catch(e){}
  try{ updateStartPageLinks(); }catch(e){}
 }
-/**
- * Finalize the session, assemble the result object, save history, and hand off
- * to Speedometer/summary views.
- */
 function finish(){
  clearTimer(); clearNoResponseTimer(); clearMaxTestTimer();
  state.phase="finished";
@@ -1453,12 +1389,6 @@ function finish(){
 //  wrong). Increments miss streak → triggers block if ≥2 true misses.
 // ──────────────────────────────────────────────────────────────
 
-/**
- * Render and arm the next trial presentation.
- *
- * `kind` may force specific branches such as recovery/final trials; otherwise
- * the function selects the correct branch from current mode + phase state.
- */
 function openTrial(kind){
  clearTimer();
  clearNoResponseTimer();
@@ -1566,13 +1496,6 @@ function openTrial(kind){
 //   Called when the next frame has ended or when a >=600 ms response proves the prior frame
 //   was not rescued by the late-boundary rule. At that point the earlier frame becomes a TRUE miss.
 //   This is the only place a pending prior frame is finally counted as missed.
-/**
- * Resolve a provisional late-response window for Mode 1 paced frames.
- *
- * The prior frame is initially marked as a possible miss at frame end. If a
- * very fast tap occurs on the next frame, that tap may be reassigned backward.
- * This function closes the grace window once enough information exists.
- */
 function finalizePendingPriorMiss(){
  if(!state.pendingPriorMiss) return false;
  const pm = state.pendingPriorMiss;
@@ -1623,12 +1546,6 @@ function finalizePendingPriorMiss(){
 //   Applies the provisional pacing result for Frame 1 only if Frame 2 finished with no own response.
 //   If Frame 2 later gets its own >=600 ms response, this provisional pacing result is discarded
 //   and Frame 2's own pacing result replaces it.
-/**
- * Mode 2 sustained-phase analogue of finalizePendingPriorMiss().
- *
- * Kept separate because Mode 2 sustained scoring feeds CPA/disposition fields
- * and has its own counters and outcome paths.
- */
 function finalizeMode2SustainedPendingMiss(){
  if(!state.mode2PendingPriorMiss) return false;
  const pm = state.mode2PendingPriorMiss;
@@ -1660,9 +1577,6 @@ function applyPendingLatePacingIfAny(){
  }
 }
 
-/**
- * Close a paced frame once its display interval expires.
- */
 function onPacedFrameEnd(actualNow){
  // Mode 4 Machine-paced handler:
 // every trial uses one fixed baseline duration,
@@ -1785,12 +1699,6 @@ function getSafeTrialRtMs(eventTimeStamp){
  return Math.max(0, now - state.trialOpenedAt);
 }
 
-/**
- * Score one response-gear tap.
- *
- * Handles correctness, reaction time, late-response rescue logic, anti-spoof
- * checks, and phase transitions.
- */
 function handleTap(index,eventTimeStamp){
  if(!["calibration","paced","paced_fixed","mode2_sustained","recovery","terminal_recovery","mode2_final"].includes(state.phase)) return;
  noteAnyResponse();
@@ -2200,7 +2108,6 @@ function renderFatigueChecklist(){
 // LAST RESULTS: shows summary overlay for most recent test.
 // BENCHMARK: device timing calibration test.
 // ──────────────────────────────────────────────────────────────
-/** Build the Admin overlay from ADMIN_FIELDS and current settings. */
 function renderAdmin(){
  const w=$("adminSettings"); w.innerHTML="";
  for(const [k,l,t] of ADMIN_FIELDS){
@@ -2856,7 +2763,6 @@ function getCurrentSchedulerSubjectId(){
  const input = String($("subjectIdInput")?.value||"").trim().toLowerCase();
  return isValidEmailAddress(input) ? input : "";
 }
-/** Load scheduler settings for a specific saved subject on this device. */
 function loadSchedulerSettings(subjectId){
  if(!subjectId || isGuestSchedulerSubject(subjectId)) return structuredClone(DEFAULT_SCHEDULER_SETTINGS);
  try{
@@ -3151,9 +3057,6 @@ function mapBaselineRow(result, sourceIndex){
   spfs: Number(result?.samnPerelli?.score)
  };
 }
-/**
- * Compute rolling Personal Baseline data from qualifying historical sessions.
- */
 function computePersonalBaseline(results, subjectId, cutoffTime=null){
  const all = Array.isArray(results) ? results : [];
  const sid = String(subjectId||"").trim();
@@ -3242,7 +3145,6 @@ function buildPersonalBaselineSvg(rows, avg){
  parts.push(`<text x="${W/2}" y="${H-12}" fill="#9fb4c8" text-anchor="middle" font-family="Arial,sans-serif" font-size="13">Qualifying session order (oldest to newest within current rolling baseline)</text></svg>`);
  return parts.join('');
 }
-/** Open the Personal Baseline overlay for a viewed session/history index. */
 function openPersonalBaselinePage(sessionIndex){
  const ctx = resolveResultContext(null, sessionIndex, "personal baseline");
  const result = ctx.result;
@@ -3297,7 +3199,6 @@ function computeNextSchedulerReason(s){
  if(s.type==="personal") return s.personalMode==="daily_times" ? "Personal daily time" : `Personal interval (${s.personalIntervalHours}h)`;
  return "Fit for Duty follow-up";
 }
-/** Route scheduler reminder calculation by selected schedule type. */
 function computeNextSchedulerReminderAt(s, now=new Date()){
  if(!s.enabled || s.type==="anytime") return null;
  return s.type==="personal" ? computePersonalNextReminderAt(s, now) : computeFitDutyNextReminderAt(s, now);
@@ -3374,9 +3275,6 @@ function speakSchedulerPrompt(type){
   }catch(e){ resolve(false); }
  });
 }
-/**
- * Recompute, persist, and arm the next scheduler reminder from now.
- */
 function scheduleNextReminderFromNow(reasonOverride){
  const s = schedulerState.settings;
  s.nextTestAt = computeNextSchedulerReminderAt(s, new Date());
@@ -3626,7 +3524,6 @@ function clearSchedulerReminderStatus(){
 
 const PROFILE_KEY = `${STORAGE_PREFIX}_profile`;
 
-/** Load the saved profile for the current subject/device namespace. */
 function loadProfile(){
  try { return JSON.parse(localStorage.getItem(PROFILE_KEY)||"null"); } catch(e){ return null; }
 }
@@ -3786,7 +3683,6 @@ function openProfileOverlay(email){
 
 let _profileReturnTo = "refresherOverlay"; // where to go after saving profile
 
-/** Validate profile/scheduler fields, persist them, and continue into testing. */
 function saveAndContinueProfile(){
  const entered = ($("subjectIdInput")?.value||"").trim().toLowerCase();
  const email = isValidEmailAddress(entered) ? entered : "";
@@ -4279,7 +4175,7 @@ function getResultsMetricExplanationText(result){
  const usesMode2Metrics = mode==="mode2"; // Mode 2 sustained metrics/CPA explanations only.
  return `${hr}
 RESULTS METRIC EXPLANATIONS
- MBS (Maximum Blocking Speed) = average in ms of the last 2 blocks within 250 ms.${usesMode1Metrics||usesMode2Metrics?"":" Not used in this mode."}
+ MBS (Maximum Blocking Speed) = average in ms of the last 2 consecutive blocks within 250 ms.${usesMode1Metrics||usesMode2Metrics?"":" Not used in this mode."}
  CPI (Cognitive Processing Index) = normalized 0 - 100 index based on MBS.${usesMode1Metrics||usesMode2Metrics?"":" Not used in this mode."}
  CSR (Correct Sustained Responses) = number of correct sustained responses in the Mode 2 sustained segment.${usesMode2Metrics?"":" Not used in this mode."}
  SBLP (Sustained Blocking Limit Performance) = average RT of correct sustained responses during Mode 2 sustained segment, but defined as 0 when CSR = 0.${usesMode2Metrics?"":" Not used in this mode."}
@@ -4710,9 +4606,6 @@ ${getResultsMetricExplanationText(result)}`;
 // ──────────────────────────────────────────────────────────────
 let _speedoRaf = null;
 
-/**
- * Draw the Speedometer dial on the supplied canvas.
- */
 function drawSpeedometer(canvas, scoreValue, success, scoreLabel="CPI", tipLabel="MBS", tipValue=null){
  const dpr = window.devicePixelRatio||1;
  const W = canvas.offsetWidth||380;
@@ -5058,9 +4951,6 @@ function parseBucketSpec(spec, fallback){
   return fallback.map(([min,max,mult])=>[min,max,mult]);
  }
 }
-/**
- * Compute Mode 2 CPA from sustained-phase quality and stability signals.
- */
 function computeMode2CPA(result){
  const blank = {
   cpa:null, cpaBaseCpi:null,
@@ -5291,7 +5181,6 @@ function openSpeedometerSession(idx){
  renderSpeedometerOutcome(ctx.result, ctx.index);
 }
 
-/** Open the Results Summary/Speedometer handoff for a specific result context. */
 function showResultsPage(resultOverride){
  // Results handoff is fully curtain-neutral.
  clearCurtainWatchdog();
@@ -5339,13 +5228,6 @@ function showResultsPage(resultOverride){
 // resetSubjectSessionState(): clears runtime + pretest state while preserving saved profile/settings.
 // saveSettings() / loadSettings(): persist to localStorage.
 // ──────────────────────────────────────────────────────────────
-/**
- * Clear only live test-runtime fields.
- *
- * Preserve subject/profile/history/navigation preferences here unless they are
- * truly specific to the currently running session. This separation protects UI
- * preferences and profile-linked data from accidental start-page resets.
- */
 function resetTrialStateOnly(){
  clearTimer(); clearNoResponseTimer(); clearMaxTestTimer();
  state.phase="idle"; state.duration=null; state.blockDuration=null; state.blockRestartBaseline=null;
@@ -5367,7 +5249,6 @@ function resetTrialStateOnly(){
  state.mode2SustainedCorrectRTs=[]; state.mode2FinalTrialsPresented=0; state.mode2FinalCorrect=0; state.mode2FinalWrong=0; state.mode2FinalRTs=[]; state.speedometerMode2Metric="cpi"; state.summaryVariant="complete";
  updateCPIDisplay(null); updateMetrics(); setProbeIdle(); setTestingQuiet(false);
 }
-/** Clear only pretest-entry overlays and contextual inputs such as sleep/SP-FS. */
 function resetPretestEntryState(){
  state.samnPerelli=null;
  state.sleepSinceLastTest=null;
@@ -5381,11 +5262,6 @@ function resetPretestEntryState(){
  ["sleepQualityPoorBtn","sleepQualityOkayBtn","sleepQualityGoodBtn"].forEach(id=>$(id)?.classList.remove("selected"));
  updateSleepLoggerUI();
 }
-/**
- * Full subject/session reset used when returning to Start or clearing profile
- * context. This intentionally calls resetTrialStateOnly() plus additional
- * subject-entry cleanup.
- */
 function resetSubjectSessionState(){
  resetTrialStateOnly();
  resetPretestEntryState();
@@ -5492,12 +5368,6 @@ function runGearSpinThenStart(callback) {
 // This build uses a decorative 1-second spinning-gear intro with no separate visual buffer.
 // noteAnyResponse() begins only after the first trial is actually open.
 // ──────────────────────────────────────────────────────────────
-/**
- * Start a new test run from the current profile/settings context.
- *
- * This is the correct place for new-session defaults that should apply at test
- * start but should not be re-forced merely by navigating around the UI.
- */
 function startTest(){
  setFlowDiagnostic("STARTING", "STARTING — preparing test");
  if(!state.subjectId){ showOnly("subjectOverlay"); setStatus("Enter Subject ID first"); return; }
@@ -5804,7 +5674,6 @@ function buildRateRtOverlay(sessionIndex){
 // Note: runDeviceBenchmark is not cancellable once started. Closing the overlay
 // while the benchmark runs leaves it running in the background. Do not start a
 // test while the benchmark is in progress.
-/** Measure optional device-timing diagnostics and cache the result in state. */
 async function runDeviceBenchmark(force){
  const enabled=force||Number(settings.deviceBenchmarkEnabled||0)===1;
  if(!enabled){ state.benchmark=null; return; }
@@ -6112,7 +5981,6 @@ const TUT_STEPS = [
  },
 ];
 
-/** Render one tutorial step and keep button/progress state in sync. */
 function tutSetStep(n){
  _tutStep = n;
  // Update dots
@@ -6450,7 +6318,6 @@ function formatSleepLine(result){
  return "Sleep: Not entered";
 }
 
-/** Refresh sleep logger derived text, badges, and validity hints. */
 function updateSleepLoggerUI(){
  const bed=getSleepInputCanonicalValue("sleepBedtimeInput");
  const wake=getSleepInputCanonicalValue("sleepWakeInput");
@@ -6549,7 +6416,6 @@ function showFatigueOverlay(){
 // - compute durationMinutes from the validated window or the optional override
 // - save bedDateTimeIso / wakeDateTimeIso so Results can compute hours awake
 //   from the current test's recorded wake entry only
-/** Save sleep-entry context, then continue into SP-FS / tutorial / testing flow. */
 function continueFromSleepLogger(){
  const bed=getSleepInputCanonicalValue("sleepBedtimeInput");
  const wake=getSleepInputCanonicalValue("sleepWakeInput");
@@ -6586,7 +6452,6 @@ function showSleepPrompt(){
  showOnly("sleepPromptOverlay");
 }
 
-/** Open the tutorial overlay. Current build supports the expanded 7-page flow. */
 function showTutorial(){
  tutFillPatterns();
  _tutStep = 0;
@@ -7092,7 +6957,6 @@ function renderMode2SpeedometerBoxes(metric){
  wrap.innerHTML = boxes.map(b=>`<div class="summary-card"><div class="summary-card-label">${b.label}</div><div class="summary-card-val" style="font-size:20px">${b.value}</div></div>`).join("");
 }
 
-/** Render concise Speedometer outcome text for the viewed session. */
 function renderSpeedometerOutcome(result, sessionIndex){
  const outcome = $("outcomeOverlay");
  const canvas = $("speedometerCanvas");
@@ -7179,7 +7043,6 @@ function openSpeedometerMenuSelection(){
  if(choice==="personal_baseline" || choice==="download_personal_baseline"){ stopSpeedometer(); openPersonalBaselinePage(idx); return; }
 }
 
-/** Open Speedometer for the requested session index and sync all selectors. */
 function openSpeedometerPage(sessionIndex){
  try{ wireEmailSelectControls(); }catch(err){}
  try{ wireEmailDraftAction(); }catch(err){}
@@ -7416,7 +7279,6 @@ function wirePerfGraphControls(){
   };
 }
 
-/** Draw the Performance over Date and Time chart on the supplied canvas. */
 function drawPerformanceOverTimeChart(canvas,hist){
   if(!canvas) return;
   const dpr = window.devicePixelRatio || 1;
@@ -7957,7 +7819,6 @@ function formatLastRateRtText(last){
   return rows.length ? ("Presentation Rate Versus Response Time Graph\n\n" + rows.join("\n")) : "No Presentation Rate Versus Response Time Graph data available.";
 }
 
-/** Build the outbound plain-text email body from the selected report sections. */
 function buildEmailBodyFromSelection(){
   // Use the actively selected/displayed result; fall back to last history entry.
   const last = state.activeResult || (state.history && state.history.length ? state.history[state.history.length-1] : null);
