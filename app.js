@@ -2,7 +2,7 @@
 // CogSpeed source
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V690";
+const APP_VERSION = "V691";
 
 // ═══════════════════════════════════════════════════
 // Current behavior summary (historical details live in CHANGELOG.md)
@@ -3124,7 +3124,7 @@ function buildPersonalBaselineSvg(rows, avg){
  const y = v => T + ph - ((v-lo)/(hi-lo||1))*ph;
  const poly = rows.map((r,i)=>`${x(i).toFixed(1)},${y(r.mbs).toFixed(1)}`).join(' ');
  let parts=[`<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">`,`<rect width="100%" height="100%" fill="#081321" rx="16"/>`,`<text x="${W/2}" y="22" fill="#7fd7ff" text-anchor="middle" font-family="Arial,sans-serif" font-size="20" font-weight="700">Personal Baseline — Last 5 Qualifying MBS Scores</text>`];
- for(let i=0;i<5;i++){
+ for(let i=0;i<7;i++){
   const v = lo + (hi-lo)*(i/4);
   const yy = y(v);
   parts.push(`<line x1="${L}" y1="${yy.toFixed(1)}" x2="${W-R}" y2="${yy.toFixed(1)}" stroke="rgba(255,255,255,0.14)" stroke-width="1"/>`);
@@ -5945,12 +5945,46 @@ const TUT_STEPS = [
    </div>`;
   }
  },
+ // Step 6: explain why baseline matters
+ {
+  build:()=>{
+   return `
+   <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;padding:18px;text-align:center;background:linear-gradient(180deg,#8f8f8f 0%,#7f7f7f 100%)">
+    <div style="max-width:360px;background:rgba(12,22,40,0.9);border:1px solid rgba(127,215,255,0.25);border-radius:18px;padding:18px 18px 16px;box-shadow:0 10px 28px rgba(0,0,0,0.2)">
+     <div style="font-size:28px;font-weight:900;color:#7fd7ff;letter-spacing:.04em;margin-bottom:10px">PERSONAL BASELINE</div>
+     <div style="font-size:15px;line-height:1.6;color:rgba(255,255,255,0.88)">
+      CogSpeed works best when you build your own personal Baseline. Your Baseline is a rolling average of your last 5 qualifying Mode 1 or Mode 2 MBS scores.
+     </div>
+     <div style="margin-top:12px;font-size:14px;line-height:1.6;color:rgba(220,235,255,0.88);background:rgba(127,215,255,0.08);border:1px solid rgba(127,215,255,0.22);border-radius:12px;padding:10px 12px">
+      Baseline sessions must be non-failed tests with <strong>MBS above 1500 ms</strong> and <strong>SP-FS of 5, 6, or 7</strong>. This helps CogSpeed track changes from your own normal level and capture learning effects over time.
+     </div>
+    </div>
+   </div>`;
+  }
+ },
+ // Step 7: explain scheduler on profile page
+ {
+  build:()=>{
+   return `
+   <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;padding:18px;text-align:center;background:linear-gradient(180deg,#8f8f8f 0%,#7f7f7f 100%)">
+    <div style="max-width:360px;background:rgba(12,22,40,0.9);border:1px solid rgba(127,215,255,0.25);border-radius:18px;padding:18px 18px 16px;box-shadow:0 10px 28px rgba(0,0,0,0.2)">
+     <div style="font-size:28px;font-weight:900;color:#7fd7ff;letter-spacing:.04em;margin-bottom:10px">PROFILE SCHEDULER</div>
+     <div style="font-size:15px;line-height:1.6;color:rgba(255,255,255,0.88)">
+      On the Profile page, the Mode 2 Scheduler can remind you when to test again. You can choose <strong>Anytime</strong>, a <strong>Personal</strong> schedule, or <strong>Fit for Duty</strong>.
+     </div>
+     <div style="margin-top:12px;font-size:14px;line-height:1.6;color:rgba(220,235,255,0.88);background:rgba(127,215,255,0.08);border:1px solid rgba(127,215,255,0.22);border-radius:12px;padding:10px 12px">
+      Personal lets you test at set times. Fit for Duty adjusts the next reminder from your latest Mode 2 CPI and SP-FS. Scheduler is for saved subjects only, not Guest.
+     </div>
+    </div>
+   </div>`;
+  }
+ },
 ];
 
 function tutSetStep(n){
  _tutStep = n;
  // Update dots
- for(let i=0;i<5;i++){
+ for(let i=0;i<7;i++){
   const d=$("tdot"+i);
   if(d) d.style.background = i===n ? "#7fd7ff" : "rgba(127,215,255,0.25)";
  }
@@ -5969,7 +6003,7 @@ function tutSetStep(n){
 
   if(n===0){
    nextBtn.textContent="TUTORIAL";
-   skipBtn.textContent="START TEST";
+   skipBtn.textContent="SKIP TO TEST";
    nextBtn.style.background="";
    nextBtn.style.borderColor="";
    nextBtn.style.color="";
@@ -5977,9 +6011,9 @@ function tutSetStep(n){
    skipBtn.style.borderColor="";
    skipBtn.style.color="";
    skipBtn.style.opacity="0.9";
-  }else if(n===4){
+  }else if(n===TUT_STEPS.length-1){
    nextBtn.textContent="▶ Start Test!";
-   skipBtn.textContent="START TEST";
+   skipBtn.textContent="SKIP TO TEST";
    nextBtn.style.background="linear-gradient(180deg,#0d4a1a,#062a10)";
    nextBtn.style.borderColor="#00ff88";
    nextBtn.style.color="#00ff88";
@@ -5989,7 +6023,7 @@ function tutSetStep(n){
    skipBtn.style.opacity="0.9";
   }else{
    nextBtn.textContent="Next →";
-   skipBtn.textContent="START TEST";
+   skipBtn.textContent="SKIP TO TEST";
    nextBtn.style.background="";
    nextBtn.style.borderColor="";
    nextBtn.style.color="";
@@ -6002,11 +6036,11 @@ function tutSetStep(n){
 }
 
 // ─── TUTORIAL / TRAINING ──────────────────────────────────────
-// 5-step walkthrough: Probe → Targets → Rule → Tap Match → React Fast!
-// Each step shows mini trial screen (22% opacity) in background
-//  with relevant parts highlighted. Last step mentions SP-FS next.
+// 7-step walkthrough: Probe → Targets → Rule → Tap Match → React Fast!
+//  then Personal Baseline, then Profile Scheduler.
+// Each step shows mini trial screen (22% opacity) in background where useful.
 // Appears after Pattern Refresher, before SP-FS page.
-// Skip button on every step.
+// Skip to Test button is available on every step.
 // ──────────────────────────────────────────────────────────────
 
 function normalizeSleepTimeValue(v){
@@ -6426,7 +6460,7 @@ function showTutorial(){
 }
 
 function tutNext(){
- if(_tutStep < 4){
+ if(_tutStep < TUT_STEPS.length - 1){
   tutSetStep(_tutStep + 1);
   return;
  }

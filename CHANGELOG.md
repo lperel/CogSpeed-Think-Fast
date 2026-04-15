@@ -1,3 +1,8 @@
+## V691
+- Expanded the tutorial from 5 to 7 pages by adding a Personal Baseline explanation page and a Profile Scheduler explanation page after the test-instructions pages.
+- Changed the tutorial secondary button on every page to read `SKIP TO TEST` so subjects can jump directly to testing from any tutorial page.
+- Updated tutorial progress dots and navigation logic to support the new pages and keep the final page start-test action intact.
+
 ## V690
 - Speedometer baseline menu now opens an in-app Personal Baseline page instead of downloading a file.
 - Added Personal Baseline overlay with baseline status, graph, and table for the viewed session.
