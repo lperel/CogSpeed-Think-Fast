@@ -2,7 +2,7 @@
 // CogSpeed source
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V691";
+const APP_VERSION = "V692";
 
 // ═══════════════════════════════════════════════════
 // Current behavior summary (historical details live in CHANGELOG.md)
@@ -4181,15 +4181,15 @@ RESULTS METRIC EXPLANATIONS
  SBLP (Sustained Blocking Limit Performance) = average RT of correct sustained responses during Mode 2 sustained segment, but defined as 0 when CSR = 0.${usesMode2Metrics?"":" Not used in this mode."}
  SBLP P90 = 90th-percentile correct sustained RT; conservative ceiling estimate.${usesMode2Metrics?"":" Not used in this mode."}
  SPI (Sustained Processing Index) = normalized 0 - 100 index based on CSR.${usesMode2Metrics?"":" Not used in this mode."}
- CPA (Cognitive Performance Ability) = Mode 2 combined end-state score (0–100). CPA starts with CPI, then applies eight Mode 2 factors that reward stronger sustained performance and penalize degraded or unstable sustained performance. Computed for Mode 2 only.${usesMode2Metrics?"":" Not used in this mode."}
- CPA factor 1 — Sustained Correct Weighting = reward based on the number of correct sustained responses. More correct sustained responses increase CPA because they show the subject could continue matching the sustained presentation rate accurately.${usesMode2Metrics?"":" Not used in this mode."}
- CPA factor 2 — Sustained Wrong Weighting = adjustment based on the number of wrong sustained responses. More wrong sustained responses reduce CPA because they indicate impaired discrimination or loss of control under load.${usesMode2Metrics?"":" Not used in this mode."}
- CPA factor 3 — Sustained Missed Weighting = adjustment based on the number of missed sustained responses. More misses reduce CPA because they indicate the subject could not keep up with the sustained presentation rate.${usesMode2Metrics?"":" Not used in this mode."}
- CPA factor 4 — Sustained RT CV% Weighting = adjustment based on coefficient of variation of correct sustained RTs: CV = (SD ÷ mean RT) × 100. Lower CV% means more consistent sustained responding; higher CV% means more erratic timing.${usesMode2Metrics?"":" Not used in this mode."}
- CPA factor 5 — Drift Weighting = adjustment based on positive slowing from early median sustained RT to late median sustained RT. It measures how much the subject slows down across the sustained phase. Negative drift is forced to 0 before weighting.${usesMode2Metrics?"":" Not used in this mode."}
- CPA factor 6 — Recovery÷Calibration RT Ratio Weighting = adjustment based on mean recovery-trial RT divided by calibration average RT. A ratio near 1.0 means self-paced speed stayed near baseline; higher values indicate within-session slowing even during recovery trials.${usesMode2Metrics?"":" Not used in this mode."}
- CPA factor 7 — Lapse Rate Weighting = adjustment based on the percent of correct sustained responses that are slower than 2× the median correct sustained RT. It captures unusually slow lapses that may not dominate the mean RT but still suggest degraded performance.${usesMode2Metrics?"":" Not used in this mode."}
- CPA factor 8 — Block Formation Efficiency Weighting = adjustment based on adaptive paced trials divided by block count. 10–30 trials per block is the typical range. Values below 10 mean blocks formed very rapidly — the presentation rate exceeded threshold within only a few trials. Values above 50 indicate the threshold shifted or was inconsistent throughout the adaptive phase.${usesMode2Metrics?"":" Not used in this mode."}
+ CPA (Cognitive Performance Ability) = Mode 2 combined end-state score (0–100). CPA starts with CPI and then applies sustained-phase performance factors. These factors may increase CPA, leave it unchanged, or decrease it. Computed for Mode 2 only.${usesMode2Metrics?"":" Not used in this mode."}
+ CPA factor 1 — Sustained Correct-Response Factor = more sustained correct responses can increase CPA.${usesMode2Metrics?"":" Not used in this mode."}
+ CPA factor 2 — Sustained Wrong-Response Factor = based on sustained wrong-response count. Zero wrong responses can increase CPA, moderate wrong counts may have little or no effect, and higher wrong counts reduce CPA.${usesMode2Metrics?"":" Not used in this mode."}
+ CPA factor 3 — Sustained Missed-Response Factor = based on sustained missed-response count. Zero or very low missed counts can increase CPA, moderate missed counts may have little or no effect, and higher missed counts reduce CPA.${usesMode2Metrics?"":" Not used in this mode."}
+ CPA factor 4 — Sustained RT Variability Factor = based on coefficient of variation of correct sustained RTs: CV = (SD ÷ mean RT) × 100. More stable sustained response times can support CPA, while higher variability can reduce it.${usesMode2Metrics?"":" Not used in this mode."}
+ CPA factor 5 — Drift Factor = based on positive slowing from early median sustained RT to late median sustained RT. Greater slowing across the sustained phase can reduce CPA. Negative drift is forced to 0 before weighting.${usesMode2Metrics?"":" Not used in this mode."}
+ CPA factor 6 — Recovery÷Calibration RT Factor = based on mean recovery-trial RT divided by calibration average RT. Less favorable recovery relative to calibration can reduce CPA.${usesMode2Metrics?"":" Not used in this mode."}
+ CPA factor 7 — Lapse-Rate Factor = based on the percent of correct sustained responses that are slower than 2× the median correct sustained RT. More lapse-like sustained responses can reduce CPA.${usesMode2Metrics?"":" Not used in this mode."}
+ CPA factor 8 — Block-Efficiency Factor = based on adaptive paced trials divided by block count. Better block efficiency can support CPA, while poorer efficiency can reduce it. 10–30 trials per block is the typical range.${usesMode2Metrics?"":" Not used in this mode."}
  CPA max total reduction cap = the total of all negative CPA adjustments is limited by the Admin max reduction factor × CPI. This prevents multiple mild penalties from driving CPA implausibly low in one session.${usesMode2Metrics?"":" Not used in this mode."}
  Disposition = operational recommendation derived from CPA score. GREEN (Clear): CPA > 65. YELLOW (Monitor / human review recommended): CPA 45–64. ORANGE (Human review required): CPA 30–44. RED (Remove from hazardous duty): CPA < 30. CogSpeed disposition is a structured recommendation requiring human review — not a standalone fitness determination.${usesMode2Metrics?"":" Not used in this mode."}`;
 }
@@ -4521,14 +4521,14 @@ ${hr}
 CPA — COGNITIVE PERFORMANCE ABILITY
  CPA: ${result.cpa!=null?result.cpa.toFixed(1)+" / 100":"—"}
  Base CPI: ${result.cpaBaseCpi!=null?result.cpaBaseCpi.toFixed(1):"—"}
- Sustained correct weighting: ${result.cpaCorrectWeighting!=null?(result.cpaCorrectWeighting>=0?"+":"")+result.cpaCorrectWeighting.toFixed(1):"—"}
- Sustained wrong weighting: ${result.cpaWrongWeighting!=null?(result.cpaWrongWeighting>=0?"+":"")+result.cpaWrongWeighting.toFixed(1):"—"}
- Sustained missed weighting: ${result.cpaMissedWeighting!=null?(result.cpaMissedWeighting>=0?"+":"")+result.cpaMissedWeighting.toFixed(1):"—"}
- Sustained RT CV% weighting: ${result.cpaSdWeighting!=null?(result.cpaSdWeighting>=0?"+":"")+result.cpaSdWeighting.toFixed(1):"—"}
- Drift weighting: ${result.cpaDriftWeighting!=null?(result.cpaDriftWeighting>=0?"+":"")+result.cpaDriftWeighting.toFixed(1):"—"}
- Recovery RT ratio weighting: ${result.cpaRecoveryWeighting!=null?(result.cpaRecoveryWeighting>=0?"+":"")+result.cpaRecoveryWeighting.toFixed(1):"—"}
- Lapse rate weighting: ${result.cpaLapseWeighting!=null?(result.cpaLapseWeighting>=0?"+":"")+result.cpaLapseWeighting.toFixed(1):"—"}
- Block efficiency weighting: ${result.cpaEfficiencyWeighting!=null?(result.cpaEfficiencyWeighting>=0?"+":"")+result.cpaEfficiencyWeighting.toFixed(1):"—"}
+ Sustained correct-response factor: ${result.cpaCorrectWeighting!=null?(result.cpaCorrectWeighting>=0?"+":"")+result.cpaCorrectWeighting.toFixed(1):"—"}
+ Sustained wrong-response factor: ${result.cpaWrongWeighting!=null?(result.cpaWrongWeighting>=0?"+":"")+result.cpaWrongWeighting.toFixed(1):"—"}
+ Sustained missed-response factor: ${result.cpaMissedWeighting!=null?(result.cpaMissedWeighting>=0?"+":"")+result.cpaMissedWeighting.toFixed(1):"—"}
+ Sustained RT variability factor: ${result.cpaSdWeighting!=null?(result.cpaSdWeighting>=0?"+":"")+result.cpaSdWeighting.toFixed(1):"—"}
+ Drift factor: ${result.cpaDriftWeighting!=null?(result.cpaDriftWeighting>=0?"+":"")+result.cpaDriftWeighting.toFixed(1):"—"}
+ Recovery / calibration RT factor: ${result.cpaRecoveryWeighting!=null?(result.cpaRecoveryWeighting>=0?"+":"")+result.cpaRecoveryWeighting.toFixed(1):"—"}
+ Lapse-rate factor: ${result.cpaLapseWeighting!=null?(result.cpaLapseWeighting>=0?"+":"")+result.cpaLapseWeighting.toFixed(1):"—"}
+ Block-efficiency factor: ${result.cpaEfficiencyWeighting!=null?(result.cpaEfficiencyWeighting>=0?"+":"")+result.cpaEfficiencyWeighting.toFixed(1):"—"}
  Sustained response RT SD: ${result.cpaSustainedResponseSdMs!=null?result.cpaSustainedResponseSdMs.toFixed(1)+" ms":"—"}
  Sustained RT CV%: ${result.cpaSustainedCvPct!=null?result.cpaSustainedCvPct.toFixed(1)+"%":"—"}
  Early median sustained RT: ${result.cpaEarlyMedianRtMs!=null?result.cpaEarlyMedianRtMs.toFixed(1)+" ms":"—"}

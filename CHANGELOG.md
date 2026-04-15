@@ -1,3 +1,6 @@
+## V692
+- Revised CPA labels and explanatory text to reflect actual bucket behavior without changing the CPA formula.
+
 ## V691
 - Expanded the tutorial from 5 to 7 pages by adding a Personal Baseline explanation page and a Profile Scheduler explanation page after the test-instructions pages.
 - Changed the tutorial secondary button on every page to read `SKIP TO TEST` so subjects can jump directly to testing from any tutorial page.
