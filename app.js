@@ -2,7 +2,7 @@
 // CogSpeed source
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V682";
+const APP_VERSION = "V684";
 
 // ═══════════════════════════════════════════════════
 // Current behavior summary (historical details live in CHANGELOG.md)
@@ -1256,7 +1256,14 @@ function finish(){
   const allResponseMean=allResponseRTs.length?mean(allResponseRTs):null;
   const allResponseSd=stdDev(allResponseRTs);
   const blockDiff=state.overloads.length>=2?state.overloads[state.overloads.length-1]-state.overloads[state.overloads.length-2]:null;
-  const testDurMs=state.testStartTime!=null?performance.now()-state.testStartTime:null;
+  const rawTestDurMs=state.testStartTime!=null?performance.now()-state.testStartTime:null;
+  const sustainedOnlyElapsedMs = isMode2() ? ((Array.isArray(state.rtLog)?state.rtLog:[])
+    .filter(e=>e && ["mode2_sustained","mode2_sustained_wrong","mode2_sustained_missed"].includes(e.phase))
+    .reduce((s,e)=>s+(Number(e.presentedDurationMs)||0)+(Number(e.rt)||0),0)) : 0;
+  // Mode 2 max-time failure should ignore sustained fixed-rate trial time.
+  // Keep final self-paced time in the total, but subtract sustained trial time so
+  // timing-based stop logic and saved duration align with the intended rule.
+  const testDurMs=rawTestDurMs!=null ? Math.max(0, rawTestDurMs - sustainedOnlyElapsedMs) : null;
   const mode2SblpMs = getMode2SblpMsFromState();
   const mode2SustainedTargetCount = Math.max(1, Number(settings.mode2SustainedTrialCount)||20);
   const mode2Spi = isMode2() && state.mode2Triggered ? computeSPI(state.mode2SustainedCorrect, mode2SustainedTargetCount) : null;
@@ -1344,6 +1351,7 @@ function finish(){
   try{ syncSummarySessionSelect(state.history.length-1); }catch(e){}
   try{ syncSpeedometerSessionSelect(state.history.length-1); }catch(e){}
   try{ updateStartPageLinks(); }catch(e){}
+  try{ if(getCurrentSavedSubjectId()) refreshSchedulerStatus(); }catch(e){}
  }catch(err){
   console.error("finish save failed", err);
   try{ if(state.history[state.history.length-1]===result) state.history.pop(); }catch(e){}
@@ -2974,32 +2982,39 @@ function computePersonalNextReminderAt(s, now=new Date()){
  }
  return null;
 }
-function getLatestCompletedMode2Result(){
+// Returns the latest local Mode 2 result for scheduler use.
+// Pass ignoreIncomplete=true only for Fit for Duty timing logic.
+// Status/readout callers can pass false so the display reflects the latest Mode 2 session seen by the subject.
+function getLatestCompletedMode2Result(ignoreIncomplete=true){
  const h = Array.isArray(state.history) ? state.history : [];
  for(let i=h.length-1;i>=0;i--){
   const r = h[i];
   if((r&&r.testMode)!=="mode2") continue;
-  if((schedulerState.settings?.fitDutyIgnoreIncomplete!==false) && isPerfFailureSession(r)) continue;
+  if(ignoreIncomplete && isPerfFailureSession(r)) continue;
   return r;
  }
  return null;
 }
 function getLatestCompletedMode2Label(){
- const r = getLatestCompletedMode2Result();
+ const r = getLatestCompletedMode2Result(false);
  return r && r.time ? new Date(r.time).toLocaleString() : "";
 }
+// Fit for Duty uses the most recent completed valid local Mode 2 plus SP-FS.
+// Lower CPI and lower SP-FS (more fatigued/impaired) shorten the next interval.
+// Higher CPI and higher SP-FS (more alert/rested) lengthen the next interval.
 function computeFitDutyNextReminderAt(s, now=new Date()){
- const latest = getLatestCompletedMode2Result();
+ const latest = getLatestCompletedMode2Result(s?.fitDutyIgnoreIncomplete!==false);
  let minutes = Math.max(60, Number(s.fitDutyDefaultIntervalHr||4) * 60);
  if(latest){
   const cpi = Number(latest.cpiValue!=null ? latest.cpiValue : latest.cpi);
-  const spf = Number(latest.samnPerelli || latest.spfs || latest.spf || 0);
+  const spf = (latest.samnPerelli && latest.samnPerelli.score != null)
+    ? Number(latest.samnPerelli.score) : 0;
   const minMin = Math.max(5, Number(s.fitDutyMinIntervalMin)||30);
   const defMin = Math.max(minMin, Number(s.fitDutyDefaultIntervalHr||4)*60);
   const maxMin = Math.max(defMin, Number(s.fitDutyMaxIntervalHr||12)*60);
-  if((Number.isFinite(cpi) && cpi < 25) || spf >= 6) minutes = minMin;
-  else if((Number.isFinite(cpi) && cpi < 50) || spf >= 5) minutes = Math.max(minMin, Math.round(defMin/2));
-  else if((Number.isFinite(cpi) && cpi >= 80) && (spf > 0 && spf <= 2)) minutes = maxMin;
+  if((Number.isFinite(cpi) && cpi < 25) || spf <= 2) minutes = minMin;
+  else if((Number.isFinite(cpi) && cpi < 50) || spf <= 3) minutes = Math.max(minMin, Math.round(defMin/2));
+  else if((Number.isFinite(cpi) && cpi >= 80) && spf >= 6) minutes = maxMin;
   else minutes = defMin;
  }
  const out = new Date(now.getTime() + minutes*60000);
@@ -3024,25 +3039,67 @@ function refreshSchedulerStatus(){
 function stopSchedulerTimers(){
  clearTimeout(schedulerState.reminderTimerId); schedulerState.reminderTimerId = null;
  clearTimeout(schedulerState.repeatTimerId); schedulerState.repeatTimerId = null;
+ clearTimeout(schedulerState.bgTestTimerId); schedulerState.bgTestTimerId = null;
 }
+// Scheduler sound test waits for the bundled clip to finish before asking the
+// subject whether it was heard. Resolving on playback start can suppress audio
+// on phones because the confirmation dialog steals focus mid-playback.
 function playSchedulerSound(soundKey){
  if(!soundKey || soundKey==="off") return Promise.resolve(false);
  const src = SCHEDULER_SOUND_FILES[soundKey];
  if(!src) return Promise.resolve(false);
- try{
-  const a = new Audio(src);
-  return a.play().then(()=>true).catch(()=>false);
- }catch(e){ return Promise.resolve(false); }
+ return new Promise(resolve=>{
+  try{
+   const a = new Audio(src);
+   let settled = false;
+   const done = (ok)=>{ if(settled) return; settled = true; resolve(ok); };
+   a.preload = "auto";
+   a.currentTime = 0;
+   a.onended = ()=>done(true);
+   a.onerror = ()=>done(false);
+   a.onabort = ()=>done(false);
+   const playPromise = a.play();
+   if(playPromise && typeof playPromise.catch === "function") playPromise.catch(()=>done(false));
+  }catch(e){ resolve(false); }
+ });
 }
+// Scheduler voice uses the device text-to-speech system. The Promise resolves
+// when the utterance ends so the confirmation dialog appears only after speech
+// had a chance to play, instead of interrupting it immediately.
 function speakSchedulerPrompt(type){
- if(!window.speechSynthesis) return false;
+ if(!window.speechSynthesis || typeof SpeechSynthesisUtterance === "undefined") return Promise.resolve(false);
  const msg = type==="fit_duty" ? "CogSpeed reminder. Fit for Duty follow-up recommended." : "CogSpeed reminder. Mode 2 test recommended now.";
- try{
-  window.speechSynthesis.cancel();
-  const u = new SpeechSynthesisUtterance(msg);
-  window.speechSynthesis.speak(u);
-  return true;
- }catch(e){ return false; }
+ return new Promise(resolve=>{
+  try{
+   const speakNow = ()=>{
+    try{
+     window.speechSynthesis.cancel();
+     const u = new SpeechSynthesisUtterance(msg);
+     let settled = false;
+     const done = (ok)=>{ if(settled) return; settled = true; resolve(ok); };
+     u.onend = ()=>done(true);
+     u.onerror = ()=>done(false);
+     window.speechSynthesis.speak(u);
+     setTimeout(()=>done(false), Math.max(2500, msg.length * 120));
+    }catch(e){ resolve(false); }
+   };
+   const voices = window.speechSynthesis.getVoices ? window.speechSynthesis.getVoices() : [];
+   if(Array.isArray(voices) && voices.length){ speakNow(); return; }
+   const onVoicesChanged = ()=>{
+    try{ window.speechSynthesis.removeEventListener?.("voiceschanged", onVoicesChanged); }catch(e){}
+    speakNow();
+   };
+   if(window.speechSynthesis.addEventListener){
+    window.speechSynthesis.addEventListener("voiceschanged", onVoicesChanged, {once:true});
+    setTimeout(()=>{
+     try{ window.speechSynthesis.removeEventListener?.("voiceschanged", onVoicesChanged); }catch(e){}
+     speakNow();
+    }, 400);
+   }else{
+    setTimeout(speakNow, 0);
+   }
+  }catch(e){ resolve(false); }
+ });
 }
 function scheduleNextReminderFromNow(reasonOverride){
  const s = schedulerState.settings;
@@ -3056,32 +3113,56 @@ function showSchedulerReminderModal(){
  const s = schedulerState.settings;
  const body = s.type==="fit_duty" ? "Fit for Duty: Mode 2 follow-up recommended now." : "Personal Schedule: Mode 2 test due now.";
  try{ if(document.visibilityState !== "visible" && navigator.serviceWorker && navigator.serviceWorker.ready){ navigator.serviceWorker.ready.then(reg=>reg.showNotification?.("CogSpeed Reminder", {body})).catch(()=>{}); } }catch(e){}
- alert(`CogSpeed Reminder
-
-${body}`);
- const action = prompt("Type S to Snooze 10 Min, K to Skip, or press OK/Cancel for no action.", "");
- if(action && /^s$/i.test(action.trim())){
-  s.lastReminderResult = "Snoozed";
-  s.nextTestAt = new Date(Date.now()+10*60*1000).toISOString();
-  s.nextReason = "Snoozed 10 min";
- }else if(action && /^k$/i.test(action.trim())){
-  s.lastReminderResult = "Skipped";
-  s.nextTestAt = computeNextSchedulerReminderAt(s, new Date());
-  s.nextReason = computeNextSchedulerReason(s);
- }else{
-  s.lastReminderResult = "Missed";
-  s.nextTestAt = computeNextSchedulerReminderAt(s, new Date());
-  s.nextReason = computeNextSchedulerReason(s);
- }
+ const title = $("schedulerReminderTitle");
+ const bodyEl = $("schedulerReminderBody");
+ if(title) title.textContent = "CogSpeed Reminder";
+ if(bodyEl) bodyEl.textContent = body;
+ $("schedulerReminderOverlay")?.classList.remove("hidden");
+}
+function startMode2FromSchedulerReminder(){
+ $("schedulerReminderOverlay")?.classList.add("hidden");
+ schedulerState.settings.lastReminderResult = "Completed";
+ schedulerState.settings.nextTestAt = computeNextSchedulerReminderAt(schedulerState.settings, new Date());
+ schedulerState.settings.nextReason = computeNextSchedulerReason(schedulerState.settings);
  persistActiveSchedulerSettings();
  refreshSchedulerStatus();
  armSchedulerReminderTimer();
+ settings.testMode = "mode2";
+ saveSettings();
+ showSleepPrompt();
+ setStatus("Mode 2 reminder started");
 }
+function snoozeSchedulerReminder(){
+ $("schedulerReminderOverlay")?.classList.add("hidden");
+ schedulerState.settings.lastReminderResult = "Snoozed";
+ schedulerState.settings.nextTestAt = new Date(Date.now()+10*60*1000).toISOString();
+ schedulerState.settings.nextReason = "Snoozed 10 min";
+ persistActiveSchedulerSettings();
+ refreshSchedulerStatus();
+ armSchedulerReminderTimer();
+ setStatus("Mode 2 reminder snoozed 10 min");
+}
+function skipSchedulerReminder(){
+ $("schedulerReminderOverlay")?.classList.add("hidden");
+ schedulerState.settings.lastReminderResult = "Skipped";
+ schedulerState.settings.nextTestAt = computeNextSchedulerReminderAt(schedulerState.settings, new Date());
+ schedulerState.settings.nextReason = computeNextSchedulerReason(schedulerState.settings);
+ persistActiveSchedulerSettings();
+ refreshSchedulerStatus();
+ armSchedulerReminderTimer();
+ setStatus("Mode 2 reminder skipped");
+}
+// Fires the local in-app reminder UI and optional sound/voice for the next scheduled Mode 2 test.
 function fireSchedulerReminder(){
  const s = schedulerState.settings;
  if(!s?.enabled || !s.nextTestAt) return;
  playSchedulerSound(s.alertSound).then(ok=>{ const el=$("schedulerSoundTestResult"); if(el && ok) el.textContent = "Sound: PASS"; });
- if(s.voiceEnabled){ const ok = speakSchedulerPrompt(s.type); const el=$("schedulerVoiceTestResult"); if(el) el.textContent = ok ? "Voice: PASS" : "Voice: FAIL"; }
+ if(s.voiceEnabled){
+  speakSchedulerPrompt(s.type).then(ok=>{
+   const el=$("schedulerVoiceTestResult");
+   if(el && ok) el.textContent = "Voice: PASS";
+  });
+ }
  showSchedulerReminderModal();
  if(s.repeatOnce){
   clearTimeout(schedulerState.repeatTimerId);
@@ -3131,11 +3212,15 @@ function onSchedulerUiChanged(){
  schedulerState.settings = { ...schedulerState.settings, ...collectSchedulerSettingsFromUI() };
  renderSchedulerSettings();
 }
-function onSchedulerSaveSettings(){
- if(!schedulerState.activeSubjectId || isGuestSchedulerSubject(schedulerState.activeSubjectId)){ setStatus("Scheduler is not available for Guest users."); return; }
+// Saves the Scheduler portion of the current profile draft.
+// This helper is used by Save & Continue so scheduler validation and persistence stay in one place.
+function saveSchedulerDraftFromUi(){
+ if(!schedulerState.activeSubjectId || isGuestSchedulerSubject(schedulerState.activeSubjectId)){
+  return { ok:false, message:"Scheduler is not available for Guest users." };
+ }
  const proposed = collectSchedulerSettingsFromUI();
  const check = validateSchedulerSettings(proposed);
- if(!check.ok){ setStatus(check.message); return; }
+ if(!check.ok) return check;
  proposed.deviceTest = schedulerState.settings.deviceTest || structuredClone(DEFAULT_SCHEDULER_SETTINGS.deviceTest);
  proposed.lastReminderResult = schedulerState.settings.lastReminderResult || "Not yet used";
  proposed.nextTestAt = computeNextSchedulerReminderAt(proposed, new Date());
@@ -3144,7 +3229,7 @@ function onSchedulerSaveSettings(){
  persistActiveSchedulerSettings();
  renderSchedulerSettings();
  armSchedulerReminderTimer();
- setStatus("Scheduler settings saved");
+ return { ok:true };
 }
 function onSchedulerTestSave(){
  if(!schedulerState.activeSubjectId || isGuestSchedulerSubject(schedulerState.activeSubjectId)){ schedulerState.settings.deviceTest.localSave = "FAIL"; renderSchedulerDeviceFields(schedulerState.settings.deviceTest); setStatus("Saved subject required for Scheduler."); return; }
@@ -3164,15 +3249,17 @@ Press OK if you saw it.`);
 }
 function onSchedulerTestSound(){
  playSchedulerSound(schedulerState.settings.alertSound).then(ok=>{
-  const heard = ok && confirm("Did you hear the alert sound? Press OK for Yes.");
-  schedulerState.settings.deviceTest.sound = heard ? "PASS" : "FAIL";
-  const el=$("schedulerSoundTestResult"); if(el) el.textContent = `Sound: ${heard?"PASS":"FAIL"}`;
-  persistActiveSchedulerSettings();
-  renderSchedulerDeviceFields(schedulerState.settings.deviceTest);
-  setStatus(heard ? "In-app sound PASS" : "In-app sound FAIL");
+  setTimeout(()=>{
+   const heard = ok && confirm("Did you hear the alert sound? Press OK for Yes.");
+   schedulerState.settings.deviceTest.sound = heard ? "PASS" : "FAIL";
+   const el=$("schedulerSoundTestResult"); if(el) el.textContent = `Sound: ${heard?"PASS":"FAIL"}`;
+   persistActiveSchedulerSettings();
+   renderSchedulerDeviceFields(schedulerState.settings.deviceTest);
+   setStatus(heard ? "In-app sound PASS" : "In-app sound FAIL");
+  }, 250);
  });
 }
-function onSchedulerTestVoice(){
+async function onSchedulerTestVoice(){
  if(!schedulerState.settings.voiceEnabled){
   schedulerState.settings.deviceTest.voice = "DISABLED";
   const el=$("schedulerVoiceTestResult"); if(el) el.textContent = "Voice: DISABLED";
@@ -3180,7 +3267,7 @@ function onSchedulerTestVoice(){
   setStatus("Voice Alert is OFF");
   return;
  }
- const ok = speakSchedulerPrompt("personal");
+ const ok = await speakSchedulerPrompt("personal");
  const heard = ok && confirm("Did you hear the voice prompt? Press OK for Yes.");
  schedulerState.settings.deviceTest.voice = heard ? "PASS" : "FAIL";
  const el=$("schedulerVoiceTestResult"); if(el) el.textContent = `Voice: ${heard?"PASS":"FAIL"}`;
@@ -3233,12 +3320,14 @@ function onSchedulerBackgroundTest(){
  renderSchedulerDeviceFields(schedulerState.settings.deviceTest);
  setStatus("1-minute background test armed");
  alert(`Leave CogSpeed in background or close it now. Return in 1 to 2 minutes.`);
- clearTimeout(schedulerState.reminderTimerId);
- schedulerState.reminderTimerId = setTimeout(()=>{
+ clearTimeout(schedulerState.bgTestTimerId);
+ schedulerState.bgTestTimerId = setTimeout(()=>{
   if(typeof Notification !== "undefined" && Notification.permission === "granted") {
    try{ if(navigator.serviceWorker && navigator.serviceWorker.ready){ navigator.serviceWorker.ready.then(reg=>reg.showNotification?.("CogSpeed Reminder", {body:"1-minute background reminder test."})).catch(()=>{}); } }catch(e){}
   }
   playSchedulerSound(schedulerState.settings.alertSound);
+  schedulerState.bgTestTimerId = null;
+  armSchedulerReminderTimer();
  }, 60000);
 }
 function maybeFinishBackgroundTest(){
@@ -3282,6 +3371,8 @@ function restoreSubjectFromProfile(){
  const we = $("welcomeEmail");
  const hint = $("subjectHint");
  if(p && p.email){
+  state.profile = p;
+  state.subjectId = p.email;
   if(inp) inp.value = p.email;
   if(wl) wl.style.display = "block";
   if(we) we.textContent = p.email;
@@ -3379,6 +3470,8 @@ function openProfileFromContext(returnTo,email=""){
 // - email users load/save their full profile
 // - guest users (subject ID 0) must NOT inherit a saved email profile
 // - time-format toggle stays local draft state until Save & Continue
+// - Scheduler lives on this page and is saved per non-Guest subject on this device only
+// - Scheduler reminders can work offline inside CogSpeed; closed-app alerts still depend on device support
 function openProfileOverlay(email){
  const safeEmail = isValidEmailAddress(email) ? String(email).trim().toLowerCase() : "";
  const stored = loadProfile();
@@ -3447,20 +3540,12 @@ function saveAndContinueProfile(){
  const profile = {email, birthMonth:bMonth, birthYear:bYear,
   gender:_profileGenderSelected, emailResults, timeFormat:settings.timeFormat, updatedAt:Date.now()};
  schedulerState.activeSubjectId = email;
- const schedulerDraft = collectSchedulerSettingsFromUI();
- const schedulerCheck = validateSchedulerSettings(schedulerDraft);
- if(!schedulerCheck.ok){ setStatus(schedulerCheck.message); return; }
  saveProfile(profile);
 
  state.subjectId = email;
  state.profile = profile;
- schedulerDraft.deviceTest = schedulerState.settings?.deviceTest || structuredClone(DEFAULT_SCHEDULER_SETTINGS.deviceTest);
- schedulerDraft.lastReminderResult = schedulerState.settings?.lastReminderResult || "Not yet used";
- schedulerDraft.nextTestAt = computeNextSchedulerReminderAt(schedulerDraft, new Date());
- schedulerDraft.nextReason = computeNextSchedulerReason(schedulerDraft);
- schedulerState.settings = schedulerDraft;
- persistActiveSchedulerSettings();
- armSchedulerReminderTimer();
+ const schedulerSave = saveSchedulerDraftFromUi();
+ if(!schedulerSave.ok){ setStatus(schedulerSave.message); return; }
 
  showOnly(_profileReturnTo);
  _profileReturnTo = "refresherOverlay";
@@ -3940,14 +4025,17 @@ RESULTS METRIC EXPLANATIONS
 }
 
 // ─── Mode 2 timing breakdown ─────────────────────────────────
-// Splits total test time into adaptive phase vs sustained+final phase.
+// Splits Mode 2 saved duration into adaptive+final time (the max-time clocked path)
+// and sustained-only time (explicitly excluded from max-time failure accounting).
 function computeMode2TimingSummary(result){
  const entries=Array.isArray(result&&result.rtLog)?result.rtLog:[];
  const sumPhases=(phases)=>entries.filter(e=>phases.includes(String(e.phase||"")) && Number.isFinite(Number(e.durationMs))).reduce((s,e)=>s+Number(e.durationMs),0);
- const sustainedFinalMs=sumPhases(["mode2_sustained","mode2_sustained_wrong","mode2_sustained_missed","mode2_final"]);
+ const sustainedOnlyMs=sumPhases(["mode2_sustained","mode2_sustained_wrong","mode2_sustained_missed"]);
+ const finalSelfPacedMs=sumPhases(["mode2_final"]);
+ const sustainedFinalMs=sustainedOnlyMs + finalSelfPacedMs;
  const totalMs=Number(result&&result.testDurationMs)||0;
- const adaptiveMs=Math.max(0,totalMs-sustainedFinalMs);
- return {totalMs,adaptiveMs,sustainedFinalMs};
+ const adaptiveMs=Math.max(0,totalMs-finalSelfPacedMs);
+ return {totalMs,adaptiveMs,sustainedOnlyMs,sustainedFinalMs,finalSelfPacedMs};
 }
 
 // ─── Mode 2 block list text ──────────────────────────────────
@@ -4062,7 +4150,7 @@ Subject ID: ${result.subjectId||"—"}
 Location: ${geoStr}
 Date/Time: ${result.time?new Date(result.time).toLocaleString():"—"}
 Total Trial Presentations: ${totalPresentations}
-Total Test Duration: ${result.testMode==="mode2"&&timing?formatDuration(timing.totalMs):totalDuration}
+Total Test Duration${result.testMode==="mode2"?" (excludes sustained MP)":""}: ${result.testMode==="mode2"&&timing?formatDuration(timing.totalMs):totalDuration}
 Fatigue (SP-FS): ${spf}
 Sleep: ${sleepLine.replace(/^SLEEP:\s*/,'')}
 ${formatSleepSummaryMetricsLine(result)}
@@ -4200,9 +4288,10 @@ Session:    ${result.sessionNumber!=null?result.sessionNumber:"—"}
 Subject ID:  ${result.subjectId}
 Date / Time:  ${new Date(result.time).toLocaleString()}
 Total trial presentations: ${computeTotalTrialPresentations(result)}
-Total TEST duration: ${formatDuration(timing.totalMs)}
+Total TEST duration (excludes sustained MP): ${formatDuration(timing.totalMs)}
 Calibration → end of adaptive paced trials: ${formatDuration(timing.adaptiveMs)}
-Sustained + final self-paced duration: ${formatDuration(timing.sustainedFinalMs)}
+Sustained-only duration (excluded from total): ${formatDuration(timing.sustainedOnlyMs)}
+Final self-paced duration: ${formatDuration(timing.finalSelfPacedMs)}
 Location:   ${geoStr}
 ${hr}
 FATIGUE (SP-FS)
@@ -6315,7 +6404,11 @@ const _snt=$("schedulerTestNotificationBtn"); if(_snt) _snt.onclick=onSchedulerT
 const _sbg=$("schedulerBackgroundTestBtn"); if(_sbg) _sbg.onclick=onSchedulerBackgroundTest;
 const _srs=$("schedulerRefreshStatusBtn"); if(_srs) _srs.onclick=()=>{ maybeFinishBackgroundTest(); refreshSchedulerStatus(); refreshSchedulerDeviceStatus(); setStatus("Scheduler status refreshed"); };
 const _scs=$("schedulerClearStatusBtn"); if(_scs) _scs.onclick=clearSchedulerReminderStatus;
+const _sss=$("schedulerSaveSettingsBtn"); if(_sss) _sss.onclick=onSchedulerSaveSettings;
 const _srd=$("schedulerRefreshDeviceTestBtn"); if(_srd) _srd.onclick=()=>{ maybeFinishBackgroundTest(); refreshSchedulerDeviceStatus(); setStatus("Device test refreshed"); };
+const _srsb=$("schedulerReminderStartBtn"); if(_srsb) _srsb.onclick=()=>startMode2FromSchedulerReminder();
+const _ssnb=$("schedulerReminderSnoozeBtn"); if(_ssnb) _ssnb.onclick=()=>snoozeSchedulerReminder();
+const _sskpb=$("schedulerReminderSkipBtn"); if(_sskpb) _sskpb.onclick=()=>skipSchedulerReminder();
 
 // Welcome back — pre-fill email if profile exists
 (()=>{
@@ -6328,6 +6421,9 @@ const _srd=$("schedulerRefreshDeviceTestBtn"); if(_srd) _srd.onclick=()=>{ maybe
  }
  schedulerResumeForCurrentProfile();
 })();
+refreshSchedulerDeviceStatus();
+window.addEventListener("focus", ()=>{ maybeFinishBackgroundTest(); refreshSchedulerDeviceStatus(); });
+document.addEventListener("visibilitychange", ()=>{ if(document.visibilityState === "visible") maybeFinishBackgroundTest(); });
 $("tutSkipBtn").onclick=()=>tutSkip();
 $("unlockBtn").onclick=()=>{
  const v=$("adminPass").value;

@@ -1,3 +1,18 @@
+# V684 — 2026-04-15
+
+- Mode 2 total test duration now excludes sustained fixed-rate trial time; sustained-only duration is reported separately in the results summary.
+- Scheduler sound test now waits for the bundled clip to end before asking for confirmation, and voice test now waits for text-to-speech to finish before prompting.
+- Scheduler Save Settings button wiring was prepared in code for direct use if present in the UI.
+
+## V683
+- Fixed Fit for Duty SP-FS extraction so scheduler reads `samnPerelli.score` from saved Mode 2 results instead of coercing the whole object to `NaN`.
+- Corrected Fit for Duty SP-FS thresholds to match the Samn-Perelli scale orientation: lower SP-FS now shortens the next interval and higher SP-FS can lengthen it.
+- Fixed the 1-minute Scheduler background test so it uses its own timer, never overwrites the real reminder timer, and rearms the real reminder after the test completes.
+- Refactored scheduler draft saving into a shared helper used by Profile Save & Continue so scheduler save logic is no longer dead drift.
+- Separated the Fit for Duty-only incomplete-session filter from the general Scheduler Status readout so Last Completed Mode 2 reflects the latest session seen by the subject.
+- Added scheduler comments clarifying one-device local use, offline behavior, reminder types, and how the scheduler save/helper/timer flow works.
+- Advanced package versioning to V683 and aligned APP_VERSION, visible labels, app.js cache-bust, service worker release, manifest, and packaged folder naming.
+
 ## V682
 - Added a new Mode 2 Scheduler on the asterisk / Profile page for saved subjects only.
 - Scheduler supports 3 local schedule types: Anytime, Personal, and Fit for Duty.
