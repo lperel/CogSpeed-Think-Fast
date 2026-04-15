@@ -285,7 +285,7 @@ const state={
  //   stores the immediately previous paced frame when it LOOKED like a miss at frame end,
  //   but is still inside the late-response grace rule window.
  // pendingLatePacing:
- //   stores a provisional speedup/slowdown result for frame 1 when a <600 ms tap on frame 2
+ //   stores a provisional pacing result for frame 1 when a <600 ms tap on frame 2
  //   is reassigned backward to frame 1. That provisional pacing change is applied only if
  //   frame 2 ends with no later response of its own. If frame 2 later gets its own response
  //   (>600 ms after frame 2 appeared), frame 1's provisional pacing change is discarded.
@@ -1121,10 +1121,6 @@ function finishCalibration(){
 //   On CORRECT responses that speed up:
 //     minimum speedup = minSpeedupOnCorrectMs (default 50 ms)
 //     maximum speedup = maxSpeedupOnCorrectMs (default 200 ms)
-//   There is no separate speedup path.
-//   On slowdown from the correct-response formula:
-//     maximum slowdown = 100 ms.
-//
 // WRONG RESPONSE ON ITS OWN FRAME:
 //   baseline += wrongSlowdownMs (default 50 ms)
 //
@@ -1185,7 +1181,7 @@ function calculatePacingTransition(currentDuration,rt,correct){
   const minSpeed = Number(settings.minSpeedupOnCorrectMs)||50;
   const maxSpeed = Number(settings.maxSpeedupOnCorrectMs)||200;
 
-  let reason = "Correct response formula";
+  let reason;
   if(deltaMs < 0){
     const speedupMag = Math.min(maxSpeed, Math.max(minSpeed, Math.abs(deltaMs)));
     deltaMs = -speedupMag;

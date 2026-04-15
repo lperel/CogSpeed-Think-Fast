@@ -1,5 +1,12 @@
 ## V692
 - Revised CPA labels and explanatory text to reflect actual bucket behavior without changing the CPA formula.
+- Updated the Start page layout: enlarged About CogSpeed and Speedometer, moved them directly under Continue, and moved Privacy Policy and Terms of Service to the bottom corners while leaving the admin link unchanged.
+- Corrected packaged version-string literals in `index.html` so the title, version badge, and status line all ship as V692 instead of stale V688 placeholders.
+- Preserved the Speedometer Mode 2 CPI/CPA toggle selection across return-to-Start navigation by removing the reset from trial-state clearing.
+- Clarified intro auto-advance comments to document the cached-GIF `introGif.complete` case.
+- Corrected the stale `initialMeasuredCalibrationTrials` comment to match the actual default of 7.
+- Updated paced-transition logic so every correct response always speeds up pacing; late-rescue correct responses now receive the minimum correct-response speedup instead of a slowdown.
+- Removed contradictory pacing-comment text that still described a correct-response slowdown path, and tightened related late-response comment wording.
 
 ## V691
 - Expanded the tutorial from 5 to 7 pages by adding a Personal Baseline explanation page and a Profile Scheduler explanation page after the test-instructions pages.
