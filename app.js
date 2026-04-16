@@ -4362,7 +4362,10 @@ function buildResultsSummaryCompact(result){
  const totalPresentations = computeTotalTrialPresentations(result);
  const totalDuration = formatDuration(result.testDurationMs);
  const sleepLine = formatSleepLine(result);
- const adaptiveMbs=result.mode2AdaptiveMbsMs!=null?result.mode2AdaptiveMbsMs:result.averageLast2BlockingScoresMs;
+ const adaptiveMbsRaw=result.mode2AdaptiveMbsMs!=null?result.mode2AdaptiveMbsMs:result.averageLast2BlockingScoresMs;
+ const adaptiveBlockGap=result.blockScoreDifferenceMs!=null ? Number(result.blockScoreDifferenceMs) : null;
+ const qualifyingGapMs=Number(settings.qualifyingBlockGapMs)||250;
+ const adaptiveMbs=(adaptiveMbsRaw!=null && Number.isFinite(adaptiveBlockGap) && adaptiveBlockGap < qualifyingGapMs) ? adaptiveMbsRaw : null;
  const timing=result.testMode==="mode2" ? (result.mode2TimingSummary||computeMode2TimingSummary(result)) : null;
  if(result.testMode==="mode2"){
   if(result.mode2Triggered && result.sustainedCorrectRtP90Ms==null && Array.isArray(result.rtLog)){
@@ -4528,7 +4531,7 @@ ${getResultsMetricExplanationText(result)}`;
   if(result.mode2Triggered && (result.dispositionCode==null || result.dispositionLabel==null)){
    Object.assign(result, computeDispositionFromCPA(result));
   }
-  const mode2Cpi=result.mode2CpiFromMbs!=null ? result.mode2CpiFromMbs : (adaptiveMbs!=null ? computeCPI(adaptiveMbs) : null);
+  const mode2Cpi=(adaptiveMbs!=null) ? (result.mode2CpiFromMbs!=null ? result.mode2CpiFromMbs : computeCPI(adaptiveMbs)) : null;
   const adaptiveCounts=computeMode2AdaptiveCounts(result);
   const wrongBreakdown=computeMode2WrongBreakdown(result);
   el.textContent=
@@ -4575,9 +4578,9 @@ ADAPTIVE MACHINE-PACED PHASE
  Paced RT SD: ${result.pacedResponseSdMs!=null?result.pacedResponseSdMs.toFixed(1)+" ms":"—"}
  Blocks found: ${result.blockCount||0}
 ${getMode4BlockListText(result)}
- MBS: ${adaptiveMbs!=null?adaptiveMbs.toFixed(1)+" ms":"—"} (Average of last 2 consecutive blocks less than ${(Number(settings.qualifyingBlockGapMs)||250)} ms difference)
+ MBS: ${adaptiveMbs!=null?adaptiveMbs.toFixed(1)+" ms":"—"} ${adaptiveMbs!=null?`(Average of last 2 consecutive blocks less than ${(Number(settings.qualifyingBlockGapMs)||250)} ms difference)`:`(No qualifying consecutive block pair within ${(Number(settings.qualifyingBlockGapMs)||250)} ms)`}
  Block difference for MBS: ${result.blockScoreDifferenceMs!=null?result.blockScoreDifferenceMs.toFixed(1)+" ms":"—"}
- CPI: ${adaptiveMbs!=null?computeCPI(adaptiveMbs).toFixed(1)+" / 100":"—"}
+ CPI: ${adaptiveMbs!=null?computeCPI(adaptiveMbs).toFixed(1)+" / 100":"—"}${adaptiveMbs==null?" (No CPI until qualifying MBS is found)":""}
 ${hr}
 MODE 2 SUSTAINED COGSPEED PHASE
  Triggered: ${result.mode2Triggered?"Yes":"No"}
@@ -4590,7 +4593,7 @@ MODE 2 SUSTAINED COGSPEED PHASE
  SBLP P90: ${result.sustainedCorrectRtP90Ms!=null?result.sustainedCorrectRtP90Ms.toFixed(1)+" ms":"—"}
  SBLP Max: ${result.sustainedCorrectRtMaxMs!=null?result.sustainedCorrectRtMaxMs.toFixed(1)+" ms":"—"}
  SPI: ${spi!=null?spi.toFixed(1)+" / 100":"—"}
- CPI from MBS: ${mode2Cpi!=null?mode2Cpi.toFixed(1):"—"}
+ CPI from MBS: ${mode2Cpi!=null?mode2Cpi.toFixed(1):"—"}${mode2Cpi==null?" (No CPI until qualifying MBS is found)":""}
 ${hr}
 CPA — COGNITIVE PERFORMANCE ABILITY
  CPA: ${result.cpa!=null?result.cpa.toFixed(1)+" / 100":"—"}

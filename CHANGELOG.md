@@ -1,4 +1,5 @@
 ## V694 — 2026-04-15
+- Fixed adaptive summary reporting so MBS and CPI are shown only when the consecutive block pair actually meets the qualifyingBlockGapMs threshold; otherwise the summary reports that no qualifying MBS/CPI was found.
 - Fixed the Mode 2 Scheduler Guest panel so the "Registered user required. Guest cannot use Scheduler." warning appears only once.
 - Removed the duplicate "Registered user required. Guest cannot use Scheduler." line from the Mode 2 Scheduler panel.
 - Fixed the remaining scheduler window-boundary inconsistency so personal window end handling now uses the same inclusive/exclusive convention as quiet-hours clamping.
