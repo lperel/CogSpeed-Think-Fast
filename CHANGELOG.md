@@ -1,4 +1,6 @@
-## V693 — 2026-04-15\n- Guest sessions are saved and shown in Speedometer/history again.\n- Guest sessions remain excluded from Personal Baseline qualification and rolling-baseline updates.
+## V693 — 2026-04-15
+- Fixed the remaining Mode 2 Scheduler Guest-warning strings in both index.html and app.js so only one "registered user" message is shown.
+- Updated Mode 2 Scheduler guest-warning wording to say "registered user" and removed the duplicate message.\n- Guest sessions are saved and shown in Speedometer/history again.\n- Guest sessions remain excluded from Personal Baseline qualification and rolling-baseline updates.
 - Replaced tutorial page 1 with the approved preparation, test-hygiene, and baseline checklist.
 - Inverted the Personal Baseline graph so better (lower ms) values plot higher, matching the other graphs.
 - Fixed the Personal Baseline graph so it scales to phone width instead of forcing an 860 px-wide SVG.
