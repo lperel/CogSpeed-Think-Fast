@@ -1,4 +1,8 @@
 ## V695 — 2026-04-15
+- Changed Admin default #33 CPI best ms anchor from 1000 to 800.
+- Changed Admin default #34 CPI worst ms anchor from 2400 to 2800.
+- Changed Admin default #35 Personal Baseline maximum qualifying MBS from 1800 ms to 1900 ms.
+- Updated related default labels and fallback text so CPI/MBS/baseline references follow the new defaults.
 - Fixed the adaptive-summary MBS block-gap display so the reported block difference is always shown as an absolute positive ms value.
 - On version change, Guest sessions are cleared from saved history automatically.
 - Registered-user sessions remain preserved across version updates.

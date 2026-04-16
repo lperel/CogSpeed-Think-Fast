@@ -95,9 +95,9 @@ const DEFAULTS={
  initialPacedPercent:1.2,
  calibrationStopErrors:4,
  calibrationStopSlowMs:6000,
- cpiBestMs:1000,
- cpiWorstMs:2400,
- personalBaselineMaxMbs:1800,
+ cpiBestMs:800,
+ cpiWorstMs:2800,
+ personalBaselineMaxMbs:1900,
  deviceBenchmarkEnabled:0,
  timeFormat:"12",
  lateResponseThresholdMs:600, // first response <600ms on next frame may belong to prior frame; a second >=600ms response belongs to current frame
@@ -127,7 +127,7 @@ const ADMIN_FIELDS=[
  // 3-15. Shared startup / calibration / anti-spoof settings, in program-use order
  ["initialUnusedCalibrationTrials","3. Warm-up calibration trials (default 1)","number"],
  ["initialMeasuredCalibrationTrials","4. Measured calibration trials (default 7)","number"],
- ["calibrationFirstNoResponseMs","5. Calibration first-trial no-response (ms, default 10000)","number"],
+ ["calibrationFirstNoResponseMs","5. Calibration first-trial no-response (ms, default 8000)","number"],
  ["calibrationNoResponseMs","6. Calibration later-trial no-response (ms, default 6000)","number"],
  ["calibrationStopErrors","7. Calibration stop after N wrong (default 4)","number"],
  ["calibrationStopSlowMs","8. Calibration avg RT limit (ms, default 6000)","number"],
@@ -150,16 +150,16 @@ const ADMIN_FIELDS=[
  ["minSpeedupOnCorrectMs","23. Mode 1 MP minimum speedup on correct (ms, default 50)","number"],
  ["maxSpeedupOnCorrectMs","24. Mode 1 MP maximum speedup on correct (ms, default 200)","number"],
  ["lateResponseThresholdMs","25. Mode 1 late response reassignment threshold (ms, default 600)","number"],
- ["recoveryNoResponseMs","26. Mode 1 recovery no-response timeout (ms, default 10000)","number"],
+ ["recoveryNoResponseMs","26. Mode 1 recovery no-response timeout (ms, default 8000)","number"],
  ["RecoveryInterTrialDelayMsStart","27. Recovery inter-trial delay at start (ms, default 0)","number"],
  ["ResumeToPacedDelayMs","28. Resume-to-paced delay after recovery (ms, default 0)","number"],
  ["maxBlockCount","29. Mode 1 max total blocks before fail (default 6)","number"],
  ["qualifyingBlockGapMs","30. Mode 1 qualifying block max gap (ms, default 250)","number"],
  ["maxTrialCount","31. Mode 1 max paced trials (default 180)","number"],
  ["maxPacedWrong","32. Mode 1 max paced wrong before fail (default 20)","number"],
- ["cpiBestMs","33. Mode 1 CPI best ms anchor (default 1000)","number"],
- ["cpiWorstMs","34. Mode 1 CPI worst ms anchor (default 2400)","number"],
- ["personalBaselineMaxMbs","35. Personal Baseline maximum qualifying MBS (ms, default 1800)","number"],
+ ["cpiBestMs","33. Mode 1 CPI best ms anchor (default 800)","number"],
+ ["cpiWorstMs","34. Mode 1 CPI worst ms anchor (default 2800)","number"],
+ ["personalBaselineMaxMbs","35. Personal Baseline maximum qualifying MBS (ms, default 1900)","number"],
 
  // 36-42. Mode 2 runtime flow settings, in program-use order
  ["mode2SustainedStartFactor","36. Mode 2 sustained start factor × MBS (default 1.1)","number"],
@@ -3078,7 +3078,7 @@ function getLatestCompletedMode2Label(){
  A session qualifies only if:
  - testMode is mode1 or mode2
  - session is not failed
- - adaptive-phase MBS ≤ personal baseline qualifying threshold (default 1800 ms)
+ - adaptive-phase MBS ≤ personal baseline qualifying threshold (default 1900 ms)
  - Samn-Perelli score is 5, 6, or 7
 
  Failed sessions remain in general session history only and are never
@@ -3103,7 +3103,7 @@ function getAdaptivePhaseMbs(result){
 
 function getPersonalBaselineMaxMbs(){
  const v = Number(settings.personalBaselineMaxMbs);
- return Number.isFinite(v) && v>0 ? v : 1800;
+ return Number.isFinite(v) && v>0 ? v : 1900;
 }
 function isBaselineQualifyingSession(result){
  if(!result) return false;
