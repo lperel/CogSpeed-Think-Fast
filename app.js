@@ -2,7 +2,7 @@
 // CogSpeed source
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V695";
+const APP_VERSION = "V696";
 
 // ═══════════════════════════════════════════════════
 // Current behavior summary (historical details live in CHANGELOG.md)
@@ -2853,11 +2853,46 @@ function clearSchedulerSettings(subjectId){
  if(!subjectId || isGuestSchedulerSubject(subjectId)) return;
  try{ localStorage.removeItem(getSchedulerStorageKey(subjectId)); }catch(e){}
 }
-function setToggleButtonState(id,on,activeColor="#7fd7ff") {
+function setToggleButtonState(id,on,activeColor="#72d572") {
  const btn=$(id); if(!btn) return;
- btn.style.background = on ? "linear-gradient(180deg,#0d2e5a,#081b36)" : "";
+ btn.style.background = on ? "linear-gradient(180deg,#14361a,#0b2211)" : "";
  btn.style.borderColor = on ? activeColor : "";
  btn.style.color = on ? activeColor : "";
+ btn.classList.toggle("selected", !!on);
+}
+function flashSchedulerControl(id){
+ const btn=$(id); if(!btn) return;
+ btn.classList.add("pressed");
+ clearTimeout(btn._schedulerFlashTid);
+ btn._schedulerFlashTid = setTimeout(()=>btn.classList.remove("pressed"), 140);
+}
+function bindSchedulerPressFeedback(){
+ [
+  "schedulerEnabledOn","schedulerEnabledOff","scheduleTypeAnytime","scheduleTypePersonal","scheduleTypeFitDuty",
+  "personalModeInterval","personalModeDailyTimes","schedulerTestSaveBtn","schedulerTestTextBtn",
+  "schedulerTestSoundBtn","schedulerTestSoundAlertBtn","schedulerTestVoiceBtn","schedulerTestVoiceAlertBtn",
+  "schedulerTestNotificationBtn","schedulerBackgroundTestBtn","schedulerRefreshStatusBtn","schedulerClearStatusBtn",
+  "schedulerSaveSettingsBtn","schedulerRefreshDeviceTestBtn","schedulerReminderStartBtn",
+  "schedulerReminderSnoozeBtn","schedulerReminderSkipBtn","schedulerAlertSoundSelect",
+  "schedulerVoiceEnabledToggle","schedulerRepeatOnceToggle","schedulerQuietHoursToggle",
+  "personalIntervalHoursInput","personalWindowStartInput","personalWindowEndInput",
+  "fitDutyMinIntervalInput","fitDutyDefaultIntervalInput","fitDutyMaxIntervalInput",
+  "fitDutyValidOnlyToggle","fitDutyIgnoreIncompleteToggle",
+  "personalTime1Enabled","personalTime2Enabled","personalTime3Enabled","personalTime4Enabled","personalTime5Enabled","personalTime6Enabled",
+  "personalTime1Input","personalTime2Input","personalTime3Input","personalTime4Input","personalTime5Input","personalTime6Input",
+  "schedulerQuietStartInput","schedulerQuietEndInput"
+ ].forEach(id=>{
+  const el=$(id); if(!el || el._schedulerFeedbackBound) return;
+  const flash=()=>{
+   flashSchedulerControl(id);
+   const row = el.closest("label,div,.field-row");
+   if(row){ row.classList.add("pressed"); clearTimeout(row._schedulerFlashTid); row._schedulerFlashTid=setTimeout(()=>row.classList.remove("pressed"),140); }
+  };
+  el.addEventListener("pointerdown", flash, {passive:true});
+  el.addEventListener("click", flash, {passive:true});
+  el.addEventListener("focus", flash, {passive:true});
+  el._schedulerFeedbackBound = true;
+ });
 }
 function formatSchedulerDateTime(value){
  if(!value) return "No active reminder";
@@ -2873,7 +2908,7 @@ function schedulerStatusTypeLabel(type){
 function updateScheduleTypeHelpText(type){
  const el=$("scheduleTypeHelpText"); if(!el) return;
  el.textContent = type==="personal"
-  ? "Mode 2 reminders at fixed interval or selected daily times."
+  ? "Mode 2 reminders at fixed interval or selected daily times. Voice can optionally repeat once."
   : type==="fit_duty"
    ? "Next Mode 2 reminder is based on last completed Mode 2 CPI and SP-FS."
    : "No reminders. Subject may take Mode 2 at any time.";
@@ -2941,6 +2976,9 @@ function renderSchedulerSettings(){
  if($("schedulerQuietHoursToggle")) $("schedulerQuietHoursToggle").checked = !!s.quietHoursEnabled;
  if($("schedulerQuietStartInput")) $("schedulerQuietStartInput").value = s.quietStart || "22:00";
  if($("schedulerQuietEndInput")) $("schedulerQuietEndInput").value = s.quietEnd || "06:00";
+ ["schedulerVoiceEnabledToggle","schedulerRepeatOnceToggle","schedulerQuietHoursToggle","fitDutyValidOnlyToggle","fitDutyIgnoreIncompleteToggle",
+  "personalTime1Enabled","personalTime2Enabled","personalTime3Enabled","personalTime4Enabled","personalTime5Enabled","personalTime6Enabled"]
+  .forEach(id=>$(id)?.closest("label,div,.field-row")?.classList.toggle("selected", !!$(id)?.checked));
  updateScheduleTypeHelpText(s.type);
  renderSchedulerStatusFields(s);
  renderSchedulerDeviceFields(s.deviceTest||structuredClone(DEFAULT_SCHEDULER_SETTINGS.deviceTest));
@@ -3312,6 +3350,7 @@ function playSchedulerSound(soundKey){
    let settled = false;
    const done = (ok)=>{ if(settled) return; settled = true; resolve(ok); };
    a.preload = "auto";
+   a.volume = 1.0;
    a.currentTime = 0;
    a.onended = ()=>done(true);
    a.onerror = ()=>done(false);
@@ -3327,14 +3366,30 @@ function playSchedulerSound(soundKey){
 function speakSchedulerPrompt(type){
  if(!window.speechSynthesis || typeof SpeechSynthesisUtterance === "undefined") return Promise.resolve(false);
  const msg = type==="fit_duty" ? "CogSpeed reminder. Fit for Duty follow-up recommended." : "CogSpeed reminder. Mode 2 test recommended now.";
+ const shouldRepeatOnce = !!(schedulerState && schedulerState.settings && schedulerState.settings.repeatOnce);
  return new Promise(resolve=>{
   try{
+   let spokenCount = 0;
    const speakNow = ()=>{
     try{
      window.speechSynthesis.cancel();
      const u = new SpeechSynthesisUtterance(msg);
+     u.volume = 1.0;
+     u.rate = 1;
+     u.pitch = 1;
      let settled = false;
-     const done = (ok)=>{ if(settled) return; settled = true; resolve(ok); };
+     const done = (ok)=>{
+      if(settled) return;
+      settled = true;
+      if(ok){
+       spokenCount += 1;
+       if(shouldRepeatOnce && spokenCount < 2){
+        setTimeout(speakNow, 250);
+        return;
+       }
+      }
+      resolve(ok);
+     };
      u.onend = ()=>done(true);
      u.onerror = ()=>done(false);
      window.speechSynthesis.speak(u);
@@ -3595,11 +3650,18 @@ function maybeFinishBackgroundTest(){
  setStatus(got ? "Closed-app alert confirmed" : "Closed-app alert limited");
 }
 function clearSchedulerReminderStatus(){
+ schedulerState.backgroundTestPending = false;
+ schedulerState.backgroundTestDueAt = null;
+ clearTimeout(schedulerState.bgTestTimerId); schedulerState.bgTestTimerId = null;
+ clearTimeout(schedulerState.repeatTimerId); schedulerState.repeatTimerId = null;
  schedulerState.settings.lastReminderResult = "Not yet used";
+ schedulerState.settings.nextTestAt = computeNextSchedulerReminderAt(schedulerState.settings, new Date());
  schedulerState.settings.nextReason = computeNextSchedulerReason(schedulerState.settings);
  persistActiveSchedulerSettings();
  refreshSchedulerStatus();
- setStatus("Scheduler reminder status cleared");
+ refreshSchedulerDeviceStatus();
+ armSchedulerReminderTimer();
+ setStatus("Scheduler reminder status reset");
 }
 // Collects email (subject ID), birth month/year, gender, email pref.
 // Stored in localStorage: ${STORAGE_PREFIX}_profile
@@ -6753,6 +6815,7 @@ const _srd=$("schedulerRefreshDeviceTestBtn"); if(_srd) _srd.onclick=()=>{ maybe
 const _srsb=$("schedulerReminderStartBtn"); if(_srsb) _srsb.onclick=()=>startMode2FromSchedulerReminder();
 const _ssnb=$("schedulerReminderSnoozeBtn"); if(_ssnb) _ssnb.onclick=()=>snoozeSchedulerReminder();
 const _sskpb=$("schedulerReminderSkipBtn"); if(_sskpb) _sskpb.onclick=()=>skipSchedulerReminder();
+bindSchedulerPressFeedback();
 
 // Welcome back — pre-fill email if profile exists
 (()=>{

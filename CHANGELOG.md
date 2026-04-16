@@ -1,4 +1,15 @@
-## V695 — 2026-04-15
+## V696 — 2026-04-15
+- Restored the red selected-state cue for Scheduler OFF while keeping other scheduler selections green.
+- Increased scheduler alert-sound playback to maximum in-app volume.
+- Set scheduler voice prompts to maximum speech-synthesis volume.
+- Scheduler voice prompts now optionally repeat once when the Repeat Once setting is enabled.
+- Extended scheduler green selected-state highlighting to all scheduler selections and toggle rows.
+- Extended scheduler tap/press flash feedback to all scheduler controls, including inputs, selectors, toggles, and test/reset buttons.
+- Scheduler selection buttons now keep a persistent green selected state like the Gender buttons.
+- This applies to Scheduler ON/OFF, Anytime/Personal/Fit for Duty, and Every X Hours/Daily Times.
+- Added explicit touch/click press feedback for scheduler controls so buttons visibly react on mobile devices.
+- Strengthened Scheduler 'Clear Reminder Status' into a real reminder-status reset: it now recalculates next reminder timing, clears pending background/repeat state, refreshes fields, and rearms timers.
+- Updated visible app/package versioning to V696.
 - Added self-paced double-tap guards for calibration, recovery, terminal_recovery, and mode2_final so only the first tap can resolve each self-paced trial.
 - This prevents phantom extra self-paced trials, duplicated wrong counts, and premature completion from rapid double-taps.
 - Fixed a double-finish / duplicate-history-entry bug in Mode 2 sustained wrong-response termination paths by honoring checkMode2SustainedRollingMean(false) return values.
