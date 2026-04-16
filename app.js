@@ -41,9 +41,9 @@ const STORAGE_PREFIX = `cogspeed_v${RELEASE}`;
 // All configurable test parameters. Changes here affect ALL users.
 // Admin panel allows per-device override (localStorage only).
 // To permanently change a default, edit here and push to GitHub.
-// NOTE: keep DEFAULTS, ADMIN_FIELDS labels, CPI comments, personal-baseline
-// threshold text, and any table fallbacks aligned. Recent cleanup removed
-// several stale mismatches.
+// NOTE: keep DEFAULTS in the same conceptual order as ADMIN_FIELDS,
+// and keep labels, CPI comments, personal-baseline threshold text, and any
+// table fallbacks aligned. Recent cleanup removed several stale mismatches.
 // ═══════════════════════════════════════════════════════════════
 // ═══════════════════════════════════════════════════════════════
 // FOUR TEST MODES
@@ -3097,6 +3097,8 @@ function isBaselineQualifyingSession(result){
  if(isPerfFailureSession(result)) return false;
  const mbs = getAdaptivePhaseMbs(result);
  const maxMbs = getPersonalBaselineMaxMbs();
+ // Only sessions at or below the qualifying threshold enter the rolling baseline.
+ // Sessions above the threshold are ignored for baseline updating and do not replace it.
  if(!Number.isFinite(mbs) || !(mbs <= maxMbs)) return false;
  const spfs = Number(result?.samnPerelli?.score);
  return spfs===5 || spfs===6 || spfs===7;
@@ -3166,8 +3168,9 @@ function escapeHtml(s){
 }
 function buildPersonalBaselineSvg(rows, avg){
  const W=860, H=360, L=72, R=24, T=30, B=48;
+ const svgOpen = `<svg xmlns="http://www.w3.org/2000/svg" width="100%" height="auto" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet" style="display:block;width:100%;max-width:100%;height:auto">`;
  if(!rows.length){
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}"><rect width="100%" height="100%" fill="#081321"/><text x="${W/2}" y="${H/2}" fill="#c8d7e5" text-anchor="middle" font-family="Arial,sans-serif" font-size="24">No qualifying baseline sessions yet</text></svg>`;
+  return `<div style="width:100%;max-width:100%;overflow-x:hidden">${svgOpen}<rect width="100%" height="100%" fill="#081321"/><text x="${W/2}" y="${H/2}" fill="#c8d7e5" text-anchor="middle" font-family="Arial,sans-serif" font-size="24">No qualifying baseline sessions yet</text></svg></div>`;
  }
  const vals = rows.map(r=>Number(r.mbs)).filter(Number.isFinite);
  if(Number.isFinite(avg)) vals.push(avg);
@@ -3178,8 +3181,8 @@ function buildPersonalBaselineSvg(rows, avg){
  const x = i => rows.length===1 ? L+pw/2 : L + (pw*(i/(rows.length-1)));
  const y = v => T + ph - ((v-lo)/(hi-lo||1))*ph;
  const poly = rows.map((r,i)=>`${x(i).toFixed(1)},${y(r.mbs).toFixed(1)}`).join(' ');
- let parts=[`<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">`,`<rect width="100%" height="100%" fill="#081321" rx="16"/>`,`<text x="${W/2}" y="22" fill="#7fd7ff" text-anchor="middle" font-family="Arial,sans-serif" font-size="20" font-weight="700">Personal Baseline — Last 5 Qualifying MBS Scores</text>`];
- for(let i=0;i<7;i++){
+ let parts=[`<div style="width:100%;max-width:100%;overflow-x:hidden">`,svgOpen,`<rect width="100%" height="100%" fill="#081321" rx="16"/>`,`<text x="${W/2}" y="22" fill="#7fd7ff" text-anchor="middle" font-family="Arial,sans-serif" font-size="20" font-weight="700">Personal Baseline — Last 5 Qualifying MBS Scores</text>`];
+ for(let i=0;i<5;i++){
   const v = lo + (hi-lo)*(i/4);
   const yy = y(v);
   parts.push(`<line x1="${L}" y1="${yy.toFixed(1)}" x2="${W-R}" y2="${yy.toFixed(1)}" stroke="rgba(255,255,255,0.14)" stroke-width="1"/>`);
@@ -3197,7 +3200,7 @@ function buildPersonalBaselineSvg(rows, avg){
   parts.push(`<line x1="${L}" y1="${yy.toFixed(1)}" x2="${W-R}" y2="${yy.toFixed(1)}" stroke="#72d572" stroke-width="2" stroke-dasharray="8 6"/>`);
   parts.push(`<text x="${W-R}" y="${(yy-8).toFixed(1)}" fill="#72d572" text-anchor="end" font-family="Arial,sans-serif" font-size="14" font-weight="700">Average ${Math.round(avg)} ms</text>`);
  }
- parts.push(`<text x="${W/2}" y="${H-12}" fill="#9fb4c8" text-anchor="middle" font-family="Arial,sans-serif" font-size="13">Qualifying session order (oldest to newest within current rolling baseline)</text></svg>`);
+ parts.push(`<text x="${W/2}" y="${H-12}" fill="#9fb4c8" text-anchor="middle" font-family="Arial,sans-serif" font-size="13">Qualifying session order (oldest to newest within current rolling baseline)</text></svg></div>`);
  return parts.join('');
 }
 function openPersonalBaselinePage(sessionIndex){

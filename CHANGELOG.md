@@ -1,4 +1,8 @@
 ## V692
+- Fixed the Personal Baseline graph so it scales to phone width instead of forcing an 860 px-wide SVG.
+- Clarified that sessions above the Personal Baseline qualifying MBS threshold do not update or replace the rolling baseline.
+- Moved personalBaselineMaxMbs within DEFAULTS so its placement matches the Admin field order and Mode 1 grouping.
+- Clarified the code comment that DEFAULTS and ADMIN_FIELDS should stay aligned in conceptual order.
 - Removed duplicate tutNextBtn and tutSkipBtn event wiring so tutorial navigation is assigned in one place.
 - Renamed the Personal Baseline Admin/settings key from personalBaselineMinMbs to personalBaselineMaxMbs to match its actual maximum-threshold semantics.
 - Added backward-compatible settings migration so older saved Admin values still carry forward after the key rename.
