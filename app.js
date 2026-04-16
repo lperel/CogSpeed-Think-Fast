@@ -2890,7 +2890,7 @@ function renderSchedulerSettings(){
  const isGuest = !schedulerState.activeSubjectId || isGuestSchedulerSubject(schedulerState.activeSubjectId);
  const panel=$("profileSchedulerPanel"); if(panel) panel.style.opacity = isGuest ? "0.72" : "1";
  const guestNote=$("schedulerGuestBlockedNote"); if(guestNote) guestNote.classList.toggle("hidden", !isGuest);
- const subjectInfo=$("schedulerSubjectInfo"); if(subjectInfo) subjectInfo.textContent = isGuest ? "Registered user required. Guest cannot use Scheduler." : `Registered user: ${schedulerState.activeSubjectId} · This Scheduler works on this device only.`;
+ const subjectInfo=$("schedulerSubjectInfo"); if(subjectInfo) subjectInfo.textContent = isGuest ? "Scheduler works on this device only." : `Registered user: ${schedulerState.activeSubjectId} · This Scheduler works on this device only.`;
  setToggleButtonState("schedulerEnabledOn", !!s.enabled);
  setToggleButtonState("schedulerEnabledOff", !s.enabled, "#ff9aa8");
  const offNote=$("schedulerOffNote"); if(offNote) offNote.classList.toggle("hidden", !!s.enabled);
