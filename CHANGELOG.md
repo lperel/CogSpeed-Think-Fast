@@ -1,4 +1,8 @@
 ## V696 — 2026-04-15
+- Date-of-birth month/year inputs and the age-valid message now turn green when the 14-or-older requirement is satisfied.
+- Date-of-birth validation now turns the month/year entry state green when the 14-or-older requirement is satisfied.
+- Rechecked and aligned visible version references across app.js, index.html, service worker release, and manifest where needed.
+- Profile time-format buttons now use the same green selected-state styling and tap flash feedback as other selectable controls.
 - Restored the red selected-state cue for Scheduler OFF while keeping other scheduler selections green.
 - Increased scheduler alert-sound playback to maximum in-app volume.
 - Set scheduler voice prompts to maximum speech-synthesis volume.

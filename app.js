@@ -3727,9 +3727,10 @@ function profileSelectTimeFormat(fmt){
   const btn = $("profileTime"+x+"Btn");
   if(!btn) return;
   const on = x===String(_profileTimeFormat);
-  btn.style.background = on ? "linear-gradient(180deg,#0d2e5a,#081b36)" : "";
-  btn.style.borderColor = on ? "#7fd7ff" : "";
-  btn.style.color = on ? "#7fd7ff" : "";
+  btn.style.background = on ? "linear-gradient(180deg,#14361a,#0b2211)" : "";
+  btn.style.borderColor = on ? "#72d572" : "";
+  btn.style.color = on ? "#72d572" : "";
+  btn.classList.toggle("selected", !!on);
  });
  // Do not touch Sleep Logger inputs while editing Profile.
  // The saved format is applied when Sleep Logger opens.
@@ -3757,19 +3758,35 @@ function validateProfileAge(){
  const mo = parseInt($("profileBirthMonth")?.value||"0");
  const yr = parseInt($("profileBirthYear")?.value||"0");
  const msg = $("profileAgeMsg");
+ const monthEl = $("profileBirthMonth");
+ const yearEl = $("profileBirthYear");
+ const row = monthEl?.closest(".field-row") || yearEl?.closest(".field-row");
+ const clearGreen = ()=>{
+  if(monthEl){ monthEl.classList.remove("selected"); monthEl.style.borderColor=""; monthEl.style.color=""; }
+  if(yearEl){ yearEl.classList.remove("selected"); yearEl.style.borderColor=""; yearEl.style.color=""; }
+  if(row) row.classList.remove("selected");
+  if(msg) msg.classList.remove("selected");
+ };
  if(!mo || !yr || yr < 1910 || yr > new Date().getFullYear()-5){
-  if(msg) msg.textContent=""; return false;
+  clearGreen();
+  if(msg) msg.textContent="";
+  return false;
  }
  const age = computeAge(mo, yr);
  if(age < 14){
+  clearGreen();
   if(msg){ msg.textContent="⚠ Must be 14 or older to take this test."; msg.style.color="#ff6688"; }
   return false;
  }
  if(age > 120){
+  clearGreen();
   if(msg){ msg.textContent="⚠ Please check the year."; msg.style.color="#ff6688"; }
   return false;
  }
- if(msg){ msg.textContent="Age: "+age+" years ✓"; msg.style.color="#00ff88"; }
+ if(monthEl){ monthEl.classList.add("selected"); monthEl.style.borderColor="#72d572"; monthEl.style.color="#72d572"; }
+ if(yearEl){ yearEl.classList.add("selected"); yearEl.style.borderColor="#72d572"; yearEl.style.color="#72d572"; }
+ if(row) row.classList.add("selected");
+ if(msg){ msg.textContent="Age: "+age+" years ✓"; msg.style.color="#00ff88"; msg.classList.add("selected"); }
  return true;
 }
 
@@ -6783,11 +6800,17 @@ const _spb=$("summaryProfileBtn"); if(_spb) _spb.onclick=(e)=>{
 };
 const _prb=$("profileResetBtn"); if(_prb) _prb.onclick=resetProfile;
 const _prs=$("profileResetSessionsBtn"); if(_prs) bindDoubleTapConfirm(_prs, ()=>resetAllSessions(), "Reset Sessions", "Tap again to delete sessions");
-const _pt12=$("profileTime12Btn"); if(_pt12) _pt12.onclick=(e)=>{ if(e) e.preventDefault(); profileSelectTimeFormat("12"); };
-const _pt24=$("profileTime24Btn"); if(_pt24) _pt24.onclick=(e)=>{ if(e) e.preventDefault(); profileSelectTimeFormat("24"); };
+const _pt12=$("profileTime12Btn"); if(_pt12){
+ _pt12.onclick=(e)=>{ if(e) e.preventDefault(); flashSchedulerControl("profileTime12Btn"); profileSelectTimeFormat("12"); };
+ _pt12.addEventListener("pointerdown", ()=>flashSchedulerControl("profileTime12Btn"), {passive:true});
+}
+const _pt24=$("profileTime24Btn"); if(_pt24){
+ _pt24.onclick=(e)=>{ if(e) e.preventDefault(); flashSchedulerControl("profileTime24Btn"); profileSelectTimeFormat("24"); };
+ _pt24.addEventListener("pointerdown", ()=>flashSchedulerControl("profileTime24Btn"), {passive:true});
+};
 // Age validation on input change
-const _pbm=$("profileBirthMonth"); if(_pbm) _pbm.onchange=validateProfileAge;
-const _pby=$("profileBirthYear"); if(_pby) _pby.oninput=validateProfileAge;
+const _pbm=$("profileBirthMonth"); if(_pbm){ _pbm.onchange=()=>{ validateProfileAge(); flashSchedulerControl("profileBirthMonth"); }; _pbm.addEventListener("pointerdown", ()=>flashSchedulerControl("profileBirthMonth"), {passive:true}); }
+const _pby=$("profileBirthYear"); if(_pby){ _pby.oninput=()=>{ validateProfileAge(); flashSchedulerControl("profileBirthYear"); }; _pby.addEventListener("pointerdown", ()=>flashSchedulerControl("profileBirthYear"), {passive:true}); }
 
 // Scheduler controls on the asterisk / Profile page
 const _seo=$("schedulerEnabledOn"); if(_seo) _seo.onclick=(e)=>{ if(e) e.preventDefault(); if(!schedulerState.activeSubjectId){ setStatus("Registered user required for Scheduler"); return; } schedulerSetEnabled(true); };
