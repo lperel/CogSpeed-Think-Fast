@@ -1,4 +1,7 @@
 ## V692
+- Added BASELINE to Results Metric Explanations.
+- Fixed Personal Baseline qualification logic so sessions count when adaptive-phase MBS is at or below the Admin qualifying threshold, rather than above it.
+- Updated Admin/baseline wording to reflect that the Personal Baseline threshold is a maximum qualifying MBS.
 - Reordered Admin defaults to match program-use order more closely across shared flow, Mode 1, Mode 2 runtime, Mode 3, Mode 4, and Mode 2 CPA editable defaults.
 - Corrected the Admin-page Mode 2 CPA editable-default numbering and explanatory text so fields 49–57 match the displayed bucket/default specs.
 - Removed the bundled About PDF from the package.

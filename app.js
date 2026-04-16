@@ -159,7 +159,7 @@ const ADMIN_FIELDS=[
  ["maxPacedWrong","32. Mode 1 max paced wrong before fail (default 20)","number"],
  ["cpiBestMs","33. Mode 1 CPI best ms anchor (default 1000)","number"],
  ["cpiWorstMs","34. Mode 1 CPI worst ms anchor (default 2400)","number"],
- ["personalBaselineMinMbs","35. Personal Baseline minimum qualifying MBS (ms, default 1800)","number"],
+ ["personalBaselineMinMbs","35. Personal Baseline maximum qualifying MBS (ms, default 1800)","number"],
 
  // 36-42. Mode 2 runtime flow settings, in program-use order
  ["mode2SustainedStartFactor","36. Mode 2 sustained start factor × MBS (default 1.1)","number"],
@@ -3020,7 +3020,7 @@ function getLatestCompletedMode2Label(){
  A session qualifies only if:
  - testMode is mode1 or mode2
  - session is not failed
- - adaptive-phase MBS > personalBaselineMinMbs (default 1800 ms)
+ - adaptive-phase MBS ≤ personal baseline qualifying threshold (default 1800 ms)
  - Samn-Perelli score is 5, 6, or 7
 
  Failed sessions remain in general session history only and are never
@@ -3043,7 +3043,7 @@ function getAdaptivePhaseMbs(result){
  return null;
 }
 
-function getPersonalBaselineMinMbs(){
+function getPersonalBaselineMaxMbs(){
  const v = Number(settings.personalBaselineMinMbs);
  return Number.isFinite(v) && v>0 ? v : 1800;
 }
@@ -3052,8 +3052,8 @@ function isBaselineQualifyingSession(result){
  if(!(result.testMode==="mode1" || result.testMode==="mode2")) return false;
  if(isPerfFailureSession(result)) return false;
  const mbs = getAdaptivePhaseMbs(result);
- const minMbs = getPersonalBaselineMinMbs();
- if(!Number.isFinite(mbs) || !(mbs > minMbs)) return false;
+ const maxMbs = getPersonalBaselineMaxMbs();
+ if(!Number.isFinite(mbs) || !(mbs <= maxMbs)) return false;
  const spfs = Number(result?.samnPerelli?.score);
  return spfs===5 || spfs===6 || spfs===7;
 }
@@ -3171,7 +3171,7 @@ function openPersonalBaselinePage(sessionIndex){
  if(statusEl) statusEl.textContent = statusText;
  if(metaEl){
   const sessionTime = result.time ? new Date(result.time).toLocaleString() : "—";
-  metaEl.innerHTML = `<div><strong>Subject:</strong> ${escapeHtml(String(result.subjectId||"—"))}</div><div><strong>Baseline as of session:</strong> ${escapeHtml(sessionTime)}</div><div><strong>Qualifying sessions available:</strong> ${baseline.qualifyingCount} / 5</div><div style="margin-top:6px">Rolling baseline uses the most recent 5 qualifying Mode 1 / Mode 2 adaptive-phase MBS scores with MBS &gt; ${getPersonalBaselineMinMbs()} ms, SP-FS 5–7, and no failed sessions.</div>`;
+  metaEl.innerHTML = `<div><strong>Subject:</strong> ${escapeHtml(String(result.subjectId||"—"))}</div><div><strong>Baseline as of session:</strong> ${escapeHtml(sessionTime)}</div><div><strong>Qualifying sessions available:</strong> ${baseline.qualifyingCount} / 5</div><div style="margin-top:6px">Rolling baseline uses the most recent 5 qualifying Mode 1 / Mode 2 adaptive-phase MBS scores with MBS &le; ${getPersonalBaselineMaxMbs()} ms, SP-FS 5–7, and no failed sessions.</div>`;
  }
  if(graphEl) graphEl.innerHTML = buildPersonalBaselineSvg(rows, baseline.established ? baseline.averageMbs : null);
  if(tbody){
@@ -4188,6 +4188,7 @@ function getResultsMetricExplanationText(result){
 RESULTS METRIC EXPLANATIONS
  MBS (Maximum Blocking Speed) = average in ms of the last 2 consecutive blocks within 250 ms.${usesMode1Metrics||usesMode2Metrics?"":" Not used in this mode."}
  CPI (Cognitive Processing Index) = normalized 0 - 100 index based on MBS.${usesMode1Metrics||usesMode2Metrics?"":" Not used in this mode."}
+ BASELINE = rolling personal baseline average built from the most recent 5 qualifying Mode 1 / Mode 2 adaptive-phase MBS sessions for the same registered subject, using non-failed sessions with MBS at or below the Admin qualifying threshold and Samn-Perelli Fatigue Scale scores of 5, 6, or 7.${usesMode1Metrics||usesMode2Metrics?"":" Not used in this mode."}
  CSR (Correct Sustained Responses) = number of correct sustained responses in the Mode 2 sustained segment.${usesMode2Metrics?"":" Not used in this mode."}
  SBLP (Sustained Blocking Limit Performance) = average RT of correct sustained responses during Mode 2 sustained segment, but defined as 0 when CSR = 0.${usesMode2Metrics?"":" Not used in this mode."}
  SBLP P90 = 90th-percentile correct sustained RT; conservative ceiling estimate.${usesMode2Metrics?"":" Not used in this mode."}
@@ -5967,7 +5968,7 @@ const TUT_STEPS = [
       CogSpeed works best when you build your own personal Baseline. Your Baseline is a rolling average of your last 5 qualifying Mode 1 or Mode 2 MBS scores.
      </div>
      <div style="margin-top:12px;font-size:14px;line-height:1.6;color:rgba(220,235,255,0.88);background:rgba(127,215,255,0.08);border:1px solid rgba(127,215,255,0.22);border-radius:12px;padding:10px 12px">
-      Baseline sessions must be non-failed tests with <strong>MBS above ${getPersonalBaselineMinMbs()} ms</strong> and <strong>SP-FS of 5, 6, or 7</strong>. This helps CogSpeed track changes from your own normal level and capture learning effects over time.
+      Baseline sessions must be non-failed tests with <strong>MBS at or below ${getPersonalBaselineMaxMbs()} ms</strong> and <strong>SP-FS of 5, 6, or 7</strong>. This helps CogSpeed track changes from your own normal level and capture learning effects over time.
      </div>
     </div>
    </div>`;
