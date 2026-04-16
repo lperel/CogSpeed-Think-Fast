@@ -4591,7 +4591,7 @@ ADAPTIVE MACHINE-PACED PHASE
  Blocks found: ${result.blockCount||0}
 ${getMode4BlockListText(result)}
  MBS: ${adaptiveMbs!=null?adaptiveMbs.toFixed(1)+" ms":"—"} ${adaptiveMbs!=null?`(Average of last 2 consecutive blocks less than ${(Number(settings.qualifyingBlockGapMs)||250)} ms difference)`:`(No qualifying consecutive block pair within ${(Number(settings.qualifyingBlockGapMs)||250)} ms)`}
- Block difference for MBS: ${result.blockScoreDifferenceMs!=null?result.blockScoreDifferenceMs.toFixed(1)+" ms":"—"}
+ Block difference for MBS: ${result.blockScoreDifferenceMs!=null?Math.abs(Number(result.blockScoreDifferenceMs)).toFixed(1)+" ms":"—"}
  CPI: ${adaptiveMbs!=null?computeCPI(adaptiveMbs).toFixed(1)+" / 100":"—"}${adaptiveMbs==null?" (No CPI until qualifying MBS is found)":""}
 ${hr}
 MODE 2 SUSTAINED COGSPEED PHASE

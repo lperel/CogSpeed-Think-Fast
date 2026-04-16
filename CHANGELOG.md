@@ -1,4 +1,5 @@
 ## V695 — 2026-04-15
+- Fixed the adaptive-summary MBS block-gap display so the reported block difference is always shown as an absolute positive ms value.
 - On version change, Guest sessions are cleared from saved history automatically.
 - Registered-user sessions remain preserved across version updates.
 - Added a dedicated app-version marker for version-change cleanup behavior.
