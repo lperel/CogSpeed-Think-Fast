@@ -5,26 +5,21 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
   <meta name="theme-color" content="#0b1830"/>
   <link rel="manifest" href="manifest.json"/>
-  <title>CogSpeed® V693</title>
+  <title>CogSpeed® V694</title>
     <style>
 
     :root{--bg:#091426;--bg2:#132746;--panel:#0d1b33;--panel2:#10213e;--text:#f5fbff;--muted:#d7e7f8;--edge:#4f6f99;--accent:#7fd7ff;--probe:#00f0ff}
     *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;margin:0;padding:0}
     body{min-height:100svh;color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;background:radial-gradient(circle at 50% 12%,rgba(103,198,255,.12),transparent 25%),linear-gradient(135deg,var(--bg2),var(--bg) 58%,#060c16);display:flex;align-items:center;justify-content:center}
-    .topbar{display:flex;justify-content:space-between;align-items:center;padding:2px 4px}
-    .topbar-left{font-size:14px;color:var(--muted);font-weight:600}
-    .topbar-right{font-size:14px;color:var(--muted)}
-    .badge{display:inline-block;padding:4px 14px;border:1px solid var(--edge);border-radius:999px;font-size:13px;font-weight:700;color:#d9fbff;background:#0a1629;letter-spacing:.06em}
+        .badge{display:inline-block;padding:4px 14px;border:1px solid var(--edge);border-radius:999px;font-size:13px;font-weight:700;color:#d9fbff;background:#0a1629;letter-spacing:.06em}
     .metrics{display:grid;grid-template-columns:repeat(5,1fr);gap:4px}
     .metric{background:#0a1629;border:1px solid var(--edge);border-radius:12px;padding:6px 4px;text-align:center}
     .metric-label{font-size:10px;color:var(--muted);letter-spacing:.04em;margin-bottom:2px}
     .metric-val{font-size:16px;font-weight:800;color:var(--accent)}
     .controls{display:flex;gap:8px}
-    .controls.four{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
-    .ctrl-btn{flex:1;padding:14px 8px;border-radius:14px;border:1px solid var(--edge);background:linear-gradient(180deg,#1a2e55,#0d1b33);color:var(--text);font-size:16px;font-weight:700;cursor:pointer;letter-spacing:.04em;min-height:48px}
+        .ctrl-btn{flex:1;padding:14px 8px;border-radius:14px;border:1px solid var(--edge);background:linear-gradient(180deg,#1a2e55,#0d1b33);color:var(--text);font-size:16px;font-weight:700;cursor:pointer;letter-spacing:.04em;min-height:48px}
     .ctrl-btn:active{background:#1a3366;border-color:var(--accent)}
-    .statusline{font-size:13px;color:var(--muted);text-align:center;padding:4px;min-height:22px}
-    .hidden{display:none!important}
+        .hidden{display:none!important}
     .overlay{position:fixed;inset:0;z-index:100;display:flex;align-items:flex-start;justify-content:center;padding:max(8px,env(safe-area-inset-top,8px)) 10px max(8px,env(safe-area-inset-bottom,8px));background:rgba(2,8,16,.72);backdrop-filter:blur(4px);overflow:auto}
     .modal{max-width:min(94vw,400px);width:100%;border-radius:22px;padding:14px 12px;background:linear-gradient(180deg,rgba(255,255,255,.04),rgba(255,255,255,.01)),var(--panel2);border:1px solid var(--edge);margin-top:4px}
     .modal h2{text-align:center;font-size:26px;font-weight:900;margin-bottom:10px;color:var(--text)}
@@ -60,8 +55,7 @@
     .outcome-text{font-size:52px;font-weight:900;letter-spacing:.06em;text-align:center}
     .outcome-text.success{color:#00ff88;text-shadow:0 0 30px rgba(0,255,136,.8)}
     .outcome-text.failed{color:#ff4466;text-shadow:0 0 30px rgba(255,68,102,.8)}
-    .summary-title{font-size:18px;font-weight:800;text-align:center;color:var(--accent);margin-bottom:12px}
-    .summary-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px}
+        .summary-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px}
     .summary-card{background:#0a1629;border:1px solid var(--edge);border-radius:12px;padding:10px;text-align:center}
     .summary-card-label{font-size:13px;color:var(--muted);margin-bottom:4px}
     .summary-card-val{font-size:22px;font-weight:800;color:var(--accent)}
@@ -308,8 +302,7 @@
   table{font-size:12px!important}
   #summaryText{max-height:46vh!important;font-size:13px!important}
   #rateRtChart{height:52vh!important}
-  #histGraphChart{height:42vh!important;width:100%!important}
-  #fullModeGraph{height:60vh!important}
+    #fullModeGraph{height:60vh!important}
 }
 
     .speedometer-brain-bg{
@@ -358,7 +351,7 @@
       <img src="CogSpeed.jpeg" alt="CogSpeed logo" style="width:min(78vw,420px);max-width:100%;height:auto;display:block;object-fit:contain;border:1px solid #2f5fb8;box-shadow:0 2px 16px rgba(0,0,0,.25)"/>
     </div>
     <div style="flex:1;display:flex;flex-direction:column;justify-content:flex-start;align-items:center;gap:clamp(6px,1.2dvh,14px);padding-top:10px">
-      <div style="text-align:center"><span class="badge" style="font-size:11px;padding:2px 10px" id="versionBadge">V693</span></div>
+      <div style="text-align:center"><span class="badge" style="font-size:11px;padding:2px 10px" id="versionBadge">V694</span></div>
       <div style="text-align:center">
         <span style="font-size:clamp(20px,3.6dvh,34px);font-weight:900;font-style:italic;letter-spacing:.12em;color:var(--accent);text-transform:uppercase;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;text-shadow:0 0 12px rgba(127,215,255,0.6)">Think Fast!</span>
       </div>
@@ -466,7 +459,7 @@
     <div id="profileSchedulerPanel" style="margin-bottom:16px;padding:14px;background:rgba(127,215,255,0.06);border:1px solid rgba(127,215,255,0.15);border-radius:12px">
       <div style="font-size:18px;font-weight:800;color:var(--text);margin-bottom:6px">MODE 2 SCHEDULER</div>
       <div id="schedulerGuestBlockedNote" class="field-hint hidden" style="margin-bottom:10px;color:#ff9aa8">Registered user required. Guest cannot use Scheduler.</div>
-      <div id="schedulerSubjectInfo" class="field-hint" style="margin-bottom:10px">Saved subject only. This Scheduler works on this device only.</div>
+      <div id="schedulerSubjectInfo" class="field-hint" style="margin-bottom:10px">Registered user only. This Scheduler works on this device only.</div>
 
       <div class="field-row" style="margin-bottom:12px">
         <label style="font-size:16px">Scheduler</label>
@@ -1160,14 +1153,14 @@
 
 
 <!-- ═══ MAIN APP — hidden container for JS-required IDs ═══ -->
-<div class="app" id="mainApp" style="display:none">
+<div id="mainApp" style="display:none">
   <div class="panel result hidden" id="resultBox"></div>
   <!-- All IDs required by JS — completely hidden from subject -->
   <div style="display:none">
     <span id="fatigueOut">—</span>
     <span id="modeLabel">Subject mode</span>
     <span id="phaseLabel">Ready</span>
-    <span id="statusLine">CogSpeed V693</span>
+    <span id="statusLine">CogSpeed V694</span>
     <span id="rateOut">—</span>
     <span id="blocksOut">0</span>
     <span id="recoveryOut">0</span>
@@ -1192,6 +1185,6 @@
   <div class="resp-grid" id="respGrid"></div>
 </div>
 
-<script src="app.js?v=693" defer></script>
+<script src="app.js?v=694" defer></script>
 </body>
 </html>

@@ -1,4 +1,18 @@
-## V693 — 2026-04-15
+## V694 — 2026-04-15
+- Fixed the remaining scheduler window-boundary inconsistency so personal window end handling now uses the same inclusive/exclusive convention as quiet-hours clamping.
+- Removed the 36-hour silent sleep-window auto-correction so large bed/wake discrepancies are no longer silently rewritten.
+- Documented the post-restore profileguard marker write instead of leaving it unexplained.
+- Removed dead CSS selectors and the orphan #histGraphChart rule from index.html, and cleaned a few redundant wrapper classes.
+- Removed remaining "saved subject" scheduler wording so the UI consistently says "registered user".
+- Fixed delayed-reopen handling by guarding openTrial() after finish()/idle and unified recovery return handling.
+- Removed the unreachable mode2_final branch from the no-response timer callback.
+- Fixed multiple Mode 2 CPA issues: Field 54 now controls the per-component clamp floor, bucket specs reject overlap, bucket matching rounds to 2 decimals, drift is null-guarded, and drift ratio exports null when insufficient data exists.
+- Fixed the CPA disposition boundary so CPA = 65 is GREEN.
+- Cleaned up the Mode 2 summary by removing the duplicate CPA block, making the MBS gap text use the current qualifyingBlockGapMs setting, and renaming the local CPI variable.
+- Fixed Performance Over Time legend overlap and allowed Mode 3 sessions to contribute plotted CPI/ring values.
+- Fixed scheduler and backup issues: personal scheduler time sorting/window handling, missing SP-FS no longer acts like zero, legacy untimestamped baseline records are ignored, backup now includes scheduler settings, restore reinstates them, and backup formatVersion is now bounded.
+- Updated remaining scheduler wording to say "registered user" instead of "saved subject" where applicable.
+- Updated visible app/package versioning to V694.
 - Fixed the remaining Mode 2 Scheduler Guest-warning strings in both index.html and app.js so only one "registered user" message is shown.
 - Updated Mode 2 Scheduler guest-warning wording to say "registered user" and removed the duplicate message.\n- Guest sessions are saved and shown in Speedometer/history again.\n- Guest sessions remain excluded from Personal Baseline qualification and rolling-baseline updates.
 - Replaced tutorial page 1 with the approved preparation, test-hygiene, and baseline checklist.

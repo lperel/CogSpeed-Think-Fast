@@ -2,7 +2,7 @@
 // CogSpeed source
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V693";
+const APP_VERSION = "V694";
 
 // ═══════════════════════════════════════════════════
 // Current behavior summary (historical details live in CHANGELOG.md)
@@ -41,7 +41,7 @@ const STORAGE_PREFIX = `cogspeed_v${RELEASE}`;
 // All configurable test parameters. Changes here affect ALL users.
 // Admin panel allows per-device override (localStorage only).
 // To permanently change a default, edit here and push to GitHub.
-// NOTE: keep DEFAULTS in the same conceptual order as ADMIN_FIELDS,
+// NOTE: try to keep DEFAULTS in the same conceptual order as ADMIN_FIELDS,
 // and keep labels, CPI comments, personal-baseline threshold text, and any
 // table fallbacks aligned. Recent cleanup removed several stale mismatches.
 // ═══════════════════════════════════════════════════════════════
@@ -170,7 +170,7 @@ const ADMIN_FIELDS=[
  ["mode2LateResponseThresholdMs","41. Mode 2 late response reassignment threshold (ms, default 600)","number"],
  ["mode2FinalTrialCount","42. Mode 2 final self-paced trials (default 2)","number"],
 
- // 43-45. Mode 3 Self-paced, in program-use order
+ // 43-44. Mode 3 Self-paced, in program-use order
  ["mode3TrialLimit","43. Mode 3 self-paced trial limit (default 150)","number"],
  ["mode3MaxDurationMs","44. Mode 3 total duration ms (default 120000)","number"],
 
@@ -567,8 +567,6 @@ function armNoResponseTimer(){
  state.absoluteNoResponseTimer=setTimeout(()=>{
   state.endReason = state.phase==="calibration"
    ? "No response detected — please retest."
-   : state.phase==="mode2_final"
-   ? "Test stopped: maximum test time reached."
    : "Responses were too slow to continue — please retest.";
   finish();
  }, ms);
@@ -969,7 +967,7 @@ function logTrial({phase,rt,outcome,responseIndex,counted,timing,pacing}){
 // not the already-updated baseline after correct/wrong pacing adjustments.
 // ─── ANSWER RECORDING + ANTI-SPOOF ───────────────────────────
 // recordAnswer(): updates rolling mean + wrong-window checks.
-// ANTI-SPOOF — ROLLING MEAN: if correct% < 50% in last 8 taps
+// ANTI-SPOOF — ROLLING MEAN: if correct% < 50% in last 10 taps
 //  → stop with the rolling-mean threshold message below.
 // ANTI-SPOOF — WRONG WINDOW: if >4 wrong in last 5 taps → stop.
 // Misses (isMiss=true) excluded from both checks (taps only).
@@ -1241,7 +1239,7 @@ function applyPacing(rt,correct){
 
 // ─── Finish ───
 // ─── TEST FINISH ──────────────────────────────────────────────
-// Called by all end conditions (success + all 8 failure modes).
+// Called by all end conditions (success + all configured failure paths).
 // Computes final CPI, paced RT stats, test duration.
 // Also stamps the session number used by full-size graphs and metadata.
 // Saves result to state.history (localStorage: ${STORAGE_PREFIX}_history).
@@ -1425,6 +1423,7 @@ function finish(){
 // ──────────────────────────────────────────────────────────────
 
 function openTrial(kind){
+ if(state.phase==="finished" || state.phase==="idle") return;
  clearTimer();
  clearNoResponseTimer();
  normalizeCurtainForTesting();
@@ -1577,10 +1576,10 @@ function finalizePendingPriorMiss(){
  return false;
 }
 
-// applyPendingLatePacingIfAny():
-//   Applies the provisional pacing result for Frame 1 only if Frame 2 finished with no own response.
-//   If Frame 2 later gets its own >=600 ms response, this provisional pacing result is discarded
-//   and Frame 2's own pacing result replaces it.
+// finalizeMode2SustainedPendingMiss():
+//   Commits a pending Mode 2 sustained miss when the next frame ends without a
+//   late rescue for the prior frame. This increments sustained missed counts and
+//   logs the missed sustained event at the fixed sustained rate.
 function finalizeMode2SustainedPendingMiss(){
  if(!state.mode2PendingPriorMiss) return false;
  const pm = state.mode2PendingPriorMiss;
@@ -1718,7 +1717,7 @@ if(state.phase==="mode2_sustained"){
 // LATE RESPONSE RULE: if tap within 600ms of frame start after a previous miss,
 //  assign that tap to the PREVIOUS trial. If correct, use
 //  effectiveRT = currentRT + lastRoundDuration in the paced update.
-//  If wrong, baseline slows by +100 ms.
+//  If wrong, baseline slows by the current wrong-slowdown setting (default +50 ms).
 // BLOCKING ALGORITHM: onPacedFrameEnd counts consecutive TRUE misses
 //  (hadResponse=false). 2 consecutive misses → block recorded.
 //  Recovery after block is SELF-PACED.
@@ -1863,7 +1862,7 @@ function handleTap(index,eventTimeStamp){
    setStatus(`SP Restart: ${state.spWrongCount}/${limit} wrong`);
    setTimeout(()=>openTrial("recovery"), Number(settings.RecoveryInterTrialDelayMsStart)||0);
   }
-  recordAnswer(ok); return;
+  if(recordAnswer(ok)) return; return;
  }
 
  // Terminal recovery
@@ -2140,8 +2139,8 @@ function renderFatigueChecklist(){
 // ─── Admin ───
 // ─── ADMIN PANEL ──────────────────────────────────────────────
 // Admin defaults are displayed in numbered order:
-// 1) Admin passcode, 2) shared defaults used across all modes,
-// 3) Test mode, 4) mode-specific groups in test-use order.
+// 1) Admin passcode, 2) Test mode, 3) shared defaults used across all modes,
+// 4) mode-specific groups in test-use order.
 // Password-protected (default: 4822). Stays unlocked per session.
 // TRIAL DETAIL: per-trial table with session selector + CSV download.
 // LAST RESULTS: shows summary overlay for most recent test.
@@ -2711,21 +2710,21 @@ function stopFX(){ if(_fxRaf){ cancelAnimationFrame(_fxRaf); _fxRaf=null; } }
 // Local per-subject reminder system stored on this device only.
 //
 // What it does:
-// - Lets a saved subject schedule the next recommended Mode 2 test.
+// - Lets a registered user schedule the next recommended Mode 2 test.
 // - Supports 3 schedule types: Anytime, Personal, and Fit for Duty.
 // - Uses only local device storage; Guest cannot use Scheduler.
 // - Uses bundled local sounds plus optional device text-to-speech.
 //
 // How to use it:
 // 1) Open the asterisk / Profile page.
-// 2) Turn Scheduler ON for a saved email subject.
+// 2) Turn Scheduler ON for a registered user.
 // 3) Choose Anytime, Personal, or Fit for Duty.
 // 4) Save the profile. CogSpeed computes and stores the next reminder.
 // 5) CogSpeed shows due reminders while the app is open and can test
 //    notification/device capabilities from this page.
 //
 // Important limits:
-// - Scheduler is for one saved subject on one device only.
+// - Scheduler is for one registered user on one device only.
 // - Guest cannot save or run Scheduler.
 // - Closed-app notifications depend on device/browser support and are tested
 //   explicitly in the Scheduler Device Test section.
@@ -2891,7 +2890,7 @@ function renderSchedulerSettings(){
  const isGuest = !schedulerState.activeSubjectId || isGuestSchedulerSubject(schedulerState.activeSubjectId);
  const panel=$("profileSchedulerPanel"); if(panel) panel.style.opacity = isGuest ? "0.72" : "1";
  const guestNote=$("schedulerGuestBlockedNote"); if(guestNote) guestNote.classList.toggle("hidden", !isGuest);
- const subjectInfo=$("schedulerSubjectInfo"); if(subjectInfo) subjectInfo.textContent = isGuest ? "Registered user required. Guest cannot use Scheduler." : `Saved subject: ${schedulerState.activeSubjectId} · This Scheduler works on this device only.`;
+ const subjectInfo=$("schedulerSubjectInfo"); if(subjectInfo) subjectInfo.textContent = isGuest ? "Registered user required. Guest cannot use Scheduler." : `Registered user: ${schedulerState.activeSubjectId} · This Scheduler works on this device only.`;
  setToggleButtonState("schedulerEnabledOn", !!s.enabled);
  setToggleButtonState("schedulerEnabledOff", !s.enabled, "#ff9aa8");
  const offNote=$("schedulerOffNote"); if(offNote) offNote.classList.toggle("hidden", !!s.enabled);
@@ -3000,17 +2999,30 @@ function applyQuietHoursToDate(dateObj, s){
  return out;
 }
 function computePersonalNextReminderAt(s, now=new Date()){
- if(s.personalMode!=="daily_times") {
-  const base = new Date(now.getTime() + Math.max(1,Number(s.personalIntervalHours)||1)*3600000);
-  let out = base;
+ const clampToPersonalWindow = (cand)=>{
   const start = schedulerTimeToMinutes(s.personalWindowStart);
   const end = schedulerTimeToMinutes(s.personalWindowEnd);
-  const mins = out.getHours()*60 + out.getMinutes();
-  if(mins < start){ out.setHours(Math.floor(start/60), start%60, 0, 0); }
-  else if(mins > end){ out.setDate(out.getDate()+1); out.setHours(Math.floor(start/60), start%60, 0, 0); }
-  return applyQuietHoursToDate(out, s).toISOString();
+  if(!Number.isFinite(start) || !Number.isFinite(end)) return cand;
+  const mins = cand.getHours()*60 + cand.getMinutes();
+  if(mins < start){
+   cand.setHours(Math.floor(start/60), start%60, 0, 0);
+  }else if(mins >= end){
+   cand.setDate(cand.getDate()+1);
+   cand.setHours(Math.floor(start/60), start%60, 0, 0);
+  }
+  return cand;
+ };
+ if(s.personalMode!=="daily_times") {
+  const base = new Date(now.getTime() + Math.max(1,Number(s.personalIntervalHours)||1)*3600000);
+  let out = clampToPersonalWindow(base);
+  out = applyQuietHoursToDate(out, s);
+  out = clampToPersonalWindow(out);
+  return out.toISOString();
  }
- const enabled = s.personalTimes.filter(x=>x.enabled).map(x=>x.time).sort();
+ const enabled = s.personalTimes
+  .filter(x=>x.enabled)
+  .map(x=>x.time)
+  .sort((a,b)=>schedulerTimeToMinutes(a)-schedulerTimeToMinutes(b));
  if(!enabled.length) return null;
  for(let addDay=0; addDay<8; addDay++) {
   for(const t of enabled){
@@ -3115,9 +3127,10 @@ function computePersonalBaseline(results, subjectId, cutoffTime=null){
  const cutoffMs = cutoffTime ? new Date(cutoffTime).getTime() : null;
  const qualifying = all.map((r,idx)=>({r,idx}))
   .filter(({r})=> String(r?.subjectId||"").trim().toLowerCase()===sid.toLowerCase())
-  .filter(({r})=> cutoffMs==null || new Date(r?.time||0).getTime() <= cutoffMs)
+  .filter(({r})=> Number.isFinite(Date.parse(r?.time)))
+  .filter(({r})=> cutoffMs==null || Date.parse(r?.time) <= cutoffMs)
   .filter(({r})=> isBaselineQualifyingSession(r))
-  .sort((a,b)=> new Date(a.r.time||0)-new Date(b.r.time||0));
+  .sort((a,b)=> Date.parse(a.r.time)-Date.parse(b.r.time));
  const lastFive = qualifying.slice(-5).map(({r,idx})=>mapBaselineRow(r, idx));
  if(lastFive.length < 5){
   return {
@@ -3232,13 +3245,13 @@ function computeFitDutyNextReminderAt(s, now=new Date()){
  if(latest){
   const cpi = Number(latest.cognitivePerformanceIndex);
   const spf = (latest.samnPerelli && latest.samnPerelli.score != null)
-    ? Number(latest.samnPerelli.score) : 0;
+    ? Number(latest.samnPerelli.score) : null;
   const minMin = Math.max(5, Number(s.fitDutyMinIntervalMin)||30);
   const defMin = Math.max(minMin, Number(s.fitDutyDefaultIntervalHr||4)*60);
   const maxMin = Math.max(defMin, Number(s.fitDutyMaxIntervalHr||12)*60);
-  if((Number.isFinite(cpi) && cpi < 25) || spf <= 2) minutes = minMin;
-  else if((Number.isFinite(cpi) && cpi < 50) || spf <= 3) minutes = Math.max(minMin, Math.round(defMin/2));
-  else if((Number.isFinite(cpi) && cpi >= 80) && spf >= 6) minutes = maxMin;
+  if((Number.isFinite(cpi) && cpi < 25) || (Number.isFinite(spf) && spf <= 2)) minutes = minMin;
+  else if((Number.isFinite(cpi) && cpi < 50) || (Number.isFinite(spf) && spf <= 3)) minutes = Math.max(minMin, Math.round(defMin/2));
+  else if((Number.isFinite(cpi) && cpi >= 80) && (Number.isFinite(spf) && spf >= 6)) minutes = maxMin;
   else minutes = defMin;
  }
  const out = new Date(now.getTime() + minutes*60000);
@@ -3452,7 +3465,7 @@ function onSchedulerSaveSettings(){
  setStatus(res.ok ? "Scheduler settings saved." : (res.message || "Scheduler settings not saved."));
 }
 function onSchedulerTestSave(){
- if(!schedulerState.activeSubjectId || isGuestSchedulerSubject(schedulerState.activeSubjectId)){ schedulerState.settings.deviceTest.localSave = "FAIL"; renderSchedulerDeviceFields(schedulerState.settings.deviceTest); setStatus("Saved subject required for Scheduler."); return; }
+ if(!schedulerState.activeSubjectId || isGuestSchedulerSubject(schedulerState.activeSubjectId)){ schedulerState.settings.deviceTest.localSave = "FAIL"; renderSchedulerDeviceFields(schedulerState.settings.deviceTest); setStatus("Registered user required for Scheduler."); return; }
  const ok = persistActiveSchedulerSettings();
  schedulerState.settings.deviceTest.localSave = ok ? "PASS" : "FAIL";
  renderSchedulerDeviceFields(schedulerState.settings.deviceTest);
@@ -3883,10 +3896,17 @@ async function getCogSpeedBackupPayload(){
    return fallback;
   }
  };
+ const scheduler = {};
+ Object.keys(localStorage).forEach(k=>{
+  if(k.startsWith("cogspeed_scheduler_")){
+   scheduler[k] = readJson(k, null);
+  }
+ });
  const payload = {
    settings: readJson(`${STORAGE_PREFIX}_settings`, null),
    profile: readJson(`${STORAGE_PREFIX}_profile`, null),
    history: readJson(`${STORAGE_PREFIX}_history`, []),
+   scheduler,
   };
  return {
   magic: "CogSpeedBackup",
@@ -3915,7 +3935,7 @@ async function downloadCogSpeedLocalDataBackup(){
 }
 
 function isValidCogSpeedBackupFile(obj){
- return !!(obj && obj.magic==="CogSpeedBackup" && Number(obj.formatVersion)>=1 && obj.payload && Array.isArray(obj.payload.history));
+ return !!(obj && obj.magic==="CogSpeedBackup" && Number(obj.formatVersion)>=1 && Number(obj.formatVersion)<=1 && obj.payload && Array.isArray(obj.payload.history));
 }
 
 async function verifyCogSpeedBackupFile(obj){
@@ -3947,7 +3967,13 @@ async function applyCogSpeedBackupFile(obj){
   if(obj.payload.profile!=null) localStorage.setItem(`${STORAGE_PREFIX}_profile`, JSON.stringify(obj.payload.profile));
   else localStorage.removeItem(`${STORAGE_PREFIX}_profile`);
   localStorage.setItem(`${STORAGE_PREFIX}_history`, JSON.stringify(Array.isArray(obj.payload.history) ? obj.payload.history : []));
-  localStorage.setItem("cogspeed_version", `${STORAGE_PREFIX}_profileguard`);
+  const schedulerPayload = obj.payload && obj.payload.scheduler && typeof obj.payload.scheduler==="object" ? obj.payload.scheduler : {};
+  Object.keys(localStorage).forEach(k=>{ if(k.startsWith("cogspeed_scheduler_")) localStorage.removeItem(k); });
+  Object.entries(schedulerPayload).forEach(([k,v])=>{
+   if(String(k).startsWith("cogspeed_scheduler_")) localStorage.setItem(k, JSON.stringify(v));
+  });
+  // Marks that a profile/history-bearing restore has completed so first-run/profile-guard flows do not reinitialize over restored data.
+  localStorage.setItem("cogspeed_version", "profileguard");
   sessionStorage.removeItem('cogspeed_restore_offer');
   alert("CogSpeed local data restored. The page will now reload.");
   window.location.reload();
@@ -4423,7 +4449,7 @@ ${formatTimeSinceLastSleepLine(result)||""}
 ${formatSleepSummaryMetricsLine(result)}
 ${getPersonalBaselineSummaryText(result)}
 ${hr}
-SELF-PACED CALIBRATION (SPC)
+SELF-PACED CALIBRATION
  Total self-paced responses: ${result.selfPacedResponseCount}
  Average self-paced RT: ${result.selfPacedResponseMeanMs!=null?result.selfPacedResponseMeanMs.toFixed(1)+" ms":"—"}
  Self-paced RT SD:   ${result.selfPacedResponseSdMs!=null?result.selfPacedResponseSdMs.toFixed(1)+" ms":"—"}
@@ -4502,7 +4528,7 @@ ${getResultsMetricExplanationText(result)}`;
   if(result.mode2Triggered && (result.dispositionCode==null || result.dispositionLabel==null)){
    Object.assign(result, computeDispositionFromCPA(result));
   }
-  const mode4Cpi=result.mode2CpiFromMbs!=null ? result.mode2CpiFromMbs : (adaptiveMbs!=null ? computeCPI(adaptiveMbs) : null);
+  const mode2Cpi=result.mode2CpiFromMbs!=null ? result.mode2CpiFromMbs : (adaptiveMbs!=null ? computeCPI(adaptiveMbs) : null);
   const adaptiveCounts=computeMode2AdaptiveCounts(result);
   const wrongBreakdown=computeMode2WrongBreakdown(result);
   el.textContent=
@@ -4549,7 +4575,7 @@ ADAPTIVE MACHINE-PACED PHASE
  Paced RT SD: ${result.pacedResponseSdMs!=null?result.pacedResponseSdMs.toFixed(1)+" ms":"—"}
  Blocks found: ${result.blockCount||0}
 ${getMode4BlockListText(result)}
- MBS: ${adaptiveMbs!=null?adaptiveMbs.toFixed(1)+" ms":"—"} (Average of last 2 consecutive blocks less than 250 ms difference)
+ MBS: ${adaptiveMbs!=null?adaptiveMbs.toFixed(1)+" ms":"—"} (Average of last 2 consecutive blocks less than ${(Number(settings.qualifyingBlockGapMs)||250)} ms difference)
  Block difference for MBS: ${result.blockScoreDifferenceMs!=null?result.blockScoreDifferenceMs.toFixed(1)+" ms":"—"}
  CPI: ${adaptiveMbs!=null?computeCPI(adaptiveMbs).toFixed(1)+" / 100":"—"}
 ${hr}
@@ -4564,14 +4590,11 @@ MODE 2 SUSTAINED COGSPEED PHASE
  SBLP P90: ${result.sustainedCorrectRtP90Ms!=null?result.sustainedCorrectRtP90Ms.toFixed(1)+" ms":"—"}
  SBLP Max: ${result.sustainedCorrectRtMaxMs!=null?result.sustainedCorrectRtMaxMs.toFixed(1)+" ms":"—"}
  SPI: ${spi!=null?spi.toFixed(1)+" / 100":"—"}
- CPI from MBS: ${mode4Cpi!=null?mode4Cpi.toFixed(1):"—"}
-${hr}
-CPA SUMMARY
- CPA: ${result.cpa!=null?result.cpa.toFixed(1)+" / 100":"—"}
- Disposition: ${result.dispositionCode||"—"} ${result.dispositionLabel||"—"}
+ CPI from MBS: ${mode2Cpi!=null?mode2Cpi.toFixed(1):"—"}
 ${hr}
 CPA — COGNITIVE PERFORMANCE ABILITY
  CPA: ${result.cpa!=null?result.cpa.toFixed(1)+" / 100":"—"}
+ Disposition: ${result.dispositionCode||"—"} ${result.dispositionLabel||"—"}
  Base CPI: ${result.cpaBaseCpi!=null?result.cpaBaseCpi.toFixed(1):"—"}
  Sustained correct-response factor: ${result.cpaCorrectWeighting!=null?(result.cpaCorrectWeighting>=0?"+":"")+result.cpaCorrectWeighting.toFixed(1):"—"}
  Sustained wrong-response factor: ${result.cpaWrongWeighting!=null?(result.cpaWrongWeighting>=0?"+":"")+result.cpaWrongWeighting.toFixed(1):"—"}
@@ -4950,19 +4973,22 @@ function median(arr){
 }
 
 function bucketedCpaMultiplier(value, buckets){
- const n = Number(value);
- if(!Number.isFinite(n)) return 0;
+ const raw = Number(value);
+ if(!Number.isFinite(raw)) return 0;
+ const n = Math.round(raw * 100) / 100;
  for(const [lo, hi, mult] of buckets){
   if(n >= lo && n <= hi) return mult;
  }
  return 0;
 }
 
-function clampCpaFactorDelta(delta, cpi){
+function clampCpaFactorDelta(delta, cpi, floorFactor){
  const base = Number(cpi);
  const d = Number(delta);
+ const ff = Number(floorFactor);
  if(!Number.isFinite(base) || !Number.isFinite(d)) return 0;
- const floor = -0.9 * base;
+ const factor = Number.isFinite(ff) ? Math.max(0, Math.min(1, ff)) : 0.9;
+ const floor = -factor * base;
  return Math.max(floor, d);
 }
 
@@ -4997,6 +5023,10 @@ function parseBucketSpec(spec, fallback){
    const mult = Number(multText);
    if(!Number.isFinite(min) || !(Number.isFinite(max) || max === Number.POSITIVE_INFINITY) || !Number.isFinite(mult) || max < min) throw new Error('bad values');
    out.push([min,max,mult]);
+  }
+  out.sort((a,b)=>a[0]-b[0]);
+  for(let i=1;i<out.length;i++){
+   if(out[i][0] <= out[i-1][1]) throw new Error('overlap');
   }
   return out.length ? out : fallback.map(([min,max,mult])=>[min,max,mult]);
  }catch(_err){
@@ -5045,7 +5075,7 @@ function computeMode2CPA(result){
 
  // Drift compares early and late medians of correct sustained RTs and converts
  // slowing to a positive-only percentage. Improvement never reduces the score.
- let earlyMedian=null, lateMedian=null, driftRatio=0;
+ let earlyMedian=null, lateMedian=null, driftRatio=null;
  if(sustainedCorrectRTs.length>=2){
   const half=Math.floor(sustainedCorrectRTs.length/2);
   const early=sustainedCorrectRTs.slice(0,half), late=sustainedCorrectRTs.slice(half);
@@ -5102,25 +5132,26 @@ function computeMode2CPA(result){
  const efficiencyBuckets = parseBucketSpec(settings.mode2CpaEfficiencyBuckets,
   [[0,10,-0.03],[10.01,30,0],[30.01,50,-0.03],[50.01,Number.POSITIVE_INFINITY,-0.07]]);
 
- const correctAdj = clampCpaFactorDelta(cpi*bucketedCpaMultiplier(correct,correctBuckets), cpi);
- const wrongAdj = clampCpaFactorDelta(cpi*bucketedCpaMultiplier(wrong,wrongBuckets), cpi);
- const missedAdj = clampCpaFactorDelta(cpi*bucketedCpaMultiplier(missed,missedBuckets), cpi);
- const cvAdj = responseCvPct!=null
-  ? clampCpaFactorDelta(cpi*bucketedCpaMultiplier(responseCvPct,cvBuckets), cpi) : 0;
- const driftPct = driftRatio*100;
- const driftAdj = clampCpaFactorDelta(cpi*bucketedCpaMultiplier(driftPct,driftBuckets), cpi);
- const recoveryAdj = recoveryCalibRatio!=null
-  ? clampCpaFactorDelta(cpi*bucketedCpaMultiplier(recoveryCalibRatio,recoveryBuckets), cpi) : 0;
- const lapseAdj = lapseRatePct!=null
-  ? clampCpaFactorDelta(cpi*bucketedCpaMultiplier(lapseRatePct,lapseBuckets), cpi) : 0;
- const efficiencyAdj = trialsPerBlock!=null
-  ? clampCpaFactorDelta(cpi*bucketedCpaMultiplier(trialsPerBlock,efficiencyBuckets), cpi) : 0;
-
  // Field 54 max-reduction cap: limits total negative CPA adjustment so that
  // several mild penalties do not compound into an implausibly low end-state
  // ability estimate.
  const maxReductionFactorRaw = Number(settings.mode2CpaMaxReductionFactor);
  const maxReductionFactor = clamp(Number.isFinite(maxReductionFactorRaw) ? maxReductionFactorRaw : DEFAULTS.mode2CpaMaxReductionFactor, 0, 1);
+
+ const correctAdj = clampCpaFactorDelta(cpi*bucketedCpaMultiplier(correct,correctBuckets), cpi, maxReductionFactor);
+ const wrongAdj = clampCpaFactorDelta(cpi*bucketedCpaMultiplier(wrong,wrongBuckets), cpi, maxReductionFactor);
+ const missedAdj = clampCpaFactorDelta(cpi*bucketedCpaMultiplier(missed,missedBuckets), cpi, maxReductionFactor);
+ const cvAdj = responseCvPct!=null
+  ? clampCpaFactorDelta(cpi*bucketedCpaMultiplier(responseCvPct,cvBuckets), cpi, maxReductionFactor) : 0;
+ const driftPct = driftRatio!=null ? driftRatio*100 : null;
+ const driftAdj = (driftPct!=null && sustainedCorrectRTs.length>=2)
+  ? clampCpaFactorDelta(cpi*bucketedCpaMultiplier(driftPct,driftBuckets), cpi, maxReductionFactor) : 0;
+ const recoveryAdj = recoveryCalibRatio!=null
+  ? clampCpaFactorDelta(cpi*bucketedCpaMultiplier(recoveryCalibRatio,recoveryBuckets), cpi, maxReductionFactor) : 0;
+ const lapseAdj = lapseRatePct!=null
+  ? clampCpaFactorDelta(cpi*bucketedCpaMultiplier(lapseRatePct,lapseBuckets), cpi, maxReductionFactor) : 0;
+ const efficiencyAdj = trialsPerBlock!=null
+  ? clampCpaFactorDelta(cpi*bucketedCpaMultiplier(trialsPerBlock,efficiencyBuckets), cpi, maxReductionFactor) : 0;
  const allAdj = correctAdj+wrongAdj+missedAdj+cvAdj+driftAdj+recoveryAdj+lapseAdj+efficiencyAdj;
  const minAllowed = -maxReductionFactor * cpi;
  const cappedAllAdj = Math.max(minAllowed, allAdj);
@@ -5145,7 +5176,7 @@ function computeMode2CPA(result){
   cpaEfficiencyWeighting: r1(efficiencyAdj),
   cpaSustainedResponseSdMs: r1(responseSd),
   cpaSustainedCvPct: r1(responseCvPct),
-  cpaSustainedDriftRatio: r3(driftRatio),
+  cpaSustainedDriftRatio: sustainedCorrectRTs.length>=2 ? r3(driftRatio) : null,
   cpaEarlyMedianRtMs: r1(earlyMedian),
   cpaLateMedianRtMs: r1(lateMedian),
   cpaRecoveryCalibRatio: r2(recoveryCalibRatio),
@@ -5159,7 +5190,7 @@ function computeDispositionFromCPA(result){
  if(!result || result.testMode!=="mode2" || !result.mode2Triggered) return blank;
  const cpa = Number(result.cpa);
  if(!Number.isFinite(cpa)) return blank;
- if(cpa > 65) return { dispositionCode:"GREEN", dispositionLabel:"Clear" };
+ if(cpa >= 65) return { dispositionCode:"GREEN", dispositionLabel:"Clear" };
  if(cpa >= 45) return { dispositionCode:"YELLOW", dispositionLabel:"Monitor / human review recommended" };
  if(cpa >= 30) return { dispositionCode:"ORANGE", dispositionLabel:"Human review required" };
  return { dispositionCode:"RED", dispositionLabel:"Remove from Hazardous Duty" };
@@ -6042,7 +6073,7 @@ const TUT_STEPS = [
       On the Profile page, the Mode 2 Scheduler can remind you when to test again. You can choose <strong>Anytime</strong>, a <strong>Personal</strong> schedule, or <strong>Fit for Duty</strong>.
      </div>
      <div style="margin-top:12px;font-size:14px;line-height:1.6;color:rgba(220,235,255,0.88);background:rgba(127,215,255,0.08);border:1px solid rgba(127,215,255,0.22);border-radius:12px;padding:10px 12px">
-      Personal lets you test at set times. Fit for Duty adjusts the next reminder from your latest Mode 2 CPI and SP-FS. Scheduler is for saved subjects only, not Guest.
+      Personal lets you test at set times. Fit for Duty adjusts the next reminder from your latest Mode 2 CPI and SP-FS. Scheduler is for registered users only, not Guest.
      </div>
     </div>
    </div>`;
@@ -6272,7 +6303,7 @@ function deriveWakeDateTimeIso(wakeTime, testIso, wakeDayTag="today"){
  const wakeDate = applyRelativeDay(testDate, wakeDayTag);
  if(!wakeDate) return null;
  wakeDate.setHours(Math.floor(wakeMins/60), wakeMins%60, 0, 0);
- if(String(wakeDayTag||"today").toLowerCase()==="today" && wakeDate.getTime() > testDate.getTime()) wakeDate.setDate(wakeDate.getDate()-1);
+ if(String(wakeDayTag||"today").toLowerCase()==="today" && wakeDate.getTime() > testDate.getTime()) return null;
  return wakeDate.toISOString();
 }
 function deriveSleepWindowForCurrentTest(bedTime, wakeTime, referenceIso, durationOverrideMinutes=null, bedDayTag="yesterday", wakeDayTag="today"){
@@ -6290,7 +6321,10 @@ function deriveSleepWindowForCurrentTest(bedTime, wakeTime, referenceIso, durati
  if(durationOverrideMinutes==null){
   const fallbackBedDate = new Date(wakeDate.getTime() - durationMinutes*60000);
   const delta = Math.abs(fallbackBedDate.getTime() - bedDate.getTime());
-  if(delta > 36*60*60*1000) bedDate = fallbackBedDate;
+  // Do not silently auto-correct large date-entry discrepancies here.
+  // Let validation/UI handling surface the mismatch instead of rewriting the user's entry.
+  void fallbackBedDate;
+  void delta;
  }
  const referenceDate = new Date(referenceIso || Date.now());
  if(!isFinite(referenceDate.getTime())) return null;
@@ -6677,7 +6711,7 @@ const _pbm=$("profileBirthMonth"); if(_pbm) _pbm.onchange=validateProfileAge;
 const _pby=$("profileBirthYear"); if(_pby) _pby.oninput=validateProfileAge;
 
 // Scheduler controls on the asterisk / Profile page
-const _seo=$("schedulerEnabledOn"); if(_seo) _seo.onclick=(e)=>{ if(e) e.preventDefault(); if(!schedulerState.activeSubjectId){ setStatus("Saved subject required for Scheduler"); return; } schedulerSetEnabled(true); };
+const _seo=$("schedulerEnabledOn"); if(_seo) _seo.onclick=(e)=>{ if(e) e.preventDefault(); if(!schedulerState.activeSubjectId){ setStatus("Registered user required for Scheduler"); return; } schedulerSetEnabled(true); };
 const _seoff=$("schedulerEnabledOff"); if(_seoff) _seoff.onclick=(e)=>{ if(e) e.preventDefault(); schedulerSetEnabled(false); };
 const _sta=$("scheduleTypeAnytime"); if(_sta) _sta.onclick=(e)=>{ if(e) e.preventDefault(); schedulerSetType("anytime"); };
 const _stp=$("scheduleTypePersonal"); if(_stp) _stp.onclick=(e)=>{ if(e) e.preventDefault(); if(!schedulerState.settings.enabled) schedulerSetEnabled(true); schedulerSetType("personal"); };
@@ -7231,7 +7265,6 @@ function perfSessionMs(r){
 
 function perfSessionCpi(r){
   if(!r) return null;
-  if(r.testMode === "mode3") return null;
   const failed = isPerfFailureSession(r);
   if(failed) return 0;
   const explicit = Number(r.cognitivePerformanceIndex);
@@ -7626,15 +7659,15 @@ function drawPerformanceOverTimeChart(canvas,hist){
   ctx.fillStyle="#d7e7f8";
   ctx.fillText("Open blue center = estimated CPI", PAD.left+126, PAD.top-14);
   ctx.beginPath();
-  ctx.arc(PAD.left+138, PAD.top-18, 5.6, 0, Math.PI*2);
+  ctx.arc(PAD.left+320, PAD.top-18, 5.6, 0, Math.PI*2);
   ctx.strokeStyle="#ffb357";
   ctx.lineWidth=2.2;
   ctx.stroke();
   ctx.fillStyle="#ffb357";
-  ctx.fillText(ringLegend, PAD.left+150, PAD.top-14);
+  ctx.fillText(ringLegend, PAD.left+332, PAD.top-14);
   ctx.fillStyle="#d6a7ff";
-  ctx.fillRect(PAD.left+272, PAD.top-22, 8, 8);
-  ctx.fillText(cpaLegend, PAD.left+288, PAD.top-14);
+  ctx.fillRect(PAD.left+462, PAD.top-22, 8, 8);
+  ctx.fillText(cpaLegend, PAD.left+478, PAD.top-14);
   const spLegendY = PAD.top + 4;
   ctx.fillStyle="#88ff88";
   ctx.save();
