@@ -1,4 +1,4 @@
-## V692
+## V693 — 2026-04-15
 - Fixed the Personal Baseline graph so it scales to phone width instead of forcing an 860 px-wide SVG.
 - Clarified that sessions above the Personal Baseline qualifying MBS threshold do not update or replace the rolling baseline.
 - Moved personalBaselineMaxMbs within DEFAULTS so its placement matches the Admin field order and Mode 1 grouping.
@@ -23,7 +23,7 @@
 - Reordered Admin defaults to follow the program’s actual usage flow more closely.
 - Revised CPA labels and explanatory text to reflect actual bucket behavior without changing the CPA formula.
 - Updated the Start page layout: enlarged About CogSpeed and Speedometer, moved them directly under Continue, and moved Privacy Policy and Terms of Service to the bottom corners while leaving the admin link unchanged.
-- Corrected packaged version-string literals in `index.html` so the title, version badge, and status line all ship as V692 instead of stale V688 placeholders.
+- Corrected packaged version-string literals in `index.html` so the title, version badge, and status line all ship as V693 instead of stale V688 placeholders.
 - Preserved the Speedometer Mode 2 CPI/CPA toggle selection across return-to-Start navigation by removing the reset from trial-state clearing.
 - Clarified intro auto-advance comments to document the cached-GIF `introGif.complete` case.
 - Corrected the stale `initialMeasuredCalibrationTrials` comment to match the actual default of 7.
