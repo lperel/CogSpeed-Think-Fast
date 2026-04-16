@@ -2,7 +2,7 @@
 // CogSpeed source
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V694";
+const APP_VERSION = "V695";
 
 // ═══════════════════════════════════════════════════
 // Current behavior summary (historical details live in CHANGELOG.md)
@@ -377,7 +377,19 @@ function loadPersistedHistory(){
  try{
   const raw = localStorage.getItem(`${STORAGE_PREFIX}_history`) || "[]";
   const parsed = JSON.parse(raw);
-  return sanitizePersistedHistory(parsed);
+  const list = sanitizePersistedHistory(parsed);
+  const versionKey = `${STORAGE_PREFIX}_app_version_seen`;
+  const priorVersion = String(localStorage.getItem(versionKey) || "").trim();
+  let out = list;
+  // On version change, preserve registered-user history but clear Guest sessions.
+  if(priorVersion && priorVersion !== APP_VERSION){
+   out = list.filter(row=>!isGuestHistorySubjectId(row && row.subjectId));
+   if(JSON.stringify(out)!==JSON.stringify(list)){
+    localStorage.setItem(`${STORAGE_PREFIX}_history`, JSON.stringify(out));
+   }
+  }
+  localStorage.setItem(versionKey, APP_VERSION);
+  return out;
  }catch(e){
   return [];
  }

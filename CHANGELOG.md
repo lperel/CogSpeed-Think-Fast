@@ -1,4 +1,8 @@
-## V694 — 2026-04-15
+## V695 — 2026-04-15
+- On version change, Guest sessions are cleared from saved history automatically.
+- Registered-user sessions remain preserved across version updates.
+- Added a dedicated app-version marker for version-change cleanup behavior.
+- Updated visible app/package versioning to V695.
 - Fixed adaptive summary reporting so MBS and CPI are shown only when the consecutive block pair actually meets the qualifyingBlockGapMs threshold; otherwise the summary reports that no qualifying MBS/CPI was found.
 - Fixed the Mode 2 Scheduler Guest panel so the "Registered user required. Guest cannot use Scheduler." warning appears only once.
 - Removed the duplicate "Registered user required. Guest cannot use Scheduler." line from the Mode 2 Scheduler panel.
