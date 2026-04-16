@@ -1,4 +1,10 @@
 ## V692
+- Removed duplicate tutNextBtn and tutSkipBtn event wiring so tutorial navigation is assigned in one place.
+- Renamed the Personal Baseline Admin/settings key from personalBaselineMinMbs to personalBaselineMaxMbs to match its actual maximum-threshold semantics.
+- Added backward-compatible settings migration so older saved Admin values still carry forward after the key rename.
+- Preserved registered-user data while stopping Guest history from persisting to local storage.
+- Added launch-time clearing of transient current-session UI/result state.
+- Sanitized persisted history on load so old Guest sessions are removed automatically.
 - Added BASELINE to Results Metric Explanations.
 - Fixed Personal Baseline qualification logic so sessions count when adaptive-phase MBS is at or below the Admin qualifying threshold, rather than above it.
 - Updated Admin/baseline wording to reflect that the Personal Baseline threshold is a maximum qualifying MBS.

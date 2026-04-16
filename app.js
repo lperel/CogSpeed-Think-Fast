@@ -97,7 +97,7 @@ const DEFAULTS={
  calibrationStopSlowMs:6000,
  cpiBestMs:1000,
  cpiWorstMs:2400,
- personalBaselineMinMbs:1800,
+ personalBaselineMaxMbs:1800,
  deviceBenchmarkEnabled:0,
  timeFormat:"12",
  lateResponseThresholdMs:600, // first response <600ms on next frame may belong to prior frame; a second >=600ms response belongs to current frame
@@ -159,7 +159,7 @@ const ADMIN_FIELDS=[
  ["maxPacedWrong","32. Mode 1 max paced wrong before fail (default 20)","number"],
  ["cpiBestMs","33. Mode 1 CPI best ms anchor (default 1000)","number"],
  ["cpiWorstMs","34. Mode 1 CPI worst ms anchor (default 2400)","number"],
- ["personalBaselineMinMbs","35. Personal Baseline maximum qualifying MBS (ms, default 1800)","number"],
+ ["personalBaselineMaxMbs","35. Personal Baseline maximum qualifying MBS (ms, default 1800)","number"],
 
  // 36-42. Mode 2 runtime flow settings, in program-use order
  ["mode2SustainedStartFactor","36. Mode 2 sustained start factor × MBS (default 1.1)","number"],
@@ -238,6 +238,11 @@ const SAMN_PERELLI=[
 function loadSettings(){
  const s=JSON.parse(localStorage.getItem(`${STORAGE_PREFIX}_settings`)||"null");
  if(!s) return {...DEFAULTS};
+ // Backward compatibility: earlier builds used personalBaselineMinMbs for the same
+ // maximum-qualifying-MBS threshold. Carry it forward if present.
+ if(s.personalBaselineMaxMbs===undefined && s.personalBaselineMinMbs!==undefined){
+  s.personalBaselineMaxMbs = s.personalBaselineMinMbs;
+ }
  const m={...DEFAULTS};
  Object.keys(DEFAULTS).forEach(k=>{ if(s[k]!==undefined) m[k]=s[k]; });
  return m;
@@ -258,7 +263,7 @@ const state={
  current:null, previous:null, unresolvedStreak:0,
  overloads:[], recoveries:[], recoveryTrialsCompleted:0,
  spCorrectStreak:0, spWrongCount:0, terminalBlockReason:null,
- history:(function(){ try { return JSON.parse(localStorage.getItem(`${STORAGE_PREFIX}_history`)||"[]"); } catch(e){ return []; } })(),
+ history:loadPersistedHistory(),
  totalTrials:0, totalResponses:0, totalCorrect:0, totalIncorrect:0,
  missedTrials:0, pacedErrors:0, recoveryErrors:0, rollMeanLog:[],
  testStartTime:null, trialTimer:null, absoluteNoResponseTimer:null, maxTestTimer:null,
@@ -360,6 +365,39 @@ function mean(a){ return a.length?a.reduce((x,y)=>x+y,0)/a.length:0; }
 function stdDev(a){ if(a.length<2) return null; const m=mean(a); return Math.sqrt(a.reduce((s,v)=>s+(v-m)**2,0)/(a.length-1)); }
 function shuffle(arr){ const a=[...arr]; for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]; } return a; }
 function subjectKey(id){ return id==="0"?"Guest":id; }
+function isGuestHistorySubjectId(v){
+ const s = String(v==null ? "" : v).trim().toLowerCase();
+ return !s || s==="0" || s==="guest" || s==="guest / no email";
+}
+function sanitizePersistedHistory(list){
+ if(!Array.isArray(list)) return [];
+ return list.filter(row=>!isGuestHistorySubjectId(row && row.subjectId));
+}
+function loadPersistedHistory(){
+ try{
+  const raw = localStorage.getItem(`${STORAGE_PREFIX}_history`) || "[]";
+  const parsed = JSON.parse(raw);
+  const cleaned = sanitizePersistedHistory(parsed);
+  if(JSON.stringify(cleaned)!==JSON.stringify(parsed)){
+   localStorage.setItem(`${STORAGE_PREFIX}_history`, JSON.stringify(cleaned));
+  }
+  return cleaned;
+ }catch(e){
+  return [];
+ }
+}
+function savePersistedHistory(list){
+ const cleaned = sanitizePersistedHistory(list);
+ localStorage.setItem(`${STORAGE_PREFIX}_history`, JSON.stringify(cleaned));
+ return cleaned;
+}
+function clearTransientCurrentSessionState(){
+ state.activeResult = null;
+ state.activeSessionIndex = null;
+ state.activeResultSource = null;
+ state.speedometerLatestSessionIndex = null;
+ state.lastResultText = null;
+}
 function setStatus(m){ statusLine.textContent=m; }
 function setFlowDiagnostic(label,statusText){
  try{ if(phaseLabel) phaseLabel.textContent=label||""; }catch(e){}
@@ -1346,14 +1384,20 @@ function finish(){
  }
  try{
   setFlowDiagnostic("FINISH_SAVE", `FINISH_SAVE — ${result.endReason||"Run complete"}`);
-  state.history.push(result);
-  localStorage.setItem(`${STORAGE_PREFIX}_history`,JSON.stringify(state.history));
-  state.speedometerLatestSessionIndex = state.history.length-1; // Reserved for possible future Speedometer auto-focus; currently not read elsewhere.
-  setActiveResultContext(result, state.history.length-1, "saved history");
-  try{ syncSummarySessionSelect(state.history.length-1); }catch(e){}
-  try{ syncSpeedometerSessionSelect(state.history.length-1); }catch(e){}
-  try{ updateStartPageLinks(); }catch(e){}
-  try{ if(getCurrentSavedSubjectId()) refreshSchedulerStatus(); }catch(e){}
+  if(isGuestHistorySubjectId(result && result.subjectId)){
+   clearTransientCurrentSessionState();
+   setActiveResultContext(result, null, "guest result (not persisted)");
+   try{ updateStartPageLinks(); }catch(e){}
+  }else{
+   state.history.push(result);
+   state.history = savePersistedHistory(state.history);
+   state.speedometerLatestSessionIndex = state.history.length-1; // Latest saved registered session
+   setActiveResultContext(result, state.history.length-1, "saved history");
+   try{ syncSummarySessionSelect(state.history.length-1); }catch(e){}
+   try{ syncSpeedometerSessionSelect(state.history.length-1); }catch(e){}
+   try{ updateStartPageLinks(); }catch(e){}
+   try{ if(getCurrentSavedSubjectId()) refreshSchedulerStatus(); }catch(e){}
+  }
  }catch(err){
   console.error("finish save failed", err);
   try{ if(state.history[state.history.length-1]===result) state.history.pop(); }catch(e){}
@@ -3044,7 +3088,7 @@ function getAdaptivePhaseMbs(result){
 }
 
 function getPersonalBaselineMaxMbs(){
- const v = Number(settings.personalBaselineMinMbs);
+ const v = Number(settings.personalBaselineMaxMbs);
  return Number.isFinite(v) && v>0 ? v : 1800;
 }
 function isBaselineQualifyingSession(result){
@@ -3758,6 +3802,7 @@ function resetProfile(){
 
 function resetAllSessions(){
  state.history = [];
+ clearTransientCurrentSessionState();
  localStorage.removeItem(`${STORAGE_PREFIX}_history`);
  updateStartPageLinks();
  try{ syncSummarySessionSelect(0); }catch(e){}
@@ -6529,8 +6574,6 @@ $("skipRefresherBtn").onclick=()=>{
  showTutorial(); setStatus("Tutorial");
 };
 $("tutBackBtn").onclick=()=>tutBack();
-$("tutNextBtn").onclick=()=>tutNext();
-$("tutSkipBtn").onclick=()=>tutSkip();
 $("refBackBtn").onclick=()=>goToStartPage();
  try{ updateStartPageLinks(); }catch(e){}
 
@@ -6742,6 +6785,8 @@ modeLabel.textContent="Subject mode";
 renderFatigueChecklist();
 renderRefresher();
 updateMetrics();
+clearTransientCurrentSessionState();
+state.history = loadPersistedHistory();
 
 initIntroAutoAdvance(); // app.js loads with defer so DOMContentLoaded has already fired; introGif.complete also handles the cached-GIF case where load fired before the listener attached, so restart() is called directly and auto-advance still starts.
 
