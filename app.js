@@ -127,7 +127,7 @@ const ADMIN_FIELDS=[
  // 3-15. Shared startup / calibration / anti-spoof settings, in program-use order
  ["initialUnusedCalibrationTrials","3. Warm-up calibration trials (default 1)","number"],
  ["initialMeasuredCalibrationTrials","4. Measured calibration trials (default 7)","number"],
- ["calibrationFirstNoResponseMs","5. Calibration first-trial no-response (ms, default 8000)","number"],
+ ["calibrationFirstNoResponseMs","5. Calibration first-trial no-response (ms, default 10000)","number"],
  ["calibrationNoResponseMs","6. Calibration later-trial no-response (ms, default 6000)","number"],
  ["calibrationStopErrors","7. Calibration stop after N wrong (default 4)","number"],
  ["calibrationStopSlowMs","8. Calibration avg RT limit (ms, default 6000)","number"],
@@ -150,7 +150,7 @@ const ADMIN_FIELDS=[
  ["minSpeedupOnCorrectMs","23. Mode 1 MP minimum speedup on correct (ms, default 50)","number"],
  ["maxSpeedupOnCorrectMs","24. Mode 1 MP maximum speedup on correct (ms, default 200)","number"],
  ["lateResponseThresholdMs","25. Mode 1 late response reassignment threshold (ms, default 600)","number"],
- ["recoveryNoResponseMs","26. Mode 1 recovery no-response timeout (ms, default 8000)","number"],
+ ["recoveryNoResponseMs","26. Mode 1 recovery no-response timeout (ms, default 10000)","number"],
  ["RecoveryInterTrialDelayMsStart","27. Recovery inter-trial delay at start (ms, default 0)","number"],
  ["ResumeToPacedDelayMs","28. Resume-to-paced delay after recovery (ms, default 0)","number"],
  ["maxBlockCount","29. Mode 1 max total blocks before fail (default 6)","number"],
@@ -222,7 +222,7 @@ const LINE_PATTERNS={
 // SECTION: SP-FS — SAMN-PERELLI FATIGUE SCALE
 // 7-point Likert scale. Score 7=fully alert, 1=unable to function.
 // Validated by Samn & Perelli (1982). Collected before each test.
-// Not yet implemented: post-test SP-FS delta collection.
+// TODO: post-test SP-FS delta collection not yet implemented.
 // ═══════════════════════════════════════════════════════════════
 const SAMN_PERELLI=[
  [7,"Full alert, wide awake"],
@@ -492,7 +492,7 @@ function harvestActiveFrameTiming(actualAtMs){
 // ─── CPI ───
 // ─── CPI SCORE CALCULATION ────────────────────────────────────
 // Converts avg last 2 block durations (ms) to 0-100 CPI score.
-// Scale: cpiBestMs=1000ms → CPI 100, cpiWorstMs=2400ms → CPI 0.
+// Scale: cpiBestMs=800ms → CPI 100, cpiWorstMs=2800ms → CPI 0.
 // Source: Perelli (2026). Formula: (worst-ms)/(worst-best)*100
 // ──────────────────────────────────────────────────────────────
 function computeCPI(avgMs){
@@ -1289,6 +1289,7 @@ function failOpenResultsHandoff(result, stage, err){
  try{ updateStartPageLinks(); }catch(e){}
 }
 function finish(){
+ if(state.phase==="finished") return;
  clearTimer(); clearNoResponseTimer(); clearMaxTestTimer();
  state.phase="finished";
  let result=null;
@@ -1530,7 +1531,7 @@ function openTrial(kind){
    }else if(kind==="recovery" || kind==="terminal_recovery"){
     armNoResponseTimer();
    }else if(kind==="mode2_final"){
-    armNoResponseTimer();
+   // mode2_final has no per-trial no-response timeout.
    }
   });
  });
@@ -1755,6 +1756,8 @@ function handleTap(index,eventTimeStamp){
 
  // Calibration
  if(state.phase==="calibration"){
+  if(!state.current || state.current.resolved) return;
+  state.current.resolved=true;
   const rt=getSafeTrialRtMs(eventTimeStamp), ok=trialMatches(state.current,index);
   flashBtn(index,ok); state.totalResponses+=1;
 
@@ -1840,6 +1843,8 @@ function handleTap(index,eventTimeStamp){
 
  // Recovery (SP Restart)
  if(state.phase==="recovery"){
+  if(!state.current || state.current.resolved) return;
+  state.current.resolved=true;
   clearTimer();
   const rt=getSafeTrialRtMs(eventTimeStamp), ok=trialMatches(state.current,index);
   flashBtn(index,ok); state.totalResponses+=1;
@@ -1879,6 +1884,8 @@ function handleTap(index,eventTimeStamp){
 
  // Terminal recovery
  if(state.phase==="terminal_recovery"){
+  if(!state.current || state.current.resolved) return;
+  state.current.resolved=true;
   clearTimer();
   const rt=getSafeTrialRtMs(eventTimeStamp), ok=trialMatches(state.current,index);
   flashBtn(index,ok); state.totalResponses+=1;
@@ -1950,7 +1957,7 @@ function handleTap(index,eventTimeStamp){
     state.current = savedCurrent;
     state.presentedRoundDuration = savedPresented;
     flashBtn(index,false);
-    checkMode2SustainedRollingMean(false);
+    if(checkMode2SustainedRollingMean(false)) return;
     if(state.mode2SustainedWrong >= sustainedWrongLimit){
      state.endReason=`Mode 2 stopped: sustained-phase wrong-response limit reached (${state.mode2SustainedWrong}/${sustainedWrongLimit}).`;
      finish(); return;
@@ -1986,7 +1993,7 @@ function handleTap(index,eventTimeStamp){
   if(state.mode2SustainedWrong >= sustainedWrongLimit){
    logTrial({phase:"mode2_sustained_wrong",rt,outcome:"wrong",responseIndex:index,timing:timingSummary,pacing:{nextRateMs:state.duration,rateChangeMs:0,rateChangeReason:"Mode 2 sustained fixed rate (MBS × factor)"}});
    flashBtn(index,false);
-   checkMode2SustainedRollingMean(false);
+   if(checkMode2SustainedRollingMean(false)) return;
    state.endReason=`Mode 2 stopped: sustained-phase wrong-response limit reached (${state.mode2SustainedWrong}/${sustainedWrongLimit}).`;
    finish(); return;
   }
@@ -2000,6 +2007,8 @@ function handleTap(index,eventTimeStamp){
  }
 
  if(state.phase==="mode2_final"){
+  if(!state.current || state.current.resolved) return;
+  state.current.resolved=true;
   clearTimer();
   const rt=getSafeTrialRtMs(eventTimeStamp), ok=trialMatches(state.current,index);
   flashBtn(index,ok); state.totalResponses+=1; state.mode2FinalTrialsPresented+=1; state.mode2FinalRTs.push(rt);
@@ -6333,14 +6342,7 @@ function deriveSleepWindowForCurrentTest(bedTime, wakeTime, referenceIso, durati
  const bedMins = parseSleepTimeToMinutes(bedTime);
  if(bedMins==null) return null;
  bedDate.setHours(Math.floor(bedMins/60), bedMins%60, 0, 0);
- if(durationOverrideMinutes==null){
-  const fallbackBedDate = new Date(wakeDate.getTime() - durationMinutes*60000);
-  const delta = Math.abs(fallbackBedDate.getTime() - bedDate.getTime());
-  // Do not silently auto-correct large date-entry discrepancies here.
-  // Let validation/UI handling surface the mismatch instead of rewriting the user's entry.
-  void fallbackBedDate;
-  void delta;
- }
+ // No silent auto-correction here; validation/UI handling should surface bed/wake mismatches.
  const referenceDate = new Date(referenceIso || Date.now());
  if(!isFinite(referenceDate.getTime())) return null;
  return { bedDate, wakeDate, durationMinutes, computedDurationMinutes, referenceDate, usedDurationOverride: durationOverrideMinutes!=null, bedDayTag, wakeDayTag };

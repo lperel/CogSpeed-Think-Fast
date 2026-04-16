@@ -1,4 +1,17 @@
 ## V695 — 2026-04-15
+- Added self-paced double-tap guards for calibration, recovery, terminal_recovery, and mode2_final so only the first tap can resolve each self-paced trial.
+- This prevents phantom extra self-paced trials, duplicated wrong counts, and premature completion from rapid double-taps.
+- Fixed a double-finish / duplicate-history-entry bug in Mode 2 sustained wrong-response termination paths by honoring checkMode2SustainedRollingMean(false) return values.
+- Added a finish() re-entry guard as belt-and-suspenders against duplicate result saves.
+- Reapplied the mode2_final no-timeout cleanup and trimmed lingering blank whitespace.
+- Fixed the stale CPI scale comment so it matches the current 800/2800 defaults.
+- Removed the dead mode2_final no-response arming call in openTrial() and replaced it with a clarifying comment.
+- Corrected Admin field #5 and #26 labels from default 8000 to default 10000.
+- Marked the post-test SP-FS delta note as an explicit TODO.
+- Removed dead sleep-window fallback code left behind after the no-autocorrection change.
+- Removed the orphaned Results-button comment block and blank whitespace from index.html.
+- Updated the CPI scale comment to match the current 800/2800 defaults.
+- Removed the no-op mode2_final armNoResponseTimer call in openTrial() and replaced it with a clarifying comment.
 - Changed Admin default #33 CPI best ms anchor from 1000 to 800.
 - Changed Admin default #34 CPI worst ms anchor from 2400 to 2800.
 - Changed Admin default #35 Personal Baseline maximum qualifying MBS from 1800 ms to 1900 ms.
