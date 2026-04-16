@@ -1,4 +1,6 @@
 ## V693 — 2026-04-15
+- Replaced tutorial page 1 with the approved preparation, test-hygiene, and baseline checklist.
+- Inverted the Personal Baseline graph so better (lower ms) values plot higher, matching the other graphs.
 - Fixed the Personal Baseline graph so it scales to phone width instead of forcing an 860 px-wide SVG.
 - Clarified that sessions above the Personal Baseline qualifying MBS threshold do not update or replace the rolling baseline.
 - Moved personalBaselineMaxMbs within DEFAULTS so its placement matches the Admin field order and Mode 1 grouping.

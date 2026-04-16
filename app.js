@@ -3179,7 +3179,8 @@ function buildPersonalBaselineSvg(rows, avg){
  const lo = Math.max(0, minV - pad), hi = maxV + pad;
  const pw=W-L-R, ph=H-T-B;
  const x = i => rows.length===1 ? L+pw/2 : L + (pw*(i/(rows.length-1)));
- const y = v => T + ph - ((v-lo)/(hi-lo||1))*ph;
+ // Inverted plot: lower ms is better, so lower values draw higher on the chart.
+ const y = v => T + ((v-lo)/(hi-lo||1))*ph;
  const poly = rows.map((r,i)=>`${x(i).toFixed(1)},${y(r.mbs).toFixed(1)}`).join(' ');
  let parts=[`<div style="width:100%;max-width:100%;overflow-x:hidden">`,svgOpen,`<rect width="100%" height="100%" fill="#081321" rx="16"/>`,`<text x="${W/2}" y="22" fill="#7fd7ff" text-anchor="middle" font-family="Arial,sans-serif" font-size="20" font-weight="700">Personal Baseline — Last 5 Qualifying MBS Scores</text>`];
  for(let i=0;i<5;i++){
@@ -3198,7 +3199,7 @@ function buildPersonalBaselineSvg(rows, avg){
  if(Number.isFinite(avg)){
   const yy=y(avg);
   parts.push(`<line x1="${L}" y1="${yy.toFixed(1)}" x2="${W-R}" y2="${yy.toFixed(1)}" stroke="#72d572" stroke-width="2" stroke-dasharray="8 6"/>`);
-  parts.push(`<text x="${W-R}" y="${(yy-8).toFixed(1)}" fill="#72d572" text-anchor="end" font-family="Arial,sans-serif" font-size="14" font-weight="700">Average ${Math.round(avg)} ms</text>`);
+  parts.push(`<text x="${W-R}" y="${Math.max(T+14,(yy-8)).toFixed(1)}" fill="#72d572" text-anchor="end" font-family="Arial,sans-serif" font-size="14" font-weight="700">Average ${Math.round(avg)} ms</text>`);
  }
  parts.push(`<text x="${W/2}" y="${H-12}" fill="#9fb4c8" text-anchor="middle" font-family="Arial,sans-serif" font-size="13">Qualifying session order (oldest to newest within current rolling baseline)</text></svg></div>`);
  return parts.join('');
@@ -5908,16 +5909,33 @@ function buildMiniScreen(highlightPart){
 }
 
 const TUT_STEPS = [
- // Step 1: probe highlighted
+ // Step 1: before-you-begin preparation page
  {
   build:()=>{
-   return buildMiniScreen("probe") + `
-   <div style="position:relative;z-index:1;display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;padding:16px;text-align:center">
-    <div style="font-size:13px;letter-spacing:.1em;color:rgba(127,215,255,0.8);text-transform:uppercase;margin-bottom:8px;text-shadow:0 0 12px rgba(127,215,255,0.5)">The Probe</div>
-    <div style="margin-bottom:14px">${buildTutProbe(true)}</div>
-    <div style="background:rgba(10,20,40,0.88);backdrop-filter:blur(4px);border-radius:16px;padding:14px 18px;max-width:300px;border:1px solid rgba(127,215,255,0.2)">
-     <div style="font-size:20px;font-weight:700;color:#f5fbff;margin-bottom:6px">This glowing gear is the <span style="color:#7fd7ff">PROBE</span></div>
-     <div style="font-size:15px;color:rgba(255,255,255,0.65)">Count the marks inside it — dots or lines</div>
+   return `
+   <div style="position:relative;z-index:1;display:flex;flex-direction:column;height:100%;padding:14px 14px 10px 14px;text-align:left">
+    <div style="font-size:13px;letter-spacing:.1em;color:rgba(127,215,255,0.8);text-transform:uppercase;margin-bottom:8px;text-align:center;text-shadow:0 0 12px rgba(127,215,255,0.5)">Before You Begin</div>
+    <div style="background:rgba(10,20,40,0.92);backdrop-filter:blur(4px);border-radius:16px;padding:12px 14px;max-width:100%;border:1px solid rgba(127,215,255,0.22);overflow:auto">
+     <div style="font-size:18px;font-weight:800;color:#f5fbff;margin-bottom:8px;text-align:center">Hints, test hygiene, and preparation</div>
+     <ol style="margin:0;padding-left:18px;font-size:13.5px;line-height:1.36;color:rgba(255,255,255,0.86)">
+      <li>Make sure your phone or tablet has enough battery to finish the test.</li>
+      <li>Use Wi-Fi if possible, especially if you want syncing, downloads, or e-mail features.</li>
+      <li>Silence calls, alerts, and pop-up notifications if you can.</li>
+      <li>Take the test in a safe place where you can focus fully.</li>
+      <li>Do not take the test while driving, walking in traffic, or doing anything hazardous.</li>
+      <li>Hold the device in a comfortable, stable position.</li>
+      <li>Make sure the screen is clean, easy to see, and bright enough.</li>
+      <li>If you use reading glasses or other vision correction, wear them.</li>
+      <li>Use your usual hand and normal tapping posture.</li>
+      <li>Avoid talking or multitasking during the test.</li>
+      <li>Try to minimize distractions from people, TV, music, or other devices.</li>
+      <li>Take the test only when you can give it your full attention for a few minutes.</li>
+      <li>Try to tap as quickly as you can without guessing wildly.</li>
+      <li>Establish your personal baseline.</li>
+      <li>For best comparisons over time, take the test under roughly similar conditions when possible.</li>
+      <li>If you feel unusually impaired, unsafe, or unable to focus, treat that result seriously.</li>
+      <li>Don’t get discouraged if you can’t keep up — CogSpeed is faster than you are!</li>
+     </ol>
     </div>
    </div>`;
   }
