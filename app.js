@@ -371,17 +371,13 @@ function isGuestHistorySubjectId(v){
 }
 function sanitizePersistedHistory(list){
  if(!Array.isArray(list)) return [];
- return list.filter(row=>!isGuestHistorySubjectId(row && row.subjectId));
+ return list;
 }
 function loadPersistedHistory(){
  try{
   const raw = localStorage.getItem(`${STORAGE_PREFIX}_history`) || "[]";
   const parsed = JSON.parse(raw);
-  const cleaned = sanitizePersistedHistory(parsed);
-  if(JSON.stringify(cleaned)!==JSON.stringify(parsed)){
-   localStorage.setItem(`${STORAGE_PREFIX}_history`, JSON.stringify(cleaned));
-  }
-  return cleaned;
+  return sanitizePersistedHistory(parsed);
  }catch(e){
   return [];
  }
@@ -1384,20 +1380,14 @@ function finish(){
  }
  try{
   setFlowDiagnostic("FINISH_SAVE", `FINISH_SAVE — ${result.endReason||"Run complete"}`);
-  if(isGuestHistorySubjectId(result && result.subjectId)){
-   clearTransientCurrentSessionState();
-   setActiveResultContext(result, null, "guest result (not persisted)");
-   try{ updateStartPageLinks(); }catch(e){}
-  }else{
-   state.history.push(result);
-   state.history = savePersistedHistory(state.history);
-   state.speedometerLatestSessionIndex = state.history.length-1; // Latest saved registered session
-   setActiveResultContext(result, state.history.length-1, "saved history");
-   try{ syncSummarySessionSelect(state.history.length-1); }catch(e){}
-   try{ syncSpeedometerSessionSelect(state.history.length-1); }catch(e){}
-   try{ updateStartPageLinks(); }catch(e){}
-   try{ if(getCurrentSavedSubjectId()) refreshSchedulerStatus(); }catch(e){}
-  }
+  state.history.push(result);
+  state.history = savePersistedHistory(state.history);
+  state.speedometerLatestSessionIndex = state.history.length-1;
+  setActiveResultContext(result, state.history.length-1, isGuestHistorySubjectId(result && result.subjectId) ? "guest saved history" : "saved history");
+  try{ syncSummarySessionSelect(state.history.length-1); }catch(e){}
+  try{ syncSpeedometerSessionSelect(state.history.length-1); }catch(e){}
+  try{ updateStartPageLinks(); }catch(e){}
+  try{ if(getCurrentSavedSubjectId()) refreshSchedulerStatus(); }catch(e){}
  }catch(err){
   console.error("finish save failed", err);
   try{ if(state.history[state.history.length-1]===result) state.history.pop(); }catch(e){}
@@ -3093,6 +3083,7 @@ function getPersonalBaselineMaxMbs(){
 }
 function isBaselineQualifyingSession(result){
  if(!result) return false;
+ if(isGuestHistorySubjectId(result.subjectId)) return false;
  if(!(result.testMode==="mode1" || result.testMode==="mode2")) return false;
  if(isPerfFailureSession(result)) return false;
  const mbs = getAdaptivePhaseMbs(result);
@@ -3219,7 +3210,7 @@ function openPersonalBaselinePage(sessionIndex){
  if(statusEl) statusEl.textContent = statusText;
  if(metaEl){
   const sessionTime = result.time ? new Date(result.time).toLocaleString() : "—";
-  metaEl.innerHTML = `<div><strong>Subject:</strong> ${escapeHtml(String(result.subjectId||"—"))}</div><div><strong>Baseline as of session:</strong> ${escapeHtml(sessionTime)}</div><div><strong>Qualifying sessions available:</strong> ${baseline.qualifyingCount} / 5</div><div style="margin-top:6px">Rolling baseline uses the most recent 5 qualifying Mode 1 / Mode 2 adaptive-phase MBS scores with MBS &le; ${getPersonalBaselineMaxMbs()} ms, SP-FS 5–7, and no failed sessions.</div>`;
+  metaEl.innerHTML = `<div><strong>Subject:</strong> ${escapeHtml(String(result.subjectId||"—"))}</div><div><strong>Baseline as of session:</strong> ${escapeHtml(sessionTime)}</div><div><strong>Qualifying sessions available:</strong> ${baseline.qualifyingCount} / 5</div><div style="margin-top:6px">Rolling baseline uses the most recent 5 qualifying non-Guest Mode 1 / Mode 2 adaptive-phase MBS scores with MBS &le; ${getPersonalBaselineMaxMbs()} ms, SP-FS 5–7, and no failed sessions.</div>`;
  }
  if(graphEl) graphEl.innerHTML = buildPersonalBaselineSvg(rows, baseline.established ? baseline.averageMbs : null);
  if(tbody){
@@ -4237,7 +4228,7 @@ function getResultsMetricExplanationText(result){
 RESULTS METRIC EXPLANATIONS
  MBS (Maximum Blocking Speed) = average in ms of the last 2 consecutive blocks within 250 ms.${usesMode1Metrics||usesMode2Metrics?"":" Not used in this mode."}
  CPI (Cognitive Processing Index) = normalized 0 - 100 index based on MBS.${usesMode1Metrics||usesMode2Metrics?"":" Not used in this mode."}
- BASELINE = rolling personal baseline average built from the most recent 5 qualifying Mode 1 / Mode 2 adaptive-phase MBS sessions for the same registered subject, using non-failed sessions with MBS at or below the Admin qualifying threshold and Samn-Perelli Fatigue Scale scores of 5, 6, or 7.${usesMode1Metrics||usesMode2Metrics?"":" Not used in this mode."}
+ BASELINE = rolling personal baseline average built from the most recent 5 qualifying Mode 1 / Mode 2 adaptive-phase MBS sessions for the same registered subject, using non-failed non-Guest sessions with MBS at or below the Admin qualifying threshold and Samn-Perelli Fatigue Scale scores of 5, 6, or 7.${usesMode1Metrics||usesMode2Metrics?"":" Not used in this mode."}
  CSR (Correct Sustained Responses) = number of correct sustained responses in the Mode 2 sustained segment.${usesMode2Metrics?"":" Not used in this mode."}
  SBLP (Sustained Blocking Limit Performance) = average RT of correct sustained responses during Mode 2 sustained segment, but defined as 0 when CSR = 0.${usesMode2Metrics?"":" Not used in this mode."}
  SBLP P90 = 90th-percentile correct sustained RT; conservative ceiling estimate.${usesMode2Metrics?"":" Not used in this mode."}
@@ -6034,7 +6025,7 @@ const TUT_STEPS = [
       CogSpeed works best when you build your own personal Baseline. Your Baseline is a rolling average of your last 5 qualifying Mode 1 or Mode 2 MBS scores.
      </div>
      <div style="margin-top:12px;font-size:14px;line-height:1.6;color:rgba(220,235,255,0.88);background:rgba(127,215,255,0.08);border:1px solid rgba(127,215,255,0.22);border-radius:12px;padding:10px 12px">
-      Baseline sessions must be non-failed tests with <strong>MBS at or below ${getPersonalBaselineMaxMbs()} ms</strong> and <strong>SP-FS of 5, 6, or 7</strong>. This helps CogSpeed track changes from your own normal level and capture learning effects over time.
+      Baseline sessions must be non-failed non-Guest tests with <strong>MBS at or below ${getPersonalBaselineMaxMbs()} ms</strong> and <strong>SP-FS of 5, 6, or 7</strong>. This helps CogSpeed track changes from your own normal level and capture learning effects over time.
      </div>
     </div>
    </div>`;
