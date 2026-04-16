@@ -1,4 +1,5 @@
 ## V694 — 2026-04-15
+- Removed the duplicate "Registered user required. Guest cannot use Scheduler." line from the Mode 2 Scheduler panel.
 - Fixed the remaining scheduler window-boundary inconsistency so personal window end handling now uses the same inclusive/exclusive convention as quiet-hours clamping.
 - Removed the 36-hour silent sleep-window auto-correction so large bed/wake discrepancies are no longer silently rewritten.
 - Documented the post-restore profileguard marker write instead of leaving it unexplained.
