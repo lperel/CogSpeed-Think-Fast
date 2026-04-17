@@ -1,4 +1,9 @@
 ## V696 — 2026-04-15
+- Added a fuller code-comment pass for the Sleep Logger model, including first-vs-later prompt wording, YES/NO carry-forward semantics, required Sleep Quality on new sleep entry, and the meanings of Total time asleep / Total time awake / Time since last test.
+- Removed dead unreachable quality-null cleanup code from continueFromSleepLogger() after Sleep Quality became required.
+- Added an explicit code note documenting the intended carried-forward sleep semantics used in results and CSV rows.
+- Sleep Quality is now required whenever new sleep data is entered; a new sleep entry replaces the prior one and remains the active reference until the next new sleep entry.
+- Restored the intended sleep carry-forward behavior: on No, results continue to show the last actual sleep episode's total time asleep while time awake continues from the carried-forward wake time.
 - Added a shared getSessionSleptMinutes helper and used it in both Summary and Speedometer so historical No-session records no longer disagree between views.
 - Removed the dead getCurrentTestWakeDateTimeIso function.
 - Made sleep status-bar messages match the dynamic first-test vs later-test prompt wording.

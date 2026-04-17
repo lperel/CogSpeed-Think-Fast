@@ -1343,7 +1343,7 @@ function finish(){
    totalTrials:state.totalTrials, totalCorrect:state.totalCorrect,
    totalIncorrect:state.totalIncorrect, missedTrials:state.missedTrials,
    sleepSinceLastTest: state.sleepSinceLastTest,
-   sleepLog: state.sleepLog ? (()=>{ const sl=JSON.parse(JSON.stringify(state.sleepLog)); if(state.sleepSinceLastTest==="no"){ sl.durationMinutes = 0; } return sl; })() : null,
+   sleepLog: state.sleepLog ? JSON.parse(JSON.stringify(state.sleepLog)) : null,
    calibrationErrors:state.calibrationErrors,
    pacedErrors:state.pacedErrors, recoveryErrors:state.recoveryErrors, pacedResponseCount:state.pacedRTs.length,
    pacedResponseMeanMs:state.pacedRTs.length?mean(state.pacedRTs):null,
@@ -6444,16 +6444,25 @@ function computeTimeSinceLastSleepMinutes(result){
  const wakeIso = result?.sleepLog?.lastWakeDateTimeIso || result?.sleepLog?.wakeDateTimeIso || null;
  return wakeIso ? minutesBetweenIso(wakeIso, result?.time) : null;
 }
+// getSessionSleptMinutes():
+// Returns the duration of the ACTIVE sleep episode for this result.
+// - YES session: duration from the newly entered sleep record
+// - NO session with carry-forward: duration from the most recent actual sleep record
+// - NO session with no prior sleep data: 0
+// This function is shared by Summary and Speedometer so both views stay aligned.
 function getSessionSleptMinutes(result){
- if(result?.sleepSinceLastTest === "no") return 0;
  const d = result?.sleepLog?.durationMinutes;
- return d!=null ? Number(d) : null;
+ return d!=null ? Number(d) : (result?.sleepSinceLastTest === "no" ? 0 : null);
 }
 function formatTimeSinceLastSleepLine(result){
  const mins = computeTimeSinceLastSleepMinutes(result);
  if(mins==null) return null;
  return `Hours awake before test: ${formatElapsedDuration(mins)}`;
 }
+// formatSleepSummaryMetricsLine():
+// Uses the active sleep episode semantics described above. On carried-forward NO
+// sessions, "Total time asleep" intentionally refers to the most recent actual
+// sleep episode, while "Total time awake" continues from that episode's wake time.
 function formatSleepSummaryMetricsLine(result){
  const awakeMins = computeTimeSinceLastSleepMinutes(result);
  const sleptMins = getSessionSleptMinutes(result);
@@ -6493,6 +6502,10 @@ function formatClockForDisplay(v){
   return String(v);
  }
 }
+// getLatestPriorSleepReference():
+// Finds the most recent prior result for this subject that contains a usable
+// sleep reference (wake time and/or duration). Used on the NO path so the app
+// can keep reporting the last actual sleep episode until a later YES replaces it.
 function getLatestPriorSleepReference(subjectId, beforeIso=null){
  if(!subjectId || !Array.isArray(state.history)) return null;
  const cutoff = beforeIso ? Date.parse(beforeIso) : Number.POSITIVE_INFINITY;
@@ -6531,6 +6544,9 @@ function getTimeSinceLastTestMinutes(result){
  if(!Number.isFinite(currentTime) || !Number.isFinite(prevTime) || currentTime < prevTime) return null;
  return Math.round((currentTime - prevTime)/60000);
 }
+// formatTimeSinceLastTestLine():
+// Shows elapsed time since the prior test for this subject.
+// For the first test, returns null so the line is omitted rather than implying 0h 0m.
 function formatTimeSinceLastTestLine(result){
  const mins = getTimeSinceLastTestMinutes(result);
  if(mins==null) return null;
@@ -6565,10 +6581,15 @@ function updateSleepLoggerUI(){
  if(warn){
   const validation = (bed && wake) ? validateSleepWindowForCurrentTest(bed, wake, new Date().toISOString(), overrideMinutes) : null;
   const basicUnusual = (d!=null && (d < 10 || d > 16*60));
-  const shouldWarn = basicUnusual || (validation && !validation.ok);
+  const qualityScore = state.sleepLog && Number.isFinite(Number(state.sleepLog.qualityScore)) ? Number(state.sleepLog.qualityScore) : null;
+  const missingQuality = !!(bed && wake && qualityScore==null);
+  const shouldWarn = basicUnusual || (validation && !validation.ok) || missingQuality;
   warn.style.display = shouldWarn ? "block" : "none";
   if(shouldWarn){
-   warn.textContent = validation && !validation.ok ? validation.message : "This sleep duration looks unusual. Please check hour and AM/PM selections.";
+   warn.textContent =
+    validation && !validation.ok ? validation.message :
+    (missingQuality ? "Select Sleep Quality before continuing." :
+    "This sleep duration looks unusual. Please check hour and AM/PM selections.");
   }
  }
 }
@@ -6620,17 +6641,30 @@ function showFatigueOverlay(){
 // - compute durationMinutes from the validated window or the optional override
 // - save bedDateTimeIso / wakeDateTimeIso so Results can compute hours awake
 //   from the current test's recorded wake entry only
+// continueFromSleepLogger():
+// - validates the newly entered sleep window against the current test time
+// - requires Sleep Quality whenever new sleep data is entered
+// - on success, saves a NEW active sleep episode on state.sleepLog
+// - this replaces any earlier carried-forward sleep reference for subsequent results
 function continueFromSleepLogger(){
  const bed=getSleepInputCanonicalValue("sleepBedtimeInput");
  const wake=getSleepInputCanonicalValue("sleepWakeInput");
  const durationOverrideMinutes=getSleepDurationOverrideMinutes();
  const bedDay = String($("sleepBedDaySelect")?.value||"yesterday");
  const wakeDay = String($("sleepWakeDaySelect")?.value||"today");
+ const qualityScore = state.sleepLog && Number.isFinite(Number(state.sleepLog.qualityScore)) ? Number(state.sleepLog.qualityScore) : null;
  const validation = validateSleepWindowForCurrentTest(bed, wake, new Date().toISOString(), durationOverrideMinutes, bedDay, wakeDay);
  if(!validation.ok){
   setStatus(validation.message);
   const warn=$("sleepWarnBox");
   if(warn){ warn.style.display = "block"; warn.textContent = validation.message; }
+  return;
+ }
+ if(qualityScore==null){
+  const msg = "Select Sleep Quality before continuing.";
+  setStatus(msg);
+  const warn=$("sleepWarnBox");
+  if(warn){ warn.style.display = "block"; warn.textContent = msg; }
   return;
  }
  state.sleepSinceLastTest = "yes";
@@ -6644,13 +6678,23 @@ function continueFromSleepLogger(){
  state.sleepLog.wakeDayTag = wakeDay;
  state.sleepLog.bedDateTimeIso = validation.window.bedDate.toISOString();
  state.sleepLog.wakeDateTimeIso = validation.window.wakeDate.toISOString();
- if(state.sleepLog.qualityScore==null){
-  delete state.sleepLog.qualityScore;
-  delete state.sleepLog.qualityLabel;
- }
  showFatigueOverlay();
 }
 
+// Sleep Logger model:
+// 1) The sleep prompt wording depends on subject history:
+//    - first test for this subject: "Have you slept before this test?"
+//    - later tests: "Have you slept since LAST TEST?"
+// 2) YES means the subject reports a NEW sleep episode before the current test.
+//    The Sleep Logger must be completed, including required Sleep Quality.
+//    That new sleep entry REPLACES the prior sleep reference.
+// 3) NO means no new sleep occurred since the prior test.
+//    The most recent ACTUAL sleep episode remains the active reference and is
+//    carried forward into results/CSV until a later YES replaces it.
+// 4) Result semantics:
+//    - Total time asleep = duration of the active sleep episode
+//    - Total time awake  = current test time minus the active wake time
+//    - Time since last test = elapsed time since the prior test for this subject
 function hasPriorTestForCurrentSubject(){
  const sid = subjectKey(state.subjectId||"0");
  if(!sid || !Array.isArray(state.history)) return false;
@@ -6666,6 +6710,10 @@ function updateSleepPromptQuestion(){
  if(!el) return;
  el.textContent = getSleepPromptQuestionText();
 }
+// showSleepPrompt():
+// - resets transient pre-test entry state for the CURRENT flow
+// - refreshes the dynamic question wording from subject history
+// - does not alter saved history; first-vs-later wording comes from prior results
 function showSleepPrompt(){
  resetPretestEntryState();
  updateSleepPromptQuestion();
