@@ -6654,8 +6654,21 @@ function continueFromSleepLogger(){
  showFatigueOverlay();
 }
 
+function hasPriorTestForCurrentSubject(){
+ const sid = subjectKey(state.subjectId||"0");
+ if(!sid || !Array.isArray(state.history)) return false;
+ return state.history.some(r=>r && String(r.subjectId||"")===String(sid));
+}
+function updateSleepPromptQuestion(){
+ const el = $("sleepPromptQuestion");
+ if(!el) return;
+ el.textContent = hasPriorTestForCurrentSubject()
+  ? "Have you slept since LAST TEST?"
+  : "Have you slept before this test?";
+}
 function showSleepPrompt(){
  resetPretestEntryState();
+ updateSleepPromptQuestion();
  showOnly("sleepPromptOverlay");
 }
 

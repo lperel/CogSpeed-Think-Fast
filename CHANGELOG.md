@@ -1,4 +1,5 @@
 ## V696 — 2026-04-15
+- Sleep prompt wording is now context-sensitive: first test shows 'Have you slept before this test?' and later tests show 'Have you slept since LAST TEST?'
 - Removed the now-unreachable lastWakeOverlay code and HTML after the sleep prompt flow was simplified to Yes → Sleep Logger and No → Test.
 - Fixed the remaining wake-time priority inconsistency in formatSleepLine so lastWakeDateTimeIso is preferred everywhere.
 - Fixed the first-test summary so 'Time since last test' is omitted when no prior test exists, instead of showing 0h 0m.
