@@ -6459,15 +6459,8 @@ function getCurrentTestWakeDateTimeIso(result){
  return isFinite(d.getTime()) ? direct : null;
 }
 function computeTimeSinceLastSleepMinutes(result){
- const wakeIso = getCurrentTestWakeDateTimeIso(result);
- const testIso = result?.time;
- if(!wakeIso || !testIso) return null;
- const wakeDate = new Date(wakeIso);
- const testDate = new Date(testIso);
- if(!isFinite(wakeDate.getTime()) || !isFinite(testDate.getTime())) return null;
- const deltaMs = testDate.getTime() - wakeDate.getTime();
- if(deltaMs < 0) return null;
- return Math.round(deltaMs/60000);
+ const wakeIso = result?.sleepLog?.wakeDateTimeIso || result?.sleepLog?.lastWakeDateTimeIso || null;
+ return wakeIso ? minutesBetweenIso(wakeIso, result?.time) : null;
 }
 function formatTimeSinceLastSleepLine(result){
  const mins = computeTimeSinceLastSleepMinutes(result);
@@ -6513,6 +6506,22 @@ function formatClockForDisplay(v){
   return String(v);
  }
 }
+function getLatestPriorSleepReference(subjectId, beforeIso=null){
+ if(!subjectId || !Array.isArray(state.history)) return null;
+ const cutoff = beforeIso ? Date.parse(beforeIso) : Number.POSITIVE_INFINITY;
+ let best = null;
+ for(const r of state.history){
+  if(!r || String(r.subjectId||"") !== String(subjectId)) continue;
+  const t = Date.parse(r.time||"");
+  if(!Number.isFinite(t) || t >= cutoff) continue;
+  const sl = r.sleepLog || null;
+  const hasWake = !!(sl && (sl.wakeDateTimeIso || sl.lastWakeDateTimeIso));
+  const hasDuration = !!(sl && Number.isFinite(Number(sl.durationMinutes)));
+  if(!hasWake && !hasDuration) continue;
+  if(!best || Date.parse(best.time||"") < t) best = r;
+ }
+ return best ? JSON.parse(JSON.stringify(best.sleepLog||null)) : null;
+}
 function getPreviousSameSubjectResult(result){
  if(!result || !result.subjectId || !Array.isArray(state.history)) return null;
  const currentTime = Date.parse(result.time||"");
@@ -6550,8 +6559,8 @@ function formatSleepLine(result){
   return `Bed ${bed}${bedTag ? ` (${bedTag})` : ""} → Wake ${wake}${wakeTag ? ` (${wakeTag})` : ""}`;
  }
  if(slept==="no"){
-  const lastWakeIso = sl?.lastWakeDateTimeIso || null;
-  const wakePart = lastWakeIso ? `Last wake: ${new Date(lastWakeIso).toLocaleString()}` : "No sleep before this test";
+  const wakeIso = sl?.wakeDateTimeIso || sl?.lastWakeDateTimeIso || null;
+  const wakePart = wakeIso ? `Last wake: ${new Date(wakeIso).toLocaleString()}` : "No sleep before this test";
   return wakePart;
  }
  return "Sleep: Not entered";
@@ -6758,7 +6767,8 @@ $("sleepPromptYesBtn").onclick=()=>{
 };
 $("sleepPromptNoBtn").onclick=()=>{
  state.sleepSinceLastTest="no";
- state.sleepLog=null;
+ const priorSleep = getLatestPriorSleepReference(subjectKey(state.subjectId||"0"));
+ state.sleepLog = priorSleep || null;
  startTest();
  setStatus("Sleep since LAST TEST: No");
 };

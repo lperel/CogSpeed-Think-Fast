@@ -1,4 +1,5 @@
 ## V696 — 2026-04-15
+- Sleep carry-forward now works across tests: answering No preserves the most recent prior sleep episode for total asleep/awake calculations until the next Yes creates a new sleep episode.
 - Both result views now show total time awake, total time asleep, and total time since last test.
 - Both result summaries now show total time awake, total time asleep, and total time since last test.
 - Sleep prompt routing now does exactly: Yes → Sleep Logger, No → Test.
