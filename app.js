@@ -6440,15 +6440,14 @@ function minutesBetweenIso(fromIso, toIso){
  if(!Number.isFinite(a) || !Number.isFinite(b) || b < a) return null;
  return Math.round((b - a)/60000);
 }
-function getCurrentTestWakeDateTimeIso(result){
- const direct = result?.sleepLog?.lastWakeDateTimeIso || result?.sleepLog?.wakeDateTimeIso || null;
- if(!direct) return null;
- const d = new Date(direct);
- return isFinite(d.getTime()) ? direct : null;
-}
 function computeTimeSinceLastSleepMinutes(result){
  const wakeIso = result?.sleepLog?.lastWakeDateTimeIso || result?.sleepLog?.wakeDateTimeIso || null;
  return wakeIso ? minutesBetweenIso(wakeIso, result?.time) : null;
+}
+function getSessionSleptMinutes(result){
+ if(result?.sleepSinceLastTest === "no") return 0;
+ const d = result?.sleepLog?.durationMinutes;
+ return d!=null ? Number(d) : null;
 }
 function formatTimeSinceLastSleepLine(result){
  const mins = computeTimeSinceLastSleepMinutes(result);
@@ -6457,9 +6456,7 @@ function formatTimeSinceLastSleepLine(result){
 }
 function formatSleepSummaryMetricsLine(result){
  const awakeMins = computeTimeSinceLastSleepMinutes(result);
- const sleptMins = result?.sleepSinceLastTest==="no"
-  ? 0
-  : (result?.sleepLog?.durationMinutes!=null ? Number(result.sleepLog.durationMinutes) : null);
+ const sleptMins = getSessionSleptMinutes(result);
  const awakeText = awakeMins!=null ? formatElapsedDuration(awakeMins) : "—";
  const sleptText = sleptMins!=null ? formatSleepDuration(sleptMins) : "—";
  return `Sleep timing: Total time awake ${awakeText}   Total time asleep ${sleptText}   Sleep Quality: ${formatSleepQualityText(result)}`;
@@ -6659,12 +6656,15 @@ function hasPriorTestForCurrentSubject(){
  if(!sid || !Array.isArray(state.history)) return false;
  return state.history.some(r=>r && String(r.subjectId||"")===String(sid));
 }
+function getSleepPromptQuestionText(){
+ return hasPriorTestForCurrentSubject()
+  ? "Have you slept since LAST TEST?"
+  : "Have you slept before this test?";
+}
 function updateSleepPromptQuestion(){
  const el = $("sleepPromptQuestion");
  if(!el) return;
- el.textContent = hasPriorTestForCurrentSubject()
-  ? "Have you slept since LAST TEST?"
-  : "Have you slept before this test?";
+ el.textContent = getSleepPromptQuestionText();
 }
 function showSleepPrompt(){
  resetPretestEntryState();
@@ -6730,19 +6730,19 @@ $("tutBackBtn").onclick=()=>tutBack();
 $("refBackBtn").onclick=()=>goToStartPage();
  try{ updateStartPageLinks(); }catch(e){}
 
-$("fatigueBackBtn").onclick=()=>{ if(state.sleepSinceLastTest==="yes") showOnly("sleepOverlay"); else if(state.sleepSinceLastTest==="no") showOnly("sleepPromptOverlay"); else showOnly("sleepPromptOverlay"); };
+$("fatigueBackBtn").onclick=()=>{ if(state.sleepSinceLastTest==="yes") showOnly("sleepOverlay"); else showSleepPrompt(); };
 
 $("sleepPromptYesBtn").onclick=()=>{
  state.sleepSinceLastTest="yes";
  showSleepLogger();
- setStatus("Sleep since LAST TEST: Yes");
+ setStatus(`${getSleepPromptQuestionText()} Yes`);
 };
 $("sleepPromptNoBtn").onclick=()=>{
  state.sleepSinceLastTest="no";
  const priorSleep = getLatestPriorSleepReference(subjectKey(state.subjectId||"0"));
  state.sleepLog = priorSleep || null;
  startTest();
- setStatus("Sleep since LAST TEST: No");
+ setStatus(`${getSleepPromptQuestionText()} No`);
 };
 
 $("sleepBedtimeInput").addEventListener("input", (e)=>{ syncSleepInputCanonical(e.currentTarget); updateSleepLoggerUI(); });
@@ -6760,7 +6760,7 @@ $("sleepQualityPoorBtn").onclick=()=>setSleepQuality(1);
 $("sleepQualityOkayBtn").onclick=()=>setSleepQuality(2);
 $("sleepQualityGoodBtn").onclick=()=>setSleepQuality(3);
 $("sleepContinueBtn").onclick=()=>continueFromSleepLogger();
-$("sleepBackBtn").onclick=()=>showOnly("sleepPromptOverlay");
+$("sleepBackBtn").onclick=()=>showSleepPrompt();
 
 $("sleepPromptBackBtn").onclick=()=>goToStartPage();
 
@@ -7134,7 +7134,7 @@ function renderSpeedometerSleepMetrics(result){
  const wrap = $("speedometerSleepMetrics");
  if(!wrap) return;
  const awakeMins = computeTimeSinceLastSleepMinutes(result);
- const sleptMins = result?.sleepLog?.durationMinutes!=null ? Number(result.sleepLog.durationMinutes) : (result?.sleepSinceLastTest==="no" ? 0 : null);
+ const sleptMins = getSessionSleptMinutes(result);
  const quality = getSleepQualityBadge(result);
  const awakeText = awakeMins!=null ? formatElapsedDuration(awakeMins) : "—";
  const sleptText = sleptMins!=null ? formatSleepDuration(sleptMins) : "—";

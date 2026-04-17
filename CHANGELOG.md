@@ -1,4 +1,8 @@
 ## V696 — 2026-04-15
+- Added a shared getSessionSleptMinutes helper and used it in both Summary and Speedometer so historical No-session records no longer disagree between views.
+- Removed the dead getCurrentTestWakeDateTimeIso function.
+- Made sleep status-bar messages match the dynamic first-test vs later-test prompt wording.
+- Routed sleep-prompt back-navigation through showSleepPrompt() so the prompt text always refreshes correctly.
 - Sleep prompt wording is now context-sensitive: first test shows 'Have you slept before this test?' and later tests show 'Have you slept since LAST TEST?'
 - Removed the now-unreachable lastWakeOverlay code and HTML after the sleep prompt flow was simplified to Yes → Sleep Logger and No → Test.
 - Fixed the remaining wake-time priority inconsistency in formatSleepLine so lastWakeDateTimeIso is preferred everywhere.
