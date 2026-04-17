@@ -6434,15 +6434,6 @@ function validateSleepWindowForCurrentTest(bedTime, wakeTime, referenceIso, dura
  // validly report being awake for more than 24 hours before testing.
  return { ok:true, window };
 }
-function validateLastWakeDateTimeForCurrentTest(lastWakeIso, referenceIso){
- if(!lastWakeIso) return { ok:false, message:"Enter your last wake date and time." };
- const wakeDate = new Date(lastWakeIso);
- const referenceDate = new Date(referenceIso || Date.now());
- if(!isFinite(wakeDate.getTime())) return { ok:false, message:"Enter a valid last wake date and time." };
- if(!isFinite(referenceDate.getTime())) return { ok:false, message:"Current test time is invalid." };
- if(wakeDate.getTime() > referenceDate.getTime()) return { ok:false, message:"Last wake time cannot be after the current test time." };
- return { ok:true, wakeDate };
-}
 function minutesBetweenIso(fromIso, toIso){
  const a = Date.parse(fromIso||"");
  const b = Date.parse(toIso||"");
@@ -6559,7 +6550,7 @@ function formatSleepLine(result){
   return `Bed ${bed}${bedTag ? ` (${bedTag})` : ""} → Wake ${wake}${wakeTag ? ` (${wakeTag})` : ""}`;
  }
  if(slept==="no"){
-  const wakeIso = sl?.wakeDateTimeIso || sl?.lastWakeDateTimeIso || null;
+  const wakeIso = sl?.lastWakeDateTimeIso || sl?.wakeDateTimeIso || null;
   const wakePart = wakeIso ? `Last wake: ${new Date(wakeIso).toLocaleString()}` : "No sleep before this test";
   return wakePart;
  }
@@ -6616,38 +6607,6 @@ function showSleepLogger(){
  applySleepInputFormat();
  updateSleepLoggerUI();
  showOnly("sleepOverlay");
-}
-function showLastWakeOverlay(){
- const el=$("lastWakeDateTimeInput");
- const now=new Date();
- if(el && !el.value){
-  const pad=n=>String(n).padStart(2,"0");
-  el.value = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}`;
- }
- const warn=$("lastWakeWarnBox"); if(warn){ warn.style.display="none"; warn.textContent=""; }
- showOnly("lastWakeOverlay");
-}
-function continueFromLastWakeOverlay(){
- const el=$("lastWakeDateTimeInput");
- const val=String(el?.value||"").trim();
- const validation = validateLastWakeDateTimeForCurrentTest(val ? new Date(val).toISOString() : null, new Date().toISOString());
- if(!validation.ok){
-  setStatus(validation.message);
-  const warn=$("lastWakeWarnBox");
-  if(warn){ warn.style.display="block"; warn.textContent=validation.message; }
-  return;
- }
- state.sleepSinceLastTest = "no";
- state.sleepLog = state.sleepLog || {};
- state.sleepLog.lastWakeDateTimeIso = validation.wakeDate.toISOString();
- delete state.sleepLog.bedtime;
- delete state.sleepLog.wakeTime;
- delete state.sleepLog.wakeDateTimeIso;
- delete state.sleepLog.durationMinutes;
- delete state.sleepLog.durationOverrideMinutes;
- delete state.sleepLog.qualityScore;
- delete state.sleepLog.qualityLabel;
- showFatigueOverlay();
 }
 function showFatigueOverlay(){
  const fsb=$("fatigueStartBtn"); if(fsb) fsb.classList.add("hidden");
@@ -6789,8 +6748,6 @@ $("sleepQualityOkayBtn").onclick=()=>setSleepQuality(2);
 $("sleepQualityGoodBtn").onclick=()=>setSleepQuality(3);
 $("sleepContinueBtn").onclick=()=>continueFromSleepLogger();
 $("sleepBackBtn").onclick=()=>showOnly("sleepPromptOverlay");
-$("lastWakeContinueBtn").onclick=()=>continueFromLastWakeOverlay();
-$("lastWakeBackBtn").onclick=()=>showOnly("sleepPromptOverlay");
 
 $("sleepPromptBackBtn").onclick=()=>goToStartPage();
 
