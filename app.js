@@ -4505,6 +4505,7 @@ Total Test Duration${result.testMode==="mode2"?" (excludes sustained MP)":""}: $
 Fatigue (SP-FS): ${spf}
 Sleep: ${sleepLine.replace(/^SLEEP:\s*/,'')}
 ${formatSleepSummaryMetricsLine(result)}
+${formatTimeSinceLastTestLine(result)}
 ${getPersonalBaselineSummaryText(result)}
 ${selfPacedLine}
 ${mode1AdaptiveBlock || mode2AdaptiveBlock || 'ADAPTIVE MACHINE-PACED PHASE: Not used in this mode'}
@@ -4550,6 +4551,7 @@ FATIGUE (SP-FS)
 ${formatSleepLine(result)}
 ${formatTimeSinceLastSleepLine(result)||""}
 ${formatSleepSummaryMetricsLine(result)}
+${formatTimeSinceLastTestLine(result)}
 ${getPersonalBaselineSummaryText(result)}
 ${hr}
 SELF-PACED CALIBRATION
@@ -4587,6 +4589,7 @@ FATIGUE (SP-FS)
 ${formatSleepLine(result)}
 ${formatTimeSinceLastSleepLine(result)||""}
 ${formatSleepSummaryMetricsLine(result)}
+${formatTimeSinceLastTestLine(result)}
 ${getPersonalBaselineSummaryText(result)}
 ${hr}
 SELF-PACED CALIBRATION
@@ -4653,6 +4656,7 @@ FATIGUE (SP-FS)
 ${formatSleepLine(result)}
 ${formatTimeSinceLastSleepLine(result)||""}
 ${formatSleepSummaryMetricsLine(result)}
+${formatTimeSinceLastTestLine(result)}
 ${getPersonalBaselineSummaryText(result)}
 ${hr}
 SELF-PACED CALIBRATION
@@ -4753,6 +4757,7 @@ FATIGUE (SP-FS)
 ${formatSleepLine(result)}
 ${formatTimeSinceLastSleepLine(result)||""}
 ${formatSleepSummaryMetricsLine(result)}
+${formatTimeSinceLastTestLine(result)}
 ${getPersonalBaselineSummaryText(result)}
 ${hr}
 CALIBRATION
@@ -6472,10 +6477,9 @@ function formatTimeSinceLastSleepLine(result){
 function formatSleepSummaryMetricsLine(result){
  const awakeMins = computeTimeSinceLastSleepMinutes(result);
  const sleptMins = result?.sleepLog?.durationMinutes!=null ? Number(result.sleepLog.durationMinutes) : (result?.sleepSinceLastTest==="no" ? 0 : null);
- const quality = getSleepQualityBadge(result);
  const awakeText = awakeMins!=null ? formatElapsedDuration(awakeMins) : "—";
  const sleptText = sleptMins!=null ? formatSleepDuration(sleptMins) : "—";
- return `Since last waking: Total hours awake ${awakeText}   Total hours last slept ${sleptText}   Sleep Quality: ${formatSleepQualityText(result)}`;
+ return `Sleep timing: Total time awake ${awakeText}   Total time asleep ${sleptText}   Sleep Quality: ${formatSleepQualityText(result)}`;
 }
 function computeSleepDurationMinutes(bed,wake){
  const b=parseSleepTimeToMinutes(bed), w=parseSleepTimeToMinutes(wake);
@@ -6508,6 +6512,32 @@ function formatClockForDisplay(v){
  }catch(e){
   return String(v);
  }
+}
+function getPreviousSameSubjectResult(result){
+ if(!result || !result.subjectId || !Array.isArray(state.history)) return null;
+ const currentTime = Date.parse(result.time||"");
+ if(!Number.isFinite(currentTime)) return null;
+ let prev = null;
+ for(const r of state.history){
+  if(!r || r===result) continue;
+  if(String(r.subjectId||"") !== String(result.subjectId||"")) continue;
+  const t = Date.parse(r.time||"");
+  if(!Number.isFinite(t) || t >= currentTime) continue;
+  if(!prev || Date.parse(prev.time||"") < t) prev = r;
+ }
+ return prev;
+}
+function getTimeSinceLastTestMinutes(result){
+ const prev = getPreviousSameSubjectResult(result);
+ if(!prev) return null;
+ const currentTime = Date.parse(result.time||"");
+ const prevTime = Date.parse(prev.time||"");
+ if(!Number.isFinite(currentTime) || !Number.isFinite(prevTime) || currentTime < prevTime) return null;
+ return Math.round((currentTime - prevTime)/60000);
+}
+function formatTimeSinceLastTestLine(result){
+ const mins = getTimeSinceLastTestMinutes(result);
+ return `Since last test: Total time since last test ${formatElapsedDuration(mins)}`;
 }
 function formatSleepLine(result){
  const slept = result?.sleepSinceLastTest;
@@ -6722,14 +6752,15 @@ $("refBackBtn").onclick=()=>goToStartPage();
 $("fatigueBackBtn").onclick=()=>{ if(state.sleepSinceLastTest==="yes") showOnly("sleepOverlay"); else if(state.sleepSinceLastTest==="no") showOnly("lastWakeOverlay"); else showOnly("sleepPromptOverlay"); };
 
 $("sleepPromptYesBtn").onclick=()=>{
+ state.sleepSinceLastTest="yes";
  showSleepLogger();
- setStatus("Sleep before this test: Yes");
+ setStatus("Sleep since LAST TEST: Yes");
 };
 $("sleepPromptNoBtn").onclick=()=>{
  state.sleepSinceLastTest="no";
  state.sleepLog=null;
- showLastWakeOverlay();
- setStatus("Sleep before this test: No");
+ startTest();
+ setStatus("Sleep since LAST TEST: No");
 };
 
 $("sleepBedtimeInput").addEventListener("input", (e)=>{ syncSleepInputCanonical(e.currentTarget); updateSleepLoggerUI(); });

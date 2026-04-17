@@ -1,4 +1,8 @@
 ## V696 — 2026-04-15
+- Both result views now show total time awake, total time asleep, and total time since last test.
+- Both result summaries now show total time awake, total time asleep, and total time since last test.
+- Sleep prompt routing now does exactly: Yes → Sleep Logger, No → Test.
+- Updated the sleep prompt wording to: "Have you slept since LAST TEST?"
 - Date-of-birth month/year inputs and the age-valid message now turn green when the 14-or-older requirement is satisfied.
 - Date-of-birth validation now turns the month/year entry state green when the 14-or-older requirement is satisfied.
 - Rechecked and aligned visible version references across app.js, index.html, service worker release, and manifest where needed.
