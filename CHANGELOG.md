@@ -1,4 +1,5 @@
 ## V696 — 2026-04-15
+- Fixed the first-test summary so 'Time since last test' is omitted when no prior test exists, instead of showing 0h 0m.
 - Fixed a sleep-results regression by adding the missing minutesBetweenIso helper used for awake-time calculations.
 - Fixed No-session sleep metrics so Total time asleep is always 0 when the subject answers No, even with carried-forward sleep context.
 - Unified sleep wake-time priority to prefer lastWakeDateTimeIso consistently across the code.

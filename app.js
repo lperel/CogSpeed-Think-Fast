@@ -4496,7 +4496,7 @@ Total Test Duration${result.testMode==="mode2"?" (excludes sustained MP)":""}: $
 Fatigue (SP-FS): ${spf}
 Sleep: ${sleepLine.replace(/^SLEEP:\s*/,'')}
 ${formatSleepSummaryMetricsLine(result)}
-${formatTimeSinceLastTestLine(result)}
+${formatTimeSinceLastTestLine(result)||""}
 ${getPersonalBaselineSummaryText(result)}
 ${selfPacedLine}
 ${mode1AdaptiveBlock || mode2AdaptiveBlock || 'ADAPTIVE MACHINE-PACED PHASE: Not used in this mode'}
@@ -4542,7 +4542,7 @@ FATIGUE (SP-FS)
 ${formatSleepLine(result)}
 ${formatTimeSinceLastSleepLine(result)||""}
 ${formatSleepSummaryMetricsLine(result)}
-${formatTimeSinceLastTestLine(result)}
+${formatTimeSinceLastTestLine(result)||""}
 ${getPersonalBaselineSummaryText(result)}
 ${hr}
 SELF-PACED CALIBRATION
@@ -4580,7 +4580,7 @@ FATIGUE (SP-FS)
 ${formatSleepLine(result)}
 ${formatTimeSinceLastSleepLine(result)||""}
 ${formatSleepSummaryMetricsLine(result)}
-${formatTimeSinceLastTestLine(result)}
+${formatTimeSinceLastTestLine(result)||""}
 ${getPersonalBaselineSummaryText(result)}
 ${hr}
 SELF-PACED CALIBRATION
@@ -4647,7 +4647,7 @@ FATIGUE (SP-FS)
 ${formatSleepLine(result)}
 ${formatTimeSinceLastSleepLine(result)||""}
 ${formatSleepSummaryMetricsLine(result)}
-${formatTimeSinceLastTestLine(result)}
+${formatTimeSinceLastTestLine(result)||""}
 ${getPersonalBaselineSummaryText(result)}
 ${hr}
 SELF-PACED CALIBRATION
@@ -4748,7 +4748,7 @@ FATIGUE (SP-FS)
 ${formatSleepLine(result)}
 ${formatTimeSinceLastSleepLine(result)||""}
 ${formatSleepSummaryMetricsLine(result)}
-${formatTimeSinceLastTestLine(result)}
+${formatTimeSinceLastTestLine(result)||""}
 ${getPersonalBaselineSummaryText(result)}
 ${hr}
 CALIBRATION
@@ -6545,8 +6545,8 @@ function getTimeSinceLastTestMinutes(result){
 }
 function formatTimeSinceLastTestLine(result){
  const mins = getTimeSinceLastTestMinutes(result);
- const shown = mins==null ? 0 : mins;
- return `Since last test: Total time since last test ${formatElapsedDuration(shown)}`;
+ if(mins==null) return null;
+ return `Since last test: Total time since last test ${formatElapsedDuration(mins)}`;
 }
 function formatSleepLine(result){
  const slept = result?.sleepSinceLastTest;
