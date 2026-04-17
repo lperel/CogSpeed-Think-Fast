@@ -1,4 +1,10 @@
 ## V696 — 2026-04-15
+- Fixed a sleep-results regression by adding the missing minutesBetweenIso helper used for awake-time calculations.
+- Fixed No-session sleep metrics so Total time asleep is always 0 when the subject answers No, even with carried-forward sleep context.
+- Unified sleep wake-time priority to prefer lastWakeDateTimeIso consistently across the code.
+- Normalized saved No-session records so sleepLog.durationMinutes is stored as 0, avoiding contradictory CSV/result rows.
+- Removed the immediate back-to-back scheduler voice repeat; Repeat Once now relies on the later reminder repeat instead of speaking twice immediately.
+- Fixed carried-forward sleep results so first-test 'time since last test' displays as 0h 0m, and aligned the Fatigue back button with the new sleep-question routing.
 - Sleep carry-forward now works across tests: answering No preserves the most recent prior sleep episode for total asleep/awake calculations until the next Yes creates a new sleep episode.
 - Both result views now show total time awake, total time asleep, and total time since last test.
 - Both result summaries now show total time awake, total time asleep, and total time since last test.

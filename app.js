@@ -1343,7 +1343,7 @@ function finish(){
    totalTrials:state.totalTrials, totalCorrect:state.totalCorrect,
    totalIncorrect:state.totalIncorrect, missedTrials:state.missedTrials,
    sleepSinceLastTest: state.sleepSinceLastTest,
-   sleepLog: state.sleepLog ? JSON.parse(JSON.stringify(state.sleepLog)) : null,
+   sleepLog: state.sleepLog ? (()=>{ const sl=JSON.parse(JSON.stringify(state.sleepLog)); if(state.sleepSinceLastTest==="no"){ sl.durationMinutes = 0; } return sl; })() : null,
    calibrationErrors:state.calibrationErrors,
    pacedErrors:state.pacedErrors, recoveryErrors:state.recoveryErrors, pacedResponseCount:state.pacedRTs.length,
    pacedResponseMeanMs:state.pacedRTs.length?mean(state.pacedRTs):null,
@@ -3366,10 +3366,8 @@ function playSchedulerSound(soundKey){
 function speakSchedulerPrompt(type){
  if(!window.speechSynthesis || typeof SpeechSynthesisUtterance === "undefined") return Promise.resolve(false);
  const msg = type==="fit_duty" ? "CogSpeed reminder. Fit for Duty follow-up recommended." : "CogSpeed reminder. Mode 2 test recommended now.";
- const shouldRepeatOnce = !!(schedulerState && schedulerState.settings && schedulerState.settings.repeatOnce);
  return new Promise(resolve=>{
   try{
-   let spokenCount = 0;
    const speakNow = ()=>{
     try{
      window.speechSynthesis.cancel();
@@ -3381,13 +3379,6 @@ function speakSchedulerPrompt(type){
      const done = (ok)=>{
       if(settled) return;
       settled = true;
-      if(ok){
-       spokenCount += 1;
-       if(shouldRepeatOnce && spokenCount < 2){
-        setTimeout(speakNow, 250);
-        return;
-       }
-      }
       resolve(ok);
      };
      u.onend = ()=>done(true);
@@ -6452,6 +6443,12 @@ function validateLastWakeDateTimeForCurrentTest(lastWakeIso, referenceIso){
  if(wakeDate.getTime() > referenceDate.getTime()) return { ok:false, message:"Last wake time cannot be after the current test time." };
  return { ok:true, wakeDate };
 }
+function minutesBetweenIso(fromIso, toIso){
+ const a = Date.parse(fromIso||"");
+ const b = Date.parse(toIso||"");
+ if(!Number.isFinite(a) || !Number.isFinite(b) || b < a) return null;
+ return Math.round((b - a)/60000);
+}
 function getCurrentTestWakeDateTimeIso(result){
  const direct = result?.sleepLog?.lastWakeDateTimeIso || result?.sleepLog?.wakeDateTimeIso || null;
  if(!direct) return null;
@@ -6459,7 +6456,7 @@ function getCurrentTestWakeDateTimeIso(result){
  return isFinite(d.getTime()) ? direct : null;
 }
 function computeTimeSinceLastSleepMinutes(result){
- const wakeIso = result?.sleepLog?.wakeDateTimeIso || result?.sleepLog?.lastWakeDateTimeIso || null;
+ const wakeIso = result?.sleepLog?.lastWakeDateTimeIso || result?.sleepLog?.wakeDateTimeIso || null;
  return wakeIso ? minutesBetweenIso(wakeIso, result?.time) : null;
 }
 function formatTimeSinceLastSleepLine(result){
@@ -6469,7 +6466,9 @@ function formatTimeSinceLastSleepLine(result){
 }
 function formatSleepSummaryMetricsLine(result){
  const awakeMins = computeTimeSinceLastSleepMinutes(result);
- const sleptMins = result?.sleepLog?.durationMinutes!=null ? Number(result.sleepLog.durationMinutes) : (result?.sleepSinceLastTest==="no" ? 0 : null);
+ const sleptMins = result?.sleepSinceLastTest==="no"
+  ? 0
+  : (result?.sleepLog?.durationMinutes!=null ? Number(result.sleepLog.durationMinutes) : null);
  const awakeText = awakeMins!=null ? formatElapsedDuration(awakeMins) : "—";
  const sleptText = sleptMins!=null ? formatSleepDuration(sleptMins) : "—";
  return `Sleep timing: Total time awake ${awakeText}   Total time asleep ${sleptText}   Sleep Quality: ${formatSleepQualityText(result)}`;
@@ -6546,7 +6545,8 @@ function getTimeSinceLastTestMinutes(result){
 }
 function formatTimeSinceLastTestLine(result){
  const mins = getTimeSinceLastTestMinutes(result);
- return `Since last test: Total time since last test ${formatElapsedDuration(mins)}`;
+ const shown = mins==null ? 0 : mins;
+ return `Since last test: Total time since last test ${formatElapsedDuration(shown)}`;
 }
 function formatSleepLine(result){
  const slept = result?.sleepSinceLastTest;
@@ -6758,7 +6758,7 @@ $("tutBackBtn").onclick=()=>tutBack();
 $("refBackBtn").onclick=()=>goToStartPage();
  try{ updateStartPageLinks(); }catch(e){}
 
-$("fatigueBackBtn").onclick=()=>{ if(state.sleepSinceLastTest==="yes") showOnly("sleepOverlay"); else if(state.sleepSinceLastTest==="no") showOnly("lastWakeOverlay"); else showOnly("sleepPromptOverlay"); };
+$("fatigueBackBtn").onclick=()=>{ if(state.sleepSinceLastTest==="yes") showOnly("sleepOverlay"); else if(state.sleepSinceLastTest==="no") showOnly("sleepPromptOverlay"); else showOnly("sleepPromptOverlay"); };
 
 $("sleepPromptYesBtn").onclick=()=>{
  state.sleepSinceLastTest="yes";
