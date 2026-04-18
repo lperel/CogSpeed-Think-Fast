@@ -4285,6 +4285,15 @@ function validateProfileAge(){
  return true;
 }
 
+function applyProfileSettings(profile){
+ if(!profile) return;
+ const tf = String(profile.timeFormat||"").trim();
+ const ssRaw = String(profile.symbolSet||"").trim().toLowerCase();
+ if(tf==="12" || tf==="24") settings.timeFormat = tf;
+ settings.symbolSet = ssRaw==="memory" ? "memory" : (ssRaw==="survival" ? "survival" : "standard");
+ try{ saveSettings(); }catch(e){}
+}
+
 function openProfileFromContext(returnTo,email=""){
  _profileReturnTo = returnTo || "subjectOverlay";
  const candidate = String(email || state.profile?.email || state.subjectId || "").trim().toLowerCase();
@@ -4801,13 +4810,23 @@ function isTestSuccess(resultOrReason){
 
 function moveEndReasonNearSession(text){
  const s = String(text||"");
- const lines = s.split("\n");
- const endIdx = lines.findIndex(line => /^End reason:/i.test(line));
+ const lines = s.split("
+");
  const sessionIdx = lines.findIndex(line => /^Session:/i.test(line));
- if(endIdx === -1 || sessionIdx === -1 || endIdx === sessionIdx + 1) return s;
- const [endLine] = lines.splice(endIdx, 1);
- lines.splice(sessionIdx + 1, 0, endLine);
- return lines.join("\n");
+ if(sessionIdx === -1) return s;
+
+ let startIdx = lines.findIndex(line => /^End reason:/i.test(line));
+ let block = 1;
+ if(startIdx === -1){
+  startIdx = lines.findIndex(line => /^END REASON$/i.test(line) || /^END Reason$/i.test(line));
+  if(startIdx !== -1) block = (startIdx + 1 < lines.length ? 2 : 1);
+ }
+ if(startIdx === -1 || startIdx === sessionIdx + 1) return s;
+
+ const moved = lines.splice(startIdx, block);
+ lines.splice(sessionIdx + 1, 0, ...moved);
+ return lines.join("
+");
 }
 
 function getCognitivePerformanceTableText(result){
@@ -6744,23 +6763,7 @@ const TUT_STEPS = [
    <div style="position:relative;z-index:1;display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;padding:16px;text-align:center">
     <div style="font-size:13px;letter-spacing:.1em;color:rgba(127,215,255,0.8);text-transform:uppercase;margin-bottom:8px;text-shadow:0 0 12px rgba(127,215,255,0.5)">The Rule</div>
     <div style="background:rgba(10,20,40,0.88);backdrop-filter:blur(4px);border-radius:16px;padding:14px 18px;max-width:310px;border:1px solid rgba(127,215,255,0.25)">
-     <div style="display:flex;align-items:center;gap:14px;margin-bottom:12px;justify-content:center">
-      <div style="text-align:center">
-       <div style="font-size:10px;color:rgba(255,255,255,0.5);margin-bottom:3px">PROBE</div>
-       <div style="width:60px;height:60px">${buildGearSVG(0, LINE_PATTERNS[3], "probe", "")}</div>
-       <div style="font-size:12px;color:#7fd7ff;margin-top:3px;font-weight:700">lines : 3</div>
-      </div>
-      <div style="font-size:24px;color:#ffaa44;font-weight:900">↔</div>
-      <div style="text-align:center">
-       <div style="font-size:10px;color:rgba(255,255,255,0.5);margin-bottom:3px">MATCH</div>
-       <div style="width:60px;height:60px;border:2px solid #7fd7ff;border-radius:8px;box-shadow:0 0 10px rgba(127,215,255,0.4)">${buildGearSVG(3, DOT_PATTERNS[3], "probe", "")}</div>
-       <div style="font-size:12px;color:#00ff88;margin-top:3px;font-weight:700">dots : 3 ✓</div>
-      </div>
-     </div>
-     <div style="font-size:17px;font-weight:800;color:#7fd7ff">Same COUNT</div>
-     <div style="font-size:14px;color:rgba(255,255,255,0.6);margin:2px 0">3 lines → find 3 dots</div>
-     <div style="font-size:17px;font-weight:800;color:#ffaa44;margin-top:6px">Opposite TYPE</div>
-     <div style="font-size:14px;color:rgba(255,255,255,0.6)">lines ↔ dots</div>
+     ${getTutorialRuleCardHtml()}
     </div>
    </div>`;
   }
@@ -7426,6 +7429,7 @@ $("subjectNextBtn").onclick=()=>{
  const saved=loadProfile();
  if(saved&&saved.email===v){
   state.subjectId=v; state.profile=saved;
+  applyProfileSettings(saved);
   schedulerResumeForCurrentProfile();
   showOnly("refresherOverlay"); setStatus("Welcome back, "+v);
  } else {

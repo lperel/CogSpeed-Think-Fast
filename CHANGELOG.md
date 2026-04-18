@@ -1,4 +1,7 @@
 ## V699 — 2026-04-18
+- Rev23 targeted fix: existing saved profiles now sync their saved Challenge Set into active settings before opening the refresher/tutorial flow, fixing wrong Memory/Survival icon sets.
+- Rev23 targeted fix: Tutorial page 3 now uses challenge-specific rule-card icons for Memory and Survival instead of the hardcoded standard dots/lines example.
+- Rev23 targeted fix: improved and applied the Results-page "End reason" reordering across the real summary-builder branches.
 - Rev22 startup fix: removed an early reference to the runtime state object from the admin-default repair block so the app can open normally again.
 - Rev21 verification rebuild: added a runtime repair that force-updates the exact requested challenge Admin defaults when old saved overrides still contain the prior built-in values.
 - Rev21 verification rebuild: moved "End reason" immediately after "Session:" across the real Results-page summary builder branches.
