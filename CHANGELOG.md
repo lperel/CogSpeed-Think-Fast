@@ -1,4 +1,8 @@
 ## V699 — 2026-04-17
+- Enlarged the Pattern Refresher icons on the page shown right after Continue as much as practical.
+- Made the standard Profile Challenge Set label read "CogSpeed Sustained - Mode 2" and kept the Profile page default on standard.
+- Increased Survival audio loudness and strengthened its startup reliability.
+- Updated the About page by preserving the original page and inserting a short Additional Challenge Tests section that keeps CogSpeed Sustained - Mode 2 as the main focus of the program.
 - Fixed Survival Speedometer so a "Dead" outcome now forces CPI to display as 0 instead of 100.
 - Enlarged icon-challenge Pattern Refresher icons on the overlay page as much as practical by using large gear rendering there.
 - Renamed the standard Profile Challenge Set entry to "CogSpeed Sustained - Mode 2" and made the Profile page always default that selector back to standard when opened.

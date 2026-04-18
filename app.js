@@ -831,7 +831,7 @@ function buildActiveRefresherCard(a,b,small=false){
  const pA = active==="survival" ? survivalIconPattern(a) : memoryIconPattern(a);
  const pB = active==="survival" ? survivalIconPattern(b) : memoryIconPattern(b);
  const labels = active==="survival" ? SURVIVAL_LABELS : MEMORY_LABELS;
- const size = small ? "small" : "large";
+ const size = small ? "small" : "probe";
  const gap = small ? "2px" : "4px";
  const rowGap = small ? "2px" : "6px";
  return `<div class="${cls}"><div class="ref-row" style="justify-content:center;align-items:center;gap:${rowGap}"><div style="display:flex;flex-direction:column;align-items:center;gap:${gap}">${buildGearSVG(1,pA,size,"")}<div class="ref-lbl">${labels[a]}</div></div><div class="ref-arrow">↔</div><div style="display:flex;flex-direction:column;align-items:center;gap:${gap}">${buildGearSVG(2,pB,size,"")}<div class="ref-lbl">${labels[b]}</div></div></div></div>`;
@@ -868,25 +868,28 @@ function playSurvivalCorrectSound(iconNum){
    const now = ctx.currentTime + 0.005;
    const fam = getSurvivalSoundFamily(iconNum);
    const tone = (type, f1, f2, t0, dur, gainV)=>{
-    const o=ctx.createOscillator(), g=ctx.createGain();
+    const o=ctx.createOscillator(), g=ctx.createGain(), comp=ctx.createDynamicsCompressor();
     o.type=type;
     o.frequency.setValueAtTime(f1, t0);
     o.frequency.exponentialRampToValueAtTime(Math.max(30, f2), t0+dur);
     g.gain.setValueAtTime(0.0001, t0);
-    g.gain.exponentialRampToValueAtTime(gainV, t0+0.01);
+    g.gain.exponentialRampToValueAtTime(gainV, t0+0.008);
     g.gain.exponentialRampToValueAtTime(0.0001, t0+dur);
-    o.connect(g).connect(ctx.destination); o.start(t0); o.stop(t0+dur+0.02);
+    comp.threshold.value = -28; comp.knee.value = 24; comp.ratio.value = 10; comp.attack.value = 0.003; comp.release.value = 0.16;
+    o.connect(g).connect(comp).connect(ctx.destination); o.start(t0); o.stop(t0+dur+0.02);
    };
-   const noise = (t0, dur, gainV, hpFreq)=>{
+   const noise = (t0, dur, gainV, hpFreq, lpFreq=12000)=>{
     const len=Math.max(1, Math.floor(ctx.sampleRate*dur));
     const buf=ctx.createBuffer(1,len,ctx.sampleRate);
     const data=buf.getChannelData(0);
     for(let i=0;i<len;i++) data[i]=(Math.random()*2-1)*(1-i/len);
     const src=ctx.createBufferSource(); src.buffer=buf;
     const hp=ctx.createBiquadFilter(); hp.type="highpass"; hp.frequency.value=hpFreq;
-    const g=ctx.createGain();
+    const lp=ctx.createBiquadFilter(); lp.type="lowpass"; lp.frequency.value=lpFreq;
+    const g=ctx.createGain(); const comp=ctx.createDynamicsCompressor();
     g.gain.setValueAtTime(gainV, t0); g.gain.exponentialRampToValueAtTime(0.0001, t0+dur);
-    src.connect(hp).connect(g).connect(ctx.destination); src.start(t0); src.stop(t0+dur+0.02);
+    comp.threshold.value = -28; comp.knee.value = 24; comp.ratio.value = 10; comp.attack.value = 0.003; comp.release.value = 0.16;
+    src.connect(hp).connect(lp).connect(g).connect(comp).connect(ctx.destination); src.start(t0); src.stop(t0+dur+0.02);
    };
    const boom = (t0, dur, gainV)=>{
     const len=Math.max(1, Math.floor(ctx.sampleRate*dur));
@@ -894,23 +897,24 @@ function playSurvivalCorrectSound(iconNum){
     const data=buf.getChannelData(0);
     for(let i=0;i<len;i++){
      const env = 1 - i/len;
-     data[i]=(Math.random()*2-1)*env*0.9;
+     data[i]=(Math.random()*2-1)*env*0.95;
     }
     const src=ctx.createBufferSource(); src.buffer=buf;
-    const lp=ctx.createBiquadFilter(); lp.type="lowpass"; lp.frequency.value=180;
-    const g=ctx.createGain();
+    const lp=ctx.createBiquadFilter(); lp.type="lowpass"; lp.frequency.value=210;
+    const g=ctx.createGain(); const comp=ctx.createDynamicsCompressor();
     g.gain.setValueAtTime(gainV, t0); g.gain.exponentialRampToValueAtTime(0.0001, t0+dur);
-    src.connect(lp).connect(g).connect(ctx.destination); src.start(t0); src.stop(t0+dur+0.02);
+    comp.threshold.value = -28; comp.knee.value = 24; comp.ratio.value = 10; comp.attack.value = 0.003; comp.release.value = 0.18;
+    src.connect(lp).connect(g).connect(comp).connect(ctx.destination); src.start(t0); src.stop(t0+dur+0.02);
    };
-   if(fam==="tank"){ noise(now,0.10,0.12,1200); boom(now+0.03,0.26,0.24); tone("triangle",110,55,now+0.02,0.22,0.06); }
-   else if(fam==="jets"){ noise(now,0.12,0.08,1800); tone("sawtooth",1450,260,now,0.18,0.05); boom(now+0.14,0.24,0.22); }
-   else if(fam==="ship"){ boom(now,0.32,0.28); tone("triangle",90,42,now,0.28,0.08); }
-   else if(fam==="rocket"){ noise(now,0.18,0.09,1100); tone("sawtooth",760,180,now,0.22,0.05); boom(now+0.16,0.24,0.22); }
-   else if(fam==="space"){ tone("square",1200,640,now,0.06,0.04); tone("square",1600,820,now+0.05,0.06,0.03); boom(now+0.14,0.20,0.18); }
-   else { noise(now,0.12,0.08,900); tone("sawtooth",620,150,now,0.16,0.04); boom(now+0.14,0.22,0.20); }
+   if(fam==="tank"){ noise(now,0.12,0.18,1200,9000); boom(now+0.03,0.28,0.42); tone("triangle",110,52,now+0.02,0.24,0.12); }
+   else if(fam==="jets"){ noise(now,0.14,0.12,1800,10000); tone("sawtooth",1500,240,now,0.18,0.08); boom(now+0.15,0.26,0.36); }
+   else if(fam==="ship"){ boom(now,0.34,0.44); tone("triangle",92,40,now,0.28,0.12); }
+   else if(fam==="rocket"){ noise(now,0.20,0.12,1100,9000); tone("sawtooth",820,170,now,0.22,0.08); boom(now+0.16,0.26,0.36); }
+   else if(fam==="space"){ tone("square",1300,620,now,0.07,0.07); tone("square",1750,780,now+0.05,0.07,0.06); boom(now+0.14,0.22,0.28); }
+   else { noise(now,0.13,0.11,900,9000); tone("sawtooth",670,150,now,0.17,0.07); boom(now+0.14,0.24,0.34); }
   };
   if(ctx.state === "suspended"){
-   Promise.resolve(ctx.resume()).then(emit).catch(emit);
+   Promise.resolve(ctx.resume()).then(()=>setTimeout(emit,0)).catch(()=>setTimeout(emit,0));
   }else{
    emit();
   }
@@ -1595,7 +1599,11 @@ function finish(){
  let result=null;
  try{
   setFlowDiagnostic("FINISH_COMPUTE", `FINISH_COMPUTE — ${state.endReason||"Run complete"}`);
-  const avg2=avgLast2Blocks(), cps=avg2!=null?computeCPI(avg2):null;
+  const avg2=avgLast2Blocks();
+  const blockGapLimit = Number(settings.qualifyingBlockGapMs)||250;
+  const lastBlockGap = state.overloads.length>=2 ? Math.abs(Number(state.overloads[state.overloads.length-1]) - Number(state.overloads[state.overloads.length-2])) : null;
+  const hasQualifyingMbs = avg2!=null && lastBlockGap!=null && lastBlockGap <= blockGapLimit;
+  const cps=hasQualifyingMbs ? computeCPI(avg2) : null;
   const pacedSd=stdDev(state.pacedRTs);
   const selfPacedSd=stdDev(state.selfPacedRTs);
   const allResponseRTs=[...state.selfPacedRTs, ...state.pacedRTs];
