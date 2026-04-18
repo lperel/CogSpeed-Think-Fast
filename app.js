@@ -99,17 +99,18 @@ const DEFAULTS={
  cpiWorstMs:2800,
  personalBaselineMaxMbs:1900,
  symbolSet:"standard",
- memoryNoResponseTimeoutMs:10000,
+ memoryNoResponseTimeoutMs:15000,
  memoryMinDurationMs:1400,
  memoryMaxDurationMs:5000,
  memoryCpiBestMs:1400,
- memoryCpiWorstMs:5000,
+ memoryCpiWorstMs:3000,
  memoryBaselineMaxMbs:3200,
- survivalNoResponseTimeoutMs:12000,
+ memoryMaxTestDurationMs:240000,
+ survivalNoResponseTimeoutMs:15000,
  survivalMinDurationMs:1500,
  survivalMaxDurationMs:5200,
- survivalCpiBestMs:1500,
- survivalCpiWorstMs:5200,
+ survivalCpiBestMs:1000,
+ survivalCpiWorstMs:3000,
  survivalBaselineMaxMbs:3400,
  survivalMaxTestDurationMs:200000,
  deviceBenchmarkEnabled:0,
@@ -194,33 +195,34 @@ const ADMIN_FIELDS=[
  ["mode4PacedTrialLimit","47. Mode 4 fixed machine-paced trial limit (default 140)","number"],
  ["mode4MaxDurationMs","48. Mode 4 total duration ms (default 120000)","number"],
 
- // 49-54. Memory Challenge defaults
- ["memoryNoResponseTimeoutMs","49. Memory Challenge no-response timeout (ms, default 10000)","number"],
+ // 49-55. Memory Challenge defaults
+ ["memoryNoResponseTimeoutMs","49. Memory Challenge no-response timeout (ms, default 15000)","number"],
  ["memoryMinDurationMs","50. Memory Challenge MP frame minimum duration (ms, default 1400)","number"],
  ["memoryMaxDurationMs","51. Memory Challenge MP frame maximum duration (ms, default 5000)","number"],
  ["memoryCpiBestMs","52. Memory Challenge CPI best ms anchor (default 1400)","number"],
- ["memoryCpiWorstMs","53. Memory Challenge CPI worst ms anchor (default 5000)","number"],
+ ["memoryCpiWorstMs","53. Memory Challenge CPI worst ms anchor (default 3000)","number"],
  ["memoryBaselineMaxMbs","54. Memory Challenge baseline max qualifying MBS (ms, default 3200)","number"],
+ ["memoryMaxTestDurationMs","55. Memory Challenge max total test time (ms, default 240000)","number"],
 
- // 55-61. Survival Challenge defaults
- ["survivalNoResponseTimeoutMs","55. Survival Challenge no-response timeout (ms, default 12000)","number"],
- ["survivalMinDurationMs","56. Survival Challenge MP frame minimum duration (ms, default 1500)","number"],
- ["survivalMaxDurationMs","57. Survival Challenge MP frame maximum duration (ms, default 5200)","number"],
- ["survivalCpiBestMs","58. Survival Challenge CPI best ms anchor (default 1500)","number"],
- ["survivalCpiWorstMs","59. Survival Challenge CPI worst ms anchor (default 5200)","number"],
- ["survivalBaselineMaxMbs","60. Survival Challenge baseline max qualifying MBS (ms, default 3400)","number"],
- ["survivalMaxTestDurationMs","61. Survival Challenge max total test time (ms, default 200000) — gives Survival extra headroom over the 150000ms used by Standard/Memory because slower frame timing needs more session budget","number"],
+ // 56-62. Survival Challenge defaults
+ ["survivalNoResponseTimeoutMs","56. Survival Challenge no-response timeout (ms, default 15000)","number"],
+ ["survivalMinDurationMs","57. Survival Challenge MP frame minimum duration (ms, default 1500)","number"],
+ ["survivalCpiBestMs","58. Survival Challenge CPI best ms anchor (default 1000)","number"],
+ ["survivalCpiWorstMs","59. Survival Challenge CPI worst ms anchor (default 3000)","number"],
+ ["survivalMaxDurationMs","60. Survival Challenge MP frame maximum duration (ms, default 5200)","number"],
+ ["survivalBaselineMaxMbs","61. Survival Challenge baseline max qualifying MBS (ms, default 3400)","number"],
+ ["survivalMaxTestDurationMs","62. Survival Challenge max total test time (ms, default 200000) — gives Survival extra headroom over the 150000ms used by Standard/Memory because slower frame timing needs more session budget","number"],
 
- // 62-70. Mode 2 CPA editable defaults
- ["mode2CpaCorrectBuckets","62. Mode 2 CPA correct buckets (min-max:multiplier; ...)","text"],
- ["mode2CpaWrongBuckets","63. Mode 2 CPA wrong buckets (min-max:multiplier; ...)","text"],
- ["mode2CpaMissedBuckets","64. Mode 2 CPA missed buckets (min-max:multiplier; ...)","text"],
- ["mode2CpaCvBuckets","65. Mode 2 CPA CV% buckets — CV=(sustained RT SD ÷ mean RT) × 100; 0–10%=very consistent; >30%=high variability penalty (min-max:multiplier; ...)","text"],
- ["mode2CpaDriftBuckets","66. Mode 2 CPA drift % buckets — percent slowing; negative drift forced to 0 before bucketing (min-max:multiplier; ...)","text"],
- ["mode2CpaMaxReductionFactor","67. Mode 2 CPA max reduction factor × CPI — cap on total CPA reduction (default 0.9)","number"],
- ["mode2CpaRecoveryRatioBuckets","68. Mode 2 CPA recovery ratio buckets — mean recovery RT ÷ calibration avg RT; 1.0=no drift; 1.5=50% slower in recovery (min-max:multiplier; ...)","text"],
- ["mode2CpaLapseRateBuckets","69. Mode 2 CPA lapse rate % buckets — lapse: correct RT > 2× median sustained RT; 0%=no lapses; 30%+=frequent ceiling breaches (min-max:multiplier; ...)","text"],
- ["mode2CpaEfficiencyBuckets","70. Mode 2 CPA block efficiency buckets — adaptive paced trials ÷ block count; <10=rapid blocks; 10–30=typical; >50=highly unstable threshold (min-max:multiplier; ...)","text"],
+ // 63-71. Mode 2 CPA editable defaults
+ ["mode2CpaCorrectBuckets","63. Mode 2 CPA correct buckets (min-max:multiplier; ...)","text"],
+ ["mode2CpaWrongBuckets","64. Mode 2 CPA wrong buckets (min-max:multiplier; ...)","text"],
+ ["mode2CpaMissedBuckets","65. Mode 2 CPA missed buckets (min-max:multiplier; ...)","text"],
+ ["mode2CpaCvBuckets","66. Mode 2 CPA CV% buckets — CV=(sustained RT SD ÷ mean RT) × 100; 0–10%=very consistent; >30%=high variability penalty (min-max:multiplier; ...)","text"],
+ ["mode2CpaDriftBuckets","67. Mode 2 CPA drift % buckets — percent slowing; negative drift forced to 0 before bucketing (min-max:multiplier; ...)","text"],
+ ["mode2CpaMaxReductionFactor","68. Mode 2 CPA max reduction factor × CPI — cap on total CPA reduction (default 0.9)","number"],
+ ["mode2CpaRecoveryRatioBuckets","69. Mode 2 CPA recovery ratio buckets — mean recovery RT ÷ calibration avg RT; 1.0=no drift; 1.5=50% slower in recovery (min-max:multiplier; ...)","text"],
+ ["mode2CpaLapseRateBuckets","70. Mode 2 CPA lapse rate % buckets — lapse: correct RT > 2× median sustained RT; 0%=no lapses; 30%+=frequent ceiling breaches (min-max:multiplier; ...)","text"],
+ ["mode2CpaEfficiencyBuckets","71. Mode 2 CPA block efficiency buckets — adaptive paced trials ÷ block count; <10=rapid blocks; 10–30=typical; >50=highly unstable threshold (min-max:multiplier; ...)","text"],
 
  // 71. Diagnostics
  ["deviceBenchmarkEnabled","71. Device benchmark (0=off, 1=on)","number"]
@@ -474,9 +476,8 @@ function getEffectiveTimeFormat(){ return String(settings.timeFormat||"12") === 
 function getSessionMaxDurationMs(){
  if(isMode3()) return Number(settings.mode3MaxDurationMs)||120000;
  if(isMode4()) return Number(settings.mode4MaxDurationMs)||120000;
- // Mode 1 / Mode 2: Survival gets its own larger budget (default 200000ms)
- // because slower frame timing (min 1500ms, max 5200ms) needs more headroom
- // than the 150000ms used by Standard/Memory.
+ // Mode 1 / Mode 2 icon challenges get their own larger budgets.
+ if(isMemoryChallengeActive()) return Number(settings.memoryMaxTestDurationMs)||240000;
  if(isSurvivalChallengeActive()) return Number(settings.survivalMaxTestDurationMs)||200000;
  return Number(settings.maxTestDurationMs)||150000;
 }
@@ -604,7 +605,7 @@ function resumeMaxTestTimer(){
 function armNoResponseTimer(){
  clearNoResponseTimer();
  let ms;
- const challengeTimeout = isMemoryChallengeActive() ? (Number(settings.memoryNoResponseTimeoutMs)||10000) : (isSurvivalChallengeActive() ? (Number(settings.survivalNoResponseTimeoutMs)||12000) : null);
+ const challengeTimeout = isMemoryChallengeActive() ? (Number(settings.memoryNoResponseTimeoutMs)||15000) : (isSurvivalChallengeActive() ? (Number(settings.survivalNoResponseTimeoutMs)||15000) : null);
  switch(state.phase){
   case "recovery":
   case "terminal_recovery":

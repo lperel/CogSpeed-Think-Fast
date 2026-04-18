@@ -1,4 +1,7 @@
 ## V699 — 2026-04-18
+- Updated Admin defaults: Memory Challenge CPI worst anchor is now 3000; Survival Challenge CPI best/worst anchors are now 1000 / 3000.
+- Added Memory Challenge max total test time (default 240000 ms) as a new Admin default and runtime setting.
+- Updated both Memory and Survival Challenge no-response timeouts to 15000 ms in Admin defaults and runtime fallbacks.
 - Fixed the remaining Profile Challenge Set initialization bug: existing saved profiles now open showing their real saved challenge set instead of defaulting to standard.
 
 ## V699 Rev 16 — 2026-04-18
