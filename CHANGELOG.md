@@ -1,4 +1,7 @@
 ## V699 — 2026-04-17
+- Moved the About-page Additional Challenge Tests section inside the page box and placed it immediately before Sponsor and contact.
+- Enlarged Pattern Refresher overlay icons again with a new xlarge icon rendering mode and larger refresher cards.
+- Fixed a Challenge Set menu bug by separating the visual default from the persisted selection, so the Profile page can open showing standard without unintentionally pulling the wrong test set.
 - Enlarged the Pattern Refresher icons on the page shown right after Continue as much as practical.
 - Made the standard Profile Challenge Set label read "CogSpeed Sustained - Mode 2" and kept the Profile page default on standard.
 - Increased Survival audio loudness and strengthened its startup reliability.

@@ -831,7 +831,7 @@ function buildActiveRefresherCard(a,b,small=false){
  const pA = active==="survival" ? survivalIconPattern(a) : memoryIconPattern(a);
  const pB = active==="survival" ? survivalIconPattern(b) : memoryIconPattern(b);
  const labels = active==="survival" ? SURVIVAL_LABELS : MEMORY_LABELS;
- const size = small ? "small" : "probe";
+ const size = small ? "small" : "xlarge";
  const gap = small ? "2px" : "4px";
  const rowGap = small ? "2px" : "6px";
  return `<div class="${cls}"><div class="ref-row" style="justify-content:center;align-items:center;gap:${rowGap}"><div style="display:flex;flex-direction:column;align-items:center;gap:${gap}">${buildGearSVG(1,pA,size,"")}<div class="ref-lbl">${labels[a]}</div></div><div class="ref-arrow">↔</div><div style="display:flex;flex-direction:column;align-items:center;gap:${gap}">${buildGearSVG(2,pB,size,"")}<div class="ref-lbl">${labels[b]}</div></div></div></div>`;
@@ -1110,11 +1110,11 @@ function buildGearSVG(si,pattern,size,spinClass){
   if(pattern && pattern.iconSrc){
    const isSurvival = pattern.challengeSet === "survival";
    const iconSize = isSurvival
-    ? (size==="probe" ? "60%" : size==="small" ? "46%" : "54%")
-    : (size==="probe" ? "46%" : size==="small" ? "30%" : "36%");
+    ? (size==="xlarge" ? "84%" : size==="probe" ? "72%" : size==="small" ? "46%" : "54%")
+    : (size==="xlarge" ? "68%" : size==="probe" ? "54%" : size==="small" ? "30%" : "36%");
    const backSize = isSurvival
-    ? (size==="probe" ? "74%" : size==="small" ? "60%" : "66%")
-    : (size==="probe" ? "60%" : size==="small" ? "42%" : "48%");
+    ? (size==="xlarge" ? "96%" : size==="probe" ? "88%" : size==="small" ? "60%" : "66%")
+    : (size==="xlarge" ? "82%" : size==="probe" ? "70%" : size==="small" ? "42%" : "48%");
    iconHtml = `<div class="gear-symbol-back" style="width:${backSize};height:${backSize}"></div><img class="gear-symbol" src="${pattern.iconSrc}" alt="${pattern.iconLabel||"symbol"}" draggable="false" style="position:absolute;z-index:2;width:${iconSize};height:${iconSize};object-fit:contain;pointer-events:none;filter:contrast(1.08) brightness(0.96);"/>`;
   }else if(pattern){
    const scale = size==="probe" ? 0.64 : 0.60;
@@ -4044,7 +4044,12 @@ function computeAge(bMonth, bYear){
 let _profileGenderSelected = "";
 
 let _profileTimeFormat = null;
-let _profileSymbolSet = "standard";
+let const rawSymbolSet = String(existing?.symbolSet || settings.symbolSet || "standard");
+ _profileSymbolSetPersisted = rawSymbolSet==="memory" ? "memory" : (rawSymbolSet==="survival" ? "survival" : "standard");
+ _profileSymbolSet = _profileSymbolSetPersisted;
+ _profileSymbolSetTouched = false;
+let _profileSymbolSetPersisted = "standard";
+let _profileSymbolSetTouched = false;
 
 function isValidEmailAddress(v){
  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(v||"").trim());
@@ -4057,8 +4062,13 @@ function getProfileDraftTimeFormat(){
 function profileSelectSymbolSet(v){
  const raw = String(v||"standard");
  _profileSymbolSet = raw==="memory" ? "memory" : (raw==="survival" ? "survival" : "standard");
+ _profileSymbolSetTouched = true;
  const sel = $("profileSymbolSet");
  if(sel) sel.value = _profileSymbolSet;
+}
+function setProfileSymbolSetVisualDefault(){
+ const sel = $("profileSymbolSet");
+ if(sel) sel.value = "standard";
 }
 
 function profileSelectTimeFormat(fmt){
@@ -4167,7 +4177,7 @@ function openProfileOverlay(email){
   if(existing.gender) profileSelectGender(existing.gender);
   validateProfileAge();
   profileSelectTimeFormat(_profileTimeFormat);
-  profileSelectSymbolSet("standard");
+  setProfileSymbolSetVisualDefault();
   profileSelectSymbolSet(_profileSymbolSet);
  } else {
   const bm = $("profileBirthMonth"); if(bm) bm.value="";
@@ -4177,7 +4187,7 @@ function openProfileOverlay(email){
   profileSelectGender("");
   const msg=$("profileAgeMsg"); if(msg) msg.textContent="";
   profileSelectTimeFormat(_profileTimeFormat);
-  profileSelectSymbolSet("standard");
+  setProfileSymbolSetVisualDefault();
  }
 
  schedulerState.activeSubjectId = safeEmail || "";
@@ -4197,7 +4207,7 @@ function saveAndContinueProfile(){
  const bYear = parseInt($("profileBirthYear")?.value||"0");
  const emailResults = !!$("profileEmailResults")?.checked;
  const timeFormat = getProfileDraftTimeFormat();
- const symbolSet = _profileSymbolSet === "memory" ? "memory" : (_profileSymbolSet === "survival" ? "survival" : "standard");
+ const symbolSet = _profileSymbolSetTouched ? (_profileSymbolSet === "memory" ? "memory" : (_profileSymbolSet === "survival" ? "survival" : "standard")) : _profileSymbolSetPersisted;
 
  // Always save time-format settings from this page
  settings.timeFormat = timeFormat;
