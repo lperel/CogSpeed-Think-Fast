@@ -1,4 +1,6 @@
 ## V699 — 2026-04-18
+- Fixed Results-page ordering for real: End reason now moves to immediately after the Session line in the actual summary builder output.
+- Added a targeted Admin-default migration so the updated challenge defaults promote from the prior built-in defaults without overwriting unrelated custom settings.
 - Verified and kept the requested Admin defaults: #53 = 3000, #58 = 1000, #59 = 3000, plus Memory Challenge max total test time = 240000 ms.
 - Moved "End reason" up so it now appears immediately after the "Session:" line on Results pages.
 - Updated Admin defaults: Memory Challenge CPI worst anchor is now 3000; Survival Challenge CPI best/worst anchors are now 1000 / 3000.

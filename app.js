@@ -284,6 +284,20 @@ function loadSettings(){
  }
  const m={...DEFAULTS};
  Object.keys(DEFAULTS).forEach(k=>{ if(s[k]!==undefined) m[k]=s[k]; });
+
+ // Targeted default migrations for updated challenge defaults.
+ // Only promote values when missing or still at the prior built-in defaults.
+ const migrateIfOld = (key, oldVals, nextVal)=>{
+  const cur = Number(m[key]);
+  if(!Number.isFinite(cur) || oldVals.includes(cur)) m[key] = nextVal;
+ };
+ migrateIfOld("memoryCpiWorstMs", [5000], 3000);
+ migrateIfOld("survivalCpiBestMs", [1500], 1000);
+ migrateIfOld("survivalCpiWorstMs", [5200], 3000);
+ migrateIfOld("memoryMaxTestDurationMs", [0], 240000);
+ migrateIfOld("memoryNoResponseTimeoutMs", [10000], 15000);
+ migrateIfOld("survivalNoResponseTimeoutMs", [12000], 15000);
+
  return m;
 }
 function saveSettings(){ localStorage.setItem(`${STORAGE_PREFIX}_settings`,JSON.stringify(settings)); }
@@ -5083,7 +5097,7 @@ function buildSummary(result){
  const modeName = formatModeTag(result.testMode);
  if(result.testMode==="mode3"){
   el.textContent=
-`CogSpeed ${APP_VERSION} — ${modeName}
+moveEndReasonNearSession(`CogSpeed ${APP_VERSION} — ${modeName}
 ${hr}
 Test Mode:  ${formatModeTag(result.testMode)}
 Session:    ${result.sessionNumber!=null?result.sessionNumber:"—"}
@@ -5116,12 +5130,12 @@ COGNITIVE PERFORMANCE TABLE
 ${hr}
 END REASON
  ${result.endReason||"Run complete"}
-${getResultsMetricExplanationText(result)}`;
+${getResultsMetricExplanationText(result)}`);
   return;
  }
  if(result.testMode==="mode4"){
   el.textContent=
-`CogSpeed ${APP_VERSION} — ${modeName}
+moveEndReasonNearSession(`CogSpeed ${APP_VERSION} — ${modeName}
 ${hr}
 Test Mode:  ${formatModeTag(result.testMode)}
 Session:    ${result.sessionNumber!=null?result.sessionNumber:"—"}
@@ -5162,7 +5176,7 @@ COGNITIVE PERFORMANCE TABLE
 ${hr}
 END REASON
  ${result.endReason||"Run complete"}
-${getResultsMetricExplanationText(result)}`;
+${getResultsMetricExplanationText(result)}`);
   return;
  }
  if(result.testMode==="mode2"){
@@ -5185,7 +5199,7 @@ ${getResultsMetricExplanationText(result)}`;
   const adaptiveCounts=computeMode2AdaptiveCounts(result);
   const wrongBreakdown=computeMode2WrongBreakdown(result);
   el.textContent=
-`CogSpeed ${APP_VERSION} — ${modeName}
+moveEndReasonNearSession(`CogSpeed ${APP_VERSION} — ${modeName}
 ${hr}
 Test Mode:  ${formatModeTag(result.testMode)}
 Session:    ${result.sessionNumber!=null?result.sessionNumber:"—"}
@@ -5279,7 +5293,7 @@ COGNITIVE PERFORMANCE TABLE
 ${hr}
 END REASON
  ${result.endReason||"Run complete"}
-${getResultsMetricExplanationText(result)}`;
+${getResultsMetricExplanationText(result)}`);
   return;
  }
  const blockList=result.blocks&&result.blocks.length?result.blocks.map((b,i)=>` Block ${i+1}: ${b.toFixed(0)} ms`).join("\n"):" none";
@@ -5289,7 +5303,7 @@ ${getResultsMetricExplanationText(result)}`;
  const cps=result.cognitivePerformanceIndex;
  const sd=result.pacedResponseSdMs;
  el.textContent=
-`CogSpeed ${APP_VERSION} — ${modeName}
+moveEndReasonNearSession(`CogSpeed ${APP_VERSION} — ${modeName}
 ${hr}
 Test Mode:  ${formatModeTag(result.testMode)}
 Session:    ${result.sessionNumber!=null?result.sessionNumber:"—"}
@@ -5324,7 +5338,7 @@ COGNITIVE PERFORMANCE TABLE
 ${hr}
 END REASON
  ${result.endReason||"Run complete"}
-${getResultsMetricExplanationText(result)}`;
+${getResultsMetricExplanationText(result)}`);
 }
 
 // ─── SPEEDOMETER V2 — Vintage Auto Meter style ────────────────
