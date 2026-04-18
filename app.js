@@ -2,7 +2,7 @@
 // CogSpeed source
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V696";
+const APP_VERSION = "V697";
 
 // ═══════════════════════════════════════════════════
 // Current behavior summary (historical details live in CHANGELOG.md)
@@ -98,6 +98,13 @@ const DEFAULTS={
  cpiBestMs:800,
  cpiWorstMs:2800,
  personalBaselineMaxMbs:1900,
+ symbolSet:"standard",
+ memoryNoResponseTimeoutMs:10000,
+ memoryMinDurationMs:1400,
+ memoryMaxDurationMs:5000,
+ memoryCpiBestMs:1400,
+ memoryCpiWorstMs:5000,
+ memoryBaselineMaxMbs:3200,
  deviceBenchmarkEnabled:0,
  timeFormat:"12",
  lateResponseThresholdMs:600, // first response <600ms on next frame may belong to prior frame; a second >=600ms response belongs to current frame
@@ -180,16 +187,25 @@ const ADMIN_FIELDS=[
  ["mode4PacedTrialLimit","47. Mode 4 fixed machine-paced trial limit (default 140)","number"],
  ["mode4MaxDurationMs","48. Mode 4 total duration ms (default 120000)","number"],
 
+ // 49-54. Memory Challenge defaults
+ ["memoryNoResponseTimeoutMs","49. Memory Challenge no-response timeout (ms, default 10000)","number"],
+ ["memoryMinDurationMs","50. Memory Challenge MP frame minimum duration (ms, default 1400)","number"],
+ ["memoryMaxDurationMs","51. Memory Challenge MP frame maximum duration (ms, default 5000)","number"],
+ ["memoryCpiBestMs","52. Memory Challenge CPI best ms anchor (default 1400)","number"],
+ ["memoryCpiWorstMs","53. Memory Challenge CPI worst ms anchor (default 5000)","number"],
+ ["memoryBaselineMaxMbs","54. Memory Challenge baseline max qualifying MBS (ms, default 3200)","number"],
+
+ // 55-63. Mode 2 CPA editable defaults
  // 49-57. Mode 2 CPA editable defaults
- ["mode2CpaCorrectBuckets","49. Mode 2 CPA correct buckets (min-max:multiplier; ...)","text"],
- ["mode2CpaWrongBuckets","50. Mode 2 CPA wrong buckets (min-max:multiplier; ...)","text"],
- ["mode2CpaMissedBuckets","51. Mode 2 CPA missed buckets (min-max:multiplier; ...)","text"],
- ["mode2CpaCvBuckets","52. Mode 2 CPA CV% buckets — CV=(sustained RT SD ÷ mean RT) × 100; 0–10%=very consistent; >30%=high variability penalty (min-max:multiplier; ...)","text"],
- ["mode2CpaDriftBuckets","53. Mode 2 CPA drift % buckets — percent slowing; negative drift forced to 0 before bucketing (min-max:multiplier; ...)","text"],
- ["mode2CpaMaxReductionFactor","54. Mode 2 CPA max reduction factor × CPI — cap on total CPA reduction (default 0.9)","number"],
- ["mode2CpaRecoveryRatioBuckets","55. Mode 2 CPA recovery ratio buckets — mean recovery RT ÷ calibration avg RT; 1.0=no drift; 1.5=50% slower in recovery (min-max:multiplier; ...)","text"],
- ["mode2CpaLapseRateBuckets","56. Mode 2 CPA lapse rate % buckets — lapse: correct RT > 2× median sustained RT; 0%=no lapses; 30%+=frequent ceiling breaches (min-max:multiplier; ...)","text"],
- ["mode2CpaEfficiencyBuckets","57. Mode 2 CPA block efficiency buckets — adaptive paced trials ÷ block count; <10=rapid blocks; 10–30=typical; >50=highly unstable threshold (min-max:multiplier; ...)","text"],
+ ["mode2CpaCorrectBuckets","55. Mode 2 CPA correct buckets (min-max:multiplier; ...)","text"],
+ ["mode2CpaWrongBuckets","56. Mode 2 CPA wrong buckets (min-max:multiplier; ...)","text"],
+ ["mode2CpaMissedBuckets","57. Mode 2 CPA missed buckets (min-max:multiplier; ...)","text"],
+ ["mode2CpaCvBuckets","58. Mode 2 CPA CV% buckets — CV=(sustained RT SD ÷ mean RT) × 100; 0–10%=very consistent; >30%=high variability penalty (min-max:multiplier; ...)","text"],
+ ["mode2CpaDriftBuckets","59. Mode 2 CPA drift % buckets — percent slowing; negative drift forced to 0 before bucketing (min-max:multiplier; ...)","text"],
+ ["mode2CpaMaxReductionFactor","60. Mode 2 CPA max reduction factor × CPI — cap on total CPA reduction (default 0.9)","number"],
+ ["mode2CpaRecoveryRatioBuckets","61. Mode 2 CPA recovery ratio buckets — mean recovery RT ÷ calibration avg RT; 1.0=no drift; 1.5=50% slower in recovery (min-max:multiplier; ...)","text"],
+ ["mode2CpaLapseRateBuckets","62. Mode 2 CPA lapse rate % buckets — lapse: correct RT > 2× median sustained RT; 0%=no lapses; 30%+=frequent ceiling breaches (min-max:multiplier; ...)","text"],
+ ["mode2CpaEfficiencyBuckets","63. Mode 2 CPA block efficiency buckets — adaptive paced trials ÷ block count; <10=rapid blocks; 10–30=typical; >50=highly unstable threshold (min-max:multiplier; ...)","text"],
 
  // 58. Diagnostics
  ["deviceBenchmarkEnabled","58. Device benchmark (0=off, 1=on)","number"]
@@ -496,8 +512,8 @@ function harvestActiveFrameTiming(actualAtMs){
 // Source: Perelli (2026). Formula: (worst-ms)/(worst-best)*100
 // ──────────────────────────────────────────────────────────────
 function computeCPI(avgMs){
- const best=Number(settings.cpiBestMs)||DEFAULTS.cpiBestMs;
- const worst=Number(settings.cpiWorstMs)||DEFAULTS.cpiWorstMs;
+ const best=getCurrentCpiBestMs();
+ const worst=getCurrentCpiWorstMs();
  const span=worst-best;
  if(!isFinite(best)||!isFinite(worst)||span<=0) return 0;
  return Math.max(0,Math.min(100,((worst-avgMs)/span)*100));
@@ -557,6 +573,7 @@ function resumeMaxTestTimer(){
 function armNoResponseTimer(){
  clearNoResponseTimer();
  let ms;
+ const memTimeout = isMemoryChallengeActive() ? (Number(settings.memoryNoResponseTimeoutMs)||10000) : null;
  switch(state.phase){
   case "recovery":
   case "terminal_recovery":
@@ -576,6 +593,7 @@ function armNoResponseTimer(){
   default:
    ms = 10000;
  }
+ if(memTimeout!=null && ms!=null) ms = memTimeout;
  state.absoluteNoResponseTimer=setTimeout(()=>{
   state.endReason = state.phase==="calibration"
    ? "No response detected — please retest."
@@ -650,6 +668,64 @@ function patternToSVG(pattern,size="large"){
  return `<svg width="${dim}" height="${dim}" viewBox="0 0 ${dim} ${dim}" xmlns="http://www.w3.org/2000/svg">${marks}</svg>`;
 }
 
+
+// ─── Symbol sets / Memory Challenge ───
+function getActiveSymbolSet(){
+ return String((state.profile && state.profile.symbolSet) || settings.symbolSet || "standard");
+}
+function isMemoryChallengeActive(){
+ return getActiveSymbolSet() === "memory";
+}
+function getCurrentMinDurationMs(){
+ return isMemoryChallengeActive() ? (Number(settings.memoryMinDurationMs)||1400) : (Number(getCurrentMinDurationMs())||600);
+}
+function getCurrentMaxDurationMs(){
+ return isMemoryChallengeActive() ? (Number(settings.memoryMaxDurationMs)||5000) : (Number(getCurrentMaxDurationMs())||3500);
+}
+function getCurrentCpiBestMs(){
+ return isMemoryChallengeActive() ? (Number(settings.memoryCpiBestMs)||1400) : (Number(settings.cpiBestMs)||DEFAULTS.cpiBestMs);
+}
+function getCurrentCpiWorstMs(){
+ return isMemoryChallengeActive() ? (Number(settings.memoryCpiWorstMs)||5000) : (Number(settings.cpiWorstMs)||DEFAULTS.cpiWorstMs);
+}
+function getCurrentBaselineMaxMbsValue(){
+ return isMemoryChallengeActive() ? (Number(settings.memoryBaselineMaxMbs)||3200) : (Number(settings.personalBaselineMaxMbs)||1900);
+}
+const MEMORY_ICON_SRC = {
+ 1:"./mem01_triangle.png", 2:"./mem02_bear.png", 3:"./mem03_circle.png", 4:"./mem04_lion.png",
+ 5:"./mem05_square.png", 6:"./mem06_snake.png", 7:"./mem07_apple.png", 8:"./mem08_boat.png",
+ 9:"./mem09_banana.png", 10:"./mem10_car.png", 11:"./mem11_strawberry.png", 12:"./mem12_airplane.png"
+};
+const MEMORY_LABELS = {
+ 1:"Triangle",2:"Bear",3:"Circle",4:"Lion",5:"Square",6:"Snake",
+ 7:"Apple",8:"Boat",9:"Banana",10:"Car",11:"Strawberry",12:"Airplane"
+};
+const MEMORY_PAIR_MAP = {1:2,2:1,3:4,4:3,5:6,6:5,7:8,8:7,9:10,10:9,11:12,12:11};
+function memoryIconPattern(n){
+ return {iconSrc: MEMORY_ICON_SRC[n], iconLabel: MEMORY_LABELS[n], iconNum:n};
+}
+function makeMemoryTrial(kind,lastCorrectPos,lastProbe){
+ const group1=[1,2,3,4,5,6], group2=[7,8,9,10,11,12];
+ for(let attempt=0;attempt<500;attempt++){
+  const group = Math.random()<0.5 ? group1 : group2;
+  const other = group===group1 ? group2 : group1;
+  const probeNum = group[randInt(0, group.length-1)];
+  if(attempt < 50 && lastProbe && lastProbe.num===probeNum) continue;
+  const matchNum = MEMORY_PAIR_MAP[probeNum];
+  const correctPos = (()=>{
+   if(lastCorrectPos==null) return randInt(0,5);
+   let p,t=0; do{ p=randInt(0,5); t++; }while(p===lastCorrectPos&&t<20); return p;
+  })();
+  const sameGroupOthers = shuffle(group.filter(n=>n!==probeNum && n!==matchNum)).slice(0,3);
+  const otherGroupOthers = shuffle([...other]).slice(0,2);
+  let nums = shuffle([matchNum, ...sameGroupOthers, ...otherGroupOthers]);
+  const ei = nums.indexOf(matchNum);
+  [nums[correctPos], nums[ei]] = [nums[ei], nums[correctPos]];
+  const topItems = nums.map((n)=>({count:n, family:"memory", pattern:memoryIconPattern(n)}));
+  return { kind, probePattern:memoryIconPattern(probeNum), probeCount:probeNum, probeFamily:"memory", topItems, correctPos, resolved:false };
+ }
+ throw new Error("makeMemoryTrial: could not generate valid trial after 500 attempts");
+}
 // ─── Trial generation ───
 // ─── TRIAL GENERATION ─────────────────────────────────────────
 // Creates one trial: randomly assigns probe (family+count),
@@ -658,6 +734,7 @@ function patternToSVG(pattern,size="large"){
 // Constraint: consecutive trials never repeat probe family+count.
 // ──────────────────────────────────────────────────────────────
 function makeTrial(kind,lastCorrectPos,lastProbe){
+ if(isMemoryChallengeActive()) return makeMemoryTrial(kind,lastCorrectPos,lastProbe);
  for(let attempt=0;attempt<500;attempt++){
   const probeFamily=Math.random()<0.5?"dots":"lines";
   const probeCount=randInt(1,6);
@@ -818,7 +895,11 @@ function buildGearSVG(si,pattern,size,spinClass){
  ensureGearImageStyles();
  if(GEAR_IMAGE_SRCS[si]){
   const marks = [];
-  if(pattern){
+  let iconHtml = "";
+  if(pattern && pattern.iconSrc){
+   const iconSize = size==="probe" ? "58%" : size==="small" ? "44%" : "50%";
+   iconHtml = `<img class="gear-symbol" src="${pattern.iconSrc}" alt="${pattern.iconLabel||"symbol"}" draggable="false" style="position:absolute;z-index:2;width:${iconSize};height:${iconSize};object-fit:contain;pointer-events:none;filter:contrast(1.05) brightness(0.96);"/>`;
+  }else if(pattern){
    const scale = size==="probe" ? 0.64 : 0.60;
    const dotR = size==="probe" ? 13 : 11;
    const lw  = size==="probe" ? 15 : 13;
@@ -835,6 +916,7 @@ function buildGearSVG(si,pattern,size,spinClass){
   }
   return `<div class="gear-img-wrap ${spinClass||""}">
    <img src="${GEAR_IMAGE_SRCS[si]}" alt="gear ${si}" draggable="false"/>
+   ${iconHtml}
    ${marks.join("")}
   </div>`;
  }
@@ -1062,7 +1144,7 @@ function maybeTriggerTerminalRule(){
    state.mode2Triggered = true;
    state.mode2AdaptiveMbsMs = avg2;
    const sustainedStartFactor = Number(settings.mode2SustainedStartFactor)||DEFAULTS.mode2SustainedStartFactor;
-   const sustainedRate = clamp(avg2 * sustainedStartFactor, Number(settings.minDurationMs)||600, Number(settings.maxDurationMs)||3500);
+   const sustainedRate = clamp(avg2 * sustainedStartFactor, Number(getCurrentMinDurationMs())||600, Number(getCurrentMaxDurationMs())||3500);
    state.mode2SustainedPresentationRateMs = sustainedRate;
    state.mode2SustainedPresented = 0;
    state.mode2SustainedCorrect = 0;
@@ -1134,7 +1216,7 @@ function finishCalibration(){
  }
  if(isMode4()){
   const factor=Number(settings.mode4BaselineFactor)||1.3;
-  state.fixedPacedBaseline=clamp(avg*factor,settings.minDurationMs,settings.maxDurationMs);
+  state.fixedPacedBaseline=clamp(avg*factor,getCurrentMinDurationMs(),getCurrentMaxDurationMs());
   state.duration=state.fixedPacedBaseline;
   state.phase="paced_fixed";
   setStatus(`Mode 4 machine-paced baseline: ${state.duration.toFixed(0)}ms`);
@@ -1146,7 +1228,7 @@ function finishCalibration(){
   state.endReason="Calibration performance indicates more practice is needed before testing.";
   finish(); return;
  }
- state.duration=clamp(avg*settings.initialPacedPercent,settings.minDurationMs,settings.maxDurationMs);
+ state.duration=clamp(avg*settings.initialPacedPercent,getCurrentMinDurationMs(),getCurrentMaxDurationMs());
  state.phase="paced";
  setStatus(`Machine-paced start: ${state.duration.toFixed(0)}ms`);
  openTrial("paced");
@@ -1212,7 +1294,7 @@ function finishCalibration(){
 // effectiveRt > Frame 1 duration), apply the minimum correct-response speedup
 // instead so correctness always moves the next paced frame faster.
 // After any actual applied update, clamp baseline to:
-//   [settings.minDurationMs, settings.maxDurationMs]
+//   [getCurrentMinDurationMs(), getCurrentMaxDurationMs()]
 // ──────────────────────────────────────────────────────────────
 function calculatePacingTransition(currentDuration,rt,correct){
  if(!isFinite(currentDuration)) return null;
@@ -1235,11 +1317,11 @@ function calculatePacingTransition(currentDuration,rt,correct){
     deltaMs = -minSpeed;
     reason = "Correct speedup (late, minimum)";
   }
-  const next=clamp(before+deltaMs,settings.minDurationMs,settings.maxDurationMs);
+  const next=clamp(before+deltaMs,getCurrentMinDurationMs(),getCurrentMaxDurationMs());
   return {presentedRateMs:before,nextRateMs:next,rateChangeMs:Math.round(next-before),rateChangeReason:reason};
  }
  const wrongSlow = Number(settings.wrongSlowdownMs)||50;
- const next=clamp(before+wrongSlow,settings.minDurationMs,settings.maxDurationMs);
+ const next=clamp(before+wrongSlow,getCurrentMinDurationMs(),getCurrentMaxDurationMs());
  return {presentedRateMs:before,nextRateMs:next,rateChangeMs:Math.round(next-before),rateChangeReason:"Wrong slowdown"};
 }
 function applyPacing(rt,correct){
@@ -1863,7 +1945,7 @@ function handleTap(index,eventTimeStamp){
     // openTrial will still fire but handleTap guards against input in idle phase.
     const restartBaseMs=Number(state.blockRestartBaseline)||Number(state.blockDuration)||0;
     const restartFactor=Number(settings.blockRestartPercent)||1.3;
-    const slower=clamp(Math.round(restartBaseMs*restartFactor),settings.minDurationMs,settings.maxDurationMs);
+    const slower=clamp(Math.round(restartBaseMs*restartFactor),getCurrentMinDurationMs(),getCurrentMaxDurationMs());
     state.recoveries.push(slower); state.phase="paced"; state.duration=slower;
     state.spCorrectStreak=0; state.spWrongCount=0;
     setStatus(`Block recovery passed — resuming at ${slower.toFixed(0)}ms (${restartFactor}× block baseline)`);
@@ -2122,6 +2204,15 @@ function handleTap(index,eventTimeStamp){
 // ─── Refresher ───
 function renderRefresher(){
  const grid=$("refresherGrid"); grid.innerHTML="";
+ if(isMemoryChallengeActive()){
+  const pairOrder=[[1,2],[7,8],[4,3],[9,10],[6,5],[12,11]];
+  pairOrder.forEach(([a,b])=>{
+   const c=document.createElement("div"); c.className="ref-card";
+   c.innerHTML=`<div class="ref-row"><div style="display:flex;flex-direction:column;align-items:center;gap:4px">${buildGearSVG(1,memoryIconPattern(a),"small","")}<div class="ref-lbl">${MEMORY_LABELS[a]}</div></div><div class="ref-arrow">↔</div><div style="display:flex;flex-direction:column;align-items:center;gap:4px">${buildGearSVG(2,memoryIconPattern(b),"small","")}<div class="ref-lbl">${MEMORY_LABELS[b]}</div></div></div>`;
+   grid.appendChild(c);
+  });
+  return;
+ }
  for(let i=1;i<=6;i++){
   const c=document.createElement("div"); c.className="ref-card";
   c.innerHTML=`<div class="ref-num">${i}</div><div class="ref-row"><div><div class="ref-lbl">dots</div>${patternToSVG(DOT_PATTERNS[i],"small")}</div><div class="ref-arrow">↔</div><div><div class="ref-lbl">lines</div>${patternToSVG(LINE_PATTERNS[i],"small")}</div></div>`;
@@ -3149,8 +3240,8 @@ function getAdaptivePhaseMbs(result){
 }
 
 function getPersonalBaselineMaxMbs(){
- const v = Number(settings.personalBaselineMaxMbs);
- return Number.isFinite(v) && v>0 ? v : 1900;
+ const v = getCurrentBaselineMaxMbsValue();
+ return Number.isFinite(v) && v>0 ? v : (isMemoryChallengeActive()?3200:1900);
 }
 function isBaselineQualifyingSession(result){
  if(!result) return false;
@@ -3703,6 +3794,7 @@ function computeAge(bMonth, bYear){
 let _profileGenderSelected = "";
 
 let _profileTimeFormat = null;
+let _profileSymbolSet = "standard";
 
 function isValidEmailAddress(v){
  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(v||"").trim());
@@ -3710,6 +3802,12 @@ function isValidEmailAddress(v){
 
 function getProfileDraftTimeFormat(){
  return String(_profileTimeFormat||getEffectiveTimeFormat()) === "24" ? "24" : "12";
+}
+
+function profileSelectSymbolSet(v){
+ _profileSymbolSet = String(v||"standard")==="memory" ? "memory" : "standard";
+ const sel = $("profileSymbolSet");
+ if(sel) sel.value = _profileSymbolSet;
 }
 
 function profileSelectTimeFormat(fmt){
@@ -3803,6 +3901,7 @@ function openProfileOverlay(email){
  const existingTimeFormat = existing?.timeFormat || getEffectiveTimeFormat();
  _profileGenderSelected = existing?.gender || "";
  _profileTimeFormat = String(existingTimeFormat) === "24" ? "24" : "12";
+ _profileSymbolSet = String(existing?.symbolSet || settings.symbolSet || "standard")==="memory" ? "memory" : "standard";
 
  // Show email
  const ed = $("profileEmailDisplay");
@@ -3817,6 +3916,8 @@ function openProfileOverlay(email){
   if(existing.gender) profileSelectGender(existing.gender);
   validateProfileAge();
   profileSelectTimeFormat(_profileTimeFormat);
+  profileSelectSymbolSet(_profileSymbolSet);
+  profileSelectSymbolSet(_profileSymbolSet);
  } else {
   const bm = $("profileBirthMonth"); if(bm) bm.value="";
   const by = $("profileBirthYear"); if(by) by.value="";
@@ -3825,6 +3926,7 @@ function openProfileOverlay(email){
   profileSelectGender("");
   const msg=$("profileAgeMsg"); if(msg) msg.textContent="";
   profileSelectTimeFormat(_profileTimeFormat);
+  profileSelectSymbolSet(_profileSymbolSet);
  }
 
  schedulerState.activeSubjectId = safeEmail || "";
@@ -3844,9 +3946,11 @@ function saveAndContinueProfile(){
  const bYear = parseInt($("profileBirthYear")?.value||"0");
  const emailResults = !!$("profileEmailResults")?.checked;
  const timeFormat = getProfileDraftTimeFormat();
+ const symbolSet = _profileSymbolSet === "memory" ? "memory" : "standard";
 
  // Always save time-format settings from this page
  settings.timeFormat = timeFormat;
+ settings.symbolSet = symbolSet;
  saveSettings();
 
  // If no email is entered yet, allow returning after saving settings only.
@@ -3862,7 +3966,7 @@ function saveAndContinueProfile(){
  if(!_profileGenderSelected){ setStatus("Please select a gender."); return; }
 
  const profile = {email, birthMonth:bMonth, birthYear:bYear,
-  gender:_profileGenderSelected, emailResults, timeFormat:settings.timeFormat, updatedAt:Date.now()};
+  gender:_profileGenderSelected, emailResults, timeFormat:settings.timeFormat, symbolSet, updatedAt:Date.now()};
  schedulerState.activeSubjectId = email;
  saveProfile(profile);
 
@@ -5893,27 +5997,42 @@ async function runDeviceBenchmark(force){
 
 let _tutStep = 0;
 
-// Demo trial: probe=lines:3, correct=dots:3 @position 3
-const TUT_PROBE_CNT = 3;
-const TUT_CORRECT_POS = 2; // 0-based, position 3
-const TUT_ITEMS = [
- {family:"dots", count:5, pattern:null},
- {family:"lines", count:1, pattern:null},
- {family:"dots", count:3, pattern:null}, // ← correct answer
- {family:"lines", count:4, pattern:null},
- {family:"dots", count:2, pattern:null},
- {family:"lines", count:6, pattern:null},
-];
-// Fill patterns after patterns are defined
-function tutFillPatterns(){
- TUT_ITEMS.forEach(it=>{
-  it.pattern = it.family==="dots" ? DOT_PATTERNS[it.count] : LINE_PATTERNS[it.count];
- });
+// Tutorial demo data switches with the active symbol set.
+const STANDARD_TUT_DATA = {
+ probePattern: LINE_PATTERNS[3],
+ correctPos: 2,
+ items: [
+  {family:"dots", count:5, pattern:DOT_PATTERNS[5]},
+  {family:"lines", count:1, pattern:LINE_PATTERNS[1]},
+  {family:"dots", count:3, pattern:DOT_PATTERNS[3]},
+  {family:"lines", count:4, pattern:LINE_PATTERNS[4]},
+  {family:"dots", count:2, pattern:DOT_PATTERNS[2]},
+  {family:"lines", count:6, pattern:LINE_PATTERNS[6]},
+ ]
+};
+const MEMORY_TUT_DATA = {
+ probePattern: memoryIconPattern(1),
+ correctPos: 2,
+ items: [
+  {family:"memory", count:7, pattern:memoryIconPattern(7)},
+  {family:"memory", count:10, pattern:memoryIconPattern(10)},
+  {family:"memory", count:2, pattern:memoryIconPattern(2)},
+  {family:"memory", count:5, pattern:memoryIconPattern(5)},
+  {family:"memory", count:11, pattern:memoryIconPattern(11)},
+  {family:"memory", count:4, pattern:memoryIconPattern(4)},
+ ]
+};
+function getTutorialData(){
+ return isMemoryChallengeActive() ? MEMORY_TUT_DATA : STANDARD_TUT_DATA;
 }
-
+function tutFillPatterns(){
+ // Tutorial data is already fully assembled for both standard and Memory Challenge sets.
+}
 function buildTutGearGrid(highlightPos, showPatterns){
  let html = '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;width:100%;max-width:380px">';
- TUT_ITEMS.forEach((it,i)=>{
+ const tut=getTutorialData();
+ tut.items.forEach((it,i)=>{
+  const tut=getTutorialData();
   const isHL = highlightPos===i;
   const border = isHL ? "2px solid #7fd7ff" : "2px solid transparent";
   const glow = isHL ? "drop-shadow(0 0 8px rgba(127,215,255,0.8))" : "none";
@@ -5927,7 +6046,7 @@ function buildTutGearGrid(highlightPos, showPatterns){
 }
 
 function buildTutProbe(pulsing){
- const pat = LINE_PATTERNS[TUT_PROBE_CNT];
+ const pat = getTutorialData().probePattern;
  const anim = pulsing ? "animation:probePulseG 1.2s ease-in-out infinite;filter:drop-shadow(0 0 20px rgba(127,215,255,1)) drop-shadow(0 0 36px rgba(127,215,255,0.75))" : "animation:none";
  return `<div style="width:clamp(128px,36vw,196px);height:clamp(128px,36vw,196px);${anim}">
   ${buildGearSVG(0, pat, "probe", "")}
@@ -5946,9 +6065,11 @@ function buildTutGearGridAnimated(showPatterns){
   }
  </style>`;
  html += '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;width:100%;max-width:380px">';
- TUT_ITEMS.forEach((it,i)=>{
+ const tut=getTutorialData();
+ tut.items.forEach((it,i)=>{
   const pat = showPatterns ? it.pattern : null;
-  const anim = i===TUT_CORRECT_POS ? "tutPairFlashCorrect 12s linear infinite" : "tutPairFlash 12s linear infinite";
+  const tut=getTutorialData();
+  const anim = i===tut.correctPos ? "tutPairFlashCorrect 12s linear infinite" : "tutPairFlash 12s linear infinite";
   html += `<div style="border:2px solid transparent;border-radius:10px;aspect-ratio:1;animation:${anim};animation-delay:${i*2}s">
    ${buildGearSVG(i+1, pat, "large", "")}
   </div>`;
@@ -5960,7 +6081,8 @@ function buildTutGearGridAnimated(showPatterns){
 function buildTutRespGridAnimated(){
  let html = '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;width:100%;max-width:380px">';
  for(let i=0;i<6;i++){
-  const anim = i===TUT_CORRECT_POS ? "tutPairFlashCorrect 12s linear infinite" : "tutPairFlash 12s linear infinite";
+  const tut=getTutorialData();
+  const anim = i===tut.correctPos ? "tutPairFlashCorrect 12s linear infinite" : "tutPairFlash 12s linear infinite";
   html += `<div style="aspect-ratio:1;border-radius:10px;border:2px solid transparent;position:relative;animation:${anim};animation-delay:${i*2}s">
    ${buildGearSVG(i+1, null, "large", "")}
   </div>`;
@@ -5980,21 +6102,22 @@ function buildMiniScreen(highlightPart){
   ? "0 0 12px rgba(127,215,255,0.6)" : "none";
 
  // Stim grid — 6 small gears with patterns
+ const tut=getTutorialData();
  let stimHtml = '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:3px;width:100%">';
- TUT_ITEMS.forEach((it,i)=>{
+ tut.items.forEach((it,i)=>{
   stimHtml += `<div style="aspect-ratio:1">${buildGearSVG(i+1, it.pattern, "small", "")}</div>`;
  });
  stimHtml += '</div>';
 
  // Probe
  const probeHtml = `<div style="width:clamp(44px,13vw,60px);height:clamp(44px,13vw,60px);filter:drop-shadow(${probeGlow})">
-  ${buildGearSVG(0, LINE_PATTERNS[TUT_PROBE_CNT], "probe", "")}
+  ${buildGearSVG(0, tut.probePattern, "probe", "")}
  </div>`;
 
  // Response buttons — real gear SVGs (no pattern), correct one glowing green
  let respHtml = '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:3px;width:100%">';
  for(let i=0;i<6;i++){
-  const isHL = (highlightPart==="resp"||highlightPart==="all") && i===TUT_CORRECT_POS;
+  const isHL = (highlightPart==="resp"||highlightPart==="all") && i===tut.correctPos;
   const glow = isHL ? "drop-shadow(0 0 6px rgba(0,255,136,0.8))" : "none";
   const border = isHL ? "1px solid #00ff88" : "1px solid transparent";
   respHtml += `<div style="aspect-ratio:1;border-radius:5px;border:${border};filter:${glow}">
@@ -8210,3 +8333,4 @@ $("refSleepBtn").onclick=()=>showSleepPrompt();
 
 $("tutorialExitSleepBtn").onclick=()=>showSleepPrompt();
 $("tutorialExitBackBtn").onclick=()=>goToStartPage();
+const _pss=$("profileSymbolSet"); if(_pss) _pss.onchange=(e)=>profileSelectSymbolSet(e.target.value);

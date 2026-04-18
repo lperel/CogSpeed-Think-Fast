@@ -1,3 +1,9 @@
+## V697 — 2026-04-17
+- Added a new selectable Challenge Set on the Profile page: Standard CogSpeed or CogSpeed Memory Challenge.
+- Added full 12-icon Memory Challenge assets and trial generation using paired-match logic across the two specified number groups.
+- Memory Challenge now swaps in its own Pattern Refresher icons, Tutorial icons, and separate admin defaults for timeout, min/max paced duration, CPI anchors, and baseline qualification threshold.
+- Standard CogSpeed behavior and defaults remain unchanged when the standard set is selected.
+
 ## V696 — 2026-04-15
 - Added a fuller code-comment pass for the Sleep Logger model, including first-vs-later prompt wording, YES/NO carry-forward semantics, required Sleep Quality on new sleep entry, and the meanings of Total time asleep / Total time awake / Time since last test.
 - Removed dead unreachable quality-null cleanup code from continueFromSleepLogger() after Sleep Quality became required.

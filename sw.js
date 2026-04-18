@@ -1,5 +1,5 @@
 // Keep RELEASE in sync with APP_VERSION in app.js and the versioned app.js query in index.html.
-const RELEASE = "696";
+const RELEASE = "697";
 const CACHE_NAME = `cogspeed-v${RELEASE}-shell-v${RELEASE}`;
 const APP_SHELL = [
   "./",
@@ -23,6 +23,18 @@ const APP_SHELL = [
   "./gear5.png",
   "./gear6.png",
   "./scheduler-soft-chime.wav",
+  "./mem01_triangle.png",
+  "./mem02_bear.png",
+  "./mem03_circle.png",
+  "./mem04_lion.png",
+  "./mem05_square.png",
+  "./mem06_snake.png",
+  "./mem07_apple.png",
+  "./mem08_boat.png",
+  "./mem09_banana.png",
+  "./mem10_car.png",
+  "./mem11_strawberry.png",
+  "./mem12_airplane.png",
   "./scheduler-beep.wav",
   "./scheduler-double-beep.wav"
 ];
