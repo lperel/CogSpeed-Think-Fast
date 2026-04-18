@@ -284,24 +284,32 @@ function loadSettings(){
  }
  const m={...DEFAULTS};
  Object.keys(DEFAULTS).forEach(k=>{ if(s[k]!==undefined) m[k]=s[k]; });
-
- // Targeted default migrations for updated challenge defaults.
- // Only promote values when missing or still at the prior built-in defaults.
- const migrateIfOld = (key, oldVals, nextVal)=>{
-  const cur = Number(m[key]);
-  if(!Number.isFinite(cur) || oldVals.includes(cur)) m[key] = nextVal;
- };
- migrateIfOld("memoryCpiWorstMs", [5000], 3000);
- migrateIfOld("survivalCpiBestMs", [1500], 1000);
- migrateIfOld("survivalCpiWorstMs", [5200], 3000);
- migrateIfOld("memoryMaxTestDurationMs", [0], 240000);
- migrateIfOld("memoryNoResponseTimeoutMs", [10000], 15000);
- migrateIfOld("survivalNoResponseTimeoutMs", [12000], 15000);
-
  return m;
 }
 function saveSettings(){ localStorage.setItem(`${STORAGE_PREFIX}_settings`,JSON.stringify(settings)); }
 let settings=loadSettings();
+
+(function repairChallengeAdminDefaults(){
+ let changed = false;
+ const fixNum = (key, oldVals, nextVal)=>{
+  const cur = Number(settings[key]);
+  if(!Number.isFinite(cur) || oldVals.includes(cur)){
+   settings[key] = nextVal;
+   changed = true;
+  }
+ };
+ fixNum("memoryCpiWorstMs", [5000], 3000);
+ fixNum("survivalCpiBestMs", [1500], 1000);
+ fixNum("survivalCpiWorstMs", [5200], 3000);
+ fixNum("memoryMaxTestDurationMs", [0], 240000);
+ fixNum("memoryNoResponseTimeoutMs", [10000], 15000);
+ fixNum("survivalNoResponseTimeoutMs", [12000], 15000);
+ if(changed){
+  try{ saveSettings(); }catch(e){}
+  state = state || {};
+  state.adminDefaultsRepaired = true;
+ }
+})();
 
 // ─── State ───
 // Shared runtime state for the current session.
@@ -8887,6 +8895,16 @@ function wireEmailDraftAction(){
 document.addEventListener("visibilitychange", ()=>{
  if(document.visibilityState === "visible") maybeFinishBackgroundTest();
 });
+
+// One-time status note if old local admin overrides were auto-repaired.
+setTimeout(()=>{
+ try{
+  if(state && state.adminDefaultsRepaired){
+   setStatus("Challenge Admin defaults updated to latest requested values.");
+   state.adminDefaultsRepaired = false;
+  }
+ }catch(e){}
+}, 0);
 
 window.addEventListener("resize", ()=>{
  const last = state.history && state.history.length ? state.history[state.history.length-1] : null;
