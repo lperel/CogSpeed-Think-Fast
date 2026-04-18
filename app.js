@@ -831,7 +831,10 @@ function buildActiveRefresherCard(a,b,small=false){
  const pA = active==="survival" ? survivalIconPattern(a) : memoryIconPattern(a);
  const pB = active==="survival" ? survivalIconPattern(b) : memoryIconPattern(b);
  const labels = active==="survival" ? SURVIVAL_LABELS : MEMORY_LABELS;
- return `<div class="${cls}"><div class="ref-row" style="justify-content:center;align-items:center"><div style="display:flex;flex-direction:column;align-items:center;gap:2px">${buildGearSVG(1,pA,"small","")}<div class="ref-lbl">${labels[a]}</div></div><div class="ref-arrow">↔</div><div style="display:flex;flex-direction:column;align-items:center;gap:2px">${buildGearSVG(2,pB,"small","")}<div class="ref-lbl">${labels[b]}</div></div></div></div>`;
+ const size = small ? "small" : "large";
+ const gap = small ? "2px" : "4px";
+ const rowGap = small ? "2px" : "6px";
+ return `<div class="${cls}"><div class="ref-row" style="justify-content:center;align-items:center;gap:${rowGap}"><div style="display:flex;flex-direction:column;align-items:center;gap:${gap}">${buildGearSVG(1,pA,size,"")}<div class="ref-lbl">${labels[a]}</div></div><div class="ref-arrow">↔</div><div style="display:flex;flex-direction:column;align-items:center;gap:${gap}">${buildGearSVG(2,pB,size,"")}<div class="ref-lbl">${labels[b]}</div></div></div></div>`;
 }
 function getSurvivalSoundFamily(iconNum){
  if([1,2].includes(iconNum)) return "jets";
@@ -4141,8 +4144,7 @@ function openProfileOverlay(email){
  const existingTimeFormat = existing?.timeFormat || getEffectiveTimeFormat();
  _profileGenderSelected = existing?.gender || "";
  _profileTimeFormat = String(existingTimeFormat) === "24" ? "24" : "12";
- const rawSymbolSet = String(existing?.symbolSet || settings.symbolSet || "standard");
- _profileSymbolSet = rawSymbolSet==="memory" ? "memory" : (rawSymbolSet==="survival" ? "survival" : "standard");
+ _profileSymbolSet = "standard";
 
  // Show email
  const ed = $("profileEmailDisplay");
@@ -4157,7 +4159,7 @@ function openProfileOverlay(email){
   if(existing.gender) profileSelectGender(existing.gender);
   validateProfileAge();
   profileSelectTimeFormat(_profileTimeFormat);
-  profileSelectSymbolSet(_profileSymbolSet);
+  profileSelectSymbolSet("standard");
   profileSelectSymbolSet(_profileSymbolSet);
  } else {
   const bm = $("profileBirthMonth"); if(bm) bm.value="";
@@ -4167,7 +4169,7 @@ function openProfileOverlay(email){
   profileSelectGender("");
   const msg=$("profileAgeMsg"); if(msg) msg.textContent="";
   profileSelectTimeFormat(_profileTimeFormat);
-  profileSelectSymbolSet(_profileSymbolSet);
+  profileSelectSymbolSet("standard");
  }
 
  schedulerState.activeSubjectId = safeEmail || "";
@@ -7648,6 +7650,7 @@ function renderSpeedometerOutcome(result, sessionIndex){
  outcome.classList.remove("hidden");
  const success = !!(result && isTestSuccess(result));
  let cps = success && result ? Math.max(0, Math.min(100, result.cognitivePerformanceIndex||0)) : 0;
+ if(isResultSurvivalChallenge(result) && getSurvivalOutcomeText(result)==="Dead") cps = 0;
  let mbs = result && result.averageLast2BlockingScoresMs!=null ? result.averageLast2BlockingScoresMs : null;
  let scoreLabel = "CPI";
  let metricLabel = "MBS";

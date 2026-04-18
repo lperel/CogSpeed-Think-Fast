@@ -52,11 +52,11 @@
     .fatigue-item{padding:14px 18px;border-radius:14px;border:1px solid var(--edge);background:#0a1629;color:var(--text);font-size:18px;font-weight:600;text-align:left;cursor:pointer;line-height:1.3}
     .fatigue-item:active{background:#1a3366}
     .ref-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:12px}
-    .ref-card{background:#0a1629;border:1px solid var(--edge);border-radius:12px;padding:8px;text-align:center}
+    .ref-card{background:#0a1629;border:1px solid var(--edge);border-radius:12px;padding:10px 8px;text-align:center;min-height:160px;display:flex;flex-direction:column;justify-content:center}
     .ref-num{font-size:18px;font-weight:800;color:var(--accent);margin-bottom:6px}
     .ref-row{display:flex;align-items:center;justify-content:center;gap:8px}
-    .ref-lbl{font-size:10px;color:var(--muted);margin-bottom:3px;text-align:center}
-    .ref-arrow{font-size:16px;color:var(--muted)}
+    .ref-lbl{font-size:11px;color:var(--muted);margin-bottom:3px;text-align:center;line-height:1.1}
+    .ref-arrow{font-size:18px;color:var(--muted)}
     .admin-gate{text-align:center;padding:12px 0}
     .admin-gate input{width:100%;max-width:200px;padding:12px;border:1px solid var(--edge);border-radius:12px;background:#0a1629;color:var(--text);font-size:18px;letter-spacing:.2em;text-align:center;margin-bottom:12px}
     .thinking-overlay{position:fixed;inset:0;z-index:200;display:flex;align-items:center;justify-content:center;flex-direction:column;background:rgba(4,9,18,.92);backdrop-filter:blur(6px)}
@@ -502,7 +502,7 @@
     <div class="field-row" style="margin-bottom:14px">
       <label style="font-size:16px">Challenge Set</label>
       <select id="profileSymbolSet" style="width:100%;margin-top:6px;padding:12px;border:1px solid var(--edge);border-radius:12px;background:#0a1629;color:var(--text);font-size:17px">
-        <option value="standard">Standard CogSpeed</option>
+        <option value="standard">CogSpeed Sustained - Mode 2</option>
         <option value="memory">CogSpeed Memory Challenge</option>
         <option value="survival">CogSpeed Survival Challenge</option>
       </select>

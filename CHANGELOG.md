@@ -1,4 +1,7 @@
 ## V699 — 2026-04-17
+- Fixed Survival Speedometer so a "Dead" outcome now forces CPI to display as 0 instead of 100.
+- Enlarged icon-challenge Pattern Refresher icons on the overlay page as much as practical by using large gear rendering there.
+- Renamed the standard Profile Challenge Set entry to "CogSpeed Sustained - Mode 2" and made the Profile page always default that selector back to standard when opened.
 - Focused Survival repair pass: active Challenge Set resolution now prefers the saved settings value so stale profile state no longer forces the wrong refresher/icon set.
 - Enlarged Survival icons substantially on trial pages and refresher cards for better readability.
 - Centralized Survival correct-tap sounds in flashBtn() so every correct response path triggers the sound exactly once.
