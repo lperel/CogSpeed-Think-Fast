@@ -898,7 +898,8 @@ function buildGearSVG(si,pattern,size,spinClass){
   let iconHtml = "";
   if(pattern && pattern.iconSrc){
    const iconSize = size==="probe" ? "46%" : size==="small" ? "30%" : "36%";
-   iconHtml = `<img class="gear-symbol" src="${pattern.iconSrc}" alt="${pattern.iconLabel||"symbol"}" draggable="false" style="position:absolute;z-index:2;width:${iconSize};height:${iconSize};object-fit:contain;pointer-events:none;filter:contrast(1.05) brightness(0.96);"/>`;
+   const backSize = size==="probe" ? "60%" : size==="small" ? "42%" : "48%";
+   iconHtml = `<div class="gear-symbol-back" style="width:${backSize};height:${backSize}"></div><img class="gear-symbol" src="${pattern.iconSrc}" alt="${pattern.iconLabel||"symbol"}" draggable="false" style="position:absolute;z-index:2;width:${iconSize};height:${iconSize};object-fit:contain;pointer-events:none;filter:contrast(1.08) brightness(0.96);"/>`;
   }else if(pattern){
    const scale = size==="probe" ? 0.64 : 0.60;
    const dotR = size==="probe" ? 13 : 11;

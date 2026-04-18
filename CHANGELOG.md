@@ -1,4 +1,6 @@
 ## V697 — 2026-04-17
+- Improved Memory Challenge icon contrast on the Pattern Refresher page and trial page by adding a light circular backdrop behind the icons inside gears.
+- This specifically improves visibility for the dark triangle, circle, and square symbols against the dark gear backgrounds.
 - Added the Memory Challenge Pattern Refresher directly to each trial page, styled like the first test and shown as 2 rows of 3 in the requested pair order.
 - The trial-page Memory Challenge refresher now disappears automatically once baseline is established for the current subject.
 - Kept the smaller Memory Challenge icon sizing inside gears and tightened tutorial wording for icon-pair matching.
