@@ -4310,8 +4310,29 @@ function openProfileOverlay(email){
 }
 
 let _profileReminderShown = false;
+let _profileInitialSnapshot = null;
 function resetProfileChangeReminder(){
  _profileReminderShown = false;
+}
+// captureProfileInitialSnapshot: snapshots the current profile-form values so
+// "did anything change" checks have a reference point. Previously referenced
+// at two call sites (openProfileOverlay on existing-profile load, and
+// saveAndContinueProfile on the settings-only save path) but never defined —
+// in Rev 14 that was masked because upstream parse errors prevented this code
+// from executing; Rev 15 parses clean and exposed the missing definition.
+function captureProfileInitialSnapshot(){
+ try{
+  _profileInitialSnapshot = {
+   birthMonth: String($("profileBirthMonth")?.value || ""),
+   birthYear: String($("profileBirthYear")?.value || ""),
+   emailResults: !!$("profileEmailResults")?.checked,
+   gender: String(_profileGenderSelected || ""),
+   timeFormat: String(_profileTimeFormat || ""),
+   symbolSet: String(_profileSymbolSet || "standard")
+  };
+ }catch(e){
+  _profileInitialSnapshot = null;
+ }
 }
 function remindProfileSaveNeeded(kind="general"){
  if(_profileReminderShown) return;
