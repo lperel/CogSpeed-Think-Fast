@@ -2605,6 +2605,11 @@ function renderTrialRefresher(){
 }
 
 // ─── Refresher ───
+function showRefresher(){
+ renderRefresher();
+ showOnly("refresherOverlay");
+}
+
 function renderRefresher(){
  const grid=$("refresherGrid"); grid.innerHTML="";
  if(isIconChallengeActive()){
@@ -4416,7 +4421,7 @@ function saveAndContinueProfile(){
  // If no email is entered yet, allow returning after saving settings only.
  if(!email){
   captureProfileInitialSnapshot();
-  showOnly(_profileReturnTo || "subjectOverlay");
+  ((_profileReturnTo || "subjectOverlay")==="refresherOverlay" ? showRefresher() : showOnly(_profileReturnTo || "subjectOverlay"));
   _profileReturnTo = "refresherOverlay";
   _profileReminderShown = false;
   setStatus("Settings saved");
@@ -4810,8 +4815,7 @@ function isTestSuccess(resultOrReason){
 
 function moveEndReasonNearSession(text){
  const s = String(text||"");
- const lines = s.split("
-");
+ const lines = s.split("\n");
  const sessionIdx = lines.findIndex(line => /^Session:/i.test(line));
  if(sessionIdx === -1) return s;
 
@@ -4819,15 +4823,15 @@ function moveEndReasonNearSession(text){
  let block = 1;
  if(startIdx === -1){
   startIdx = lines.findIndex(line => /^END REASON$/i.test(line) || /^END Reason$/i.test(line));
-  if(startIdx !== -1) block = (startIdx + 1 < lines.length ? 2 : 1);
+  if(startIdx !== -1 && startIdx + 1 < lines.length) block = 2;
  }
  if(startIdx === -1 || startIdx === sessionIdx + 1) return s;
 
  const moved = lines.splice(startIdx, block);
  lines.splice(sessionIdx + 1, 0, ...moved);
- return lines.join("
-");
+ return lines.join("\n");
 }
+
 
 function getCognitivePerformanceTableText(result){
  const mode=(result&&result.testMode)||"mode1";
@@ -5083,7 +5087,7 @@ function buildResultsSummaryCompact(result){
  const dispositionLine = result.dispositionLabel||result.dispositionCode ? `${result.dispositionCode||"—"} ${result.dispositionLabel||"—"}` : '—';
  const wrongBreakdownLine = result.testMode==="mode2" ? `Wrong breakdown: Cal ${mode2WrongBreakdown.calibration} · Adaptive ${mode2WrongBreakdown.adaptive} · Recovery ${mode2WrongBreakdown.recovery} · Sustained ${mode2WrongBreakdown.sustained} · Final SP ${mode2WrongBreakdown.finalSelfPaced} · Total ${mode2WrongBreakdown.total}` : null;
  el.textContent=
-`CogSpeed version: ${APP_VERSION}
+moveEndReasonNearSession(`CogSpeed version: ${APP_VERSION}
 Mode: ${modeName}
 Session: ${result.sessionNumber!=null?result.sessionNumber:"—"}
 Subject ID: ${result.subjectId||"—"}
@@ -5109,7 +5113,7 @@ Disposition: ${dispositionLine}
 END Reason: ${result.endReason||"Run complete"}
 ${hr}
 RESULTS METRICS EXPLANATIONS:
-${getResultsMetricExplanationText(result)}`;
+${getResultsMetricExplanationText(result)}`);
 }
 
 function buildSummary(result){
@@ -7419,7 +7423,7 @@ $("subjectNextBtn").onclick=()=>{
   stopSchedulerTimers();
   schedulerState.activeSubjectId = "";
   schedulerState.settings = structuredClone(DEFAULT_SCHEDULER_SETTINGS);
-  showOnly("refresherOverlay"); setStatus("Continuing as Guest"); return;
+  showRefresher(); setStatus("Continuing as Guest"); return;
  }
  if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)){
   setStatus("Please enter a valid email address"); return;
@@ -7431,7 +7435,7 @@ $("subjectNextBtn").onclick=()=>{
   state.subjectId=v; state.profile=saved;
   applyProfileSettings(saved);
   schedulerResumeForCurrentProfile();
-  showOnly("refresherOverlay"); setStatus("Welcome back, "+v);
+  showRefresher(); setStatus("Welcome back, "+v);
  } else {
   // New user or different email → collect profile
   openProfileOverlay(v);

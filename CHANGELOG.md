@@ -1,4 +1,8 @@
 ## V699 — 2026-04-18
+- Rev25 targeted fix: Pattern Refresher now rerenders from the current active Challenge Set every time it opens, fixing stale/wrong refresher content.
+- Rev25 targeted fix: Tutorial page 3 now uses the challenge-specific rule card helper for Memory and Survival instead of the hardcoded standard icons.
+- Rev25 targeted fix: compact Results summary path now also moves "End reason" immediately after "Session:".
+- Rev24 startup parse fix: corrected the malformed End reason helper insertion that broke app.js parsing and prevented the app from opening.
 - Rev23 targeted fix: existing saved profiles now sync their saved Challenge Set into active settings before opening the refresher/tutorial flow, fixing wrong Memory/Survival icon sets.
 - Rev23 targeted fix: Tutorial page 3 now uses challenge-specific rule-card icons for Memory and Survival instead of the hardcoded standard dots/lines example.
 - Rev23 targeted fix: improved and applied the Results-page "End reason" reordering across the real summary-builder branches.
