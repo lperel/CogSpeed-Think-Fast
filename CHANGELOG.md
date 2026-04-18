@@ -1,4 +1,9 @@
 ## V699 — 2026-04-17
+- Focused Survival repair pass: active Challenge Set resolution now prefers the saved settings value so stale profile state no longer forces the wrong refresher/icon set.
+- Enlarged Survival icons substantially on trial pages and refresher cards for better readability.
+- Centralized Survival correct-tap sounds in flashBtn() so every correct response path triggers the sound exactly once.
+- Made Survival WebAudio startup more reliable on mobile by resuming the AudioContext before emitting the sound.
+- Tightened active refresher rendering so Survival refresher cards always use the active saved Survival set and requested pair order.
 - Added a symbolSet column to the CSV export so Standard, Memory, and Survival sessions can be distinguished in downstream research analysis; legacy records without the field export as "standard".
 - Added a Challenge Set badge (Std / Memory / Survival) to the session selector dropdowns on both the Summary page and the Speedometer page.
 - Made the Performance Over Time chart's MBS-ms left-axis labels Challenge-Set-aware: homogeneous ranges use the correct anchors for that set (Standard 800/2800, Memory 1400/5000, Survival 1500/5200); mixed-set ranges suppress the ms tick numbers and label the axis "MBS ms (mixed sets — hidden)" since a single y-axis cannot unambiguously label three different ms scales simultaneously.

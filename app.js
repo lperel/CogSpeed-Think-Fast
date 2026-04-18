@@ -704,11 +704,9 @@ function isResultMemoryChallenge(result){
  return getResultSymbolSet(result) === "memory";
 }
 function getActiveSymbolSet(){
- // Whitelist normalization: any unexpected value (corrupted localStorage,
- // stale admin edit, typo in DEFAULTS override) falls through to "standard"
- // rather than silently skipping both isMemoryChallengeActive() and
- // isSurvivalChallengeActive() branches.
- const raw = String((state.profile && state.profile.symbolSet) || settings.symbolSet || "standard");
+ // Prefer the currently saved settings value first so the active Challenge Set
+ // does not get overridden by stale profile state left from an earlier subject.
+ const raw = String(settings.symbolSet || (state.profile && state.profile.symbolSet) || "standard");
  if(raw === "memory" || raw === "survival") return raw;
  return "standard";
 }
@@ -761,16 +759,17 @@ const SURVIVAL_ICON_SRC = {
  5:"./surv05_ship.png", 6:"./surv06_submarine.png", 7:"./surv07_rocket.jpeg", 8:"./surv08_missile_battery.png",
  9:"./surv09_spaceship1.png", 10:"./surv10_spaceship2.png", 11:"./surv11_helicopter.jpeg", 12:"./surv12_rpg.png"
 };
+// Survival icon mapping reviewed against uploaded assets:
 const SURVIVAL_LABELS = {
  1:"Jet 1",2:"Jet 2",3:"Tank",4:"Cannon",5:"Ship",6:"Submarine",
  7:"Rocket",8:"Missile Battery",9:"Space ship 1",10:"Space ship 2",11:"Helicopter",12:"RPG"
 };
 const SURVIVAL_PAIR_MAP = {1:2,2:1,3:4,4:3,5:6,6:5,7:8,8:7,9:10,10:9,11:12,12:11};
 function memoryIconPattern(n){
- return {iconSrc: MEMORY_ICON_SRC[n], iconLabel: MEMORY_LABELS[n], iconNum:n};
+ return {iconSrc: MEMORY_ICON_SRC[n], iconLabel: MEMORY_LABELS[n], iconNum:n, challengeSet:"memory"};
 }
 function survivalIconPattern(n){
- return {iconSrc: SURVIVAL_ICON_SRC[n], iconLabel: SURVIVAL_LABELS[n], iconNum:n};
+ return {iconSrc: SURVIVAL_ICON_SRC[n], iconLabel: SURVIVAL_LABELS[n], iconNum:n, challengeSet:"survival"};
 }
 function makeMemoryTrial(kind,lastCorrectPos,lastProbe){
  const group1=[1,2,3,4,5,6], group2=[7,8,9,10,11,12];
@@ -821,15 +820,17 @@ function makeSurvivalTrial(kind,lastCorrectPos,lastProbe){
  return makeIconChallengeTrial(kind,lastCorrectPos,lastProbe,g1,g2,SURVIVAL_PAIR_MAP,survivalIconPattern,"survival");
 }
 function getActiveRefresherPairs(){
- if(isMemoryChallengeActive()) return [[1,2],[7,8],[4,3],[9,10],[6,5],[12,11]];
- if(isSurvivalChallengeActive()) return [[1,2],[5,6],[9,10],[7,8],[11,12],[3,4]];
+ const active = getActiveSymbolSet();
+ if(active==="memory") return [[1,2],[7,8],[4,3],[9,10],[6,5],[12,11]];
+ if(active==="survival") return [[1,2],[5,6],[9,10],[7,8],[11,12],[3,4]];
  return [];
 }
 function buildActiveRefresherCard(a,b,small=false){
  const cls = small ? "trial-ref-card" : "ref-card";
- const pA = isSurvivalChallengeActive() ? survivalIconPattern(a) : memoryIconPattern(a);
- const pB = isSurvivalChallengeActive() ? survivalIconPattern(b) : memoryIconPattern(b);
- const labels = isSurvivalChallengeActive() ? SURVIVAL_LABELS : MEMORY_LABELS;
+ const active = getActiveSymbolSet();
+ const pA = active==="survival" ? survivalIconPattern(a) : memoryIconPattern(a);
+ const pB = active==="survival" ? survivalIconPattern(b) : memoryIconPattern(b);
+ const labels = active==="survival" ? SURVIVAL_LABELS : MEMORY_LABELS;
  return `<div class="${cls}"><div class="ref-row" style="justify-content:center;align-items:center"><div style="display:flex;flex-direction:column;align-items:center;gap:2px">${buildGearSVG(1,pA,"small","")}<div class="ref-lbl">${labels[a]}</div></div><div class="ref-arrow">↔</div><div style="display:flex;flex-direction:column;align-items:center;gap:2px">${buildGearSVG(2,pB,"small","")}<div class="ref-lbl">${labels[b]}</div></div></div></div>`;
 }
 function getSurvivalSoundFamily(iconNum){
@@ -860,92 +861,55 @@ function playSurvivalCorrectSound(iconNum){
   if(!AC) return;
   state._survivalAudioCtx = state._survivalAudioCtx || new AC();
   const ctx = state._survivalAudioCtx;
-  if(ctx.state==="suspended") ctx.resume();
-  const now = ctx.currentTime;
-  const fam = getSurvivalSoundFamily(iconNum);
-  // Pitch-swept oscillator with exponential gain envelope.
-  const tone = (type, f1, f2, t0, dur, gainV)=>{
-   const o=ctx.createOscillator(), g=ctx.createGain();
-   o.type=type;
-   o.frequency.setValueAtTime(f1, t0);
-   o.frequency.exponentialRampToValueAtTime(Math.max(30, f2), t0+dur);
-   g.gain.setValueAtTime(0.0001, t0);
-   g.gain.exponentialRampToValueAtTime(gainV, t0+0.01);
-   g.gain.exponentialRampToValueAtTime(0.0001, t0+dur);
-   o.connect(g).connect(ctx.destination); o.start(t0); o.stop(t0+dur+0.02);
+  const emit = ()=>{
+   const now = ctx.currentTime + 0.005;
+   const fam = getSurvivalSoundFamily(iconNum);
+   const tone = (type, f1, f2, t0, dur, gainV)=>{
+    const o=ctx.createOscillator(), g=ctx.createGain();
+    o.type=type;
+    o.frequency.setValueAtTime(f1, t0);
+    o.frequency.exponentialRampToValueAtTime(Math.max(30, f2), t0+dur);
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.exponentialRampToValueAtTime(gainV, t0+0.01);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0+dur);
+    o.connect(g).connect(ctx.destination); o.start(t0); o.stop(t0+dur+0.02);
+   };
+   const noise = (t0, dur, gainV, hpFreq)=>{
+    const len=Math.max(1, Math.floor(ctx.sampleRate*dur));
+    const buf=ctx.createBuffer(1,len,ctx.sampleRate);
+    const data=buf.getChannelData(0);
+    for(let i=0;i<len;i++) data[i]=(Math.random()*2-1)*(1-i/len);
+    const src=ctx.createBufferSource(); src.buffer=buf;
+    const hp=ctx.createBiquadFilter(); hp.type="highpass"; hp.frequency.value=hpFreq;
+    const g=ctx.createGain();
+    g.gain.setValueAtTime(gainV, t0); g.gain.exponentialRampToValueAtTime(0.0001, t0+dur);
+    src.connect(hp).connect(g).connect(ctx.destination); src.start(t0); src.stop(t0+dur+0.02);
+   };
+   const boom = (t0, dur, gainV)=>{
+    const len=Math.max(1, Math.floor(ctx.sampleRate*dur));
+    const buf=ctx.createBuffer(1,len,ctx.sampleRate);
+    const data=buf.getChannelData(0);
+    for(let i=0;i<len;i++){
+     const env = 1 - i/len;
+     data[i]=(Math.random()*2-1)*env*0.9;
+    }
+    const src=ctx.createBufferSource(); src.buffer=buf;
+    const lp=ctx.createBiquadFilter(); lp.type="lowpass"; lp.frequency.value=180;
+    const g=ctx.createGain();
+    g.gain.setValueAtTime(gainV, t0); g.gain.exponentialRampToValueAtTime(0.0001, t0+dur);
+    src.connect(lp).connect(g).connect(ctx.destination); src.start(t0); src.stop(t0+dur+0.02);
+   };
+   if(fam==="tank"){ noise(now,0.10,0.12,1200); boom(now+0.03,0.26,0.24); tone("triangle",110,55,now+0.02,0.22,0.06); }
+   else if(fam==="jets"){ noise(now,0.12,0.08,1800); tone("sawtooth",1450,260,now,0.18,0.05); boom(now+0.14,0.24,0.22); }
+   else if(fam==="ship"){ boom(now,0.32,0.28); tone("triangle",90,42,now,0.28,0.08); }
+   else if(fam==="rocket"){ noise(now,0.18,0.09,1100); tone("sawtooth",760,180,now,0.22,0.05); boom(now+0.16,0.24,0.22); }
+   else if(fam==="space"){ tone("square",1200,640,now,0.06,0.04); tone("square",1600,820,now+0.05,0.06,0.03); boom(now+0.14,0.20,0.18); }
+   else { noise(now,0.12,0.08,900); tone("sawtooth",620,150,now,0.16,0.04); boom(now+0.14,0.22,0.20); }
   };
-  // Highpass-filtered decaying noise (hiss, crack, whoosh head).
-  const noise = (t0, dur, gainV, hpFreq)=>{
-   const len=Math.max(1, Math.floor(ctx.sampleRate*dur));
-   const buf=ctx.createBuffer(1,len,ctx.sampleRate);
-   const data=buf.getChannelData(0);
-   for(let i=0;i<len;i++) data[i]=(Math.random()*2-1)*(1-i/len);
-   const src=ctx.createBufferSource(); src.buffer=buf;
-   const hp=ctx.createBiquadFilter(); hp.type="highpass"; hp.frequency.value=hpFreq;
-   const g=ctx.createGain();
-   g.gain.setValueAtTime(gainV, t0); g.gain.exponentialRampToValueAtTime(0.0001, t0+dur);
-   src.connect(hp).connect(g).connect(ctx.destination); src.start(t0); src.stop(t0+dur+0.02);
-  };
-  // Lowpass-filtered decaying noise with fast attack (explosion body).
-  const lpNoise = (t0, dur, gainV, lpFreq)=>{
-   const len=Math.max(1, Math.floor(ctx.sampleRate*dur));
-   const buf=ctx.createBuffer(1,len,ctx.sampleRate);
-   const data=buf.getChannelData(0);
-   for(let i=0;i<len;i++) data[i]=(Math.random()*2-1)*(1-i/len);
-   const src=ctx.createBufferSource(); src.buffer=buf;
-   const lp=ctx.createBiquadFilter(); lp.type="lowpass"; lp.frequency.value=lpFreq;
-   const g=ctx.createGain();
-   g.gain.setValueAtTime(0.0001, t0);
-   g.gain.exponentialRampToValueAtTime(gainV, t0+0.005);
-   g.gain.exponentialRampToValueAtTime(0.0001, t0+dur);
-   src.connect(lp).connect(g).connect(ctx.destination); src.start(t0); src.stop(t0+dur+0.02);
-  };
-  // Shared boom tail used by jets, rocket, helo, and space. Consistent
-  // impact signature: sub sine thud + lowpass-filtered noise body, 180ms.
-  const sharedBoom = (t0)=>{
-   tone("sine",80,40,t0,0.18,0.22);
-   lpNoise(t0,0.18,0.20,350);
-  };
-  if(fam==="jets"){
-   // Fast high whoosh (~120ms) + shared boom. Missile-from-jet signature.
-   const boomT = now + 0.12;
-   noise(now,0.12,0.18,900);
-   tone("sawtooth",1400,300,now,0.12,0.06);
-   sharedBoom(boomT);
-  }
-  else if(fam==="rocket"){
-   // Long mid-band whoosh (~260ms) + shared boom. Rocket burn signature.
-   const boomT = now + 0.26;
-   noise(now,0.26,0.16,500);
-   tone("sawtooth",600,180,now,0.24,0.05);
-   sharedBoom(boomT);
-  }
-  else if(fam==="helo"){
-   // Short low whoosh (~100ms) + shared boom. RPG from helo signature.
-   const boomT = now + 0.10;
-   noise(now,0.10,0.16,300);
-   tone("sawtooth",400,140,now,0.10,0.05);
-   sharedBoom(boomT);
-  }
-  else if(fam==="tank"){
-   // Cannon boom: muzzle crack + low thud + body. No whoosh.
-   tone("sine",110,45,now,0.22,0.24);
-   lpNoise(now,0.22,0.22,400);
-   noise(now,0.04,0.18,1200);
-  }
-  else if(fam==="ship"){
-   // Big naval explosion: deeper sub thud (~10Hz lower than tank), longer
-   // duration, narrower lowpass for muffled underwater-ish body, debris tail.
-   tone("sine",70,30,now,0.32,0.24);
-   lpNoise(now,0.32,0.22,280);
-   noise(now+0.04,0.10,0.10,600);
-  }
-  else if(fam==="space"){
-   // Two descending square-wave zaps + shared boom.
-   const boomT = now + 0.14;
-   tone("square",1400,500,now,0.10,0.07);
-   tone("square",1700,600,now+0.05,0.09,0.05);
-   sharedBoom(boomT);
+  if(ctx.state === "suspended"){
+   Promise.resolve(ctx.resume()).then(emit).catch(emit);
+  }else{
+   emit();
   }
  }catch(e){}
 }
@@ -1137,8 +1101,13 @@ function buildGearSVG(si,pattern,size,spinClass){
   const marks = [];
   let iconHtml = "";
   if(pattern && pattern.iconSrc){
-   const iconSize = size==="probe" ? "46%" : size==="small" ? "30%" : "36%";
-   const backSize = size==="probe" ? "60%" : size==="small" ? "42%" : "48%";
+   const isSurvival = pattern.challengeSet === "survival";
+   const iconSize = isSurvival
+    ? (size==="probe" ? "60%" : size==="small" ? "46%" : "54%")
+    : (size==="probe" ? "46%" : size==="small" ? "30%" : "36%");
+   const backSize = isSurvival
+    ? (size==="probe" ? "74%" : size==="small" ? "60%" : "66%")
+    : (size==="probe" ? "60%" : size==="small" ? "42%" : "48%");
    iconHtml = `<div class="gear-symbol-back" style="width:${backSize};height:${backSize}"></div><img class="gear-symbol" src="${pattern.iconSrc}" alt="${pattern.iconLabel||"symbol"}" draggable="false" style="position:absolute;z-index:2;width:${iconSize};height:${iconSize};object-fit:contain;pointer-events:none;filter:contrast(1.08) brightness(0.96);"/>`;
   }else if(pattern){
    const scale = size==="probe" ? 0.64 : 0.60;
@@ -1240,6 +1209,9 @@ function renderTrial(trial){
 function flashBtn(index,ok){
  const btns=respGrid.querySelectorAll(".resp-btn");
  if(!btns[index]) return;
+ if(ok && isSurvivalChallengeActive() && state.current && state.current.topItems && state.current.topItems[index]){
+  try{ playSurvivalCorrectSound(state.current.topItems[index].count); }catch(e){}
+ }
  const cls=ok?"correct-flash":"wrong-flash";
  btns[index].classList.add(cls);
  setTimeout(()=>btns[index].classList.remove(cls),200);
@@ -2232,7 +2204,7 @@ function handleTap(index,eventTimeStamp){
   const timingSummary = harvestActiveFrameTiming(performance.now());
   if(state.current&&!state.current.resolved&&trialMatches(state.current,index)){
    state.current.resolved=true; state.totalResponses+=1; state.totalCorrect+=1; state.fixedPacedCorrect+=1; state.pacedRTs.push(rt);
-   logTrial({phase:"paced_fixed",rt,outcome:"correct",responseIndex:index,timing:timingSummary,pacing:{nextRateMs:state.duration,rateChangeMs:0,rateChangeReason:"Fixed machine-paced"}}); if(isSurvivalChallengeActive() && state.current && state.current.topItems && state.current.topItems[index]) playSurvivalCorrectSound(state.current.topItems[index].count);
+   logTrial({phase:"paced_fixed",rt,outcome:"correct",responseIndex:index,timing:timingSummary,pacing:{nextRateMs:state.duration,rateChangeMs:0,rateChangeReason:"Fixed machine-paced"}});
    flashBtn(index,true);
    if(state.fixedPacedPresented >= (Number(settings.mode4PacedTrialLimit)||140)){ state.endReason="Mode 4 complete: required responses completed."; finish(); return; }
    openTrial("paced_fixed"); return;
@@ -2269,7 +2241,6 @@ function handleTap(index,eventTimeStamp){
     logTrial({phase:"mode2_sustained",rt:eRT,outcome:"correct",responseIndex:index,timing:state.mode2PendingPriorMiss?.timing||null,pacing:{nextRateMs:state.duration,rateChangeMs:0,rateChangeReason:"Mode 2 sustained fixed rate (late rescue)"}});
     state.current = savedCurrent;
     state.presentedRoundDuration = savedPresented;
-    if(isSurvivalChallengeActive() && state.current && state.current.topItems && state.current.topItems[index]) playSurvivalCorrectSound(state.current.topItems[index].count);
    flashBtn(index,true);
     if(checkMode2SustainedRollingMean(true)) return;
    }else{
@@ -2309,7 +2280,6 @@ function handleTap(index,eventTimeStamp){
    state.current.resolved=true; state.totalResponses+=1; state.totalCorrect+=1; state.mode2SustainedCorrect+=1; state.pacedRTs.push(rt); state.mode2SustainedCorrectRTs.push(rt);
    state.hadResponse=true;
    logTrial({phase:"mode2_sustained",rt,outcome:"correct",responseIndex:index,timing:timingSummary,pacing:{nextRateMs:state.duration,rateChangeMs:0,rateChangeReason:"Mode 2 sustained fixed rate (MBS × factor)"}});
-   if(isSurvivalChallengeActive() && state.current && state.current.topItems && state.current.topItems[index]) playSurvivalCorrectSound(state.current.topItems[index].count);
    flashBtn(index,true);
    // Do NOT call openTrial here — the RAF frame timer must run to full duration.
    // onPacedFrameEnd() will advance to the next trial when the window expires.
@@ -2381,8 +2351,6 @@ function handleTap(index,eventTimeStamp){
    const lateLogSeq = state.rtLog.length ? state.rtLog[state.rtLog.length-1].seq : null;
    state.current = savedCurrent;
    state.presentedRoundDuration = savedPresented;
-
-   if(isSurvivalChallengeActive() && state.current && state.current.topItems && state.current.topItems[index]) playSurvivalCorrectSound(state.current.topItems[index].count);
    flashBtn(index,true);
    if(recordAnswer(true)) return;
    state.pendingLatePacing = {correct:true, effectiveRt:eRT, logSeq:lateLogSeq};
@@ -2436,7 +2404,7 @@ function handleTap(index,eventTimeStamp){
   state.current.resolved=true; state.totalResponses+=1; state.totalCorrect+=1;
   state.hadResponse=true;
   const pacing = applyPacing(rt,true); state.pacedRTs.push(rt);
-  logTrial({phase:"paced",rt,outcome:"correct",responseIndex:index,timing:frameTiming,pacing}); if(isSurvivalChallengeActive() && state.current && state.current.topItems && state.current.topItems[index]) playSurvivalCorrectSound(state.current.topItems[index].count);
+  logTrial({phase:"paced",rt,outcome:"correct",responseIndex:index,timing:frameTiming,pacing});
    flashBtn(index,true);
   recordAnswer(true); return;
  }
