@@ -2,7 +2,7 @@
 // CogSpeed source
 // ═══════════════════════════════════════════════════
 // Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V697";
+const APP_VERSION = "V699";
 
 // ═══════════════════════════════════════════════════
 // Current behavior summary (historical details live in CHANGELOG.md)
@@ -105,6 +105,13 @@ const DEFAULTS={
  memoryCpiBestMs:1400,
  memoryCpiWorstMs:5000,
  memoryBaselineMaxMbs:3200,
+ survivalNoResponseTimeoutMs:12000,
+ survivalMinDurationMs:1500,
+ survivalMaxDurationMs:5200,
+ survivalCpiBestMs:1500,
+ survivalCpiWorstMs:5200,
+ survivalBaselineMaxMbs:3400,
+ survivalMaxTestDurationMs:200000,
  deviceBenchmarkEnabled:0,
  timeFormat:"12",
  lateResponseThresholdMs:600, // first response <600ms on next frame may belong to prior frame; a second >=600ms response belongs to current frame
@@ -195,20 +202,28 @@ const ADMIN_FIELDS=[
  ["memoryCpiWorstMs","53. Memory Challenge CPI worst ms anchor (default 5000)","number"],
  ["memoryBaselineMaxMbs","54. Memory Challenge baseline max qualifying MBS (ms, default 3200)","number"],
 
- // 55-63. Mode 2 CPA editable defaults
- // 49-57. Mode 2 CPA editable defaults
- ["mode2CpaCorrectBuckets","55. Mode 2 CPA correct buckets (min-max:multiplier; ...)","text"],
- ["mode2CpaWrongBuckets","56. Mode 2 CPA wrong buckets (min-max:multiplier; ...)","text"],
- ["mode2CpaMissedBuckets","57. Mode 2 CPA missed buckets (min-max:multiplier; ...)","text"],
- ["mode2CpaCvBuckets","58. Mode 2 CPA CV% buckets — CV=(sustained RT SD ÷ mean RT) × 100; 0–10%=very consistent; >30%=high variability penalty (min-max:multiplier; ...)","text"],
- ["mode2CpaDriftBuckets","59. Mode 2 CPA drift % buckets — percent slowing; negative drift forced to 0 before bucketing (min-max:multiplier; ...)","text"],
- ["mode2CpaMaxReductionFactor","60. Mode 2 CPA max reduction factor × CPI — cap on total CPA reduction (default 0.9)","number"],
- ["mode2CpaRecoveryRatioBuckets","61. Mode 2 CPA recovery ratio buckets — mean recovery RT ÷ calibration avg RT; 1.0=no drift; 1.5=50% slower in recovery (min-max:multiplier; ...)","text"],
- ["mode2CpaLapseRateBuckets","62. Mode 2 CPA lapse rate % buckets — lapse: correct RT > 2× median sustained RT; 0%=no lapses; 30%+=frequent ceiling breaches (min-max:multiplier; ...)","text"],
- ["mode2CpaEfficiencyBuckets","63. Mode 2 CPA block efficiency buckets — adaptive paced trials ÷ block count; <10=rapid blocks; 10–30=typical; >50=highly unstable threshold (min-max:multiplier; ...)","text"],
+ // 55-61. Survival Challenge defaults
+ ["survivalNoResponseTimeoutMs","55. Survival Challenge no-response timeout (ms, default 12000)","number"],
+ ["survivalMinDurationMs","56. Survival Challenge MP frame minimum duration (ms, default 1500)","number"],
+ ["survivalMaxDurationMs","57. Survival Challenge MP frame maximum duration (ms, default 5200)","number"],
+ ["survivalCpiBestMs","58. Survival Challenge CPI best ms anchor (default 1500)","number"],
+ ["survivalCpiWorstMs","59. Survival Challenge CPI worst ms anchor (default 5200)","number"],
+ ["survivalBaselineMaxMbs","60. Survival Challenge baseline max qualifying MBS (ms, default 3400)","number"],
+ ["survivalMaxTestDurationMs","61. Survival Challenge max total test time (ms, default 200000) — gives Survival extra headroom over the 150000ms used by Standard/Memory because slower frame timing needs more session budget","number"],
 
- // 58. Diagnostics
- ["deviceBenchmarkEnabled","58. Device benchmark (0=off, 1=on)","number"]
+ // 62-70. Mode 2 CPA editable defaults
+ ["mode2CpaCorrectBuckets","62. Mode 2 CPA correct buckets (min-max:multiplier; ...)","text"],
+ ["mode2CpaWrongBuckets","63. Mode 2 CPA wrong buckets (min-max:multiplier; ...)","text"],
+ ["mode2CpaMissedBuckets","64. Mode 2 CPA missed buckets (min-max:multiplier; ...)","text"],
+ ["mode2CpaCvBuckets","65. Mode 2 CPA CV% buckets — CV=(sustained RT SD ÷ mean RT) × 100; 0–10%=very consistent; >30%=high variability penalty (min-max:multiplier; ...)","text"],
+ ["mode2CpaDriftBuckets","66. Mode 2 CPA drift % buckets — percent slowing; negative drift forced to 0 before bucketing (min-max:multiplier; ...)","text"],
+ ["mode2CpaMaxReductionFactor","67. Mode 2 CPA max reduction factor × CPI — cap on total CPA reduction (default 0.9)","number"],
+ ["mode2CpaRecoveryRatioBuckets","68. Mode 2 CPA recovery ratio buckets — mean recovery RT ÷ calibration avg RT; 1.0=no drift; 1.5=50% slower in recovery (min-max:multiplier; ...)","text"],
+ ["mode2CpaLapseRateBuckets","69. Mode 2 CPA lapse rate % buckets — lapse: correct RT > 2× median sustained RT; 0%=no lapses; 30%+=frequent ceiling breaches (min-max:multiplier; ...)","text"],
+ ["mode2CpaEfficiencyBuckets","70. Mode 2 CPA block efficiency buckets — adaptive paced trials ÷ block count; <10=rapid blocks; 10–30=typical; >50=highly unstable threshold (min-max:multiplier; ...)","text"],
+
+ // 71. Diagnostics
+ ["deviceBenchmarkEnabled","71. Device benchmark (0=off, 1=on)","number"]
 ];
 
 // ─── Patterns ───
@@ -450,7 +465,15 @@ function isMode3(){ return (settings.testMode||DEFAULTS.testMode)==="mode3"; }
 function isMode4(){ return (settings.testMode||DEFAULTS.testMode)==="mode4"; }
 function currentModeLabel(){ return isMode1() ? "Mode 1 CogSpeed Adapted" : isMode2() ? "Mode 2 CogSpeed Sustained" : isMode3() ? "Mode 3 Self-paced" : "Mode 4 Machine-paced"; }
 function getEffectiveTimeFormat(){ return String(settings.timeFormat||"12") === "24" ? "24" : "12"; }
-function getSessionMaxDurationMs(){ return isMode3() ? (Number(settings.mode3MaxDurationMs)||120000) : isMode4() ? (Number(settings.mode4MaxDurationMs)||120000) : (Number(settings.maxTestDurationMs)||150000); }
+function getSessionMaxDurationMs(){
+ if(isMode3()) return Number(settings.mode3MaxDurationMs)||120000;
+ if(isMode4()) return Number(settings.mode4MaxDurationMs)||120000;
+ // Mode 1 / Mode 2: Survival gets its own larger budget (default 200000ms)
+ // because slower frame timing (min 1500ms, max 5200ms) needs more headroom
+ // than the 150000ms used by Standard/Memory.
+ if(isSurvivalChallengeActive()) return Number(settings.survivalMaxTestDurationMs)||200000;
+ return Number(settings.maxTestDurationMs)||150000;
+}
 
 // Timing diagnostics are observational only. They do NOT affect pacing or scoring.
 function beginFrameTiming(targetMs, phase){
@@ -573,7 +596,7 @@ function resumeMaxTestTimer(){
 function armNoResponseTimer(){
  clearNoResponseTimer();
  let ms;
- const memTimeout = isMemoryChallengeActive() ? (Number(settings.memoryNoResponseTimeoutMs)||10000) : null;
+ const challengeTimeout = isMemoryChallengeActive() ? (Number(settings.memoryNoResponseTimeoutMs)||10000) : (isSurvivalChallengeActive() ? (Number(settings.survivalNoResponseTimeoutMs)||12000) : null);
  switch(state.phase){
   case "recovery":
   case "terminal_recovery":
@@ -593,7 +616,7 @@ function armNoResponseTimer(){
   default:
    ms = 10000;
  }
- if(memTimeout!=null && ms!=null) ms = memTimeout;
+ if(challengeTimeout!=null && ms!=null) ms = challengeTimeout;
  state.absoluteNoResponseTimer=setTimeout(()=>{
   state.endReason = state.phase==="calibration"
    ? "No response detected — please retest."
@@ -670,26 +693,58 @@ function patternToSVG(pattern,size="large"){
 
 
 // ─── Symbol sets / Memory Challenge ───
+function getResultSymbolSet(result){
+ const raw = String(result?.symbolSet || result?.challengeSet || "").trim().toLowerCase();
+ return raw==="memory" ? "memory" : (raw==="survival" ? "survival" : "standard");
+}
+function isResultSurvivalChallenge(result){
+ return getResultSymbolSet(result) === "survival";
+}
+function isResultMemoryChallenge(result){
+ return getResultSymbolSet(result) === "memory";
+}
 function getActiveSymbolSet(){
- return String((state.profile && state.profile.symbolSet) || settings.symbolSet || "standard");
+ // Whitelist normalization: any unexpected value (corrupted localStorage,
+ // stale admin edit, typo in DEFAULTS override) falls through to "standard"
+ // rather than silently skipping both isMemoryChallengeActive() and
+ // isSurvivalChallengeActive() branches.
+ const raw = String((state.profile && state.profile.symbolSet) || settings.symbolSet || "standard");
+ if(raw === "memory" || raw === "survival") return raw;
+ return "standard";
 }
 function isMemoryChallengeActive(){
  return getActiveSymbolSet() === "memory";
 }
+function isSurvivalChallengeActive(){
+ return getActiveSymbolSet() === "survival";
+}
+function isIconChallengeActive(){
+ return isMemoryChallengeActive() || isSurvivalChallengeActive();
+}
 function getCurrentMinDurationMs(){
- return isMemoryChallengeActive() ? (Number(settings.memoryMinDurationMs)||1400) : (Number(getCurrentMinDurationMs())||600);
+ return isMemoryChallengeActive() ? (Number(settings.memoryMinDurationMs)||1400)
+  : isSurvivalChallengeActive() ? (Number(settings.survivalMinDurationMs)||1500)
+  : (Number(settings.minDurationMs)||600);
 }
 function getCurrentMaxDurationMs(){
- return isMemoryChallengeActive() ? (Number(settings.memoryMaxDurationMs)||5000) : (Number(getCurrentMaxDurationMs())||3500);
+ return isMemoryChallengeActive() ? (Number(settings.memoryMaxDurationMs)||5000)
+  : isSurvivalChallengeActive() ? (Number(settings.survivalMaxDurationMs)||5200)
+  : (Number(settings.maxDurationMs)||3500);
 }
 function getCurrentCpiBestMs(){
- return isMemoryChallengeActive() ? (Number(settings.memoryCpiBestMs)||1400) : (Number(settings.cpiBestMs)||DEFAULTS.cpiBestMs);
+ return isMemoryChallengeActive() ? (Number(settings.memoryCpiBestMs)||1400)
+  : isSurvivalChallengeActive() ? (Number(settings.survivalCpiBestMs)||1500)
+  : (Number(settings.cpiBestMs)||DEFAULTS.cpiBestMs);
 }
 function getCurrentCpiWorstMs(){
- return isMemoryChallengeActive() ? (Number(settings.memoryCpiWorstMs)||5000) : (Number(settings.cpiWorstMs)||DEFAULTS.cpiWorstMs);
+ return isMemoryChallengeActive() ? (Number(settings.memoryCpiWorstMs)||5000)
+  : isSurvivalChallengeActive() ? (Number(settings.survivalCpiWorstMs)||5200)
+  : (Number(settings.cpiWorstMs)||DEFAULTS.cpiWorstMs);
 }
 function getCurrentBaselineMaxMbsValue(){
- return isMemoryChallengeActive() ? (Number(settings.memoryBaselineMaxMbs)||3200) : (Number(settings.personalBaselineMaxMbs)||1900);
+ return isMemoryChallengeActive() ? (Number(settings.memoryBaselineMaxMbs)||3200)
+  : isSurvivalChallengeActive() ? (Number(settings.survivalBaselineMaxMbs)||3400)
+  : (Number(settings.personalBaselineMaxMbs)||1900);
 }
 const MEMORY_ICON_SRC = {
  1:"./mem01_triangle.png", 2:"./mem02_bear.png", 3:"./mem03_circle.png", 4:"./mem04_lion.png",
@@ -701,8 +756,21 @@ const MEMORY_LABELS = {
  7:"Apple",8:"Boat",9:"Banana",10:"Car",11:"Strawberry",12:"Airplane"
 };
 const MEMORY_PAIR_MAP = {1:2,2:1,3:4,4:3,5:6,6:5,7:8,8:7,9:10,10:9,11:12,12:11};
+const SURVIVAL_ICON_SRC = {
+ 1:"./surv01_jet1.jpeg", 2:"./surv02_jet2.png", 3:"./surv03_tank.png", 4:"./surv04_cannon.png",
+ 5:"./surv05_ship.png", 6:"./surv06_submarine.png", 7:"./surv07_rocket.jpeg", 8:"./surv08_missile_battery.png",
+ 9:"./surv09_spaceship1.png", 10:"./surv10_spaceship2.png", 11:"./surv11_helicopter.jpeg", 12:"./surv12_rpg.png"
+};
+const SURVIVAL_LABELS = {
+ 1:"Jet 1",2:"Jet 2",3:"Tank",4:"Cannon",5:"Ship",6:"Submarine",
+ 7:"Rocket",8:"Missile Battery",9:"Space ship 1",10:"Space ship 2",11:"Helicopter",12:"RPG"
+};
+const SURVIVAL_PAIR_MAP = {1:2,2:1,3:4,4:3,5:6,6:5,7:8,8:7,9:10,10:9,11:12,12:11};
 function memoryIconPattern(n){
  return {iconSrc: MEMORY_ICON_SRC[n], iconLabel: MEMORY_LABELS[n], iconNum:n};
+}
+function survivalIconPattern(n){
+ return {iconSrc: SURVIVAL_ICON_SRC[n], iconLabel: SURVIVAL_LABELS[n], iconNum:n};
 }
 function makeMemoryTrial(kind,lastCorrectPos,lastProbe){
  const group1=[1,2,3,4,5,6], group2=[7,8,9,10,11,12];
@@ -726,6 +794,177 @@ function makeMemoryTrial(kind,lastCorrectPos,lastProbe){
  }
  throw new Error("makeMemoryTrial: could not generate valid trial after 500 attempts");
 }
+
+function makeIconChallengeTrial(kind,lastCorrectPos,lastProbe, group1, group2, pairMap, iconPattern, familyName){
+ for(let attempt=0;attempt<500;attempt++){
+  const group = Math.random()<0.5 ? group1 : group2;
+  const other = group===group1 ? group2 : group1;
+  const probeNum = group[randInt(0, group.length-1)];
+  if(attempt < 50 && lastProbe && lastProbe.num===probeNum) continue;
+  const matchNum = pairMap[probeNum];
+  const correctPos = (()=>{
+   if(lastCorrectPos==null) return randInt(0,5);
+   let p,t=0; do{ p=randInt(0,5); t++; }while(p===lastCorrectPos&&t<20); return p;
+  })();
+  const sameGroupOthers = shuffle(group.filter(n=>n!==probeNum && n!==matchNum)).slice(0,3);
+  const otherGroupOthers = shuffle([...other]).slice(0,2);
+  let nums = shuffle([matchNum, ...sameGroupOthers, ...otherGroupOthers]);
+  const ei = nums.indexOf(matchNum);
+  [nums[correctPos], nums[ei]] = [nums[ei], nums[correctPos]];
+  const topItems = nums.map((n)=>({count:n, family:familyName, pattern:iconPattern(n)}));
+  return { kind, probePattern:iconPattern(probeNum), probeCount:probeNum, probeFamily:familyName, topItems, correctPos, resolved:false };
+ }
+ throw new Error("makeIconChallengeTrial: could not generate valid trial after 500 attempts");
+}
+function makeSurvivalTrial(kind,lastCorrectPos,lastProbe){
+ const g1=[1,2,3,4,5,6], g2=[7,8,9,10,11,12];
+ return makeIconChallengeTrial(kind,lastCorrectPos,lastProbe,g1,g2,SURVIVAL_PAIR_MAP,survivalIconPattern,"survival");
+}
+function getActiveRefresherPairs(){
+ if(isMemoryChallengeActive()) return [[1,2],[7,8],[4,3],[9,10],[6,5],[12,11]];
+ if(isSurvivalChallengeActive()) return [[1,2],[5,6],[9,10],[7,8],[11,12],[3,4]];
+ return [];
+}
+function buildActiveRefresherCard(a,b,small=false){
+ const cls = small ? "trial-ref-card" : "ref-card";
+ const pA = isSurvivalChallengeActive() ? survivalIconPattern(a) : memoryIconPattern(a);
+ const pB = isSurvivalChallengeActive() ? survivalIconPattern(b) : memoryIconPattern(b);
+ const labels = isSurvivalChallengeActive() ? SURVIVAL_LABELS : MEMORY_LABELS;
+ return `<div class="${cls}"><div class="ref-row" style="justify-content:center;align-items:center"><div style="display:flex;flex-direction:column;align-items:center;gap:2px">${buildGearSVG(1,pA,"small","")}<div class="ref-lbl">${labels[a]}</div></div><div class="ref-arrow">↔</div><div style="display:flex;flex-direction:column;align-items:center;gap:2px">${buildGearSVG(2,pB,"small","")}<div class="ref-lbl">${labels[b]}</div></div></div></div>`;
+}
+function getSurvivalSoundFamily(iconNum){
+ if([1,2].includes(iconNum)) return "jets";
+ if([3,4].includes(iconNum)) return "tank";
+ if([5,6].includes(iconNum)) return "ship";
+ if([7,8].includes(iconNum)) return "rocket";
+ if([9,10].includes(iconNum)) return "space";
+ return "helo";
+}
+// ─── Survival Challenge per-family correct-tap sounds ─────────
+// Six distinct WebAudio profiles, one per icon-pair family.
+// Every cue is an impact/explosion — the reward sound is the kill.
+// Jets, rocket, and helo share an identical boom tail but have distinct
+// whoosh heads (fast-high / slow-mid / short-low) so family identity is
+// carried by the incoming cue while the hit feels consistent.
+// Tank and ship are standalone explosions (no whoosh); space is laser
+// zap + the shared boom. All cues <= 440ms, peak gain <= 0.32.
+//   tank   (icons 3,4)   — cannon boom          : muzzle crack + low thud
+//   jets   (icons 1,2)   — missile whoosh blam  : fast high whoosh + boom
+//   ship   (icons 5,6)   — big explosion        : deep sustained detonation
+//   rocket (icons 7,8)   — whoosh + boom        : long mid-band whoosh + boom
+//   space  (icons 9,10)  — laser zap + boom     : square chirps + boom
+//   helo   (icons 11,12) — whoosh + boom        : short low whoosh + boom
+function playSurvivalCorrectSound(iconNum){
+ try{
+  const AC = window.AudioContext || window.webkitAudioContext;
+  if(!AC) return;
+  state._survivalAudioCtx = state._survivalAudioCtx || new AC();
+  const ctx = state._survivalAudioCtx;
+  if(ctx.state==="suspended") ctx.resume();
+  const now = ctx.currentTime;
+  const fam = getSurvivalSoundFamily(iconNum);
+  // Pitch-swept oscillator with exponential gain envelope.
+  const tone = (type, f1, f2, t0, dur, gainV)=>{
+   const o=ctx.createOscillator(), g=ctx.createGain();
+   o.type=type;
+   o.frequency.setValueAtTime(f1, t0);
+   o.frequency.exponentialRampToValueAtTime(Math.max(30, f2), t0+dur);
+   g.gain.setValueAtTime(0.0001, t0);
+   g.gain.exponentialRampToValueAtTime(gainV, t0+0.01);
+   g.gain.exponentialRampToValueAtTime(0.0001, t0+dur);
+   o.connect(g).connect(ctx.destination); o.start(t0); o.stop(t0+dur+0.02);
+  };
+  // Highpass-filtered decaying noise (hiss, crack, whoosh head).
+  const noise = (t0, dur, gainV, hpFreq)=>{
+   const len=Math.max(1, Math.floor(ctx.sampleRate*dur));
+   const buf=ctx.createBuffer(1,len,ctx.sampleRate);
+   const data=buf.getChannelData(0);
+   for(let i=0;i<len;i++) data[i]=(Math.random()*2-1)*(1-i/len);
+   const src=ctx.createBufferSource(); src.buffer=buf;
+   const hp=ctx.createBiquadFilter(); hp.type="highpass"; hp.frequency.value=hpFreq;
+   const g=ctx.createGain();
+   g.gain.setValueAtTime(gainV, t0); g.gain.exponentialRampToValueAtTime(0.0001, t0+dur);
+   src.connect(hp).connect(g).connect(ctx.destination); src.start(t0); src.stop(t0+dur+0.02);
+  };
+  // Lowpass-filtered decaying noise with fast attack (explosion body).
+  const lpNoise = (t0, dur, gainV, lpFreq)=>{
+   const len=Math.max(1, Math.floor(ctx.sampleRate*dur));
+   const buf=ctx.createBuffer(1,len,ctx.sampleRate);
+   const data=buf.getChannelData(0);
+   for(let i=0;i<len;i++) data[i]=(Math.random()*2-1)*(1-i/len);
+   const src=ctx.createBufferSource(); src.buffer=buf;
+   const lp=ctx.createBiquadFilter(); lp.type="lowpass"; lp.frequency.value=lpFreq;
+   const g=ctx.createGain();
+   g.gain.setValueAtTime(0.0001, t0);
+   g.gain.exponentialRampToValueAtTime(gainV, t0+0.005);
+   g.gain.exponentialRampToValueAtTime(0.0001, t0+dur);
+   src.connect(lp).connect(g).connect(ctx.destination); src.start(t0); src.stop(t0+dur+0.02);
+  };
+  // Shared boom tail used by jets, rocket, helo, and space. Consistent
+  // impact signature: sub sine thud + lowpass-filtered noise body, 180ms.
+  const sharedBoom = (t0)=>{
+   tone("sine",80,40,t0,0.18,0.22);
+   lpNoise(t0,0.18,0.20,350);
+  };
+  if(fam==="jets"){
+   // Fast high whoosh (~120ms) + shared boom. Missile-from-jet signature.
+   const boomT = now + 0.12;
+   noise(now,0.12,0.18,900);
+   tone("sawtooth",1400,300,now,0.12,0.06);
+   sharedBoom(boomT);
+  }
+  else if(fam==="rocket"){
+   // Long mid-band whoosh (~260ms) + shared boom. Rocket burn signature.
+   const boomT = now + 0.26;
+   noise(now,0.26,0.16,500);
+   tone("sawtooth",600,180,now,0.24,0.05);
+   sharedBoom(boomT);
+  }
+  else if(fam==="helo"){
+   // Short low whoosh (~100ms) + shared boom. RPG from helo signature.
+   const boomT = now + 0.10;
+   noise(now,0.10,0.16,300);
+   tone("sawtooth",400,140,now,0.10,0.05);
+   sharedBoom(boomT);
+  }
+  else if(fam==="tank"){
+   // Cannon boom: muzzle crack + low thud + body. No whoosh.
+   tone("sine",110,45,now,0.22,0.24);
+   lpNoise(now,0.22,0.22,400);
+   noise(now,0.04,0.18,1200);
+  }
+  else if(fam==="ship"){
+   // Big naval explosion: deeper sub thud (~10Hz lower than tank), longer
+   // duration, narrower lowpass for muffled underwater-ish body, debris tail.
+   tone("sine",70,30,now,0.32,0.24);
+   lpNoise(now,0.32,0.22,280);
+   noise(now+0.04,0.10,0.10,600);
+  }
+  else if(fam==="space"){
+   // Two descending square-wave zaps + shared boom.
+   const boomT = now + 0.14;
+   tone("square",1400,500,now,0.10,0.07);
+   tone("square",1700,600,now+0.05,0.09,0.05);
+   sharedBoom(boomT);
+  }
+ }catch(e){}
+}
+function getSurvivalOutcomeText(result){
+ const cpi = Number(result?.cognitivePerformanceIndex);
+ if(!Number.isFinite(cpi)) return !!(result && isTestSuccess(result)) ? "Victorious!" : "Dead";
+ const bands = [
+  {anchor:100, label:"Victorious!"},
+  {anchor:80, label:"Winning!"},
+  {anchor:75, label:"Stand Off"},
+  {anchor:50, label:"Wounded"},
+  {anchor:25, label:"Crippled"},
+  {anchor:11, label:"Dying"},
+  {anchor:0, label:"Dead"},
+ ];
+ let best = bands[0], diff=1e9;
+ bands.forEach(b=>{ const d=Math.abs(cpi-b.anchor); if(d<diff){ diff=d; best=b; } });
+ return best.label;
+}
 // ─── Trial generation ───
 // ─── TRIAL GENERATION ─────────────────────────────────────────
 // Creates one trial: randomly assigns probe (family+count),
@@ -735,6 +974,7 @@ function makeMemoryTrial(kind,lastCorrectPos,lastProbe){
 // ──────────────────────────────────────────────────────────────
 function makeTrial(kind,lastCorrectPos,lastProbe){
  if(isMemoryChallengeActive()) return makeMemoryTrial(kind,lastCorrectPos,lastProbe);
+ if(isSurvivalChallengeActive()) return makeSurvivalTrial(kind,lastCorrectPos,lastProbe);
  for(let attempt=0;attempt<500;attempt++){
   const probeFamily=Math.random()<0.5?"dots":"lines";
   const probeCount=randInt(1,6);
@@ -1147,7 +1387,7 @@ function maybeTriggerTerminalRule(){
    state.mode2Triggered = true;
    state.mode2AdaptiveMbsMs = avg2;
    const sustainedStartFactor = Number(settings.mode2SustainedStartFactor)||DEFAULTS.mode2SustainedStartFactor;
-   const sustainedRate = clamp(avg2 * sustainedStartFactor, Number(getCurrentMinDurationMs())||600, Number(getCurrentMaxDurationMs())||3500);
+   const sustainedRate = clamp(avg2 * sustainedStartFactor, Number(getCurrentMinDurationMs())||DEFAULTS.minDurationMs, Number(getCurrentMaxDurationMs())||DEFAULTS.maxDurationMs);
    state.mode2SustainedPresentationRateMs = sustainedRate;
    state.mode2SustainedPresented = 0;
    state.mode2SustainedCorrect = 0;
@@ -1429,6 +1669,7 @@ function finish(){
    totalIncorrect:state.totalIncorrect, missedTrials:state.missedTrials,
    sleepSinceLastTest: state.sleepSinceLastTest,
    sleepLog: state.sleepLog ? JSON.parse(JSON.stringify(state.sleepLog)) : null,
+   symbolSet: getActiveSymbolSet(),
    calibrationErrors:state.calibrationErrors,
    pacedErrors:state.pacedErrors, recoveryErrors:state.recoveryErrors, pacedResponseCount:state.pacedRTs.length,
    pacedResponseMeanMs:state.pacedRTs.length?mean(state.pacedRTs):null,
@@ -1991,7 +2232,8 @@ function handleTap(index,eventTimeStamp){
   const timingSummary = harvestActiveFrameTiming(performance.now());
   if(state.current&&!state.current.resolved&&trialMatches(state.current,index)){
    state.current.resolved=true; state.totalResponses+=1; state.totalCorrect+=1; state.fixedPacedCorrect+=1; state.pacedRTs.push(rt);
-   logTrial({phase:"paced_fixed",rt,outcome:"correct",responseIndex:index,timing:timingSummary,pacing:{nextRateMs:state.duration,rateChangeMs:0,rateChangeReason:"Fixed machine-paced"}}); flashBtn(index,true);
+   logTrial({phase:"paced_fixed",rt,outcome:"correct",responseIndex:index,timing:timingSummary,pacing:{nextRateMs:state.duration,rateChangeMs:0,rateChangeReason:"Fixed machine-paced"}}); if(isSurvivalChallengeActive() && state.current && state.current.topItems && state.current.topItems[index]) playSurvivalCorrectSound(state.current.topItems[index].count);
+   flashBtn(index,true);
    if(state.fixedPacedPresented >= (Number(settings.mode4PacedTrialLimit)||140)){ state.endReason="Mode 4 complete: required responses completed."; finish(); return; }
    openTrial("paced_fixed"); return;
   }
@@ -2027,7 +2269,8 @@ function handleTap(index,eventTimeStamp){
     logTrial({phase:"mode2_sustained",rt:eRT,outcome:"correct",responseIndex:index,timing:state.mode2PendingPriorMiss?.timing||null,pacing:{nextRateMs:state.duration,rateChangeMs:0,rateChangeReason:"Mode 2 sustained fixed rate (late rescue)"}});
     state.current = savedCurrent;
     state.presentedRoundDuration = savedPresented;
-    flashBtn(index,true);
+    if(isSurvivalChallengeActive() && state.current && state.current.topItems && state.current.topItems[index]) playSurvivalCorrectSound(state.current.topItems[index].count);
+   flashBtn(index,true);
     if(checkMode2SustainedRollingMean(true)) return;
    }else{
     state.totalIncorrect += 1;
@@ -2066,6 +2309,7 @@ function handleTap(index,eventTimeStamp){
    state.current.resolved=true; state.totalResponses+=1; state.totalCorrect+=1; state.mode2SustainedCorrect+=1; state.pacedRTs.push(rt); state.mode2SustainedCorrectRTs.push(rt);
    state.hadResponse=true;
    logTrial({phase:"mode2_sustained",rt,outcome:"correct",responseIndex:index,timing:timingSummary,pacing:{nextRateMs:state.duration,rateChangeMs:0,rateChangeReason:"Mode 2 sustained fixed rate (MBS × factor)"}});
+   if(isSurvivalChallengeActive() && state.current && state.current.topItems && state.current.topItems[index]) playSurvivalCorrectSound(state.current.topItems[index].count);
    flashBtn(index,true);
    // Do NOT call openTrial here — the RAF frame timer must run to full duration.
    // onPacedFrameEnd() will advance to the next trial when the window expires.
@@ -2138,6 +2382,7 @@ function handleTap(index,eventTimeStamp){
    state.current = savedCurrent;
    state.presentedRoundDuration = savedPresented;
 
+   if(isSurvivalChallengeActive() && state.current && state.current.topItems && state.current.topItems[index]) playSurvivalCorrectSound(state.current.topItems[index].count);
    flashBtn(index,true);
    if(recordAnswer(true)) return;
    state.pendingLatePacing = {correct:true, effectiveRt:eRT, logSeq:lateLogSeq};
@@ -2191,7 +2436,8 @@ function handleTap(index,eventTimeStamp){
   state.current.resolved=true; state.totalResponses+=1; state.totalCorrect+=1;
   state.hadResponse=true;
   const pacing = applyPacing(rt,true); state.pacedRTs.push(rt);
-  logTrial({phase:"paced",rt,outcome:"correct",responseIndex:index,timing:frameTiming,pacing}); flashBtn(index,true);
+  logTrial({phase:"paced",rt,outcome:"correct",responseIndex:index,timing:frameTiming,pacing}); if(isSurvivalChallengeActive() && state.current && state.current.topItems && state.current.topItems[index]) playSurvivalCorrectSound(state.current.topItems[index].count);
+   flashBtn(index,true);
   recordAnswer(true); return;
  }
 
@@ -2219,21 +2465,21 @@ function buildMemoryRefresherCard(a,b,small=false){
 function renderTrialRefresher(){
  const wrap = $("trialRefresher"), grid = $("trialRefresherGrid");
  if(!wrap || !grid) return;
- if(!(isMemoryChallengeActive() && !isBaselineEstablishedForCurrentSubject())){
+ if(!(isIconChallengeActive() && !isBaselineEstablishedForCurrentSubject())){
   wrap.classList.remove("show");
   grid.innerHTML = "";
   return;
  }
  wrap.classList.add("show");
- grid.innerHTML = getMemoryRefresherPairs().map(([a,b])=>buildMemoryRefresherCard(a,b,true)).join("");
+ grid.innerHTML = getActiveRefresherPairs().map(([a,b])=>buildActiveRefresherCard(a,b,true)).join("");
 }
 
 // ─── Refresher ───
 function renderRefresher(){
  const grid=$("refresherGrid"); grid.innerHTML="";
- if(isMemoryChallengeActive()){
-  getMemoryRefresherPairs().forEach(([a,b])=>{
-   grid.insertAdjacentHTML("beforeend", buildMemoryRefresherCard(a,b,false));
+ if(isIconChallengeActive()){
+  getActiveRefresherPairs().forEach(([a,b])=>{
+   grid.insertAdjacentHTML("beforeend", buildActiveRefresherCard(a,b,false));
   });
   return;
  }
@@ -2696,7 +2942,7 @@ function csvCell(v){
 
 function exportCSV(){
  const h=state.history; if(!h.length){setStatus("No history to export."); return;}
- const cols=["session","testMode","subjectId","date","samnPerelli","calibAvgMs","blocks",
+ const cols=["session","testMode","symbolSet","subjectId","date","samnPerelli","calibAvgMs","blocks",
   "avgLast2Ms","blockDiffMs","cpi","totalTaps","correct","wrong","missed","sblpMs","sustainedCorrectRtP90Ms","sustainedCorrectRtMaxMs","spi","csr","mode2Target","mode2RateMs","mode2Presented","mode2Correct","mode2Wrong","mode2Missed","mode2FinalTarget","mode2FinalTrials","mode2FinalCorrect","mode2FinalWrong","mode2FinalMeanRtMs",
   "sleepSinceLastTest","sleepBedtime","sleepWakeTime","sleepWakeDateTimeIso","sleepDurationMinutes","sleepQualityLabel","sleepQualityScore",
   "pacedCorrect","pacedWrong","spRestartWrong","meanPacedRtMs","pacedRtSd",
@@ -2706,6 +2952,7 @@ function exportCSV(){
  const rows=h.map((r,i)=>[
   i+1,
   r.testMode||"",
+  getResultSymbolSet(r),
   r.subjectId||"",
   r.time?new Date(r.time).toLocaleString():"",
   r.samnPerelli?`${r.samnPerelli.score} - ${r.samnPerelli.label}`:"",
@@ -3829,7 +4076,8 @@ function getProfileDraftTimeFormat(){
 }
 
 function profileSelectSymbolSet(v){
- _profileSymbolSet = String(v||"standard")==="memory" ? "memory" : "standard";
+ const raw = String(v||"standard");
+ _profileSymbolSet = raw==="memory" ? "memory" : (raw==="survival" ? "survival" : "standard");
  const sel = $("profileSymbolSet");
  if(sel) sel.value = _profileSymbolSet;
 }
@@ -3925,7 +4173,8 @@ function openProfileOverlay(email){
  const existingTimeFormat = existing?.timeFormat || getEffectiveTimeFormat();
  _profileGenderSelected = existing?.gender || "";
  _profileTimeFormat = String(existingTimeFormat) === "24" ? "24" : "12";
- _profileSymbolSet = String(existing?.symbolSet || settings.symbolSet || "standard")==="memory" ? "memory" : "standard";
+ const rawSymbolSet = String(existing?.symbolSet || settings.symbolSet || "standard");
+ _profileSymbolSet = rawSymbolSet==="memory" ? "memory" : (rawSymbolSet==="survival" ? "survival" : "standard");
 
  // Show email
  const ed = $("profileEmailDisplay");
@@ -3970,7 +4219,7 @@ function saveAndContinueProfile(){
  const bYear = parseInt($("profileBirthYear")?.value||"0");
  const emailResults = !!$("profileEmailResults")?.checked;
  const timeFormat = getProfileDraftTimeFormat();
- const symbolSet = _profileSymbolSet === "memory" ? "memory" : "standard";
+ const symbolSet = _profileSymbolSet === "memory" ? "memory" : (_profileSymbolSet === "survival" ? "survival" : "standard");
 
  // Always save time-format settings from this page
  settings.timeFormat = timeFormat;
@@ -5132,7 +5381,9 @@ function syncSummarySessionSelect(selectedIdx){
    const stamp = r && r.time ? new Date(r.time).toLocaleString() : `Session ${idx+1}`;
    const mode = r && r.testMode ? formatModeTag(r.testMode) : '—';
    const subj = r && r.subjectId ? r.subjectId : '—';
-   return `<option value="${idx}">Session ${idx+1} • ${mode} • ${subj} • ${stamp}</option>`;
+   const setKey = getResultSymbolSet(r);
+   const setLabel = setKey==="memory" ? "Memory" : setKey==="survival" ? "Survival" : "Std";
+   return `<option value="${idx}">Session ${idx+1} • ${mode} • ${setLabel} • ${subj} • ${stamp}</option>`;
   }).join('');
  }
  if(s.options.length){
@@ -5469,7 +5720,9 @@ function syncSpeedometerSessionSelect(selectedIdx){
    const stamp = r && r.time ? new Date(r.time).toLocaleString() : `Session ${idx+1}`;
    const mode = r && r.testMode ? formatModeTag(r.testMode) : '—';
    const subj = r && r.subjectId ? r.subjectId : '—';
-   return `<option value="${idx}">Session ${idx+1} · ${mode} · ${subj} · ${stamp}</option>`;
+   const setKey = getResultSymbolSet(r);
+   const setLabel = setKey==="memory" ? "Memory" : setKey==="survival" ? "Survival" : "Std";
+   return `<option value="${idx}">Session ${idx+1} · ${mode} · ${setLabel} · ${subj} · ${stamp}</option>`;
   }).join('');
  }
  if(s.options.length){
@@ -6047,39 +6300,43 @@ const MEMORY_TUT_DATA = {
  ]
 };
 function getTutorialTargetsHint(){
- return isMemoryChallengeActive()
-  ? "Each gear has an icon. Learn the icon-pair matches shown in the refresher."
-  : "Each has dots or lines — count them";
+ if(isMemoryChallengeActive()) return "Each gear has an icon. Learn the icon-pair matches shown in the refresher.";
+ if(isSurvivalChallengeActive()) return "Each gear has a Survival icon. Learn the paired matches shown in the refresher.";
+ return "Each has dots or lines — count them";
 }
 function getTutorialRuleCardHtml(){
- if(!isMemoryChallengeActive()){
-  return `${getTutorialRuleCardHtml()}`;
- }
- return `<div style="display:flex;align-items:center;gap:14px;margin-bottom:12px;justify-content:center">
-      <div style="text-align:center">
-       <div style="font-size:10px;color:rgba(255,255,255,0.5);margin-bottom:3px">PROBE</div>
-       <div style="width:60px;height:60px">${buildGearSVG(0, memoryIconPattern(1), "probe", "")}</div>
-       <div style="font-size:12px;color:#7fd7ff;margin-top:3px;font-weight:700">Triangle</div>
-      </div>
+ if(isMemoryChallengeActive()){
+  return `<div style="display:flex;align-items:center;gap:14px;margin-bottom:12px;justify-content:center">
+      <div style="text-align:center"><div style="font-size:10px;color:rgba(255,255,255,0.5);margin-bottom:3px">PROBE</div><div style="width:60px;height:60px">${buildGearSVG(0, memoryIconPattern(1), "probe", "")}</div><div style="font-size:12px;color:#7fd7ff;margin-top:3px;font-weight:700">Triangle</div></div>
       <div style="font-size:24px;color:#ffaa44;font-weight:900">↔</div>
-      <div style="text-align:center">
-       <div style="font-size:10px;color:rgba(255,255,255,0.5);margin-bottom:3px">MATCH</div>
-       <div style="width:60px;height:60px;border:2px solid #7fd7ff;border-radius:8px;box-shadow:0 0 10px rgba(127,215,255,0.4)">${buildGearSVG(3, memoryIconPattern(2), "probe", "")}</div>
-       <div style="font-size:12px;color:#00ff88;margin-top:3px;font-weight:700">Bear ✓</div>
-      </div>
+      <div style="text-align:center"><div style="font-size:10px;color:rgba(255,255,255,0.5);margin-bottom:3px">MATCH</div><div style="width:60px;height:60px;border:2px solid #7fd7ff;border-radius:8px;box-shadow:0 0 10px rgba(127,215,255,0.4)">${buildGearSVG(3, memoryIconPattern(2), "probe", "")}</div><div style="font-size:12px;color:#00ff88;margin-top:3px;font-weight:700">Bear ✓</div></div>
      </div>
      <div style="font-size:17px;font-weight:800;color:#7fd7ff">Paired MATCH</div>
      <div style="font-size:14px;color:rgba(255,255,255,0.6);margin:2px 0">Triangle → find Bear</div>
-     <div style="font-size:17px;font-weight:800;color:#ffaa44;margin-top:6px">Same pair family</div>
-     <div style="font-size:14px;color:rgba(255,255,255,0.6)">Use the learned icon matches</div>`;
+     <div style="font-size:17px;font-weight:800;color:#ffaa44;margin-top:6px">Use the learned icon matches</div>`;
+ }
+ if(isSurvivalChallengeActive()){
+  return `<div style="display:flex;align-items:center;gap:14px;margin-bottom:12px;justify-content:center">
+      <div style="text-align:center"><div style="font-size:10px;color:rgba(255,255,255,0.5);margin-bottom:3px">PROBE</div><div style="width:60px;height:60px">${buildGearSVG(0, survivalIconPattern(1), "probe", "")}</div><div style="font-size:12px;color:#7fd7ff;margin-top:3px;font-weight:700">Jet 1</div></div>
+      <div style="font-size:24px;color:#ffaa44;font-weight:900">↔</div>
+      <div style="text-align:center"><div style="font-size:10px;color:rgba(255,255,255,0.5);margin-bottom:3px">MATCH</div><div style="width:60px;height:60px;border:2px solid #7fd7ff;border-radius:8px;box-shadow:0 0 10px rgba(127,215,255,0.4)">${buildGearSVG(3, survivalIconPattern(2), "probe", "")}</div><div style="font-size:12px;color:#00ff88;margin-top:3px;font-weight:700">Jet 2 ✓</div></div>
+     </div>
+     <div style="font-size:17px;font-weight:800;color:#7fd7ff">Paired MATCH</div>
+     <div style="font-size:14px;color:rgba(255,255,255,0.6);margin:2px 0">Jet 1 → find Jet 2</div>
+     <div style="font-size:17px;font-weight:800;color:#ffaa44;margin-top:6px">Use Survival pairs</div>`;
+ }
+ return `<div style="display:flex;align-items:center;gap:14px;margin-bottom:12px;justify-content:center">
+      <div style="text-align:center"><div style="font-size:10px;color:rgba(255,255,255,0.5);margin-bottom:3px">PROBE</div><div style="width:60px;height:60px">${buildGearSVG(0, LINE_PATTERNS[3], "probe", "")}</div><div style="font-size:12px;color:#7fd7ff;margin-top:3px;font-weight:700">lines : 3</div></div>
+      <div style="font-size:24px;color:#ffaa44;font-weight:900">↔</div>
+      <div style="text-align:center"><div style="font-size:10px;color:rgba(255,255,255,0.5);margin-bottom:3px">MATCH</div><div style="width:60px;height:60px;border:2px solid #7fd7ff;border-radius:8px;box-shadow:0 0 10px rgba(127,215,255,0.4)">${buildGearSVG(3, DOT_PATTERNS[3], "probe", "")}</div><div style="font-size:12px;color:#00ff88;margin-top:3px;font-weight:700">dots : 3 ✓</div></div>
+     </div>
+     <div style="font-size:17px;font-weight:800;color:#7fd7ff">Same COUNT</div>
+     <div style="font-size:14px;color:rgba(255,255,255,0.6);margin:2px 0">3 lines → find 3 dots</div>`;
 }
 function getTutorialTapInstructionHtml(){
- return isMemoryChallengeActive()
-  ? 'The center <span style="font-weight:900">PROBE</span> icon is paired with one icon in one gear above. Tap <span style="font-weight:900">RESPONSE GEAR</span> in the same position below.'
-  : 'The center <span style="font-weight:900">PROBE</span> Dots or Lines match the Dots or Lines in one gear above. Tap <span style="font-weight:900">RESPONSE GEAR</span> in the same position below.';
-}
-function getTutorialData(){
- return isMemoryChallengeActive() ? MEMORY_TUT_DATA : STANDARD_TUT_DATA;
+ if(isMemoryChallengeActive()) return 'The center <span style="font-weight:900">PROBE</span> icon is paired with one icon in one gear above. Tap <span style="font-weight:900">RESPONSE GEAR</span> in the same position below.';
+ if(isSurvivalChallengeActive()) return 'The center <span style="font-weight:900">PROBE</span> icon is paired with one Survival icon in one gear above. Tap <span style="font-weight:900">RESPONSE GEAR</span> in the same position below.';
+ return 'The center <span style="font-weight:900">PROBE</span> Dots or Lines match the Dots or Lines in one gear above. Tap <span style="font-weight:900">RESPONSE GEAR</span> in the same position below.';
 }
 function tutFillPatterns(){
  // Tutorial data is already fully assembled for both standard and Memory Challenge sets.
@@ -7479,7 +7736,7 @@ function syncOutcomeStatusText(result){
  const ot=$("outcomeText");
  if(!ot) return;
  const ok = !!(result && isTestSuccess(result));
- ot.textContent = ok ? "Success!" : "Failed";
+ ot.textContent = isResultSurvivalChallenge(result) ? getSurvivalOutcomeText(result) : (ok ? "Success!" : "Failed");
  ot.className = "outcome-text " + (ok ? "success" : "failed");
 }
 
@@ -7772,15 +8029,37 @@ function drawPerformanceOverTimeChart(canvas,hist){
     return;
   }
 
-  const bestMs = Number(settings.cpiBestMs)||DEFAULTS.cpiBestMs;
-  const worstMs = Number(settings.cpiWorstMs)||DEFAULTS.cpiWorstMs;
+  // MBS-ms left-axis labels are anchor-dependent: Standard uses 800/2800,
+  // Memory uses 1400/5000, Survival uses 1500/5200. When the filtered range
+  // is homogeneous in Challenge Set we use the corresponding anchors. When
+  // the range MIXES challenge sets, ms labels would be ambiguous (a single
+  // y-axis cannot simultaneously label three different ms scales), so we
+  // suppress the ms tick numbers and show only the CPI 0-100 scale plus a
+  // note in the legend. CPI dots remain plotted at the correct y-position
+  // because each session's CPI was already pre-normalized against its own
+  // anchors at session-finish time.
+  const setKeys = new Set(slice.map(r=>getResultSymbolSet(r)));
+  const homogeneousSet = setKeys.size === 1 ? [...setKeys][0] : null;
+  const showMsAxis = !!homogeneousSet;
+  let bestMs, worstMs;
+  if(homogeneousSet === "memory"){
+    bestMs = Number(settings.memoryCpiBestMs)||DEFAULTS.memoryCpiBestMs;
+    worstMs = Number(settings.memoryCpiWorstMs)||DEFAULTS.memoryCpiWorstMs;
+  } else if(homogeneousSet === "survival"){
+    bestMs = Number(settings.survivalCpiBestMs)||DEFAULTS.survivalCpiBestMs;
+    worstMs = Number(settings.survivalCpiWorstMs)||DEFAULTS.survivalCpiWorstMs;
+  } else {
+    bestMs = Number(settings.cpiBestMs)||DEFAULTS.cpiBestMs;
+    worstMs = Number(settings.cpiWorstMs)||DEFAULTS.cpiWorstMs;
+  }
+  const setLabelForAxis = homogeneousSet === "memory" ? "Memory" : homogeneousSet === "survival" ? "Survival" : "Standard";
   const PAD = {top:72,right:118,bottom:n===1?82:112,left:126};
   const cW = W - PAD.left - PAD.right;
   const cH = H - PAD.top - PAD.bottom;
 
   // Performance-over-time graph always plots CPI as the blue dot.
   // The orange MBS ring is drawn around the same CPI position by design.
-  const leftMetricLabel = "MBS ms";
+  const leftMetricLabel = showMsAxis ? `MBS ms (${setLabelForAxis})` : "MBS ms (mixed sets — hidden)";
   const leftScoreLabel = "CPI / CPA";
   const dotLegend = "Blue dot = CPI";
   const ringLegend = "Orange circle = MBS";
@@ -7801,14 +8080,16 @@ function drawPerformanceOverTimeChart(canvas,hist){
   });
 
   const scoreTicks = [100,75,50,25,0];
-  const metricTicks = scoreTicks.map(score => Math.round(bestMs + ((100-score)/100)*(worstMs-bestMs)));
+  const metricTicks = showMsAxis ? scoreTicks.map(score => Math.round(bestMs + ((100-score)/100)*(worstMs-bestMs))) : null;
   ctx.font="11px sans-serif";
   ctx.textAlign="right";
   scoreTicks.forEach((score, i)=>{
     const y = yLeftFromScore(score);
-    ctx.strokeStyle="#ffb357";
-    ctx.beginPath(); ctx.moveTo(PAD.left-46, y); ctx.lineTo(PAD.left-36, y); ctx.stroke();
-    ctx.fillStyle="#ffb357"; ctx.fillText(String(metricTicks[i]), PAD.left-52, y+4);
+    if(showMsAxis){
+     ctx.strokeStyle="#ffb357";
+     ctx.beginPath(); ctx.moveTo(PAD.left-46, y); ctx.lineTo(PAD.left-36, y); ctx.stroke();
+     ctx.fillStyle="#ffb357"; ctx.fillText(String(metricTicks[i]), PAD.left-52, y+4);
+    }
     ctx.strokeStyle="#7fd7ff";
     ctx.beginPath(); ctx.moveTo(PAD.left-16, y); ctx.lineTo(PAD.left-6, y); ctx.stroke();
     ctx.fillStyle="#7fd7ff"; ctx.fillText(String(score), PAD.left-22, y+4);

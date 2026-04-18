@@ -1,4 +1,37 @@
+## V699 — 2026-04-17
+- Added a symbolSet column to the CSV export so Standard, Memory, and Survival sessions can be distinguished in downstream research analysis; legacy records without the field export as "standard".
+- Added a Challenge Set badge (Std / Memory / Survival) to the session selector dropdowns on both the Summary page and the Speedometer page.
+- Made the Performance Over Time chart's MBS-ms left-axis labels Challenge-Set-aware: homogeneous ranges use the correct anchors for that set (Standard 800/2800, Memory 1400/5000, Survival 1500/5200); mixed-set ranges suppress the ms tick numbers and label the axis "MBS ms (mixed sets — hidden)" since a single y-axis cannot unambiguously label three different ms scales simultaneously.
+- CPI dots continue to plot at the correct y-position in all cases because each session's CPI is already pre-normalized against its own anchors at session-finish time.
+- Updated visible app/package versioning to V699 across app.js APP_VERSION, index.html title/badge/statusLine/cache-buster, manifest.json, and sw.js RELEASE.
+
+## V698 — 2026-04-17
+- Fixed a historical-session rendering bug by saving the selected Challenge Set into each result record.
+- Speedometer outcome wording now uses the saved session's Challenge Set instead of the current profile selection, so historical Survival sessions keep their Survival labels.
+- Rewrote Survival Challenge correct-tap sounds: every family now resolves to an impact/explosion rather than a vehicle timbre (the reward sound is the kill, not the kill method).
+- Jets, rocket, and helo share an identical boom tail but have distinct whoosh heads (fast-high ~120ms for jets, long mid-band ~260ms for rocket, short-low ~100ms for helo).
+- Tank is now a cannon boom with a sharp muzzle crack plus low thud; ship is a deeper larger-scale naval detonation with debris tail; space is a laser zap plus the shared boom.
+- Previous build had only 5 audio branches for 6 families, so rocket (icons 7-8) and helo (icons 11-12) shared an identical fallback — now each has its own distinct cue.
+- Added lpNoise() WebAudio helper for lowpass-filtered decaying noise used by all explosion bodies.
+- All cues remain below 440ms total duration and peak gain 0.32, so they never bleed into the next trial's RT window and do not clip.
+- Added Admin field #61 survivalMaxTestDurationMs (default 200000ms) so Survival Mode 1/2 sessions get extra budget over the 150000ms used by Standard/Memory; slower Survival frame timing (min 1500ms, max 5200ms) can otherwise run up against the session cap before the sustained + final phases finish.
+- Renumbered Mode 2 CPA admin fields to 62-70 and diagnostics field to 71 to keep numbering sequential after the new Survival field.
+- Fixed a stale duplicate label number in the CPA correct buckets admin field (was showing "62" on both the header and first two rows).
+- Fixed getActiveSymbolSet() to whitelist-normalize the symbol set value so corrupted or unrecognized values fall through to "standard" rather than silently skipping both the Memory and Survival branches.
+- Fixed hardcoded 3500ms fallback in the Mode 2 sustained rate clamp so Survival's larger maxDurationMs is respected even when getCurrentMaxDurationMs() returns a falsy value; now uses DEFAULTS.maxDurationMs as the fallback instead of a magic number.
+- Fixed an orphan closing </div> on index.html line 784 left over from the V696 sleep-prompt flow simplification; browser DOM depth is now balanced (was -1 in V697).
+- Fixed indent drift on the Survival Challenge option in the Challenge Set selector (was 10 spaces vs 8 for Standard/Memory).
+- Rewrote the Challenge Set field hint to cover both Memory and Survival (previously only mentioned Memory even though Survival was also available).
+- Removed a stale duplicate comment line in ADMIN_FIELDS that showed old pre-Memory/Survival numbering "// 49-57. Mode 2 CPA editable defaults" next to the correct "// 61-69" header.
+- Updated visible app/package versioning to V698 across app.js APP_VERSION, index.html title/badge/statusLine, manifest.json, sw.js RELEASE, and the app.js cache-buster query.
+
 ## V697 — 2026-04-17
+- Added a third Challenge Set on the Profile page: CogSpeed Survival Challenge.
+- Added the full 12-icon Survival Challenge trial generator, Survival Pattern Refresher, and Survival tutorial content using the requested icon-pair order.
+- Added separate Survival Challenge defaults for timeout, min/max paced duration, CPI anchors, and baseline qualification threshold.
+- Added temporary per-family correct-tap sounds for Survival Challenge trials.
+- Survival speedometer outcome text now uses 7 CPI-band labels matched to the Cognitive Performance Table: Victorious!, Winning!, Stand Off, Wounded, Crippled, Dying, Dead.
+- Also fixed two pre-existing Memory Challenge regressions in this branch: recursive min/max duration getters and recursive tutorial rule-card text.
 - Improved Memory Challenge icon contrast on the Pattern Refresher page and trial page by adding a light circular backdrop behind the icons inside gears.
 - This specifically improves visibility for the dark triangle, circle, and square symbols against the dark gear backgrounds.
 - Added the Memory Challenge Pattern Refresher directly to each trial page, styled like the first test and shown as 2 rows of 3 in the requested pair order.
