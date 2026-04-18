@@ -4776,6 +4776,17 @@ function isTestSuccess(resultOrReason){
 // of dots/lines count with correct response position.
 // Combination lists are provided for correct, wrong, and all responses combined.
 
+function moveEndReasonNearSession(text){
+ const s = String(text||"");
+ const lines = s.split("\n");
+ const endIdx = lines.findIndex(line => /^End reason:/i.test(line));
+ const sessionIdx = lines.findIndex(line => /^Session:/i.test(line));
+ if(endIdx === -1 || sessionIdx === -1 || endIdx === sessionIdx + 1) return s;
+ const [endLine] = lines.splice(endIdx, 1);
+ lines.splice(sessionIdx + 1, 0, endLine);
+ return lines.join("\n");
+}
+
 function getCognitivePerformanceTableText(result){
  const mode=(result&&result.testMode)||"mode1";
  if(mode==="mode2"){
@@ -4868,7 +4879,7 @@ function getCognitivePerformanceTableText(result){
  const lines = [];
  lines.push(leftHeader.padEnd(leftWidth, " ") + gap + rightHeader);
  for(let i=0;i<rows.length;i++) lines.push(leftRows[i].padEnd(leftWidth, " ") + gap + rightRows[i]);
- return lines.join("\n");
+ return moveEndReasonNearSession(lines.join("\n"));
 }
 function buildRankedSummary(result){
  const el=$("rankedText"); if(!el) return;

@@ -1,4 +1,6 @@
 ## V699 — 2026-04-18
+- Verified and kept the requested Admin defaults: #53 = 3000, #58 = 1000, #59 = 3000, plus Memory Challenge max total test time = 240000 ms.
+- Moved "End reason" up so it now appears immediately after the "Session:" line on Results pages.
 - Updated Admin defaults: Memory Challenge CPI worst anchor is now 3000; Survival Challenge CPI best/worst anchors are now 1000 / 3000.
 - Added Memory Challenge max total test time (default 240000 ms) as a new Admin default and runtime setting.
 - Updated both Memory and Survival Challenge no-response timeouts to 15000 ms in Admin defaults and runtime fallbacks.
