@@ -842,7 +842,18 @@ function buildActiveRefresherCard(a,b,small=false){
  const size = small ? "small" : "xlarge";
  const gap = small ? "2px" : "4px";
  const rowGap = small ? "2px" : "6px";
- return `<div class="${cls}"><div class="ref-row" style="justify-content:center;align-items:center;gap:${rowGap}"><div style="display:flex;flex-direction:column;align-items:center;gap:${gap}">${buildGearSVG(1,pA,size,"")}<div class="ref-lbl">${labels[a]}</div></div><div class="ref-arrow">↔</div><div style="display:flex;flex-direction:column;align-items:center;gap:${gap}">${buildGearSVG(2,pB,size,"")}<div class="ref-lbl">${labels[b]}</div></div></div></div>`;
+ // Each gear column sizes via flex:1 + aspect-ratio:1 so the gear wrapper gets
+ // an explicit box it can fill. Without this the .gear-img-wrap at 100%/100%
+ // collapses to zero inside the flex column, rendering tiny. The gear wrapper
+ // is explicitly sized to 100% so buildGearSVG's internal percentages
+ // (e.g. xlarge image 126%, icon 84–96%) scale against the real card width.
+ const colStyle = small
+  ? `display:flex;flex-direction:column;align-items:center;gap:${gap};flex:1 1 0;min-width:0`
+  : `display:flex;flex-direction:column;align-items:center;gap:${gap};flex:1 1 0;min-width:0`;
+ const gearBoxStyle = small
+  ? `width:100%;aspect-ratio:1;max-width:64px`
+  : `width:100%;aspect-ratio:1;max-width:180px`;
+ return `<div class="${cls}"><div class="ref-row" style="justify-content:center;align-items:center;gap:${rowGap}"><div style="${colStyle}"><div style="${gearBoxStyle}">${buildGearSVG(1,pA,size,"")}</div><div class="ref-lbl">${labels[a]}</div></div><div class="ref-arrow">↔</div><div style="${colStyle}"><div style="${gearBoxStyle}">${buildGearSVG(2,pB,size,"")}</div><div class="ref-lbl">${labels[b]}</div></div></div></div>`;
 }
 function getSurvivalSoundFamily(iconNum){
  if([1,2].includes(iconNum)) return "jets";
@@ -4278,6 +4289,13 @@ function openProfileOverlay(email){
  const ed = $("profileEmailDisplay");
  if(ed) ed.textContent = safeEmail || "Guest / no email";
 
+ // Suppress the save-reminder alert during programmatic profile load — the
+ // profileToggleEmail/profileSelectGender/profileSelectTimeFormat/profileSelectSymbolSet
+ // helpers each call remindProfileSaveNeeded, which would otherwise pop an
+ // alert on every profile-open. Reset to false at the end so real user edits
+ // to those same controls will trigger the reminder as intended.
+ _profileReminderShown = true;
+
  // Pre-fill only when editing the matching saved email profile.
  if(existing){
   const bm = $("profileBirthMonth"); if(bm) bm.value = existing.birthMonth||"";
@@ -4404,6 +4422,10 @@ function resetProfile(){
  schedulerState.settings = structuredClone(DEFAULT_SCHEDULER_SETTINGS);
  _profileGenderSelected = "";
  _profileTimeFormat = getEffectiveTimeFormat();
+ // Suppress the save-reminder alert during programmatic form clearing — the
+ // user just tapped Reset and doesn't need a second alert telling them
+ // they changed something. Reset the flag at the end for future real edits.
+ _profileReminderShown = true;
  const bm=$("profileBirthMonth"); if(bm) bm.value="";
  const by=$("profileBirthYear"); if(by) by.value="";
  const er=$("profileEmailResults"); if(er) er.checked=false;
@@ -4415,6 +4437,7 @@ function resetProfile(){
  const msg=$("profileAgeMsg"); if(msg) msg.textContent="";
  profileSelectTimeFormat(_profileTimeFormat);
  renderSchedulerSettings();
+ _profileReminderShown = false;
  setStatus("Profile reset");
 }
 
@@ -6441,6 +6464,32 @@ const MEMORY_TUT_DATA = {
   {family:"memory", count:4, pattern:memoryIconPattern(4)},
  ]
 };
+// SURVIVAL_TUT_DATA mirrors MEMORY_TUT_DATA's structure with Survival icons.
+// Probe is Jet 1 (icon 1); its paired match per SURVIVAL_PAIR_MAP is Jet 2 (icon 2).
+// correctPos=2 places Jet 2 at grid position 2 (the third cell, index 2), matching
+// the layout convention used by STANDARD_TUT_DATA and MEMORY_TUT_DATA.
+const SURVIVAL_TUT_DATA = {
+ probePattern: survivalIconPattern(1),
+ correctPos: 2,
+ items: [
+  {family:"survival", count:7,  pattern:survivalIconPattern(7)},
+  {family:"survival", count:10, pattern:survivalIconPattern(10)},
+  {family:"survival", count:2,  pattern:survivalIconPattern(2)},
+  {family:"survival", count:5,  pattern:survivalIconPattern(5)},
+  {family:"survival", count:11, pattern:survivalIconPattern(11)},
+  {family:"survival", count:4,  pattern:survivalIconPattern(4)},
+ ]
+};
+// getTutorialData returns the correct tutorial dataset for the active challenge set.
+// Previously referenced at four call sites but never defined — Rev 14 masked this
+// because upstream parse errors prevented the tutorial code path from executing.
+// Rev 15 parses clean so any user tapping into the tutorial would hit a
+// ReferenceError without this function in place.
+function getTutorialData(){
+ if(isMemoryChallengeActive()) return MEMORY_TUT_DATA;
+ if(isSurvivalChallengeActive()) return SURVIVAL_TUT_DATA;
+ return STANDARD_TUT_DATA;
+}
 function getTutorialTargetsHint(){
  if(isMemoryChallengeActive()) return "Each gear has an icon. Learn the icon-pair matches shown in the refresher.";
  if(isSurvivalChallengeActive()) return "Each gear has a Survival icon. Learn the paired matches shown in the refresher.";
@@ -6533,6 +6582,7 @@ function buildTutGearGridAnimated(showPatterns){
 
 function buildTutRespGridAnimated(){
  let html = '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;width:100%;max-width:380px">';
+ const tut = getTutorialData();
  for(let i=0;i<6;i++){
   const anim = i===tut.correctPos ? "tutPairFlashCorrect 12s linear infinite" : "tutPairFlash 12s linear infinite";
   html += `<div style="aspect-ratio:1;border-radius:10px;border:2px solid transparent;position:relative;animation:${anim};animation-delay:${i*2}s">
@@ -7779,17 +7829,24 @@ function renderSpeedometerSleepMetrics(result){
   </div>`;
 }
 
-function getMode2SpeedometerMetric(result){
+function getMode2SpeedometerMetric(result, success){
  const pref = String(state.speedometerMode2Metric||"cpi").toLowerCase()==="cpi" ? "cpi" : "cpa";
  const mbs = Number(result && (result.mode2AdaptiveMbsMs!=null ? result.mode2AdaptiveMbsMs : result.averageLast2BlockingScoresMs));
  const cpi = Number.isFinite(mbs) ? computeCPI(mbs) : (Number.isFinite(Number(result && result.cognitivePerformanceIndex)) ? Number(result.cognitivePerformanceIndex) : null);
  const cpa = Number(result && result.cpa);
- const dispositionText = result && (result.dispositionCode || result.dispositionLabel) ? `${result.dispositionCode||"—"} ${result.dispositionLabel||"—"}` : "—";
- const mbsText = Number.isFinite(mbs)?`${Number(mbs).toFixed(1)} ms`:"—";
- const cpiText = Number.isFinite(cpi)?`${Number(cpi).toFixed(1)} / 100`:"—";
- const cpaText = Number.isFinite(cpa)?`${Number(cpa).toFixed(1)} / 100`:"—";
+ // On a failed test the dial needle animates to 0 and the outcome text reads
+ // "Test Failed" / "Dead" — the CPI/CPA/MBS boxes must not contradict that by
+ // continuing to show the last-computed value. Force the displayed text values
+ // to the zero-equivalent when success===false.
+ const failed = success === false;
+ const dispositionText = failed ? "—"
+  : (result && (result.dispositionCode || result.dispositionLabel) ? `${result.dispositionCode||"—"} ${result.dispositionLabel||"—"}` : "—");
+ const mbsText = failed ? "—" : (Number.isFinite(mbs)?`${Number(mbs).toFixed(1)} ms`:"—");
+ const cpiText = failed ? "0.0 / 100" : (Number.isFinite(cpi)?`${Number(cpi).toFixed(1)} / 100`:"—");
+ const cpaText = failed ? "0.0 / 100" : (Number.isFinite(cpa)?`${Number(cpa).toFixed(1)} / 100`:"—");
  return {
-  score:pref!=="cpi" ? (Number.isFinite(cpa)?Math.max(0,Math.min(100,cpa)):0) : (Number.isFinite(cpi)?Math.max(0,Math.min(100,cpi)):0),
+  score: failed ? 0
+   : (pref!=="cpi" ? (Number.isFinite(cpa)?Math.max(0,Math.min(100,cpa)):0) : (Number.isFinite(cpi)?Math.max(0,Math.min(100,cpi)):0)),
   scoreLabel:pref!=="cpi" ? "CPA" : "CPI",
   mbsText,
   boxes: pref!=="cpi"
@@ -7822,7 +7879,11 @@ function renderSpeedometerOutcome(result, sessionIndex){
  outcome.classList.remove("hidden");
  const success = !!(result && isTestSuccess(result));
  let cps = success && result ? Math.max(0, Math.min(100, result.cognitivePerformanceIndex||0)) : 0;
- if(isResultSurvivalChallenge(result) && getSurvivalOutcomeText(result)==="Dead") cps = 0;
+ // Survival fail-safe: any failed Survival test or any Survival outcome in the
+ // "Dead" band forces cps to 0 regardless of stored CPI. Previously only the
+ // "Dead" text-label path triggered this, which missed failures whose stored
+ // CPI happened to land in a higher outcome band (Dying/Crippled/Wounded).
+ if(isResultSurvivalChallenge(result) && (!success || getSurvivalOutcomeText(result)==="Dead")) cps = 0;
  let mbs = result && result.averageLast2BlockingScoresMs!=null ? result.averageLast2BlockingScoresMs : null;
  let scoreLabel = "CPI";
  let metricLabel = "MBS";
@@ -7832,7 +7893,7 @@ function renderSpeedometerOutcome(result, sessionIndex){
  if(isMode2Speedometer){
   if(result && result.mode2Triggered && result.cpa==null) Object.assign(result, computeMode2CPA(result));
   if(result && result.mode2Triggered && (result.dispositionCode==null || result.dispositionLabel==null)) Object.assign(result, computeDispositionFromCPA(result));
-  const mode2Metric = getMode2SpeedometerMetric(result);
+  const mode2Metric = getMode2SpeedometerMetric(result, success);
   cps = success ? mode2Metric.score : 0;
   if(success){
    mbs = Number(result && (result.mode2AdaptiveMbsMs!=null ? result.mode2AdaptiveMbsMs : result.averageLast2BlockingScoresMs));
