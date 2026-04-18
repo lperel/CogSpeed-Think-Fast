@@ -4281,9 +4281,11 @@ function openProfileOverlay(email){
  const stored = loadProfile();
  const existing = (safeEmail && stored && String(stored.email||"").trim().toLowerCase()===safeEmail) ? stored : null;
  const existingTimeFormat = existing?.timeFormat || getEffectiveTimeFormat();
+ const existingSymbolSetRaw = String(existing?.symbolSet || settings.symbolSet || "standard").trim().toLowerCase();
+ const existingSymbolSet = existingSymbolSetRaw==="memory" ? "memory" : (existingSymbolSetRaw==="survival" ? "survival" : "standard");
  _profileGenderSelected = existing?.gender || "";
  _profileTimeFormat = String(existingTimeFormat) === "24" ? "24" : "12";
- _profileSymbolSet = "standard";
+ _profileSymbolSet = existing ? existingSymbolSet : "standard";
 
  // Show email
  const ed = $("profileEmailDisplay");
@@ -4305,7 +4307,7 @@ function openProfileOverlay(email){
   if(existing.gender) profileSelectGender(existing.gender);
   validateProfileAge();
   profileSelectTimeFormat(_profileTimeFormat);
-  profileSelectSymbolSet(_profileSymbolSet);
+  profileSelectSymbolSet(existingSymbolSet);
   captureProfileInitialSnapshot();
  } else {
   const bm = $("profileBirthMonth"); if(bm) bm.value="";
