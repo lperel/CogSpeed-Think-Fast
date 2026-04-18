@@ -1,7 +1,11 @@
 ## V699 — 2026-04-17
-- Moved the About-page Additional Challenge Tests section inside the page box and placed it immediately before Sponsor and contact.
-- Enlarged Pattern Refresher overlay icons again with a new xlarge icon rendering mode and larger refresher cards.
-- Fixed a Challenge Set menu bug by separating the visual default from the persisted selection, so the Profile page can open showing standard without unintentionally pulling the wrong test set.
+- Added a one-time Profile change reminder. When the user changes Profile settings, the app now alerts them to tap Save and Continue.
+- The reminder uses a specific Challenge Set message when the Challenge Set menu is changed.
+- Added a Profile-page unsaved-changes alert. If the user changes Profile settings and tries to leave without saving, the app now warns them to tap Save and Continue.
+- The alert uses a more specific message when the Challenge Set was changed: "Challenge Set changed. Tap Save and Continue to use the new test."
+- Fixed the About page by moving the Additional Challenge Tests section inside the page box and placing it immediately before Sponsor and contact.
+- Enlarged Pattern Refresher icons again with a new xlarge icon rendering mode and larger refresher cards.
+- Fixed Challenge Set menu behavior so existing profiles show and use their real saved challenge set, while new profiles still default to CogSpeed Sustained - Mode 2.
 - Enlarged the Pattern Refresher icons on the page shown right after Continue as much as practical.
 - Made the standard Profile Challenge Set label read "CogSpeed Sustained - Mode 2" and kept the Profile page default on standard.
 - Increased Survival audio loudness and strengthened its startup reliability.

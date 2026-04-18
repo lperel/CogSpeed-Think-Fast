@@ -4045,11 +4045,7 @@ let _profileGenderSelected = "";
 
 let _profileTimeFormat = null;
 let const rawSymbolSet = String(existing?.symbolSet || settings.symbolSet || "standard");
- _profileSymbolSetPersisted = rawSymbolSet==="memory" ? "memory" : (rawSymbolSet==="survival" ? "survival" : "standard");
- _profileSymbolSet = _profileSymbolSetPersisted;
- _profileSymbolSetTouched = false;
-let _profileSymbolSetPersisted = "standard";
-let _profileSymbolSetTouched = false;
+ _profileSymbolSet = rawSymbolSet==="memory" ? "memory" : (rawSymbolSet==="survival" ? "survival" : "standard");
 
 function isValidEmailAddress(v){
  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(v||"").trim());
@@ -4062,17 +4058,14 @@ function getProfileDraftTimeFormat(){
 function profileSelectSymbolSet(v){
  const raw = String(v||"standard");
  _profileSymbolSet = raw==="memory" ? "memory" : (raw==="survival" ? "survival" : "standard");
- _profileSymbolSetTouched = true;
  const sel = $("profileSymbolSet");
  if(sel) sel.value = _profileSymbolSet;
-}
-function setProfileSymbolSetVisualDefault(){
- const sel = $("profileSymbolSet");
- if(sel) sel.value = "standard";
+ remindProfileSaveNeeded("challenge");
 }
 
 function profileSelectTimeFormat(fmt){
  _profileTimeFormat = String(fmt)==="24" ? "24" : "12";
+ remindProfileSaveNeeded("general");
  ["12","24"].forEach(x=>{
   const btn = $("profileTime"+x+"Btn");
   if(!btn) return;
@@ -4088,6 +4081,7 @@ function profileSelectTimeFormat(fmt){
 
 function profileSelectGender(g){
  _profileGenderSelected = g;
+ remindProfileSaveNeeded("general");
  ["M","F","O"].forEach(x=>{
   const btn = $("profileGender"+x);
   if(!btn) return;
@@ -4098,6 +4092,7 @@ function profileSelectGender(g){
 }
 
 function profileToggleEmail(checked){
+ remindProfileSaveNeeded("general");
  const thumb = $("profileEmailThumb");
  const track = $("profileEmailToggle");
  if(thumb) thumb.style.transform = checked ? "translateX(24px)" : "translateX(0)";
@@ -4177,8 +4172,8 @@ function openProfileOverlay(email){
   if(existing.gender) profileSelectGender(existing.gender);
   validateProfileAge();
   profileSelectTimeFormat(_profileTimeFormat);
-  setProfileSymbolSetVisualDefault();
   profileSelectSymbolSet(_profileSymbolSet);
+  captureProfileInitialSnapshot();
  } else {
   const bm = $("profileBirthMonth"); if(bm) bm.value="";
   const by = $("profileBirthYear"); if(by) by.value="";
@@ -4187,7 +4182,7 @@ function openProfileOverlay(email){
   profileSelectGender("");
   const msg=$("profileAgeMsg"); if(msg) msg.textContent="";
   profileSelectTimeFormat(_profileTimeFormat);
-  setProfileSymbolSetVisualDefault();
+  profileSelectSymbolSet("standard");
  }
 
  schedulerState.activeSubjectId = safeEmail || "";
@@ -4195,7 +4190,22 @@ function openProfileOverlay(email){
  renderSchedulerSettings();
  refreshSchedulerDeviceStatus();
  maybeFinishBackgroundTest();
+ resetProfileChangeReminder();
  showOnly("profileOverlay");
+}
+
+let _profileReminderShown = false;
+function resetProfileChangeReminder(){
+ _profileReminderShown = false;
+}
+function remindProfileSaveNeeded(kind="general"){
+ if(_profileReminderShown) return;
+ _profileReminderShown = true;
+ const msg = kind==="challenge"
+  ? "Challenge Set changed. Tap Save and Continue to use the new test."
+  : "You changed Profile settings. Tap Save and Continue to keep these changes.";
+ setStatus(msg);
+ try{ alert(msg); }catch(e){}
 }
 
 let _profileReturnTo = "refresherOverlay"; // where to go after saving profile
@@ -4207,7 +4217,7 @@ function saveAndContinueProfile(){
  const bYear = parseInt($("profileBirthYear")?.value||"0");
  const emailResults = !!$("profileEmailResults")?.checked;
  const timeFormat = getProfileDraftTimeFormat();
- const symbolSet = _profileSymbolSetTouched ? (_profileSymbolSet === "memory" ? "memory" : (_profileSymbolSet === "survival" ? "survival" : "standard")) : _profileSymbolSetPersisted;
+ const symbolSet = _profileSymbolSet === "memory" ? "memory" : (_profileSymbolSet === "survival" ? "survival" : "standard");
 
  // Always save time-format settings from this page
  settings.timeFormat = timeFormat;
@@ -4216,8 +4226,10 @@ function saveAndContinueProfile(){
 
  // If no email is entered yet, allow returning after saving settings only.
  if(!email){
+  captureProfileInitialSnapshot();
   showOnly(_profileReturnTo || "subjectOverlay");
   _profileReturnTo = "refresherOverlay";
+  _profileReminderShown = false;
   setStatus("Settings saved");
   return;
  }
@@ -4238,6 +4250,7 @@ function saveAndContinueProfile(){
 
  showOnly(_profileReturnTo);
  _profileReturnTo = "refresherOverlay";
+_profileReminderShown = false;
  setStatus("Profile saved"); restoreSubjectFromProfile();
 }
 
@@ -8657,3 +8670,6 @@ $("refSleepBtn").onclick=()=>showSleepPrompt();
 $("tutorialExitSleepBtn").onclick=()=>showSleepPrompt();
 $("tutorialExitBackBtn").onclick=()=>goToStartPage();
 const _pss=$("profileSymbolSet"); if(_pss) _pss.onchange=(e)=>profileSelectSymbolSet(e.target.value);
+const _pbm=$("profileBirthMonth"); if(_pbm) _pbm.onchange=()=>remindProfileSaveNeeded("general");
+const _pby=$("profileBirthYear"); if(_pby) _pby.oninput=()=>remindProfileSaveNeeded("general");
+const _per=$("profileEmailResults"); if(_per) _per.onchange=()=>remindProfileSaveNeeded("general");
