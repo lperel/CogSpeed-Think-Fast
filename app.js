@@ -267,7 +267,13 @@ const SAMN_PERELLI=[
 
 // ─── Settings ───
 function loadSettings(){
- const s=JSON.parse(localStorage.getItem(`${STORAGE_PREFIX}_settings`)||"null");
+ let s = null;
+ try{
+  s = JSON.parse(localStorage.getItem(`${STORAGE_PREFIX}_settings`)||"null");
+ }catch(e){
+  // Corrupt localStorage blob — fall back to defaults rather than wedging module load.
+  s = null;
+ }
  if(!s) return {...DEFAULTS};
  // Backward compatibility: earlier builds used personalBaselineMinMbs for the same
  // maximum-qualifying-MBS threshold. Carry it forward if present.
@@ -535,11 +541,13 @@ function harvestActiveFrameTiming(actualAtMs){
 // Source: Perelli (2026). Formula: (worst-ms)/(worst-best)*100
 // ──────────────────────────────────────────────────────────────
 function computeCPI(avgMs){
+ const ms = Number(avgMs);
+ if(!Number.isFinite(ms)) return 0;
  const best=getCurrentCpiBestMs();
  const worst=getCurrentCpiWorstMs();
  const span=worst-best;
  if(!isFinite(best)||!isFinite(worst)||span<=0) return 0;
- return Math.max(0,Math.min(100,((worst-avgMs)/span)*100));
+ return Math.max(0,Math.min(100,((worst-ms)/span)*100));
 }
 function computeSPI(correctCount,totalTrials){
  const total=Math.max(1, Number(totalTrials)||0);
@@ -847,14 +855,21 @@ function getSurvivalSoundFamily(iconNum){
 // ─── Survival Challenge per-family correct-tap sounds ─────────
 // Six distinct WebAudio profiles, one per icon-pair family.
 // Every cue is an impact/explosion — the reward sound is the kill.
-// Jets, rocket, and helo share an identical boom tail but have distinct
-// whoosh heads (fast-high / slow-mid / short-low) so family identity is
-// carried by the incoming cue while the hit feels consistent.
-// Tank and ship are standalone explosions (no whoosh); space is laser
-// zap + the shared boom. All cues <= 440ms, peak gain <= 0.32.
-//   tank   (icons 3,4)   — cannon boom          : muzzle crack + low thud
+//
+// Architecture: all sub-components of a single cue sum through ONE master
+// bus gain → ONE master compressor → destination. The compressor acts as a
+// transient-preserving limiter (−6 dB thresh, 4:1, 2 ms attack, 120 ms
+// release) so peaks are caught but body breathes. Previous version gave
+// every component its own aggressive compressor in parallel, which crushed
+// each element in isolation before summing — the main cause of weak OOMPH.
+//
+// Boom core is 3-layer: sub-thump (55 Hz sine with impulse attack) + mid
+// body (filtered noise ~200–1200 Hz) + high crack (brief HP noise 2–5 kHz)
+// with real transient at t0 instead of an exponential-decay tail from peak.
+//
+//   tank   (icons 3,4)   — cannon boom          : bright muzzle crack + deep boom
 //   jets   (icons 1,2)   — missile whoosh blam  : fast high whoosh + boom
-//   ship   (icons 5,6)   — big explosion        : deep sustained detonation
+//   ship   (icons 5,6)   — big explosion        : extended sub-heavy detonation
 //   rocket (icons 7,8)   — whoosh + boom        : long mid-band whoosh + boom
 //   space  (icons 9,10)  — laser zap + boom     : square chirps + boom
 //   helo   (icons 11,12) — whoosh + boom        : short low whoosh + boom
@@ -867,51 +882,152 @@ function playSurvivalCorrectSound(iconNum){
   const emit = ()=>{
    const now = ctx.currentTime + 0.005;
    const fam = getSurvivalSoundFamily(iconNum);
+
+   // ─── Master bus: sum everything here, then limit, then out ───
+   const bus = ctx.createGain();
+   bus.gain.value = 1.0;
+   const masterComp = ctx.createDynamicsCompressor();
+   masterComp.threshold.value = -6;
+   masterComp.knee.value = 6;
+   masterComp.ratio.value = 4;
+   masterComp.attack.value = 0.002;
+   masterComp.release.value = 0.12;
+   const masterGain = ctx.createGain();
+   masterGain.gain.value = 0.9; // post-limiter trim to keep headroom
+   bus.connect(masterComp).connect(masterGain).connect(ctx.destination);
+
+   // ─── Primitive: pitched tone with fast attack and exp decay ───
    const tone = (type, f1, f2, t0, dur, gainV)=>{
-    const o=ctx.createOscillator(), g=ctx.createGain(), comp=ctx.createDynamicsCompressor();
+    const o=ctx.createOscillator(), g=ctx.createGain();
     o.type=type;
     o.frequency.setValueAtTime(f1, t0);
     o.frequency.exponentialRampToValueAtTime(Math.max(30, f2), t0+dur);
     g.gain.setValueAtTime(0.0001, t0);
-    g.gain.exponentialRampToValueAtTime(gainV, t0+0.008);
+    g.gain.exponentialRampToValueAtTime(gainV, t0+0.006);
     g.gain.exponentialRampToValueAtTime(0.0001, t0+dur);
-    comp.threshold.value = -28; comp.knee.value = 24; comp.ratio.value = 10; comp.attack.value = 0.003; comp.release.value = 0.16;
-    o.connect(g).connect(comp).connect(ctx.destination); o.start(t0); o.stop(t0+dur+0.02);
+    o.connect(g).connect(bus);
+    o.start(t0); o.stop(t0+dur+0.02);
    };
-   const noise = (t0, dur, gainV, hpFreq, lpFreq=12000)=>{
+
+   // ─── Primitive: filtered noise burst (whoosh / crack / body) ───
+   const noise = (t0, dur, gainV, hpFreq, lpFreq=12000, envShape="decay")=>{
     const len=Math.max(1, Math.floor(ctx.sampleRate*dur));
     const buf=ctx.createBuffer(1,len,ctx.sampleRate);
     const data=buf.getChannelData(0);
-    for(let i=0;i<len;i++) data[i]=(Math.random()*2-1)*(1-i/len);
+    if(envShape==="whoosh"){
+     // bell curve — fade in, fade out
+     for(let i=0;i<len;i++){
+      const t=i/len;
+      const env = Math.sin(t*Math.PI);
+      data[i]=(Math.random()*2-1)*env;
+     }
+    }else{
+     // decay — impulse at head, falls off
+     for(let i=0;i<len;i++) data[i]=(Math.random()*2-1)*(1-i/len);
+    }
     const src=ctx.createBufferSource(); src.buffer=buf;
     const hp=ctx.createBiquadFilter(); hp.type="highpass"; hp.frequency.value=hpFreq;
     const lp=ctx.createBiquadFilter(); lp.type="lowpass"; lp.frequency.value=lpFreq;
-    const g=ctx.createGain(); const comp=ctx.createDynamicsCompressor();
-    g.gain.setValueAtTime(gainV, t0); g.gain.exponentialRampToValueAtTime(0.0001, t0+dur);
-    comp.threshold.value = -28; comp.knee.value = 24; comp.ratio.value = 10; comp.attack.value = 0.003; comp.release.value = 0.16;
-    src.connect(hp).connect(lp).connect(g).connect(comp).connect(ctx.destination); src.start(t0); src.stop(t0+dur+0.02);
-   };
-   const boom = (t0, dur, gainV)=>{
-    const len=Math.max(1, Math.floor(ctx.sampleRate*dur));
-    const buf=ctx.createBuffer(1,len,ctx.sampleRate);
-    const data=buf.getChannelData(0);
-    for(let i=0;i<len;i++){
-     const env = 1 - i/len;
-     data[i]=(Math.random()*2-1)*env*0.95;
+    const g=ctx.createGain();
+    if(envShape==="whoosh"){
+     g.gain.setValueAtTime(gainV, t0);
+    }else{
+     // sharp attack ramp then linear to avoid click artifact
+     g.gain.setValueAtTime(0.0001, t0);
+     g.gain.linearRampToValueAtTime(gainV, t0+0.002);
+     g.gain.exponentialRampToValueAtTime(0.0001, t0+dur);
     }
-    const src=ctx.createBufferSource(); src.buffer=buf;
-    const lp=ctx.createBiquadFilter(); lp.type="lowpass"; lp.frequency.value=210;
-    const g=ctx.createGain(); const comp=ctx.createDynamicsCompressor();
-    g.gain.setValueAtTime(gainV, t0); g.gain.exponentialRampToValueAtTime(0.0001, t0+dur);
-    comp.threshold.value = -28; comp.knee.value = 24; comp.ratio.value = 10; comp.attack.value = 0.003; comp.release.value = 0.18;
-    src.connect(lp).connect(g).connect(comp).connect(ctx.destination); src.start(t0); src.stop(t0+dur+0.02);
+    src.connect(hp).connect(lp).connect(g).connect(bus);
+    src.start(t0); src.stop(t0+dur+0.02);
    };
-   if(fam==="tank"){ noise(now,0.12,0.18,1200,9000); boom(now+0.03,0.28,0.42); tone("triangle",110,52,now+0.02,0.24,0.12); }
-   else if(fam==="jets"){ noise(now,0.14,0.12,1800,10000); tone("sawtooth",1500,240,now,0.18,0.08); boom(now+0.15,0.26,0.36); }
-   else if(fam==="ship"){ boom(now,0.34,0.44); tone("triangle",92,40,now,0.28,0.12); }
-   else if(fam==="rocket"){ noise(now,0.20,0.12,1100,9000); tone("sawtooth",820,170,now,0.22,0.08); boom(now+0.16,0.26,0.36); }
-   else if(fam==="space"){ tone("square",1300,620,now,0.07,0.07); tone("square",1750,780,now+0.05,0.07,0.06); boom(now+0.14,0.22,0.28); }
-   else { noise(now,0.13,0.11,900,9000); tone("sawtooth",670,150,now,0.17,0.07); boom(now+0.14,0.24,0.34); }
+
+   // ─── Primitive: 3-layer impact (sub + body + crack) ───
+   // gainV scales the whole stack; layer balance fixed internally
+   const boom = (t0, dur, gainV)=>{
+    // Layer 1: sub thump — 55 Hz sine, pitch-dropped, with 3ms attack
+    {
+     const o=ctx.createOscillator(), g=ctx.createGain();
+     o.type="sine";
+     o.frequency.setValueAtTime(90, t0);
+     o.frequency.exponentialRampToValueAtTime(42, t0+Math.min(0.18, dur));
+     g.gain.setValueAtTime(0.0001, t0);
+     g.gain.linearRampToValueAtTime(gainV*1.0, t0+0.003);
+     g.gain.exponentialRampToValueAtTime(0.0001, t0+dur);
+     o.connect(g).connect(bus);
+     o.start(t0); o.stop(t0+dur+0.02);
+    }
+    // Layer 2: mid body — filtered noise 200–1200 Hz, impulsive
+    {
+     const bodyDur = Math.min(dur, 0.22);
+     const len=Math.max(1, Math.floor(ctx.sampleRate*bodyDur));
+     const buf=ctx.createBuffer(1,len,ctx.sampleRate);
+     const data=buf.getChannelData(0);
+     for(let i=0;i<len;i++){
+      const env = Math.pow(1 - i/len, 1.6); // steeper decay than linear
+      data[i]=(Math.random()*2-1)*env;
+     }
+     const src=ctx.createBufferSource(); src.buffer=buf;
+     const hp=ctx.createBiquadFilter(); hp.type="highpass"; hp.frequency.value=180;
+     const lp=ctx.createBiquadFilter(); lp.type="lowpass"; lp.frequency.value=1400;
+     const g=ctx.createGain();
+     g.gain.setValueAtTime(0.0001, t0);
+     g.gain.linearRampToValueAtTime(gainV*0.75, t0+0.002);
+     g.gain.exponentialRampToValueAtTime(0.0001, t0+bodyDur);
+     src.connect(hp).connect(lp).connect(g).connect(bus);
+     src.start(t0); src.stop(t0+bodyDur+0.02);
+    }
+    // Layer 3: high crack — short HP noise 2.5–5 kHz, very fast decay
+    {
+     const crackDur = 0.035;
+     const len=Math.max(1, Math.floor(ctx.sampleRate*crackDur));
+     const buf=ctx.createBuffer(1,len,ctx.sampleRate);
+     const data=buf.getChannelData(0);
+     for(let i=0;i<len;i++) data[i]=(Math.random()*2-1)*(1-i/len);
+     const src=ctx.createBufferSource(); src.buffer=buf;
+     const hp=ctx.createBiquadFilter(); hp.type="highpass"; hp.frequency.value=2500;
+     const lp=ctx.createBiquadFilter(); lp.type="lowpass"; lp.frequency.value=5500;
+     const g=ctx.createGain();
+     g.gain.setValueAtTime(0.0001, t0);
+     g.gain.linearRampToValueAtTime(gainV*0.45, t0+0.001);
+     g.gain.exponentialRampToValueAtTime(0.0001, t0+crackDur);
+     src.connect(hp).connect(lp).connect(g).connect(bus);
+     src.start(t0); src.stop(t0+crackDur+0.01);
+    }
+   };
+
+   // ─── Family-specific cue composition ───
+   if(fam==="tank"){
+    // Extra-bright muzzle crack ahead of a heavy low boom
+    noise(now, 0.045, 0.55, 2800, 9000);          // muzzle flash crack
+    noise(now, 0.12, 0.28, 900, 4000);            // barrel transient
+    boom(now+0.02, 0.34, 0.85);                   // the thud
+   } else if(fam==="jets"){
+    // Fast high incoming whoosh, then impact
+    noise(now, 0.18, 0.32, 1600, 9000, "whoosh"); // approaching whoosh
+    tone("sawtooth", 1600, 260, now, 0.18, 0.18); // tonal Doppler tail
+    boom(now+0.18, 0.30, 0.82);                   // impact
+   } else if(fam==="ship"){
+    // No whoosh — massive sustained detonation
+    boom(now, 0.42, 0.95);                        // main blast
+    tone("triangle", 75, 38, now+0.01, 0.36, 0.28); // sub-body tail
+    noise(now+0.08, 0.22, 0.18, 400, 2200);       // debris rumble
+   } else if(fam==="rocket"){
+    // Longer mid-band whoosh, then impact
+    noise(now, 0.24, 0.30, 800, 6500, "whoosh");  // arcing whoosh
+    tone("sawtooth", 780, 160, now, 0.22, 0.18);  // tonal body
+    boom(now+0.22, 0.32, 0.82);                   // impact
+   } else if(fam==="space"){
+    // Laser zap sequence into impact
+    tone("square", 1400, 640, now, 0.07, 0.22);
+    tone("square", 1850, 820, now+0.06, 0.07, 0.20);
+    tone("square", 2200, 1000, now+0.12, 0.05, 0.16);
+    boom(now+0.17, 0.26, 0.72);                   // contact explosion
+   } else {
+    // helo — short low whoosh into impact
+    noise(now, 0.14, 0.26, 650, 4500, "whoosh");  // rotor-wash whoosh
+    tone("sawtooth", 620, 140, now, 0.16, 0.18);  // tonal thump
+    boom(now+0.15, 0.30, 0.80);                   // impact
+   }
   };
   if(ctx.state === "suspended"){
    Promise.resolve(ctx.resume()).then(()=>setTimeout(emit,0)).catch(()=>setTimeout(emit,0));
@@ -4044,8 +4160,7 @@ function computeAge(bMonth, bYear){
 let _profileGenderSelected = "";
 
 let _profileTimeFormat = null;
-let const rawSymbolSet = String(existing?.symbolSet || settings.symbolSet || "standard");
- _profileSymbolSet = rawSymbolSet==="memory" ? "memory" : (rawSymbolSet==="survival" ? "survival" : "standard");
+let _profileSymbolSet = "standard";
 
 function isValidEmailAddress(v){
  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(v||"").trim());
@@ -4241,7 +4356,12 @@ function saveAndContinueProfile(){
  const profile = {email, birthMonth:bMonth, birthYear:bYear,
   gender:_profileGenderSelected, emailResults, timeFormat:settings.timeFormat, symbolSet, updatedAt:Date.now()};
  schedulerState.activeSubjectId = email;
- saveProfile(profile);
+ try{
+  saveProfile(profile);
+ }catch(e){
+  setStatus("Profile could not be saved — your browser storage may be full or restricted.");
+  return;
+ }
 
  state.subjectId = email;
  state.profile = profile;
@@ -8670,6 +8790,6 @@ $("refSleepBtn").onclick=()=>showSleepPrompt();
 $("tutorialExitSleepBtn").onclick=()=>showSleepPrompt();
 $("tutorialExitBackBtn").onclick=()=>goToStartPage();
 const _pss=$("profileSymbolSet"); if(_pss) _pss.onchange=(e)=>profileSelectSymbolSet(e.target.value);
-const _pbm=$("profileBirthMonth"); if(_pbm) _pbm.onchange=()=>remindProfileSaveNeeded("general");
-const _pby=$("profileBirthYear"); if(_pby) _pby.oninput=()=>remindProfileSaveNeeded("general");
+const _pbm_sr=$("profileBirthMonth"); if(_pbm_sr) _pbm_sr.onchange=()=>remindProfileSaveNeeded("general");
+const _pby_sr=$("profileBirthYear"); if(_pby_sr) _pby_sr.oninput=()=>remindProfileSaveNeeded("general");
 const _per=$("profileEmailResults"); if(_per) _per.onchange=()=>remindProfileSaveNeeded("general");
