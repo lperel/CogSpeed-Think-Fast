@@ -1,4 +1,5 @@
 ## V699 — 2026-04-18
+- Rev22 startup fix: removed an early reference to the runtime state object from the admin-default repair block so the app can open normally again.
 - Rev21 verification rebuild: added a runtime repair that force-updates the exact requested challenge Admin defaults when old saved overrides still contain the prior built-in values.
 - Rev21 verification rebuild: moved "End reason" immediately after "Session:" across the real Results-page summary builder branches.
 - Rev21 verification rebuild: bumped cache-bust strings to reduce stale app-shell issues.

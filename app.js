@@ -289,6 +289,8 @@ function loadSettings(){
 function saveSettings(){ localStorage.setItem(`${STORAGE_PREFIX}_settings`,JSON.stringify(settings)); }
 let settings=loadSettings();
 
+// Startup repair must NOT touch the runtime `state` object here because
+// settings are initialized before the main session state is declared.
 (function repairChallengeAdminDefaults(){
  let changed = false;
  const fixNum = (key, oldVals, nextVal)=>{
@@ -306,8 +308,7 @@ let settings=loadSettings();
  fixNum("survivalNoResponseTimeoutMs", [12000], 15000);
  if(changed){
   try{ saveSettings(); }catch(e){}
-  state = state || {};
-  state.adminDefaultsRepaired = true;
+  try{ localStorage.setItem(`${STORAGE_PREFIX}_admin_defaults_repaired`, "1"); }catch(e){}
  }
 })();
 
@@ -8899,9 +8900,9 @@ document.addEventListener("visibilitychange", ()=>{
 // One-time status note if old local admin overrides were auto-repaired.
 setTimeout(()=>{
  try{
-  if(state && state.adminDefaultsRepaired){
+  if(localStorage.getItem(`${STORAGE_PREFIX}_admin_defaults_repaired`) === "1"){
    setStatus("Challenge Admin defaults updated to latest requested values.");
-   state.adminDefaultsRepaired = false;
+   localStorage.removeItem(`${STORAGE_PREFIX}_admin_defaults_repaired`);
   }
  }catch(e){}
 }, 0);
