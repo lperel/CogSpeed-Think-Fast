@@ -897,7 +897,7 @@ function buildGearSVG(si,pattern,size,spinClass){
   const marks = [];
   let iconHtml = "";
   if(pattern && pattern.iconSrc){
-   const iconSize = size==="probe" ? "58%" : size==="small" ? "44%" : "50%";
+   const iconSize = size==="probe" ? "46%" : size==="small" ? "30%" : "36%";
    iconHtml = `<img class="gear-symbol" src="${pattern.iconSrc}" alt="${pattern.iconLabel||"symbol"}" draggable="false" style="position:absolute;z-index:2;width:${iconSize};height:${iconSize};object-fit:contain;pointer-events:none;filter:contrast(1.05) brightness(0.96);"/>`;
   }else if(pattern){
    const scale = size==="probe" ? 0.64 : 0.60;
@@ -972,6 +972,7 @@ function renderTrial(trial){
  const ts=$("testScreen"); if(ts) ts.classList.remove("hidden");
  applyPhaseBackground();
  try{ refreshUpdateBannerVisibility(); }catch(e){}
+ renderTrialRefresher();
  stimGrid.innerHTML="";
  for(let i=0;i<6;i++){
   const cell=document.createElement("div");
@@ -1005,6 +1006,7 @@ function flashBtn(index,ok){
 function setProbeIdle(){
  applyPhaseBackground();
  try{ refreshUpdateBannerVisibility(); }catch(e){}
+ renderTrialRefresher();
  probeCell.classList.add("idle");
  probeInner.innerHTML="";
  stimGrid.innerHTML="";
@@ -2201,15 +2203,36 @@ function handleTap(index,eventTimeStamp){
  flashBtn(index,false); recordAnswer(false);
 }
 
+function isBaselineEstablishedForCurrentSubject(){
+ const sid = subjectKey(state.subjectId || (loadProfile()?.email) || "0");
+ if(!sid || isGuestBaselineSubject(sid)) return false;
+ return !!computePersonalBaseline(state.history, sid).established;
+}
+function getMemoryRefresherPairs(){
+ return [[1,2],[7,8],[4,3],[9,10],[6,5],[12,11]];
+}
+function buildMemoryRefresherCard(a,b,small=false){
+ const cls = small ? "trial-ref-card" : "ref-card";
+ return `<div class="${cls}"><div class="ref-row" style="justify-content:center;align-items:center"><div style="display:flex;flex-direction:column;align-items:center;gap:2px">${buildGearSVG(1,memoryIconPattern(a),"small","")}<div class="ref-lbl">${MEMORY_LABELS[a]}</div></div><div class="ref-arrow">↔</div><div style="display:flex;flex-direction:column;align-items:center;gap:2px">${buildGearSVG(2,memoryIconPattern(b),"small","")}<div class="ref-lbl">${MEMORY_LABELS[b]}</div></div></div></div>`;
+}
+function renderTrialRefresher(){
+ const wrap = $("trialRefresher"), grid = $("trialRefresherGrid");
+ if(!wrap || !grid) return;
+ if(!(isMemoryChallengeActive() && !isBaselineEstablishedForCurrentSubject())){
+  wrap.classList.remove("show");
+  grid.innerHTML = "";
+  return;
+ }
+ wrap.classList.add("show");
+ grid.innerHTML = getMemoryRefresherPairs().map(([a,b])=>buildMemoryRefresherCard(a,b,true)).join("");
+}
+
 // ─── Refresher ───
 function renderRefresher(){
  const grid=$("refresherGrid"); grid.innerHTML="";
  if(isMemoryChallengeActive()){
-  const pairOrder=[[1,2],[7,8],[4,3],[9,10],[6,5],[12,11]];
-  pairOrder.forEach(([a,b])=>{
-   const c=document.createElement("div"); c.className="ref-card";
-   c.innerHTML=`<div class="ref-row"><div style="display:flex;flex-direction:column;align-items:center;gap:4px">${buildGearSVG(1,memoryIconPattern(a),"small","")}<div class="ref-lbl">${MEMORY_LABELS[a]}</div></div><div class="ref-arrow">↔</div><div style="display:flex;flex-direction:column;align-items:center;gap:4px">${buildGearSVG(2,memoryIconPattern(b),"small","")}<div class="ref-lbl">${MEMORY_LABELS[b]}</div></div></div>`;
-   grid.appendChild(c);
+  getMemoryRefresherPairs().forEach(([a,b])=>{
+   grid.insertAdjacentHTML("beforeend", buildMemoryRefresherCard(a,b,false));
   });
   return;
  }
@@ -6022,6 +6045,38 @@ const MEMORY_TUT_DATA = {
   {family:"memory", count:4, pattern:memoryIconPattern(4)},
  ]
 };
+function getTutorialTargetsHint(){
+ return isMemoryChallengeActive()
+  ? "Each gear has an icon. Learn the icon-pair matches shown in the refresher."
+  : "Each has dots or lines — count them";
+}
+function getTutorialRuleCardHtml(){
+ if(!isMemoryChallengeActive()){
+  return `${getTutorialRuleCardHtml()}`;
+ }
+ return `<div style="display:flex;align-items:center;gap:14px;margin-bottom:12px;justify-content:center">
+      <div style="text-align:center">
+       <div style="font-size:10px;color:rgba(255,255,255,0.5);margin-bottom:3px">PROBE</div>
+       <div style="width:60px;height:60px">${buildGearSVG(0, memoryIconPattern(1), "probe", "")}</div>
+       <div style="font-size:12px;color:#7fd7ff;margin-top:3px;font-weight:700">Triangle</div>
+      </div>
+      <div style="font-size:24px;color:#ffaa44;font-weight:900">↔</div>
+      <div style="text-align:center">
+       <div style="font-size:10px;color:rgba(255,255,255,0.5);margin-bottom:3px">MATCH</div>
+       <div style="width:60px;height:60px;border:2px solid #7fd7ff;border-radius:8px;box-shadow:0 0 10px rgba(127,215,255,0.4)">${buildGearSVG(3, memoryIconPattern(2), "probe", "")}</div>
+       <div style="font-size:12px;color:#00ff88;margin-top:3px;font-weight:700">Bear ✓</div>
+      </div>
+     </div>
+     <div style="font-size:17px;font-weight:800;color:#7fd7ff">Paired MATCH</div>
+     <div style="font-size:14px;color:rgba(255,255,255,0.6);margin:2px 0">Triangle → find Bear</div>
+     <div style="font-size:17px;font-weight:800;color:#ffaa44;margin-top:6px">Same pair family</div>
+     <div style="font-size:14px;color:rgba(255,255,255,0.6)">Use the learned icon matches</div>`;
+}
+function getTutorialTapInstructionHtml(){
+ return isMemoryChallengeActive()
+  ? 'The center <span style="font-weight:900">PROBE</span> icon is paired with one icon in one gear above. Tap <span style="font-weight:900">RESPONSE GEAR</span> in the same position below.'
+  : 'The center <span style="font-weight:900">PROBE</span> Dots or Lines match the Dots or Lines in one gear above. Tap <span style="font-weight:900">RESPONSE GEAR</span> in the same position below.';
+}
 function getTutorialData(){
  return isMemoryChallengeActive() ? MEMORY_TUT_DATA : STANDARD_TUT_DATA;
 }
@@ -6032,7 +6087,6 @@ function buildTutGearGrid(highlightPos, showPatterns){
  let html = '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;width:100%;max-width:380px">';
  const tut=getTutorialData();
  tut.items.forEach((it,i)=>{
-  const tut=getTutorialData();
   const isHL = highlightPos===i;
   const border = isHL ? "2px solid #7fd7ff" : "2px solid transparent";
   const glow = isHL ? "drop-shadow(0 0 8px rgba(127,215,255,0.8))" : "none";
@@ -6068,7 +6122,6 @@ function buildTutGearGridAnimated(showPatterns){
  const tut=getTutorialData();
  tut.items.forEach((it,i)=>{
   const pat = showPatterns ? it.pattern : null;
-  const tut=getTutorialData();
   const anim = i===tut.correctPos ? "tutPairFlashCorrect 12s linear infinite" : "tutPairFlash 12s linear infinite";
   html += `<div style="border:2px solid transparent;border-radius:10px;aspect-ratio:1;animation:${anim};animation-delay:${i*2}s">
    ${buildGearSVG(i+1, pat, "large", "")}
@@ -6081,7 +6134,6 @@ function buildTutGearGridAnimated(showPatterns){
 function buildTutRespGridAnimated(){
  let html = '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;width:100%;max-width:380px">';
  for(let i=0;i<6;i++){
-  const tut=getTutorialData();
   const anim = i===tut.correctPos ? "tutPairFlashCorrect 12s linear infinite" : "tutPairFlash 12s linear infinite";
   html += `<div style="aspect-ratio:1;border-radius:10px;border:2px solid transparent;position:relative;animation:${anim};animation-delay:${i*2}s">
    ${buildGearSVG(i+1, null, "large", "")}
@@ -6193,7 +6245,7 @@ const TUT_STEPS = [
     <div style="margin-bottom:10px">${buildTutGearGrid(-1,true)}</div>
     <div style="background:rgba(10,20,40,0.88);backdrop-filter:blur(4px);border-radius:16px;padding:14px 18px;max-width:300px;border:1px solid rgba(127,215,255,0.2)">
      <div style="font-size:20px;font-weight:700;color:#f5fbff;margin-bottom:6px">These 6 gears are your <span style="color:#7fd7ff">TARGETS</span></div>
-     <div style="font-size:15px;color:rgba(255,255,255,0.65)">Each has dots or lines — count them</div>
+     <div style="font-size:15px;color:rgba(255,255,255,0.65)">${getTutorialTargetsHint()}</div>
     </div>
    </div>`;
   }
@@ -6241,7 +6293,7 @@ const TUT_STEPS = [
      </div>
      <div style="margin-top:2px">${buildTutRespGridAnimated()}</div>
      <div style="font-size:18px;font-weight:900;color:rgba(20,20,20,0.9);margin-top:10px;line-height:1.5">
-      The center <span style="font-weight:900">PROBE</span> Dots or Lines match the Dots or Lines in one gear above. Tap <span style="font-weight:900">RESPONSE GEAR</span> in the same position below.
+${getTutorialTapInstructionHtml()}
      </div>
     </div>
    </div>`;

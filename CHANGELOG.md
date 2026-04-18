@@ -1,4 +1,10 @@
 ## V697 — 2026-04-17
+- Added the Memory Challenge Pattern Refresher directly to each trial page, styled like the first test and shown as 2 rows of 3 in the requested pair order.
+- The trial-page Memory Challenge refresher now disappears automatically once baseline is established for the current subject.
+- Kept the smaller Memory Challenge icon sizing inside gears and tightened tutorial wording for icon-pair matching.
+- Fixed Memory Challenge Pattern Refresher to display as 2 rows of 3 cards in the requested pair order.
+- Reduced Memory Challenge icon size inside gears for trial, refresher, and tutorial readability.
+- Updated Memory Challenge tutorial text and rule examples so they explain icon-pair matching instead of dots/lines.
 - Added a new selectable Challenge Set on the Profile page: Standard CogSpeed or CogSpeed Memory Challenge.
 - Added full 12-icon Memory Challenge assets and trial generation using paired-match logic across the two specified number groups.
 - Memory Challenge now swaps in its own Pattern Refresher icons, Tutorial icons, and separate admin defaults for timeout, min/max paced duration, CPI anchors, and baseline qualification threshold.
