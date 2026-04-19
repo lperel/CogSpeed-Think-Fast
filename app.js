@@ -61,6 +61,7 @@ const STORAGE_PREFIX = `cogspeed_v${RELEASE}`;
 // ═══════════════════════════════════════════════════════════════
 const DEFAULTS={
  adminPasscode:"4822",
+ defaultTestMode:"mode2",
  testMode:"mode2",
  mode3TrialLimit:150,
  mode3MaxDurationMs:120000,
@@ -144,7 +145,7 @@ const DEFAULTS={
 const ADMIN_FIELDS=[
  // 1-2. Device / test selection
  ["adminPasscode","1. Admin passcode","text"],
- ["testMode","2. Default test mode for new users / reset devices (default Mode 2 CogSpeed Sustained)","select:mode1|mode2|mode3|mode4"],
+ ["defaultTestMode","2. Default test mode for new users / reset devices (default Mode 2 CogSpeed Sustained)","select:mode1|mode2|mode3|mode4"],
 
  // 3-15. Shared startup / calibration / anti-spoof settings, in program-use order
  ["initialUnusedCalibrationTrials","3. Warm-up calibration trials (default 1)","number"],
@@ -2887,7 +2888,8 @@ function renderAdmin(){
   let controlHTML="";
   if(String(t).startsWith("select:")){
    const selectLabels={mode1:"Mode 1 CogSpeed Adapted",mode2:"Mode 2 CogSpeed Sustained",mode3:"Mode 3 Self-paced",mode4:"Mode 4 Machine-paced"};
-   const opts=String(t).slice(7).split("|").map(v=>`<option value="${v}" ${String(settings[k])===v?"selected":""}>${selectLabels[v]||v}</option>`).join("");
+   const currentSelectValue = String(settings[k] ?? DEFAULTS[k] ?? (k==="defaultTestMode" ? "mode2" : ""));
+   const opts=String(t).slice(7).split("|").map(v=>`<option value="${v}" ${currentSelectValue===v?"selected":""}>${selectLabels[v]||v}</option>`).join("");
    controlHTML=`<select id="adm_${k}" style="padding:9px;border:1px solid var(--edge);border-radius:10px;background:#0a1629;color:var(--text);font-size:14px;width:100%">${opts}</select>`;
   }else{
    controlHTML=`<input id="adm_${k}" type="${t}" value="${settings[k]}" style="padding:9px;border:1px solid var(--edge);border-radius:10px;background:#0a1629;color:var(--text);font-size:14px;width:100%">`;
