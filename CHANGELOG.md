@@ -18,7 +18,7 @@
 - Admin Survival field ordering now matches Memory's pattern. Rev 25 had Survival Min duration (57), CpiBest (58), CpiWorst (59), Max duration (60) — splitting the Min/Max pair with CPI anchors between them. Memory pairs Min (50) / Max (51) adjacent. Fixed Survival to the same layout: 57=Min, 58=Max, 59=CpiBest, 60=CpiWorst, 61=Baseline, 62=MaxTestDuration.
 
 ## V699 — 2026-04-18
-- Rev37 disposition wording update: the Speedometer disposition window now uses the grouped Green / Yellow / Orange / Red wording with the requested SP-FS-aligned band definitions.
+- Rev38 live Speedometer fix: the actual Mode 2 disposition value shown in the Speedometer window now uses the grouped Green / Yellow / Orange / Red wording instead of `SP-FS N`.
 - Rev36 baseline rule update: Personal Baseline now excludes Memory Challenge and Survival Challenge sessions entirely; only Standard CogSpeed Mode 1 / Mode 2 sessions can qualify.
 - Rev34 bug fix: legacy Mode 2 rows now reconstruct CPI from MBS when stored CPI is missing, before rebuilding CPA and disposition.
 - Rev33 bug fix: legacy Mode 2 rows now rebuild CPA before disposition migration so old Mode 2 sessions can be normalized correctly.
