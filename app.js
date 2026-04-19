@@ -337,7 +337,7 @@ let settings=loadSettings();
 // profile record (profile is no longer the source of truth for test type),
 // and persist both. This fires once per fresh rev deployment per device;
 // after that, the stamp matches and nothing is touched on subsequent loads.
-const APP_REV_STAMP = "V699rev62";
+const APP_REV_STAMP = "V699rev64";
 (function migrateToCurrentRev(){
  let stored = "";
  try{ stored = localStorage.getItem(`${STORAGE_PREFIX}_rev_stamp`) || ""; }catch(e){ stored = ""; }
@@ -1131,14 +1131,15 @@ function playSurvivalCorrectSound(iconNum){
    const bus = ctx.createGain();
    bus.gain.value = 1.0;
 
-   // Soft-clip saturation: tanh curve on the summed bus adds harmonic
-   // density before the limiter. Drive amount kept modest so clean
-   // transients don't turn into fuzz.
+   // Soft-clip saturation: tanh curve on the summed bus. Rev 63: drive
+   // reduced from k=2.2 to k=1.1 so transients pass through with their
+   // attack intact — aggressive tanh was flattening the initial crack
+   // and making everything sound muffled.
    const saturator = ctx.createWaveShaper();
    {
     const n = 2048;
     const curve = new Float32Array(n);
-    const k = 2.2;
+    const k = 1.1;
     for(let i=0;i<n;i++){
      const x = (i*2)/(n-1) - 1;
      curve[i] = Math.tanh(k*x) / Math.tanh(k);
@@ -1147,15 +1148,19 @@ function playSurvivalCorrectSound(iconNum){
     saturator.oversample = "2x";
    }
 
+   // Rev 63 limiter: much looser so peaks actually reach the speaker.
+   // Previous brickwall −3 dB / 8:1 / 1 ms was squashing the initial
+   // transient. New settings let the crack punch through while still
+   // catching overage above 0 dB.
    const masterComp = ctx.createDynamicsCompressor();
-   masterComp.threshold.value = -3;
-   masterComp.knee.value = 3;
-   masterComp.ratio.value = 8;
-   masterComp.attack.value = 0.001;
-   masterComp.release.value = 0.10;
+   masterComp.threshold.value = -1;
+   masterComp.knee.value = 6;
+   masterComp.ratio.value = 4;
+   masterComp.attack.value = 0.005;
+   masterComp.release.value = 0.15;
 
    const masterGain = ctx.createGain();
-   masterGain.gain.value = 1.1;
+   masterGain.gain.value = 1.5;
    bus.connect(saturator).connect(masterComp).connect(masterGain).connect(ctx.destination);
 
    // Route to a specific stereo position. pan ∈ [-1, 1]. Falls back to
@@ -1228,70 +1233,120 @@ function playSurvivalCorrectSound(iconNum){
     o.start(t0); o.stop(impactT+0.04);
    };
 
-   // ─── Primitive: 4-layer impact (pre-ramp + dual sub + body + crack) ───
+   // ─── Primitive: big explosion (Rev 63 rebuild) ───
+   // Rev 62 boom was muffled because body noise was LP-filtered at 1.4 kHz —
+   // phone and laptop speakers can't reproduce much below ~180 Hz, so almost
+   // nothing audible was left. Rev 63 opens the body up to 8 kHz, triples
+   // the sub layers (50/80/130 Hz for full low-end richness), raises the
+   // crack gain significantly, and extends all decay times so the boom
+   // actually rings instead of clipping off.
    const boom = (t0, dur, gainV)=>{
-    preImpact(t0, 0.040, gainV*0.35);
+    preImpact(t0, 0.050, gainV*0.45);
 
-    // Layer 1a: sub thump — 90→42 Hz sine
+    // Layer 1a: deep sub — 50→28 Hz sine (the "chest thump" — felt more than heard on small speakers)
     {
      const o=ctx.createOscillator(), g=ctx.createGain();
      o.type="sine";
-     o.frequency.setValueAtTime(90, t0);
-     o.frequency.exponentialRampToValueAtTime(42, t0+Math.min(0.18, dur));
+     o.frequency.setValueAtTime(50, t0);
+     o.frequency.exponentialRampToValueAtTime(28, t0+Math.min(0.35, dur));
      g.gain.setValueAtTime(0.0001, t0);
-     g.gain.linearRampToValueAtTime(gainV*1.0, t0+0.003);
+     g.gain.linearRampToValueAtTime(gainV*1.1, t0+0.004);
+     g.gain.exponentialRampToValueAtTime(0.0001, t0+dur*1.3);
+     o.connect(g).connect(bus);
+     o.start(t0); o.stop(t0+dur*1.3+0.02);
+    }
+    // Layer 1b: main sub — 85→40 Hz sine (carries the "boom" body)
+    {
+     const o=ctx.createOscillator(), g=ctx.createGain();
+     o.type="sine";
+     o.frequency.setValueAtTime(85, t0);
+     o.frequency.exponentialRampToValueAtTime(40, t0+Math.min(0.28, dur));
+     g.gain.setValueAtTime(0.0001, t0);
+     g.gain.linearRampToValueAtTime(gainV*1.3, t0+0.003);
+     g.gain.exponentialRampToValueAtTime(0.0001, t0+dur*1.2);
+     o.connect(g).connect(bus);
+     o.start(t0); o.stop(t0+dur*1.2+0.02);
+    }
+    // Layer 1c: upper sub — 130→70 Hz (phone-speaker-audible low end)
+    {
+     const o=ctx.createOscillator(), g=ctx.createGain();
+     o.type="sine";
+     o.frequency.setValueAtTime(130, t0);
+     o.frequency.exponentialRampToValueAtTime(70, t0+Math.min(0.20, dur));
+     g.gain.setValueAtTime(0.0001, t0);
+     g.gain.linearRampToValueAtTime(gainV*0.95, t0+0.003);
      g.gain.exponentialRampToValueAtTime(0.0001, t0+dur);
      o.connect(g).connect(bus);
      o.start(t0); o.stop(t0+dur+0.02);
     }
-    // Layer 1b: parallel sub ~125→70 Hz — phone-speaker coverage, detuned
+    // Layer 2: full-spectrum mid-body — noise 150 Hz to 8 kHz with slow decay.
+    // The big change vs Rev 62: LP opened from 1.4k → 8k so the body has
+    // real audible content on phone/laptop speakers, not just sub content
+    // they can't reproduce.
     {
-     const o=ctx.createOscillator(), g=ctx.createGain();
-     o.type="sine";
-     o.frequency.setValueAtTime(125, t0);
-     o.frequency.exponentialRampToValueAtTime(70, t0+Math.min(0.16, dur));
-     g.gain.setValueAtTime(0.0001, t0);
-     g.gain.linearRampToValueAtTime(gainV*0.55, t0+0.003);
-     g.gain.exponentialRampToValueAtTime(0.0001, t0+dur*0.85);
-     o.connect(g).connect(bus);
-     o.start(t0); o.stop(t0+dur+0.02);
-    }
-    // Layer 2: mid body — filtered noise 200–1400 Hz, impulsive
-    {
-     const bodyDur = Math.min(dur, 0.22);
+     const bodyDur = Math.min(dur*1.15, 0.40);
      const len=Math.max(1, Math.floor(ctx.sampleRate*bodyDur));
      const buf=ctx.createBuffer(1,len,ctx.sampleRate);
      const data=buf.getChannelData(0);
      for(let i=0;i<len;i++){
-      const env = Math.pow(1 - i/len, 1.6);
+      // Slower decay envelope than Rev 62 — power 1.1 instead of 1.6 — so
+      // the body sustains through the whole boom instead of dying fast.
+      const env = Math.pow(1 - i/len, 1.1);
       data[i]=(Math.random()*2-1)*env;
      }
      const src=ctx.createBufferSource(); src.buffer=buf;
-     const hp=ctx.createBiquadFilter(); hp.type="highpass"; hp.frequency.value=180;
-     const lp=ctx.createBiquadFilter(); lp.type="lowpass"; lp.frequency.value=1400;
+     const hp=ctx.createBiquadFilter(); hp.type="highpass"; hp.frequency.value=150;
+     const lp=ctx.createBiquadFilter(); lp.type="lowpass"; lp.frequency.value=8000;
      const g=ctx.createGain();
      g.gain.setValueAtTime(0.0001, t0);
-     g.gain.linearRampToValueAtTime(gainV*0.85, t0+0.002);
+     g.gain.linearRampToValueAtTime(gainV*1.15, t0+0.002);
      g.gain.exponentialRampToValueAtTime(0.0001, t0+bodyDur);
      src.connect(hp).connect(lp).connect(g).connect(bus);
      src.start(t0); src.stop(t0+bodyDur+0.02);
     }
-    // Layer 3: high crack — short HP noise 2.5–6 kHz, panned slightly right
+    // Layer 3: bright initial crack — short wideband noise 800 Hz to 10 kHz.
+    // Rev 62 crack was HP 2.5k–6k which phones can't reproduce well at low
+    // gain. Rev 63 widens to 800 Hz–10 kHz so the crack energy lands in a
+    // range small speakers actually render, and raises gain from 0.55 to
+    // 1.05. This is what gives the "CRACK" at the attack.
     {
-     const crackDur = 0.045;
+     const crackDur = 0.060;
      const len=Math.max(1, Math.floor(ctx.sampleRate*crackDur));
      const buf=ctx.createBuffer(1,len,ctx.sampleRate);
      const data=buf.getChannelData(0);
      for(let i=0;i<len;i++) data[i]=(Math.random()*2-1)*(1-i/len);
      const src=ctx.createBufferSource(); src.buffer=buf;
-     const hp=ctx.createBiquadFilter(); hp.type="highpass"; hp.frequency.value=2500;
-     const lp=ctx.createBiquadFilter(); lp.type="lowpass"; lp.frequency.value=6000;
+     const hp=ctx.createBiquadFilter(); hp.type="highpass"; hp.frequency.value=800;
+     const lp=ctx.createBiquadFilter(); lp.type="lowpass"; lp.frequency.value=10000;
      const g=ctx.createGain();
      g.gain.setValueAtTime(0.0001, t0);
-     g.gain.linearRampToValueAtTime(gainV*0.55, t0+0.001);
+     g.gain.linearRampToValueAtTime(gainV*1.05, t0+0.001);
      g.gain.exponentialRampToValueAtTime(0.0001, t0+crackDur);
-     src.connect(hp).connect(lp).connect(g).connect(toPannedBus(0.25));
+     src.connect(hp).connect(lp).connect(g).connect(bus);
      src.start(t0); src.stop(t0+crackDur+0.01);
+    }
+    // Layer 4: rumble tail — long low noise 60–400 Hz extending well past
+    // main body, so the boom "rings" instead of stopping dead. This was
+    // missing in Rev 62 and is a major part of what makes cinematic
+    // explosions feel big.
+    {
+     const tailDur = Math.min(dur*1.8, 0.90);
+     const len=Math.max(1, Math.floor(ctx.sampleRate*tailDur));
+     const buf=ctx.createBuffer(1,len,ctx.sampleRate);
+     const data=buf.getChannelData(0);
+     for(let i=0;i<len;i++){
+      const env = Math.pow(1 - i/len, 1.4);
+      data[i]=(Math.random()*2-1)*env;
+     }
+     const src=ctx.createBufferSource(); src.buffer=buf;
+     const hp=ctx.createBiquadFilter(); hp.type="highpass"; hp.frequency.value=60;
+     const lp=ctx.createBiquadFilter(); lp.type="lowpass"; lp.frequency.value=400;
+     const g=ctx.createGain();
+     g.gain.setValueAtTime(0.0001, t0+0.03);
+     g.gain.linearRampToValueAtTime(gainV*0.70, t0+0.05);
+     g.gain.exponentialRampToValueAtTime(0.0001, t0+0.03+tailDur);
+     src.connect(hp).connect(lp).connect(g).connect(bus);
+     src.start(t0+0.03); src.stop(t0+0.03+tailDur+0.02);
     }
    };
 
@@ -1308,143 +1363,146 @@ function playSurvivalCorrectSound(iconNum){
    //            secondary debris rumble, whoosh shortened so the blast dominates.
    //   rocket, ship, space — unchanged from Rev 27.
    if(fam==="tank"){
-    // Muzzle crack: slightly slower, lower-pitched than a pistol crack,
-    // suggests powder/barrel rather than small-arms. Panned hard left so the
-    // shooter feels "behind" the listener.
-    noise(now,         0.025, 0.45, 3200, 10000, "decay",  -0.5);  // initial spark
-    noise(now+0.004,   0.08,  0.85, 1800, 6500,  "decay",  -0.4);  // powder crack body
-    noise(now+0.02,    0.18,  0.55, 700,  3200,  "decay",  -0.2);  // mid ring
+    // Cannon. Rev 63: louder crack layers (with the new wider-spectrum boom
+    // they now sit in the right proportion rather than being drowned out).
+    // Panned hard left so the shooter feels "behind" the listener.
+    noise(now,         0.030, 0.85, 3200, 10000, "decay",  -0.5);  // initial spark
+    noise(now+0.004,   0.09,  1.25, 1500, 6500,  "decay",  -0.4);  // powder crack body (raised gain, widened LP)
+    noise(now+0.02,    0.22,  0.80, 500,  3500,  "decay",  -0.2);  // mid ring (raised gain, widened LP)
     // Main boom offset from crack gives the "distant cannon" sense.
-    boom(now+0.05, 0.52, 1.05);
+    boom(now+0.05, 0.60, 1.25);
     // Long low tail — barrel ring / echo off the battlefield.
     {
-     const tailT = now + 0.08;
-     const tailDur = 0.55;
+     const tailT = now + 0.10;
+     const tailDur = 0.80;
      const o=ctx.createOscillator(), g=ctx.createGain();
      o.type="sine";
      o.frequency.setValueAtTime(58, tailT);
-     o.frequency.exponentialRampToValueAtTime(34, tailT+tailDur);
+     o.frequency.exponentialRampToValueAtTime(30, tailT+tailDur);
      g.gain.setValueAtTime(0.0001, tailT);
-     g.gain.linearRampToValueAtTime(0.32, tailT+0.010);
+     g.gain.linearRampToValueAtTime(0.55, tailT+0.015);
      g.gain.exponentialRampToValueAtTime(0.0001, tailT+tailDur);
      o.connect(g).connect(bus);
      o.start(tailT); o.stop(tailT+tailDur+0.02);
     }
    } else if(fam==="jets"){
-    // Aircraft exploding: approach whoosh, metallic airframe shred,
-    // fuel fireball thump, sustained low rumble from tumbling debris.
-    noise(now,         0.16, 0.38, 1600, 9000, "whoosh", -0.6);  // approach whoosh
-    // Metallic shred: two detuned sawtooth tones through a resonant bandpass
-    // shape the "tearing airframe" quality without needing a dedicated BPF.
-    tone("sawtooth", 1800, 620, now+0.04, 0.12, 0.20, -0.35);
-    tone("sawtooth", 1350, 480, now+0.06, 0.14, 0.18, 0.25);
-    // High metallic crackle — torn metal ringing (short bandpass-ish noise).
+    // Aircraft exploding. Rev 63: louder metallic shred and crackle,
+    // bigger fuel-fireball boom.
+    noise(now,         0.14, 0.52, 1600, 9000, "whoosh", -0.6);  // approach whoosh
+    // Metallic shred: two detuned sawtooth tones — louder and lower so
+    // they read as "tearing airframe" rather than distant whine.
+    tone("sawtooth", 1600, 560, now+0.04, 0.14, 0.36, -0.35);
+    tone("sawtooth", 1200, 400, now+0.06, 0.16, 0.34, 0.25);
+    // High metallic crackle — torn metal ringing (short wideband noise).
+    // Widened LP from 8.5k → 10k, widened HP from 3.2k → 2.2k so it sits
+    // in the audible band of phone/laptop speakers. Gain raised 0.42 → 0.75.
     {
-     const mDur = 0.09;
+     const mDur = 0.12;
      const len=Math.max(1, Math.floor(ctx.sampleRate*mDur));
      const buf=ctx.createBuffer(1,len,ctx.sampleRate);
      const data=buf.getChannelData(0);
      for(let i=0;i<len;i++){
-      const env = Math.pow(1 - i/len, 1.2);
+      const env = Math.pow(1 - i/len, 1.1);
       data[i]=(Math.random()*2-1)*env;
      }
      const src=ctx.createBufferSource(); src.buffer=buf;
-     const hp=ctx.createBiquadFilter(); hp.type="highpass"; hp.frequency.value=3200;
-     const lp=ctx.createBiquadFilter(); lp.type="lowpass"; lp.frequency.value=8500;
+     const hp=ctx.createBiquadFilter(); hp.type="highpass"; hp.frequency.value=2200;
+     const lp=ctx.createBiquadFilter(); lp.type="lowpass"; lp.frequency.value=10000;
      const g=ctx.createGain();
      g.gain.setValueAtTime(0.0001, now+0.05);
-     g.gain.linearRampToValueAtTime(0.42, now+0.053);
+     g.gain.linearRampToValueAtTime(0.75, now+0.053);
      g.gain.exponentialRampToValueAtTime(0.0001, now+0.05+mDur);
      src.connect(hp).connect(lp).connect(g).connect(toPannedBus(-0.15));
      src.start(now+0.05); src.stop(now+0.05+mDur+0.01);
     }
-    // Fuel fireball: main boom.
-    boom(now+0.14, 0.42, 1.00);
+    // Fuel fireball: main boom — raised from 1.00 to 1.25.
+    boom(now+0.14, 0.50, 1.25);
     // Tumbling debris rumble (low mid noise, decaying slowly, opposite pan).
+    // Raised gain 0.36 → 0.55, LP opened 700 → 900, longer duration.
     {
-     const rDur = 0.50;
+     const rDur = 0.65;
      const len=Math.max(1, Math.floor(ctx.sampleRate*rDur));
      const buf=ctx.createBuffer(1,len,ctx.sampleRate);
      const data=buf.getChannelData(0);
      for(let i=0;i<len;i++){
       const t=i/len;
-      const env = Math.pow(1-t, 1.8);
+      const env = Math.pow(1-t, 1.6);
       data[i]=(Math.random()*2-1)*env;
      }
      const src=ctx.createBufferSource(); src.buffer=buf;
-     const hp=ctx.createBiquadFilter(); hp.type="highpass"; hp.frequency.value=90;
-     const lp=ctx.createBiquadFilter(); lp.type="lowpass"; lp.frequency.value=700;
+     const hp=ctx.createBiquadFilter(); hp.type="highpass"; hp.frequency.value=80;
+     const lp=ctx.createBiquadFilter(); lp.type="lowpass"; lp.frequency.value=900;
      const g=ctx.createGain();
      g.gain.setValueAtTime(0.0001, now+0.18);
-     g.gain.linearRampToValueAtTime(0.36, now+0.19);
+     g.gain.linearRampToValueAtTime(0.55, now+0.19);
      g.gain.exponentialRampToValueAtTime(0.0001, now+0.18+rDur);
      src.connect(hp).connect(lp).connect(g).connect(toPannedBus(0.35));
      src.start(now+0.18); src.stop(now+0.18+rDur+0.02);
     }
    } else if(fam==="ship"){
-    boom(now, 0.46, 1.05);
-    tone("triangle", 75, 38, now+0.015, 0.40, 0.36, 0);
-    noise(now+0.09, 0.26, 0.25, 400, 2200, "decay", -0.3);
-    noise(now+0.12, 0.22, 0.22, 400, 2200, "decay", 0.3);
+    boom(now, 0.50, 1.30);
+    tone("triangle", 75, 38, now+0.015, 0.45, 0.50, 0);
+    noise(now+0.09, 0.32, 0.42, 300, 2800, "decay", -0.3);
+    noise(now+0.12, 0.28, 0.38, 300, 2800, "decay", 0.3);
    } else if(fam==="rocket"){
-    noise(now, 0.26, 0.40, 800, 6500, "whoosh", 0.6);
-    tone("sawtooth", 780, 160, now, 0.22, 0.22, 0.3);
-    boom(now+0.24, 0.36, 0.92);
+    noise(now, 0.24, 0.48, 800, 6500, "whoosh", 0.6);
+    tone("sawtooth", 780, 160, now, 0.22, 0.30, 0.3);
+    boom(now+0.24, 0.44, 1.10);
    } else if(fam==="missile"){
-    // ICBM/missile battery IMPACT — this is the detonation at the target.
-    // No launch whoosh: emphasize a pure heavy boom with extended low tail
-    // so it reads as a high-yield ground explosion.
-    // Pre-compression: slightly longer sub ramp than boom()'s built-in one.
+    // ICBM/missile battery IMPACT — detonation at the target.
+    // No launch whoosh: emphasize a pure heavy boom with extended low tail.
+    // Rev 63: pre-compression louder, main boom heavier, secondary thump
+    // louder, debris tails raised.
     {
      const preDur = 0.10;
-     const preT = now; // pre-compression starts immediately
+     const preT = now;
      const o=ctx.createOscillator(), g=ctx.createGain();
      o.type="sine";
-     o.frequency.setValueAtTime(45, preT);
+     o.frequency.setValueAtTime(40, preT);
      o.frequency.linearRampToValueAtTime(95, preT+preDur);
      g.gain.setValueAtTime(0.0001, preT);
-     g.gain.linearRampToValueAtTime(0.40, preT+preDur);
+     g.gain.linearRampToValueAtTime(0.60, preT+preDur);
      g.gain.exponentialRampToValueAtTime(0.0001, preT+preDur+0.02);
      o.connect(g).connect(bus);
      o.start(preT); o.stop(preT+preDur+0.04);
     }
-    // Main detonation — heavier than standard boom.
-    boom(now+0.10, 0.52, 1.10);
+    // Main detonation — heaviest boom in the set.
+    boom(now+0.10, 0.62, 1.40);
     // Secondary sub-octave thump just after the main hit.
-    tone("sine", 55, 28, now+0.14, 0.48, 0.48, 0);
-    // Debris/rumble noise tail, wide (dual-side).
-    noise(now+0.20, 0.44, 0.30, 150, 1100, "decay", -0.4);
-    noise(now+0.24, 0.42, 0.28, 150, 1100, "decay", 0.4);
+    tone("sine", 55, 26, now+0.14, 0.58, 0.72, 0);
+    // Debris/rumble noise tail, wide (dual-side) — louder, LP opened.
+    noise(now+0.20, 0.52, 0.48, 120, 1600, "decay", -0.4);
+    noise(now+0.24, 0.50, 0.44, 120, 1600, "decay", 0.4);
     // Long low rumble — the pressure wave rolling away.
     {
-     const tailT = now + 0.28;
-     const tailDur = 0.70;
+     const tailT = now + 0.30;
+     const tailDur = 1.00;
      const o=ctx.createOscillator(), g=ctx.createGain();
      o.type="sine";
      o.frequency.setValueAtTime(62, tailT);
-     o.frequency.exponentialRampToValueAtTime(30, tailT+tailDur);
+     o.frequency.exponentialRampToValueAtTime(24, tailT+tailDur);
      g.gain.setValueAtTime(0.0001, tailT);
-     g.gain.linearRampToValueAtTime(0.30, tailT+0.015);
+     g.gain.linearRampToValueAtTime(0.52, tailT+0.020);
      g.gain.exponentialRampToValueAtTime(0.0001, tailT+tailDur);
      o.connect(g).connect(bus);
      o.start(tailT); o.stop(tailT+tailDur+0.02);
     }
    } else if(fam==="space"){
-    tone("square", 1400, 640, now, 0.07, 0.28, -0.5);
-    tone("square", 1850, 820, now+0.06, 0.07, 0.24, 0.5);
-    tone("square", 2200, 1000, now+0.12, 0.05, 0.20, -0.3);
-    boom(now+0.17, 0.30, 0.86);
+    tone("square", 1400, 640, now, 0.07, 0.35, -0.5);
+    tone("square", 1850, 820, now+0.06, 0.07, 0.32, 0.5);
+    tone("square", 2200, 1000, now+0.12, 0.05, 0.28, -0.3);
+    boom(now+0.17, 0.38, 1.05);
    } else {
-    // helo (RPG hit): explosion-forward — short approach whoosh, big boom,
-    // brighter mid-band crack from blast, and a secondary debris rumble.
-    noise(now, 0.08, 0.32, 900, 5500, "whoosh", 0.5);            // short RPG whoosh
-    boom(now+0.06, 0.44, 1.02);                                  // main blast
+    // helo (RPG hit): explosion-forward. Rev 63: louder blast, louder
+    // secondary crack.
+    noise(now, 0.07, 0.50, 900, 5500, "whoosh", 0.5);            // short RPG whoosh
+    boom(now+0.06, 0.52, 1.30);                                  // main blast
     // Bright mid-band secondary crack (rotor/fuselage fragment).
-    noise(now+0.10, 0.06, 0.48, 1800, 5500, "decay", 0.2);
+    noise(now+0.10, 0.08, 0.80, 1500, 6000, "decay", 0.2);
     // Low secondary thump.
-    tone("sine", 70, 36, now+0.12, 0.38, 0.34, 0);
+    tone("sine", 70, 32, now+0.12, 0.44, 0.52, 0);
     // Debris rumble tail, opposite pan for width.
-    noise(now+0.18, 0.36, 0.26, 180, 1200, "decay", -0.4);
+    noise(now+0.18, 0.44, 0.42, 150, 1400, "decay", -0.4);
    }
   };
   if(ctx.state === "suspended"){
@@ -4915,12 +4973,26 @@ function profileSelectGender(g){
  });
 }
 
-function profileToggleEmail(checked){
- remindProfileSaveNeeded("general");
+function profileToggleEmail(checked, options={}){
+ const opts = options || {};
+ const normalized = !!checked;
+ const cb = $("profileEmailResults");
+ if(cb && cb.checked !== normalized) cb.checked = normalized;
+
  const thumb = $("profileEmailThumb");
  const track = $("profileEmailToggle");
- if(thumb) thumb.style.transform = checked ? "translateX(24px)" : "translateX(0)";
- if(track) track.style.background = checked ? "#0080ff" : "rgba(255,255,255,0.15)";
+ const row = $("profileEmailToggleRow");
+
+ if(thumb) thumb.style.transform = normalized ? "translateX(24px)" : "translateX(0)";
+ if(track){
+  track.style.background = normalized ? "#0080ff" : "rgba(255,255,255,0.15)";
+  track.setAttribute("aria-checked", normalized ? "true" : "false");
+ }
+ if(row){
+  row.classList.toggle("selected", normalized);
+  row.setAttribute("data-checked", normalized ? "true" : "false");
+ }
+ if(!opts.silent) remindProfileSaveNeeded("general");
 }
 
 function validateProfileAge(){
@@ -5045,7 +5117,8 @@ function openProfileOverlay(email){
   const bm = $("profileBirthMonth"); if(bm) bm.value = existing.birthMonth||"";
   const by = $("profileBirthYear"); if(by) by.value = existing.birthYear||"";
   const er = $("profileEmailResults"); if(er) er.checked = !!existing.emailResults;
-  profileToggleEmail(!!existing.emailResults);
+  profileToggleEmail(!!existing.emailResults, {silent:true});
+  bindProfileEmailToggleRow();
   if(existing.gender) profileSelectGender(existing.gender);
   validateProfileAge();
   profileSelectTimeFormat(_profileTimeFormat);
@@ -5054,7 +5127,8 @@ function openProfileOverlay(email){
   const bm = $("profileBirthMonth"); if(bm) bm.value="";
   const by = $("profileBirthYear"); if(by) by.value="";
   const er = $("profileEmailResults"); if(er) er.checked=false;
-  profileToggleEmail(false);
+  profileToggleEmail(false, {silent:true});
+  bindProfileEmailToggleRow();
   profileSelectGender("");
   const msg=$("profileAgeMsg"); if(msg) msg.textContent="";
   profileSelectTimeFormat(_profileTimeFormat);
@@ -5080,6 +5154,31 @@ function resetProfileChangeReminder(){
 // saveAndContinueProfile on the settings-only save path) but never defined —
 // in Rev 14 that was masked because upstream parse errors prevented this code
 // from executing; Rev 15 parses clean and exposed the missing definition.
+
+function bindProfileEmailToggleRow(){
+ const row = $("profileEmailToggleRow");
+ const cb = $("profileEmailResults");
+ if(!row || !cb || row.dataset.boundEmailToggle === "1") return;
+ row.dataset.boundEmailToggle = "1";
+
+ const syncFromCheckbox = (silent=false)=>{
+  profileToggleEmail(!!cb.checked, {silent});
+ };
+
+ row.addEventListener("click", (e)=>{
+  const tag = (e.target && e.target.tagName ? e.target.tagName.toUpperCase() : "");
+  if(tag === "INPUT" || tag === "LABEL") return;
+  cb.checked = !cb.checked;
+  syncFromCheckbox(false);
+ });
+
+ cb.addEventListener("change", ()=>{
+  syncFromCheckbox(false);
+ });
+
+ syncFromCheckbox(true);
+}
+
 function captureProfileInitialSnapshot(){
  try{
   _profileInitialSnapshot = {
