@@ -431,27 +431,102 @@ function isGuestHistorySubjectId(v){
  const s = String(v==null ? "" : v).trim().toLowerCase();
  return !s || s==="0" || s==="guest" || s==="guest / no email";
 }
+
+function normalizeLegacyResultRow(row){
+ if(!row || typeof row !== "object") return row;
+ const r = JSON.parse(JSON.stringify(row));
+
+ // Normalize historic block-gap field naming.
+ if(r.blockDifferenceMs == null && r.blockScoreDifferenceMs != null){
+  r.blockDifferenceMs = r.blockScoreDifferenceMs;
+ }
+ if(r.blockScoreDifferenceMs == null && r.blockDifferenceMs != null){
+  r.blockScoreDifferenceMs = r.blockDifferenceMs;
+ }
+ // Legacy Mode 2 backfill before disposition migration:
+ // computeDisposition() relies on CPA for Mode 2, so old rows need CPA rebuilt first.
+ if(r.testMode==="mode2"){
+  try{
+   // Rebuild missing CPI-from-MBS first for older Mode 2 rows.
+   if(r.mode2CpiFromMbs==null && r.cognitivePerformanceIndex==null){
+    const adaptiveMbs = r.mode2AdaptiveMbsMs!=null
+     ? Number(r.mode2AdaptiveMbsMs)
+     : (r.averageLast2BlockingScoresMs!=null ? Number(r.averageLast2BlockingScoresMs) : null);
+    if(Number.isFinite(adaptiveMbs)){
+     const gap = r.blockScoreDifferenceMs!=null ? Number(r.blockScoreDifferenceMs)
+      : (r.blockDifferenceMs!=null ? Number(r.blockDifferenceMs) : null);
+     const qualifyingGapMs = Number(settings.qualifyingBlockGapMs)||250;
+     if(gap==null || (Number.isFinite(gap) && gap <= qualifyingGapMs)){
+      const cpi = computeCPI(adaptiveMbs);
+      if(Number.isFinite(cpi)){
+       r.mode2CpiFromMbs = cpi;
+       r.cognitivePerformanceIndex = cpi;
+      }
+     }
+    }
+   }
+   // Rebuild retained sustained tails when older logs still have raw rtLog only.
+   if(r.mode2Triggered && r.sustainedCorrectRtP90Ms==null && Array.isArray(r.rtLog)){
+    Object.assign(r, computeMode2SustainedRtTails(r.rtLog));
+   }
+   // CPA must be rebuilt before disposition migration for legacy Mode 2 rows.
+   if(r.mode2Triggered && r.cpa==null){
+    Object.assign(r, computeMode2CPA(r));
+   }
+   if(r.mode2Triggered && (r.dispositionCode==null || r.dispositionLabel==null || r.dispositionSpfs==null)){
+    const nextDisp = computeDisposition(r);
+    if(nextDisp && typeof nextDisp==="object"){
+     if(nextDisp.dispositionCode!=null) r.dispositionCode = nextDisp.dispositionCode;
+     if(nextDisp.dispositionLabel!=null) r.dispositionLabel = nextDisp.dispositionLabel;
+     if(nextDisp.dispositionSpfs!=null) r.dispositionSpfs = nextDisp.dispositionSpfs;
+    }
+   }
+  }catch(e){}
+ }
+
+
+ // Legacy disposition cleanup:
+ // - old legacy color codes like GREEN/YELLOW/ORANGE/RED
+ // - missing disposition fields
+ const legacyCodes = new Set(["GREEN","YELLOW","ORANGE","RED"]);
+ const badLegacy = legacyCodes.has(String(r.dispositionCode||"").toUpperCase()) || legacyCodes.has(String(r.dispositionLabel||"").toUpperCase());
+ const missingDisp = r.dispositionCode == null || r.dispositionLabel == null || r.dispositionSpfs == null;
+ if(badLegacy || missingDisp){
+  try{
+   const next = computeDisposition(r);
+   if(next && typeof next === "object"){
+    if(next.dispositionCode != null) r.dispositionCode = next.dispositionCode;
+    if(next.dispositionLabel != null) r.dispositionLabel = next.dispositionLabel;
+    if(next.dispositionSpfs != null) r.dispositionSpfs = next.dispositionSpfs;
+   }
+  }catch(e){}
+ }
+
+ return r;
+}
+
 function sanitizePersistedHistory(list){
  if(!Array.isArray(list)) return [];
- return list;
+ const cleaned = [];
+ for(const row of list){
+  if(!row || typeof row !== "object") continue;
+  cleaned.push(normalizeLegacyResultRow(row));
+ }
+ return cleaned;
 }
+// Keep load/save aligned to the same `${STORAGE_PREFIX}_history` key.
 function loadPersistedHistory(){
  try{
-  const raw = localStorage.getItem(`${STORAGE_PREFIX}_history`) || "[]";
-  const parsed = JSON.parse(raw);
-  const list = sanitizePersistedHistory(parsed);
-  const versionKey = `${STORAGE_PREFIX}_app_version_seen`;
-  const priorVersion = String(localStorage.getItem(versionKey) || "").trim();
-  let out = list;
-  // On version change, preserve registered-user history but clear Guest sessions.
-  if(priorVersion && priorVersion !== APP_VERSION){
-   out = list.filter(row=>!isGuestHistorySubjectId(row && row.subjectId));
-   if(JSON.stringify(out)!==JSON.stringify(list)){
-    localStorage.setItem(`${STORAGE_PREFIX}_history`, JSON.stringify(out));
+  const raw = JSON.parse(localStorage.getItem(`${STORAGE_PREFIX}_history`)||"[]");
+  const cleaned = sanitizePersistedHistory(raw);
+  try{
+   const rawText = JSON.stringify(Array.isArray(raw) ? raw : []);
+   const cleanedText = JSON.stringify(cleaned);
+   if(rawText !== cleanedText){
+    localStorage.setItem(`${STORAGE_PREFIX}_history`, cleanedText);
    }
-  }
-  localStorage.setItem(versionKey, APP_VERSION);
-  return out;
+  }catch(e){}
+  return cleaned;
  }catch(e){
   return [];
  }
@@ -3145,7 +3220,7 @@ function exportCSV(){
   "avgFrameOvershootMs","maxFrameOvershootMs","avgRafIntervalMs","maxRafIntervalMs",
   "cpa","cpaBaseCpi","cpaCorrectWeighting","cpaWrongWeighting","cpaMissedWeighting","cpaSdWeighting","cpaDriftWeighting","cpaRecoveryWeighting","cpaLapseWeighting","cpaEfficiencyWeighting","cpaSustainedResponseSdMs","cpaSustainedCvPct","cpaEarlyMedianRtMs","cpaLateMedianRtMs","cpaSustainedDriftRatio","cpaRecoveryCalibRatio","cpaLapseRatePct","cpaTrialsPerBlock","dispositionCode","dispositionLabel","dispositionSpfs",
   "testDurationMs","endReason","location"];
- const rows=h.map((r,i)=>[
+ const rows=h.map((raw,i)=>{ const r=normalizeLegacyResultRow(raw); return [
   i+1,
   r.testMode||"",
   getResultSymbolSet(r),
@@ -3204,7 +3279,8 @@ function exportCSV(){
   r.testDurationMs!=null?Math.round(r.testDurationMs):"",
   r.endReason||"",
   (r.geo&&r.geo.address)||""
- ].map(csvCell).join(","));
+ ].map(csvCell).join(",");
+ });
  const csv=[cols.map(csvCell).join(","), ...rows].join("\n");
  const blob=new Blob([csv],{type:"text/csv"});
  const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=`${STORAGE_PREFIX}_history.csv`;
@@ -5120,7 +5196,7 @@ function buildResultsSummaryCompact(result){
  const adaptiveMbsRaw=result.mode2AdaptiveMbsMs!=null?result.mode2AdaptiveMbsMs:result.averageLast2BlockingScoresMs;
  const adaptiveBlockGap=result.blockScoreDifferenceMs!=null ? Number(result.blockScoreDifferenceMs) : null;
  const qualifyingGapMs=Number(settings.qualifyingBlockGapMs)||250;
- const adaptiveMbs=(adaptiveMbsRaw!=null && Number.isFinite(adaptiveBlockGap) && adaptiveBlockGap < qualifyingGapMs) ? adaptiveMbsRaw : null;
+ const adaptiveMbs=(adaptiveMbsRaw!=null && Number.isFinite(adaptiveBlockGap) && adaptiveBlockGap <= qualifyingGapMs) ? adaptiveMbsRaw : null;
  const timing=result.testMode==="mode2" ? (result.mode2TimingSummary||computeMode2TimingSummary(result)) : null;
  if(result.testMode==="mode2"){
   if(result.mode2Triggered && result.sustainedCorrectRtP90Ms==null && Array.isArray(result.rtLog)){

@@ -18,6 +18,13 @@
 - Admin Survival field ordering now matches Memory's pattern. Rev 25 had Survival Min duration (57), CpiBest (58), CpiWorst (59), Max duration (60) — splitting the Min/Max pair with CPI anchors between them. Memory pairs Min (50) / Max (51) adjacent. Fixed Survival to the same layout: 57=Min, 58=Max, 59=CpiBest, 60=CpiWorst, 61=Baseline, 62=MaxTestDuration.
 
 ## V699 — 2026-04-18
+- Rev34 bug fix: legacy Mode 2 rows now reconstruct CPI from MBS when stored CPI is missing, before rebuilding CPA and disposition.
+- Rev33 bug fix: legacy Mode 2 rows now rebuild CPA before disposition migration so old Mode 2 sessions can be normalized correctly.
+- Rev33 bug fix: CSV export now normalizes each row as it exports, preventing stale legacy disposition values from leaking into the CSV.
+- Rev32 bug fix: removed the undefined HISTORY_STORAGE_KEY reference and aligned load/save history migration to the same `${STORAGE_PREFIX}_history` storage key.
+- Rev31 strict bug-fix: implemented real legacy history migration by normalizing saved rows on load and writing the cleaned history back to storage.
+- Rev31 strict bug-fix: CSV/export and history-derived paths now normalize legacy disposition fields before use.
+- Rev31 strict bug-fix: compact Mode 2 qualifying-gap rule now uses <= so exact-threshold sessions match the other views.
 - Rev25 targeted fix: Pattern Refresher now rerenders from the current active Challenge Set every time it opens, fixing stale/wrong refresher content.
 - Rev25 targeted fix: Tutorial page 3 now uses the challenge-specific rule card helper for Memory and Survival instead of the hardcoded standard icons.
 - Rev25 targeted fix: compact Results summary path now also moves "End reason" immediately after "Session:".
