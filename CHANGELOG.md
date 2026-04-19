@@ -1,4 +1,5 @@
 ## V699 — 2026-04-19
+- Rev57 profile-menu fix: the Profile Test Type menu now reflects the current live reset state instead of reviving a stale saved selectedTestMode from profile storage.
 - Rev56 admin default-window fix: Admin field #2 now binds to a dedicated defaultTestMode setting instead of the live testMode state, so the visible selector window correctly represents the startup/reset default.
 - Rev54 admin default update: Admin field #2 now explicitly defaults new users / reset devices to Mode 2 CogSpeed Sustained.
 - Rev53 unified-menu cleanup: removed stale profileSymbolSet event wiring and removed the duplicate/stale _profileSymbolSet persistence path so the unified Test Type menu is the single source of truth.

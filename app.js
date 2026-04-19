@@ -4642,9 +4642,13 @@ function getProfileDraftTimeFormat(){
 }
 
 
-function getUnifiedProfileTestType(profile=null){
- const mode = String(profile ? (profile.selectedTestMode || settings.testMode || "mode2") : (settings.testMode || "mode2")).trim();
- const symbol = String(profile ? (profile.symbolSet || settings.symbolSet || "standard") : (settings.symbolSet || "standard")).trim().toLowerCase();
+function getUnifiedProfileTestType(){
+ // The Profile Test Type menu must reflect the current live state only.
+ // Do not resurrect a stale saved selectedTestMode from profile storage here,
+ // because after every completed test the active test type resets back to
+ // Mode 2 CogSpeed Sustained (standard symbol set).
+ const mode = String(settings.testMode || "mode2").trim();
+ const symbol = String(settings.symbolSet || "standard").trim().toLowerCase();
  if(mode === "mode1") return "mode1";
  if(mode === "mode3") return "mode3";
  if(mode === "mode4") return "mode4";
@@ -4766,10 +4770,6 @@ function validateProfileAge(){
 }
 
 
-function getProfileSelectedTestMode(profile){
- const raw = String(profile?.selectedTestMode || "").trim();
- return raw==="mode1" || raw==="mode2" || raw==="mode3" || raw==="mode4" ? raw : "";
-}
 
 function resetActiveModeAfterTest(){
  // Operational policy:
@@ -4784,13 +4784,10 @@ function resetActiveModeAfterTest(){
 function applyProfileSettings(profile){
  if(!profile) return;
  const tf = String(profile.timeFormat||"").trim();
- const ssRaw = String(profile.symbolSet||"").trim().toLowerCase();
- const selectedMode = getProfileSelectedTestMode(profile);
  if(tf==="12" || tf==="24") settings.timeFormat = tf;
- settings.symbolSet = ssRaw==="memory" ? "memory" : (ssRaw==="survival" ? "survival" : "standard");
- // Profile is the only place allowed to change the active mode for an
- // existing user/device. If the profile carries a selected mode, use it now.
- if(selectedMode) settings.testMode = selectedMode;
+ // Do not restore selectedTestMode or symbolSet from saved profile storage.
+ // The active test type is controlled from the current live state and resets
+ // back to Mode 2 CogSpeed Sustained after every completed test.
  try{ saveSettings(); }catch(e){}
 }
 
@@ -4824,7 +4821,7 @@ function openProfileOverlay(email){
  _profileTimeFormat = String(existingTimeFormat) === "24" ? "24" : "12";
  _profileSymbolSet = String(settings.symbolSet||"standard").trim().toLowerCase();
  const profileTypeSel = $("profileTestType");
- if(profileTypeSel) profileTypeSel.value = getUnifiedProfileTestType(existing || state.profile || null);
+ if(profileTypeSel) profileTypeSel.value = getUnifiedProfileTestType();
 
  // Show email
  const ed = $("profileEmailDisplay");
@@ -4885,7 +4882,6 @@ function captureProfileInitialSnapshot(){
    birthMonth: String($("profileBirthMonth")?.value || ""),
    birthYear: String($("profileBirthYear")?.value || ""),
    emailResults: !!$("profileEmailResults")?.checked,
-   selectedTestMode: String(settings.testMode||DEFAULTS.testMode||"mode2"),
    symbolSet: String(settings.symbolSet||"standard").trim().toLowerCase(),
    gender: String(_profileGenderSelected || ""),
    timeFormat: String(_profileTimeFormat || "")
