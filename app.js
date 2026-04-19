@@ -4643,10 +4643,14 @@ function getProfileDraftTimeFormat(){
 
 
 function getUnifiedProfileTestType(){
- // The Profile Test Type menu must reflect the current live state only.
- // Do not resurrect a stale saved selectedTestMode from profile storage here,
- // because after every completed test the active test type resets back to
- // Mode 2 CogSpeed Sustained (standard symbol set).
+ // The Profile Test Type menu must show the current live selection only.
+ // All six options remain selectable in the dropdown:
+ // mode1, mode2, memory, survival, mode3, and mode4.
+ //
+ // After every completed test, the live state is reset to Mode 2 CogSpeed
+ // Sustained (standard symbol set). Therefore the next time Profile opens,
+ // the selected menu value must be Mode 2 unless the user has explicitly
+ // changed the live state again from Profile during the current session.
  const mode = String(settings.testMode || "mode2").trim();
  const symbol = String(settings.symbolSet || "standard").trim().toLowerCase();
  if(mode === "mode1") return "mode1";
@@ -4773,11 +4777,14 @@ function validateProfileAge(){
 
 function resetActiveModeAfterTest(){
  // Operational policy:
- // - after every completed test, the active mode returns to Mode 2
- // - the user must go back to Profile to choose another mode
- // - Admin field #2 is a startup/reset default only, not a sticky live selector
+ // - after every completed test, the active test type returns to
+ //   Mode 2 CogSpeed Sustained (standard symbol set)
+ // - the dropdown still contains all selectable options, including Mode 4
+ // - Profile is the place where the user chooses a different test type again
  settings.testMode = "mode2";
  settings.symbolSet = "standard";
+ const sel = $("profileTestType");
+ if(sel) sel.value = "mode2";
  try{ saveSettings(); }catch(e){}
 }
 
