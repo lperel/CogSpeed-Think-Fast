@@ -1,3 +1,10 @@
+
+function shouldPersistSessionForLocalHistory(result){
+ const sid = String(result?.subjectId||"").trim().toLowerCase();
+ if(isGuestHistorySubjectId(sid)) return false;
+ return true;
+}
+
 // ═══════════════════════════════════════════════════
 // CogSpeed source
 // ═══════════════════════════════════════════════════
@@ -535,6 +542,40 @@ function savePersistedHistory(list){
  const cleaned = sanitizePersistedHistory(list);
  localStorage.setItem(`${STORAGE_PREFIX}_history`, JSON.stringify(cleaned));
  return cleaned;
+}
+
+function clearPersistedHistory(){
+ localStorage.removeItem(`${STORAGE_PREFIX}_history`);
+ state.history = [];
+}
+
+function clearSchedulerLocalData(){
+ try{
+  Object.keys(localStorage).forEach(k=>{
+   if(k.startsWith("cogspeed_scheduler_")) localStorage.removeItem(k);
+  });
+ }catch(e){}
+ stopSchedulerTimers();
+ schedulerState.activeSubjectId = "";
+ schedulerState.settings = structuredClone(DEFAULT_SCHEDULER_SETTINGS);
+}
+
+function clearAllLocalUserData(){
+ clearPersistedHistory();
+ clearProfile();
+ clearSchedulerLocalData();
+ clearTransientCurrentSessionState();
+ state.profile = null;
+ state.subjectId = null;
+}
+
+function clearGuestOnlyHistoryIfPresent(){
+ const owner = getSingleUserDeviceOwnerState();
+ if(owner.status === "guest"){
+  clearPersistedHistory();
+  return true;
+ }
+ return false;
 }
 function clearTransientCurrentSessionState(){
  state.activeResult = null;
@@ -4310,6 +4351,131 @@ function clearProfile(){
  localStorage.removeItem(PROFILE_KEY);
 }
 
+/*
+ Single-user device policy
+ -------------------------
+ Local CogSpeed data on one device must belong to one local user history only.
+ This avoids mixing sessions from different people on the same device.
+
+ Policy:
+ - one signed-in email history OR guest-only history may exist locally
+ - Guest is allowed on a device that already contains a signed-in user's
+   local history, but Guest sessions are not stored
+ - if a signed-in user starts on a device that contains Guest-only history,
+   the app clears the Guest-only local sessions first and then continues
+ - if a different signed-in email is entered on a device that already
+   contains another signed-in user's local history, the app warns that
+   local data will be cleared and requires explicit agreement before continuing
+ - if mixed local history is already present from older builds, block entry
+   and warn the operator to clear local data before continuing
+ - research pooling across many users belongs in a separate database/export
+   workflow, not in the on-device local session history
+*/
+function getLocalHistorySubjectIds(){
+ const h = Array.isArray(state?.history) ? state.history : loadPersistedHistory();
+ const ids = new Set();
+ for(const row of (Array.isArray(h) ? h : [])){
+  const sid = String(row?.subjectId||"").trim().toLowerCase();
+  if(sid) ids.add(sid);
+ }
+ return [...ids];
+}
+
+function getSingleUserDeviceOwnerState(){
+ const p = loadProfile();
+ const profileEmail = isValidEmailAddress(p?.email) ? String(p.email).trim().toLowerCase() : "";
+ const historyIds = getLocalHistorySubjectIds();
+ const nonGuestIds = historyIds.filter(id => !isGuestHistorySubjectId(id));
+ const hasGuestHistory = historyIds.some(id => isGuestHistorySubjectId(id));
+ const signedInOwners = new Set(nonGuestIds);
+ if(profileEmail) signedInOwners.add(profileEmail);
+
+ if(signedInOwners.size > 1){
+  return {
+   status: "mixed",
+   signedInOwners: [...signedInOwners].sort(),
+   hasGuestHistory
+  };
+ }
+ if(signedInOwners.size === 1){
+  return {
+   status: "user",
+   userId: [...signedInOwners][0],
+   hasGuestHistory
+  };
+ }
+ if(hasGuestHistory){
+  return {status: "guest"};
+ }
+ return {status: "empty"};
+}
+
+function getSingleUserDevicePolicyMessage(candidateId){
+ const owner = getSingleUserDeviceOwnerState();
+ const candidate = String(candidateId||"").trim().toLowerCase();
+ if(owner.status === "empty") return "";
+ if(owner.status === "mixed"){
+  return "This device already contains mixed local histories. Clear local data before continuing on this device.";
+ }
+ if(owner.status === "guest"){
+  if(candidate === "guest" || candidate === "0") return "";
+  return "Guest-only local history will be cleared before this signed-in user continues on the device.";
+ }
+ if(owner.status === "user"){
+  if(candidate === owner.userId) return "";
+  if(candidate === "guest" || candidate === "0") return "";
+  return `This device already contains local history for ${owner.userId}. Continuing with a different user will clear local data on this device.`;
+ }
+ return "";
+}
+
+function enforceSingleUserDevicePolicy(candidateId){
+ const owner = getSingleUserDeviceOwnerState();
+ const candidate = String(candidateId||"").trim().toLowerCase();
+
+ if(owner.status === "mixed"){
+  const message = "This device already contains mixed local histories. Clear local data before continuing on this device.";
+  setStatus(message);
+  try{ alert(message); }catch(e){}
+  return false;
+ }
+
+ if(owner.status === "guest"){
+  if(candidate === "guest" || candidate === "0") return true;
+  const message = "This device contains Guest-only local history. That Guest history will be cleared before this signed-in user continues.";
+  let ok = true;
+  try{ ok = confirm(message); }catch(e){}
+  if(!ok){
+    setStatus("Sign-in canceled.");
+    return false;
+  }
+  clearPersistedHistory();
+  setStatus("Guest-only local history cleared.");
+  return true;
+ }
+
+ if(owner.status === "user"){
+  if(candidate === owner.userId) return true;
+  if(candidate === "guest" || candidate === "0"){
+   // Allow Guest on a signed-in user's device, but Guest sessions must not be stored.
+   return true;
+  }
+  const message = `This device already contains local history for ${owner.userId}. If you continue, local data on this device will be cleared before the new user starts. Continue?`;
+  let ok = true;
+  try{ ok = confirm(message); }catch(e){}
+  if(!ok){
+    setStatus("Sign-in canceled.");
+    return false;
+  }
+  clearAllLocalUserData();
+  setStatus("Previous local user data cleared for new sign-in.");
+  return true;
+ }
+
+ return true;
+}
+
+
 function restoreSubjectFromProfile(){
  const p = loadProfile();
  const inp = $("subjectIdInput");
@@ -4317,6 +4483,16 @@ function restoreSubjectFromProfile(){
  const we = $("welcomeEmail");
  const hint = $("subjectHint");
  if(p && p.email){
+  const message = getSingleUserDevicePolicyMessage(p.email);
+  if(message){
+   state.profile = null;
+   state.subjectId = null;
+   if(inp) inp.value = "";
+   if(wl) wl.style.display = "none";
+   if(we) we.textContent = "";
+   if(hint) hint.textContent = message;
+   return;
+  }
   state.profile = p;
   state.subjectId = p.email;
   if(inp) inp.value = p.email;
@@ -4447,6 +4623,7 @@ function openProfileFromContext(returnTo,email=""){
  const safeEmail = isValidEmailAddress(candidate) ? candidate : "";
  const input = $("subjectIdInput");
  if(input && safeEmail) input.value = safeEmail;
+ if(!enforceSingleUserDevicePolicy(safeEmail || candidate || "guest")) return;
  openProfileOverlay(safeEmail);
 }
 
@@ -5104,7 +5281,7 @@ RESULTS METRIC EXPLANATIONS
  CPA factor 7 — Lapse-Rate Factor = based on the percent of correct sustained responses that are slower than 2× the median correct sustained RT. More lapse-like sustained responses can reduce CPA.${usesMode2Metrics?"":" Not used in this mode."}
  CPA factor 8 — Block-Efficiency Factor = based on adaptive paced trials divided by block count. Better block efficiency can support CPA, while poorer efficiency can reduce it. 10–30 trials per block is the typical range.${usesMode2Metrics?"":" Not used in this mode."}
  CPA max total reduction cap = the total of all negative CPA adjustments is limited by the Admin max reduction factor × CPI. This prevents multiple mild penalties from driving CPA implausibly low in one session.${usesMode2Metrics?"":" Not used in this mode."}
- Disposition = operational recommendation aligned to the seven-point Samn-Perelli Fatigue Scale (SP-FS). For Mode 2 the CPA score drives the disposition; for Modes 1, 3, and 4 the CPI score is used (same 0–100 scale, same band edges). Bands use the midpoints between the canonical CPI anchors and map to the same captions as the Cognitive Performance table: ≥ 90 = SP-FS 7, Functioning exceptionally well. 77.5 to <90 = SP-FS 6, Functioning very well. 62.5 to <77.5 = SP-FS 5, Functioning normally. 37.5 to <62.5 = SP-FS 4, Functioning slightly less than normal. 18 to <37.5 = SP-FS 3, Functioning starting to slow. 5.5 to <18 = SP-FS 2, Difficult to function / becoming unsafe. <5.5 = SP-FS 1, Unable to function / definitely unsafe. CogSpeed disposition is a structured recommendation requiring human review — not a standalone fitness determination.`;
+ Disposition = operational recommendation aligned to the seven-point Samn-Perelli Fatigue Scale (SP-FS). For Mode 2 the CPA score drives the disposition; for Modes 1, 3, and 4 the CPI score is used (same 0–100 scale, same band edges). Bands use the midpoints between the canonical CPI anchors and map to the same captions as the Cognitive Performance table: ≥ 90 = SP-FS 7, Functioning exceptionally well. 77.5 to <90 = SP-FS 6, Functioning very well. 62.5 to <77.5 = SP-FS 5, Functioning normally. 37.5 to <62.5 = SP-FS 4, Functioning slightly less than normal. 18 to <37.5 = SP-FS 3, Functioning starting to slow. 5.5 to <18 = SP-FS 2, Difficult to function / becoming unsafe. <5.5 = SP-FS 1, Unable to function / definitely unsafe. The Speedometer dial groups these seven tiers into four operational colors: GREEN — Clear for duty (SP-FS 5, 6, 7). YELLOW — Monitor / human review recommended (SP-FS 4). ORANGE — Human review required (SP-FS 3). RED — Remove from Hazardous Duty (SP-FS 1, 2). The Speedometer Disposition window shows both halves together, e.g. "GREEN — Clear for duty (SP-FS 6)". CogSpeed disposition is a structured recommendation requiring human review — not a standalone fitness determination.`;
 }
 
 // ─── Mode 2 timing breakdown ─────────────────────────────────
@@ -5575,15 +5752,23 @@ function drawSpeedometer(canvas, scoreValue, success, scoreLabel="CPI", tipLabel
  ctx.beginPath(); ctx.arc(cx,cy,R*1.02,0,Math.PI*2);
  ctx.strokeStyle = "rgba(255,255,255,0.38)"; ctx.lineWidth = R*0.012; ctx.stroke();
 
- // disposition-based outer arc: 2 red bands, orange, yellow, 3 green bands
+ // Disposition-based outer arc using canonical SP-FS 7-tier midpoint edges.
+ // Band edges (5.5, 18, 37.5, 62.5, 77.5, 90) are the midpoints between the
+ // canonical CPI anchors (100, 80, 75, 50, 25, 11, 0) — the same edges used
+ // by computeDisposition() and the Cognitive Performance table captions.
+ // Colors grouped per the speedometer disposition window:
+ //   RED     = SP-FS 1 (<5.5), SP-FS 2 (5.5–<18)   → "Remove from Hazardous Duty"
+ //   ORANGE  = SP-FS 3 (18–<37.5)                  → "Human review required"
+ //   YELLOW  = SP-FS 4 (37.5–<62.5)                → "Monitor / human review recommended"
+ //   GREEN   = SP-FS 5 (62.5–<77.5), 6 (77.5–<90), 7 (≥90) → "Clear for duty"
  const arcBands = [
-  {s:0, e:15, c:"#650000"},
-  {s:15, e:30, c:"#cf2020"},
-  {s:30, e:45, c:"#f28c18"},
-  {s:45, e:65, c:"#e4cf2f"},
-  {s:65, e:76.6667, c:"#9ddc6b"},
-  {s:76.6667, e:88.3333, c:"#43a94e"},
-  {s:88.3333, e:100, c:"#0a5d1c"}
+  {s:0,    e:5.5,  c:"#650000"},
+  {s:5.5,  e:18,   c:"#cf2020"},
+  {s:18,   e:37.5, c:"#f28c18"},
+  {s:37.5, e:62.5, c:"#e4cf2f"},
+  {s:62.5, e:77.5, c:"#9ddc6b"},
+  {s:77.5, e:90,   c:"#43a94e"},
+  {s:90,   e:100,  c:"#0a5d1c"}
  ];
  for(const b of arcBands){
   const a1 = toAngle(b.s), a2 = toAngle(b.e);
@@ -7616,15 +7801,17 @@ function tutSkip(){
 $("subjectNextBtn").onclick=()=>{
  const v=($("subjectIdInput")?.value||"").trim().toLowerCase();
  if(!v){ setStatus("Enter your email address"); return; }
- if(v==="0"||v==="guest"){
+ const isGuestCandidate = (v==="0"||v==="guest");
+ if(!isGuestCandidate && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)){
+  setStatus("Please enter a valid email address"); return;
+ }
+ if(!enforceSingleUserDevicePolicy(v)) return;
+ if(isGuestCandidate){
   state.subjectId="Guest"; state.profile=null;
   stopSchedulerTimers();
   schedulerState.activeSubjectId = "";
   schedulerState.settings = structuredClone(DEFAULT_SCHEDULER_SETTINGS);
   showRefresher(); setStatus("Continuing as Guest"); return;
- }
- if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)){
-  setStatus("Please enter a valid email address"); return;
  }
  $("subjectIdInput").value=v;
  // If profile already saved for this email → skip profile page
@@ -8072,14 +8259,42 @@ function renderSpeedometerSleepMetrics(result){
   </div>`;
 }
 
-function getGroupedDispositionWindowTextFromScore(score){
- const value = Number(score);
- if(!Number.isFinite(value)) return "—";
- if(value >= 62.5) return "GREEN — Clear for duty";
- if(value >= 37.5) return "YELLOW — Monitor / human review recommended";
- if(value >= 18) return "ORANGE — Human review required";
+// Rev 39: returns the combined grouped disposition text with the SP-FS tier in
+// parentheses — e.g. "GREEN — Clear for duty (SP-FS 6)". The grouping half
+// matches the speedometer dial's 4-color arc regions; the SP-FS tier matches
+// the same 7-tier edges used by computeDisposition() and the main summary's
+// "SP-FS N — caption" line. Using both halves here keeps the speedometer's
+// Disposition box consistent with both the color arc and the saved summary/CSV.
+function getMode2DispositionWindowText(result){
+ // MODE 2 ONLY:
+ // Disposition is an operational recommendation derived from CPA, not CPI.
+ // The Speedometer disposition window intentionally does NOT display SP-FS text
+ // because visible SP-FS and visible CPA/Disposition can otherwise disagree and
+ // confuse the operator.
+ //
+ // Safety override rule:
+ // - If pre-test SP-FS is 1 or 2, force RED regardless of CPA
+ // - If pre-test SP-FS is 3, force ORANGE regardless of CPA
+ // - Otherwise use CPA bands only
+ //   GREEN  = CPA >= 62.5
+ //   YELLOW = CPA >= 37.5 and < 62.5
+ //   ORANGE = CPA >= 18 and < 37.5
+ //   RED    = CPA < 18
+ //
+ // Modes 1, 3, and 4 must not use this Disposition window.
+ if(!result) return "—";
+ const spfs = Number(result?.samnPerelli?.score);
+ if(spfs === 1 || spfs === 2) return "RED — Remove from Hazardous Duty";
+ if(spfs === 3) return "ORANGE — Human review required";
+
+ const cpa = Number(result?.cpa);
+ if(!Number.isFinite(cpa)) return "—";
+ if(cpa >= 62.5) return "GREEN — Clear for duty";
+ if(cpa >= 37.5) return "YELLOW — Monitor / human review recommended";
+ if(cpa >= 18) return "ORANGE — Human review required";
  return "RED — Remove from Hazardous Duty";
 }
+
 
 function getMode2SpeedometerMetric(result, success){
  const pref = String(state.speedometerMode2Metric||"cpi").toLowerCase()==="cpi" ? "cpi" : "cpa";
@@ -8091,8 +8306,12 @@ function getMode2SpeedometerMetric(result, success){
  // continuing to show the last-computed value. Force the displayed text values
  // to the zero-equivalent when success===false.
  const failed = success === false;
+ // Mode 2 Speedometer metric panel:
+ // - CPA view shows CPA + Disposition
+ // - CPI view shows CPI + MBS
+ // - Disposition is never shown for Modes 1, 3, or 4
  const dispositionScore = Number.isFinite(cpa) ? cpa : cpi;
- const dispositionText = failed ? "—" : getGroupedDispositionWindowTextFromScore(dispositionScore);
+  const dispositionText = failed ? "—" : getMode2DispositionWindowText(result);
  const mbsText = failed ? "—" : (Number.isFinite(mbs)?`${Number(mbs).toFixed(1)} ms`:"—");
  const cpiText = failed ? "0.0 / 100" : (Number.isFinite(cpi)?`${Number(cpi).toFixed(1)} / 100`:"—");
  const cpaText = failed ? "0.0 / 100" : (Number.isFinite(cpa)?`${Number(cpa).toFixed(1)} / 100`:"—");
@@ -8103,10 +8322,12 @@ function getMode2SpeedometerMetric(result, success){
   mbsText,
   boxes: pref!=="cpi"
    ? [
+      // Mode 2 only: show Disposition beside CPA.
       {label:"CPA", value:cpaText},
       {label:"Disposition", value:dispositionText}
      ]
    : [
+      // CPI view shows performance metrics only; no Disposition window.
       {label:"CPI", value:cpiText},
       {label:"MBS", value:mbsText}
      ]
