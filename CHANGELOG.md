@@ -1,4 +1,5 @@
 ## V699 — 2026-04-19
+- Rev54 admin default update: Admin field #2 now explicitly defaults new users / reset devices to Mode 2 CogSpeed Sustained.
 - Rev53 unified-menu cleanup: removed stale profileSymbolSet event wiring and removed the duplicate/stale _profileSymbolSet persistence path so the unified Test Type menu is the single source of truth.
 - Rev52 profile-menu simplification: replaced separate Challenge Set and Test Mode controls with one unified Test Type menu. Memory and Survival are now presented explicitly as Mode 2 challenge variants.
 - Rev51 profile-menu update: the Profile test-mode menu now includes all four modes — Mode 1 CogSpeed Adapted, Mode 2 CogSpeed Sustained, Mode 3 Self-paced, and Mode 4 Machine-paced.

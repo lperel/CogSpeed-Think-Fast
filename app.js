@@ -144,7 +144,7 @@ const DEFAULTS={
 const ADMIN_FIELDS=[
  // 1-2. Device / test selection
  ["adminPasscode","1. Admin passcode","text"],
- ["testMode","2. Default test mode for new users / reset devices","select:mode1|mode2|mode3|mode4"],
+ ["testMode","2. Default test mode for new users / reset devices (default Mode 2 CogSpeed Sustained)","select:mode1|mode2|mode3|mode4"],
 
  // 3-15. Shared startup / calibration / anti-spoof settings, in program-use order
  ["initialUnusedCalibrationTrials","3. Warm-up calibration trials (default 1)","number"],
