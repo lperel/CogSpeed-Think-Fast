@@ -1,4 +1,5 @@
 ## V699 — 2026-04-19
+- Rev59 profile-open fix: stale lingering live test-type state is now normalized to Mode 2 CogSpeed Sustained when Profile opens, so older Mode 4 selections no longer appear by surprise.
 - Rev58 Test Type menu correction: all six options remain selectable, but after every completed test the selected menu state now returns to Mode 2 CogSpeed Sustained.
 - Rev57 profile-menu fix: the Profile Test Type menu now reflects the current live reset state instead of reviving a stale saved selectedTestMode from profile storage.
 - Rev56 admin default-window fix: Admin field #2 now binds to a dedicated defaultTestMode setting instead of the live testMode state, so the visible selector window correctly represents the startup/reset default.

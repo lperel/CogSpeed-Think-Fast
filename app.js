@@ -4642,6 +4642,18 @@ function getProfileDraftTimeFormat(){
 }
 
 
+function normalizeLiveTestTypeForProfileOpen(){
+ // New rule:
+ // - after each completed test, live state returns to Mode 2 Sustained
+ // - Profile should not resurrect older lingering live values from previous
+ //   builds/sessions when simply opened for review
+ // Therefore on profile-open we normalize the visible live test type back to
+ // Mode 2 Sustained unless the user changes it during the current interaction.
+ settings.testMode = "mode2";
+ settings.symbolSet = "standard";
+ try{ saveSettings(); }catch(e){}
+}
+
 function getUnifiedProfileTestType(){
  // The Profile Test Type menu must show the current live selection only.
  // All six options remain selectable in the dropdown:
@@ -4819,6 +4831,10 @@ function openProfileFromContext(returnTo,email=""){
 // mode back to Mode 2; users must return to Profile to choose another mode.
 function openProfileOverlay(email){
  const safeEmail = isValidEmailAddress(email) ? String(email).trim().toLowerCase() : "";
+ // Normalize any stale lingering live test-type state before Profile is shown.
+ // The Test Type menu should open at Mode 2 Sustained unless the user changes
+ // it again from this current Profile interaction.
+ normalizeLiveTestTypeForProfileOpen();
  const stored = loadProfile();
  const existing = (safeEmail && stored && String(stored.email||"").trim().toLowerCase()===safeEmail) ? stored : null;
  const existingTimeFormat = existing?.timeFormat || getEffectiveTimeFormat();
