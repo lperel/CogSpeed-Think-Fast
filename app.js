@@ -67,7 +67,7 @@ const DEFAULTS={
  mode4CalibrationTrials:10,
  mode4PacedTrialLimit:140,
  mode4MaxDurationMs:120000,
- mode4BaselineFactor:1.3,
+ mode4BaselineFactor:1.1,
  mode2SustainedStartFactor:1.1,
  mode2SustainedTrialCount:20,
  mode2SustainedWrongFailPercent:50,
@@ -198,7 +198,7 @@ const ADMIN_FIELDS=[
 
  // 45-48. Mode 4 Machine-paced, in program-use order
  ["mode4CalibrationTrials","45. Mode 4 self-paced calibration trials (default 10)","number"],
- ["mode4BaselineFactor","46. Mode 4 MP baseline factor from cal avg (default 1.3)","number"],
+ ["mode4BaselineFactor","46. Mode 4 MP baseline factor from cal avg (default 1.1)","number"],
  ["mode4PacedTrialLimit","47. Mode 4 fixed machine-paced trial limit (default 140)","number"],
  ["mode4MaxDurationMs","48. Mode 4 total duration ms (default 120000)","number"],
 
@@ -591,14 +591,6 @@ function clearAllLocalUserData(){
  state.subjectId = null;
 }
 
-function clearGuestOnlyHistoryIfPresent(){
- const owner = getSingleUserDeviceOwnerState();
- if(owner.status === "guest"){
-  clearPersistedHistory();
-  return true;
- }
- return false;
-}
 function clearTransientCurrentSessionState(){
  state.activeResult = null;
  state.activeSessionIndex = null;
@@ -1788,7 +1780,7 @@ function finishCalibration(){
   finish(); return;
  }
  if(isMode4()){
-  const factor=Number(settings.mode4BaselineFactor)||1.3;
+  const factor=Number(settings.mode4BaselineFactor)||DEFAULTS.mode4BaselineFactor;
   state.fixedPacedBaseline=clamp(avg*factor,getCurrentMinDurationMs(),getCurrentMaxDurationMs());
   state.duration=state.fixedPacedBaseline;
   state.phase="paced_fixed";
@@ -4416,11 +4408,6 @@ function getLocalHistorySubjectIds(){
  return [...ids];
 }
 
-function hasInMemoryGuestOnlyRows(){
- const h = Array.isArray(state?.history) ? state.history : [];
- return h.some(row => isGuestHistorySubjectId(String(row?.subjectId||"").trim().toLowerCase()));
-}
-
 function getSingleUserDeviceOwnerState(){
  const p = loadProfile();
  const profileEmail = isValidEmailAddress(p?.email) ? String(p.email).trim().toLowerCase() : "";
@@ -4527,8 +4514,37 @@ function restoreSubjectFromProfile(){
  const we = $("welcomeEmail");
  const hint = $("subjectHint");
  if(p && p.email){
-  const message = getSingleUserDevicePolicyMessage(p.email);
-  if(message){
+  // Rev 47: auto-restore must follow the same device-policy resolution that
+  // manual sign-in uses. Prior revs only read the passive policy MESSAGE and
+  // bailed out whenever it was non-empty — which correctly blocked for the
+  // "mixed" case, but also blocked the two cases the policy says should
+  // CLEAR-AND-CONTINUE (Guest-only history + signed-in saved profile, and
+  // legacy different-user history + signed-in saved profile). Manual sign-in
+  // via $("subjectNextBtn") already calls enforceSingleUserDevicePolicy(),
+  // which handles those cases by clearing and proceeding. Auto-restore now
+  // delegates to the same path for those statuses so the two entry points
+  // behave consistently.
+  //
+  // Routing (surgical / Option C):
+  //   - empty                              → silent restore (no conflict)
+  //   - user + candidate === owner.userId  → silent restore (common happy path)
+  //   - guest                              → call enforcer to clear + continue
+  //   - user + candidate !== owner.userId  → call enforcer to clear + continue
+  //   - mixed                              → block with hint (unchanged UX);
+  //                                          mixed requires operator action to
+  //                                          resolve and should not pop an
+  //                                          alert on every back-button
+  const candidate = String(p.email).trim().toLowerCase();
+  const owner = getSingleUserDeviceOwnerState();
+  const isMixed = owner.status === "mixed";
+  const needsEnforcement =
+   owner.status === "guest" ||
+   (owner.status === "user" && candidate !== owner.userId);
+
+  if(isMixed){
+   // Preserve prior behavior: block silently, show the hint text, let the
+   // operator resolve via Admin → Clear Local Data. No alert dialog here.
+   const message = getSingleUserDevicePolicyMessage(candidate);
    state.profile = null;
    state.subjectId = null;
    if(inp) inp.value = "";
@@ -4537,6 +4553,40 @@ function restoreSubjectFromProfile(){
    if(hint) hint.textContent = message;
    return;
   }
+
+  if(needsEnforcement){
+   // Delegates to the same enforcer used by manual sign-in. For Guest-only
+   // history, this clears the Guest rows and continues silently after confirm.
+   // For legacy different-user history, this clears all local data (including
+   // the profile we were about to restore) after explicit user confirm, which
+   // means we should not proceed with restoring that now-invalid profile.
+   const ok = enforceSingleUserDevicePolicy(candidate);
+   if(!ok){
+    // User canceled the confirm dialog, or the enforcer blocked the action.
+    // Fall through to the hint path so the operator sees a descriptive
+    // explanation of what to do next.
+    const message = getSingleUserDevicePolicyMessage(candidate);
+    state.profile = null;
+    state.subjectId = null;
+    if(inp) inp.value = "";
+    if(wl) wl.style.display = "none";
+    if(we) we.textContent = "";
+    if(hint) hint.textContent = message;
+    return;
+   }
+   // Enforcer approved. For Guest-only-history case, profile on disk is intact
+   // and we can proceed. For different-user-history case, the enforcer ran
+   // clearAllLocalUserData() which wiped the profile we were about to restore,
+   // so we must not reinstate the now-deleted profile in memory — fall through
+   // to the no-profile branch below.
+   if(!loadProfile()){
+    if(wl) wl.style.display = "none";
+    if(we) we.textContent = "";
+    if(hint) hint.textContent = "";
+    return;
+   }
+  }
+
   state.profile = p;
   state.subjectId = p.email;
   if(inp) inp.value = p.email;
