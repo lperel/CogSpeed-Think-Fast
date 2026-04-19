@@ -940,7 +940,8 @@ function makeMemoryTrial(kind,lastCorrectPos,lastProbe){
   const group = Math.random()<0.5 ? group1 : group2;
   const other = group===group1 ? group2 : group1;
   const probeNum = group[randInt(0, group.length-1)];
-  if(attempt < 50 && lastProbe && lastProbe.num===probeNum) continue;
+  // Hard rule: never show the same probe twice in a row.
+  if(lastProbe && lastProbe.num===probeNum) continue;
   const matchNum = MEMORY_PAIR_MAP[probeNum];
   const correctPos = (()=>{
    if(lastCorrectPos==null) return randInt(0,5);
@@ -962,7 +963,8 @@ function makeIconChallengeTrial(kind,lastCorrectPos,lastProbe, group1, group2, p
   const group = Math.random()<0.5 ? group1 : group2;
   const other = group===group1 ? group2 : group1;
   const probeNum = group[randInt(0, group.length-1)];
-  if(attempt < 50 && lastProbe && lastProbe.num===probeNum) continue;
+  // Hard rule: never show the same probe twice in a row.
+  if(lastProbe && lastProbe.num===probeNum) continue;
   const matchNum = pairMap[probeNum];
   const correctPos = (()=>{
    if(lastCorrectPos==null) return randInt(0,5);
@@ -1308,10 +1310,9 @@ function makeTrial(kind,lastCorrectPos,lastProbe){
  for(let attempt=0;attempt<500;attempt++){
   const probeFamily=Math.random()<0.5?"dots":"lines";
   const probeCount=randInt(1,6);
-  // Prefer not to repeat the same probe twice in a row, but relax that constraint
-  // after repeated misses in the generator so trial creation does not burn CPU.
-  const enforceNoSameProbe = attempt < 50;
-  if(enforceNoSameProbe && lastProbe&&probeFamily===lastProbe.family&&probeCount===lastProbe.count) continue;
+  // Hard rule: never show the same probe twice in a row.
+  // Re-roll until the probe differs from the immediately previous probe.
+  if(lastProbe&&probeFamily===lastProbe.family&&probeCount===lastProbe.count) continue;
   const probePattern=probeFamily==="dots"?DOT_PATTERNS[probeCount]:LINE_PATTERNS[probeCount];
   const oppFamily=probeFamily==="dots"?"lines":"dots";
   const correctPos=(()=>{
