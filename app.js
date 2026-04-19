@@ -207,9 +207,9 @@ const ADMIN_FIELDS=[
  // 56-62. Survival Challenge defaults
  ["survivalNoResponseTimeoutMs","56. Survival Challenge no-response timeout (ms, default 15000)","number"],
  ["survivalMinDurationMs","57. Survival Challenge MP frame minimum duration (ms, default 1500)","number"],
- ["survivalCpiBestMs","58. Survival Challenge CPI best ms anchor (default 1000)","number"],
- ["survivalCpiWorstMs","59. Survival Challenge CPI worst ms anchor (default 3000)","number"],
- ["survivalMaxDurationMs","60. Survival Challenge MP frame maximum duration (ms, default 5200)","number"],
+ ["survivalMaxDurationMs","58. Survival Challenge MP frame maximum duration (ms, default 5200)","number"],
+ ["survivalCpiBestMs","59. Survival Challenge CPI best ms anchor (default 1000)","number"],
+ ["survivalCpiWorstMs","60. Survival Challenge CPI worst ms anchor (default 3000)","number"],
  ["survivalBaselineMaxMbs","61. Survival Challenge baseline max qualifying MBS (ms, default 3400)","number"],
  ["survivalMaxTestDurationMs","62. Survival Challenge max total test time (ms, default 200000) — gives Survival extra headroom over the 150000ms used by Standard/Memory because slower frame timing needs more session budget","number"],
 
@@ -224,8 +224,8 @@ const ADMIN_FIELDS=[
  ["mode2CpaLapseRateBuckets","70. Mode 2 CPA lapse rate % buckets — lapse: correct RT > 2× median sustained RT; 0%=no lapses; 30%+=frequent ceiling breaches (min-max:multiplier; ...)","text"],
  ["mode2CpaEfficiencyBuckets","71. Mode 2 CPA block efficiency buckets — adaptive paced trials ÷ block count; <10=rapid blocks; 10–30=typical; >50=highly unstable threshold (min-max:multiplier; ...)","text"],
 
- // 71. Diagnostics
- ["deviceBenchmarkEnabled","71. Device benchmark (0=off, 1=on)","number"]
+ // 72. Diagnostics
+ ["deviceBenchmarkEnabled","72. Device benchmark (0=off, 1=on)","number"]
 ];
 
 // ─── Patterns ───
@@ -891,16 +891,23 @@ function getSurvivalSoundFamily(iconNum){
 // Six distinct WebAudio profiles, one per icon-pair family.
 // Every cue is an impact/explosion — the reward sound is the kill.
 //
-// Architecture: all sub-components of a single cue sum through ONE master
-// bus gain → ONE master compressor → destination. The compressor acts as a
-// transient-preserving limiter (−6 dB thresh, 4:1, 2 ms attack, 120 ms
-// release) so peaks are caught but body breathes. Previous version gave
-// every component its own aggressive compressor in parallel, which crushed
-// each element in isolation before summing — the main cause of weak OOMPH.
-//
-// Boom core is 3-layer: sub-thump (55 Hz sine with impulse attack) + mid
-// body (filtered noise ~200–1200 Hz) + high crack (brief HP noise 2–5 kHz)
-// with real transient at t0 instead of an exponential-decay tail from peak.
+// Rev27 upgrade for perceived impact (user reported previous sounds "not
+// very effective"):
+//  - Stereo bus: per-component pan (whoosh hard-panned, crack slightly
+//    offset, impact centered) widens the size perception on headphones
+//    and stereo speakers and makes the cue read as motion-into-impact.
+//  - Harder limiter: threshold −3 dB, 8:1, 3 dB knee, 1 ms attack — more
+//    brickwall so we can push gains without audible pumping.
+//  - Soft-clip saturation (tanh WaveShaper, 2x oversample) on the bus
+//    adds harmonic density that reads as "fuller" on phone speakers which
+//    roll off below ~180 Hz.
+//  - Dual-layer sub with detuning: 90→42 Hz + 125→70 Hz in parallel —
+//    the two layers beat slightly for fatness, and the higher layer covers
+//    the range small speakers can actually reproduce.
+//  - Pre-impact sub ramp (40 ms rising sine) before each boom so the main
+//    hit feels earned rather than arriving from nothing.
+//  - Raised component gains across the board (limiter handles peaks).
+//  - Ship gets dual-side debris rumble for a wider blast footprint.
 //
 //   tank   (icons 3,4)   — cannon boom          : bright muzzle crack + deep boom
 //   jets   (icons 1,2)   — missile whoosh blam  : fast high whoosh + boom
@@ -918,21 +925,54 @@ function playSurvivalCorrectSound(iconNum){
    const now = ctx.currentTime + 0.005;
    const fam = getSurvivalSoundFamily(iconNum);
 
-   // ─── Master bus: sum everything here, then limit, then out ───
+   // ─── Master stereo bus: components sum here, through saturation,
+   //     limiter, trim, then out ───
    const bus = ctx.createGain();
    bus.gain.value = 1.0;
+
+   // Soft-clip saturation: tanh curve on the summed bus adds harmonic
+   // density before the limiter. Drive amount kept modest so clean
+   // transients don't turn into fuzz.
+   const saturator = ctx.createWaveShaper();
+   {
+    const n = 2048;
+    const curve = new Float32Array(n);
+    const k = 2.2;
+    for(let i=0;i<n;i++){
+     const x = (i*2)/(n-1) - 1;
+     curve[i] = Math.tanh(k*x) / Math.tanh(k);
+    }
+    saturator.curve = curve;
+    saturator.oversample = "2x";
+   }
+
    const masterComp = ctx.createDynamicsCompressor();
-   masterComp.threshold.value = -6;
-   masterComp.knee.value = 6;
-   masterComp.ratio.value = 4;
-   masterComp.attack.value = 0.002;
-   masterComp.release.value = 0.12;
+   masterComp.threshold.value = -3;
+   masterComp.knee.value = 3;
+   masterComp.ratio.value = 8;
+   masterComp.attack.value = 0.001;
+   masterComp.release.value = 0.10;
+
    const masterGain = ctx.createGain();
-   masterGain.gain.value = 0.9; // post-limiter trim to keep headroom
-   bus.connect(masterComp).connect(masterGain).connect(ctx.destination);
+   masterGain.gain.value = 1.1;
+   bus.connect(saturator).connect(masterComp).connect(masterGain).connect(ctx.destination);
+
+   // Route to a specific stereo position. pan ∈ [-1, 1]. Falls back to
+   // mono bus if StereoPannerNode is unavailable (older Safari).
+   const toPannedBus = (pan)=>{
+    if(pan === 0) return bus;
+    try{
+     const panner = ctx.createStereoPanner();
+     panner.pan.value = Math.max(-1, Math.min(1, pan));
+     panner.connect(bus);
+     return panner;
+    }catch(e){
+     return bus;
+    }
+   };
 
    // ─── Primitive: pitched tone with fast attack and exp decay ───
-   const tone = (type, f1, f2, t0, dur, gainV)=>{
+   const tone = (type, f1, f2, t0, dur, gainV, pan=0)=>{
     const o=ctx.createOscillator(), g=ctx.createGain();
     o.type=type;
     o.frequency.setValueAtTime(f1, t0);
@@ -940,24 +980,22 @@ function playSurvivalCorrectSound(iconNum){
     g.gain.setValueAtTime(0.0001, t0);
     g.gain.exponentialRampToValueAtTime(gainV, t0+0.006);
     g.gain.exponentialRampToValueAtTime(0.0001, t0+dur);
-    o.connect(g).connect(bus);
+    o.connect(g).connect(toPannedBus(pan));
     o.start(t0); o.stop(t0+dur+0.02);
    };
 
    // ─── Primitive: filtered noise burst (whoosh / crack / body) ───
-   const noise = (t0, dur, gainV, hpFreq, lpFreq=12000, envShape="decay")=>{
+   const noise = (t0, dur, gainV, hpFreq, lpFreq=12000, envShape="decay", pan=0)=>{
     const len=Math.max(1, Math.floor(ctx.sampleRate*dur));
     const buf=ctx.createBuffer(1,len,ctx.sampleRate);
     const data=buf.getChannelData(0);
     if(envShape==="whoosh"){
-     // bell curve — fade in, fade out
      for(let i=0;i<len;i++){
       const t=i/len;
       const env = Math.sin(t*Math.PI);
       data[i]=(Math.random()*2-1)*env;
      }
     }else{
-     // decay — impulse at head, falls off
      for(let i=0;i<len;i++) data[i]=(Math.random()*2-1)*(1-i/len);
     }
     const src=ctx.createBufferSource(); src.buffer=buf;
@@ -967,19 +1005,33 @@ function playSurvivalCorrectSound(iconNum){
     if(envShape==="whoosh"){
      g.gain.setValueAtTime(gainV, t0);
     }else{
-     // sharp attack ramp then linear to avoid click artifact
      g.gain.setValueAtTime(0.0001, t0);
      g.gain.linearRampToValueAtTime(gainV, t0+0.002);
      g.gain.exponentialRampToValueAtTime(0.0001, t0+dur);
     }
-    src.connect(hp).connect(lp).connect(g).connect(bus);
+    src.connect(hp).connect(lp).connect(g).connect(toPannedBus(pan));
     src.start(t0); src.stop(t0+dur+0.02);
    };
 
-   // ─── Primitive: 3-layer impact (sub + body + crack) ───
-   // gainV scales the whole stack; layer balance fixed internally
+   // ─── Primitive: pre-impact sub ramp (40 ms rising sine) ───
+   const preImpact = (impactT, rampDur, gainV)=>{
+    const t0 = Math.max(0, impactT - rampDur);
+    const o=ctx.createOscillator(), g=ctx.createGain();
+    o.type="sine";
+    o.frequency.setValueAtTime(55, t0);
+    o.frequency.linearRampToValueAtTime(85, impactT);
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.linearRampToValueAtTime(gainV, impactT);
+    g.gain.exponentialRampToValueAtTime(0.0001, impactT+0.02);
+    o.connect(g).connect(bus);
+    o.start(t0); o.stop(impactT+0.04);
+   };
+
+   // ─── Primitive: 4-layer impact (pre-ramp + dual sub + body + crack) ───
    const boom = (t0, dur, gainV)=>{
-    // Layer 1: sub thump — 55 Hz sine, pitch-dropped, with 3ms attack
+    preImpact(t0, 0.040, gainV*0.35);
+
+    // Layer 1a: sub thump — 90→42 Hz sine
     {
      const o=ctx.createOscillator(), g=ctx.createGain();
      o.type="sine";
@@ -991,14 +1043,26 @@ function playSurvivalCorrectSound(iconNum){
      o.connect(g).connect(bus);
      o.start(t0); o.stop(t0+dur+0.02);
     }
-    // Layer 2: mid body — filtered noise 200–1200 Hz, impulsive
+    // Layer 1b: parallel sub ~125→70 Hz — phone-speaker coverage, detuned
+    {
+     const o=ctx.createOscillator(), g=ctx.createGain();
+     o.type="sine";
+     o.frequency.setValueAtTime(125, t0);
+     o.frequency.exponentialRampToValueAtTime(70, t0+Math.min(0.16, dur));
+     g.gain.setValueAtTime(0.0001, t0);
+     g.gain.linearRampToValueAtTime(gainV*0.55, t0+0.003);
+     g.gain.exponentialRampToValueAtTime(0.0001, t0+dur*0.85);
+     o.connect(g).connect(bus);
+     o.start(t0); o.stop(t0+dur+0.02);
+    }
+    // Layer 2: mid body — filtered noise 200–1400 Hz, impulsive
     {
      const bodyDur = Math.min(dur, 0.22);
      const len=Math.max(1, Math.floor(ctx.sampleRate*bodyDur));
      const buf=ctx.createBuffer(1,len,ctx.sampleRate);
      const data=buf.getChannelData(0);
      for(let i=0;i<len;i++){
-      const env = Math.pow(1 - i/len, 1.6); // steeper decay than linear
+      const env = Math.pow(1 - i/len, 1.6);
       data[i]=(Math.random()*2-1)*env;
      }
      const src=ctx.createBufferSource(); src.buffer=buf;
@@ -1006,62 +1070,57 @@ function playSurvivalCorrectSound(iconNum){
      const lp=ctx.createBiquadFilter(); lp.type="lowpass"; lp.frequency.value=1400;
      const g=ctx.createGain();
      g.gain.setValueAtTime(0.0001, t0);
-     g.gain.linearRampToValueAtTime(gainV*0.75, t0+0.002);
+     g.gain.linearRampToValueAtTime(gainV*0.85, t0+0.002);
      g.gain.exponentialRampToValueAtTime(0.0001, t0+bodyDur);
      src.connect(hp).connect(lp).connect(g).connect(bus);
      src.start(t0); src.stop(t0+bodyDur+0.02);
     }
-    // Layer 3: high crack — short HP noise 2.5–5 kHz, very fast decay
+    // Layer 3: high crack — short HP noise 2.5–6 kHz, panned slightly right
     {
-     const crackDur = 0.035;
+     const crackDur = 0.045;
      const len=Math.max(1, Math.floor(ctx.sampleRate*crackDur));
      const buf=ctx.createBuffer(1,len,ctx.sampleRate);
      const data=buf.getChannelData(0);
      for(let i=0;i<len;i++) data[i]=(Math.random()*2-1)*(1-i/len);
      const src=ctx.createBufferSource(); src.buffer=buf;
      const hp=ctx.createBiquadFilter(); hp.type="highpass"; hp.frequency.value=2500;
-     const lp=ctx.createBiquadFilter(); lp.type="lowpass"; lp.frequency.value=5500;
+     const lp=ctx.createBiquadFilter(); lp.type="lowpass"; lp.frequency.value=6000;
      const g=ctx.createGain();
      g.gain.setValueAtTime(0.0001, t0);
-     g.gain.linearRampToValueAtTime(gainV*0.45, t0+0.001);
+     g.gain.linearRampToValueAtTime(gainV*0.55, t0+0.001);
      g.gain.exponentialRampToValueAtTime(0.0001, t0+crackDur);
-     src.connect(hp).connect(lp).connect(g).connect(bus);
+     src.connect(hp).connect(lp).connect(g).connect(toPannedBus(0.25));
      src.start(t0); src.stop(t0+crackDur+0.01);
     }
    };
 
    // ─── Family-specific cue composition ───
    if(fam==="tank"){
-    // Extra-bright muzzle crack ahead of a heavy low boom
-    noise(now, 0.045, 0.55, 2800, 9000);          // muzzle flash crack
-    noise(now, 0.12, 0.28, 900, 4000);            // barrel transient
-    boom(now+0.02, 0.34, 0.85);                   // the thud
+    noise(now, 0.05, 0.65, 2800, 9000, "decay", -0.3);
+    noise(now, 0.13, 0.38, 900, 4000, "decay", -0.2);
+    boom(now+0.025, 0.38, 0.95);
    } else if(fam==="jets"){
-    // Fast high incoming whoosh, then impact
-    noise(now, 0.18, 0.32, 1600, 9000, "whoosh"); // approaching whoosh
-    tone("sawtooth", 1600, 260, now, 0.18, 0.18); // tonal Doppler tail
-    boom(now+0.18, 0.30, 0.82);                   // impact
+    noise(now, 0.20, 0.42, 1600, 9000, "whoosh", -0.6);
+    tone("sawtooth", 1600, 260, now, 0.18, 0.22, -0.3);
+    boom(now+0.20, 0.34, 0.92);
    } else if(fam==="ship"){
-    // No whoosh — massive sustained detonation
-    boom(now, 0.42, 0.95);                        // main blast
-    tone("triangle", 75, 38, now+0.01, 0.36, 0.28); // sub-body tail
-    noise(now+0.08, 0.22, 0.18, 400, 2200);       // debris rumble
+    boom(now, 0.46, 1.05);
+    tone("triangle", 75, 38, now+0.015, 0.40, 0.36, 0);
+    noise(now+0.09, 0.26, 0.25, 400, 2200, "decay", -0.3);
+    noise(now+0.12, 0.22, 0.22, 400, 2200, "decay", 0.3);
    } else if(fam==="rocket"){
-    // Longer mid-band whoosh, then impact
-    noise(now, 0.24, 0.30, 800, 6500, "whoosh");  // arcing whoosh
-    tone("sawtooth", 780, 160, now, 0.22, 0.18);  // tonal body
-    boom(now+0.22, 0.32, 0.82);                   // impact
+    noise(now, 0.26, 0.40, 800, 6500, "whoosh", 0.6);
+    tone("sawtooth", 780, 160, now, 0.22, 0.22, 0.3);
+    boom(now+0.24, 0.36, 0.92);
    } else if(fam==="space"){
-    // Laser zap sequence into impact
-    tone("square", 1400, 640, now, 0.07, 0.22);
-    tone("square", 1850, 820, now+0.06, 0.07, 0.20);
-    tone("square", 2200, 1000, now+0.12, 0.05, 0.16);
-    boom(now+0.17, 0.26, 0.72);                   // contact explosion
+    tone("square", 1400, 640, now, 0.07, 0.28, -0.5);
+    tone("square", 1850, 820, now+0.06, 0.07, 0.24, 0.5);
+    tone("square", 2200, 1000, now+0.12, 0.05, 0.20, -0.3);
+    boom(now+0.17, 0.30, 0.86);
    } else {
-    // helo — short low whoosh into impact
-    noise(now, 0.14, 0.26, 650, 4500, "whoosh");  // rotor-wash whoosh
-    tone("sawtooth", 620, 140, now, 0.16, 0.18);  // tonal thump
-    boom(now+0.15, 0.30, 0.80);                   // impact
+    noise(now, 0.16, 0.34, 650, 4500, "whoosh", 0.5);
+    tone("sawtooth", 620, 140, now, 0.16, 0.22, 0.3);
+    boom(now+0.16, 0.34, 0.90);
    }
   };
   if(ctx.state === "suspended"){
@@ -1260,12 +1319,15 @@ function buildGearSVG(si,pattern,size,spinClass){
   let iconHtml = "";
   if(pattern && pattern.iconSrc){
    const isSurvival = pattern.challengeSet === "survival";
+   // Rev28: bumped "large" iconSize for trial-screen gears so challenge icons
+   // are more readable during the test. Percentages are of the gear wrapper,
+   // so the icon grows with the gear as the flex container fills freed space.
    const iconSize = isSurvival
-    ? (size==="xlarge" ? "84%" : size==="probe" ? "72%" : size==="small" ? "46%" : "54%")
-    : (size==="xlarge" ? "68%" : size==="probe" ? "54%" : size==="small" ? "30%" : "36%");
+    ? (size==="xlarge" ? "84%" : size==="probe" ? "80%" : size==="small" ? "46%" : "66%")
+    : (size==="xlarge" ? "68%" : size==="probe" ? "62%" : size==="small" ? "30%" : "48%");
    const backSize = isSurvival
-    ? (size==="xlarge" ? "96%" : size==="probe" ? "88%" : size==="small" ? "60%" : "66%")
-    : (size==="xlarge" ? "82%" : size==="probe" ? "70%" : size==="small" ? "42%" : "48%");
+    ? (size==="xlarge" ? "96%" : size==="probe" ? "94%" : size==="small" ? "60%" : "78%")
+    : (size==="xlarge" ? "82%" : size==="probe" ? "78%" : size==="small" ? "42%" : "60%");
    iconHtml = `<div class="gear-symbol-back" style="width:${backSize};height:${backSize}"></div><img class="gear-symbol" src="${pattern.iconSrc}" alt="${pattern.iconLabel||"symbol"}" draggable="false" style="position:absolute;z-index:2;width:${iconSize};height:${iconSize};object-fit:contain;pointer-events:none;filter:contrast(1.08) brightness(0.96);"/>`;
   }else if(pattern){
    const scale = size==="probe" ? 0.64 : 0.60;
@@ -1843,7 +1905,7 @@ function finish(){
    if(wakeIso) result.sleepLog.wakeDateTimeIso = wakeIso;
   }
   Object.assign(result, computeMode2CPA(result));
-  Object.assign(result, computeDispositionFromCPA(result));
+  Object.assign(result, computeDisposition(result));
  }catch(err){
   console.error("finish compute failed", err);
   failOpenResultsHandoff(result, "COMPUTE", err);
@@ -2593,15 +2655,14 @@ function buildMemoryRefresherCard(a,b,small=false){
  return `<div class="${cls}"><div class="ref-row" style="justify-content:center;align-items:center"><div style="display:flex;flex-direction:column;align-items:center;gap:2px">${buildGearSVG(1,memoryIconPattern(a),"small","")}<div class="ref-lbl">${MEMORY_LABELS[a]}</div></div><div class="ref-arrow">↔</div><div style="display:flex;flex-direction:column;align-items:center;gap:2px">${buildGearSVG(2,memoryIconPattern(b),"small","")}<div class="ref-lbl">${MEMORY_LABELS[b]}</div></div></div></div>`;
 }
 function renderTrialRefresher(){
+ // Rev28: trial-page refresher icons removed per user feedback — they weren't
+ // useful during the test and consumed screen space that should go to the gear
+ // grid. This function is retained as a no-op that always hides the refresher
+ // element so the HTML markup stays in place for easy reversal if desired.
  const wrap = $("trialRefresher"), grid = $("trialRefresherGrid");
  if(!wrap || !grid) return;
- if(!(isIconChallengeActive() && !isBaselineEstablishedForCurrentSubject())){
-  wrap.classList.remove("show");
-  grid.innerHTML = "";
-  return;
- }
- wrap.classList.add("show");
- grid.innerHTML = getActiveRefresherPairs().map(([a,b])=>buildActiveRefresherCard(a,b,true)).join("");
+ wrap.classList.remove("show");
+ grid.innerHTML = "";
 }
 
 // ─── Refresher ───
@@ -3082,7 +3143,7 @@ function exportCSV(){
   "sleepSinceLastTest","sleepBedtime","sleepWakeTime","sleepWakeDateTimeIso","sleepDurationMinutes","sleepQualityLabel","sleepQualityScore",
   "pacedCorrect","pacedWrong","spRestartWrong","meanPacedRtMs","pacedRtSd",
   "avgFrameOvershootMs","maxFrameOvershootMs","avgRafIntervalMs","maxRafIntervalMs",
-  "cpa","cpaBaseCpi","cpaCorrectWeighting","cpaWrongWeighting","cpaMissedWeighting","cpaSdWeighting","cpaDriftWeighting","cpaRecoveryWeighting","cpaLapseWeighting","cpaEfficiencyWeighting","cpaSustainedResponseSdMs","cpaSustainedCvPct","cpaEarlyMedianRtMs","cpaLateMedianRtMs","cpaSustainedDriftRatio","cpaRecoveryCalibRatio","cpaLapseRatePct","cpaTrialsPerBlock","dispositionCode","dispositionLabel",
+  "cpa","cpaBaseCpi","cpaCorrectWeighting","cpaWrongWeighting","cpaMissedWeighting","cpaSdWeighting","cpaDriftWeighting","cpaRecoveryWeighting","cpaLapseWeighting","cpaEfficiencyWeighting","cpaSustainedResponseSdMs","cpaSustainedCvPct","cpaEarlyMedianRtMs","cpaLateMedianRtMs","cpaSustainedDriftRatio","cpaRecoveryCalibRatio","cpaLapseRatePct","cpaTrialsPerBlock","dispositionCode","dispositionLabel","dispositionSpfs",
   "testDurationMs","endReason","location"];
  const rows=h.map((r,i)=>[
   i+1,
@@ -3139,6 +3200,7 @@ function exportCSV(){
   r.cpaTrialsPerBlock!=null?r.cpaTrialsPerBlock.toFixed(1):"",
   r.dispositionCode||"",
   r.dispositionLabel||"",
+  r.dispositionSpfs!=null?r.dispositionSpfs:"",
   r.testDurationMs!=null?Math.round(r.testDurationMs):"",
   r.endReason||"",
   (r.geo&&r.geo.address)||""
@@ -4962,7 +5024,7 @@ RESULTS METRIC EXPLANATIONS
  CPA factor 7 — Lapse-Rate Factor = based on the percent of correct sustained responses that are slower than 2× the median correct sustained RT. More lapse-like sustained responses can reduce CPA.${usesMode2Metrics?"":" Not used in this mode."}
  CPA factor 8 — Block-Efficiency Factor = based on adaptive paced trials divided by block count. Better block efficiency can support CPA, while poorer efficiency can reduce it. 10–30 trials per block is the typical range.${usesMode2Metrics?"":" Not used in this mode."}
  CPA max total reduction cap = the total of all negative CPA adjustments is limited by the Admin max reduction factor × CPI. This prevents multiple mild penalties from driving CPA implausibly low in one session.${usesMode2Metrics?"":" Not used in this mode."}
- Disposition = operational recommendation derived from CPA score. GREEN (Clear): CPA > 65. YELLOW (Monitor / human review recommended): CPA 45–64. ORANGE (Human review required): CPA 30–44. RED (Remove from hazardous duty): CPA < 30. CogSpeed disposition is a structured recommendation requiring human review — not a standalone fitness determination.${usesMode2Metrics?"":" Not used in this mode."}`;
+ Disposition = operational recommendation aligned to the seven-point Samn-Perelli Fatigue Scale (SP-FS). For Mode 2 the CPA score drives the disposition; for Modes 1, 3, and 4 the CPI score is used (same 0–100 scale, same band edges). Bands use the midpoints between the canonical CPI anchors and map to the same captions as the Cognitive Performance table: ≥ 90 = SP-FS 7, Functioning exceptionally well. 77.5 to <90 = SP-FS 6, Functioning very well. 62.5 to <77.5 = SP-FS 5, Functioning normally. 37.5 to <62.5 = SP-FS 4, Functioning slightly less than normal. 18 to <37.5 = SP-FS 3, Functioning starting to slow. 5.5 to <18 = SP-FS 2, Difficult to function / becoming unsafe. <5.5 = SP-FS 1, Unable to function / definitely unsafe. CogSpeed disposition is a structured recommendation requiring human review — not a standalone fitness determination.`;
 }
 
 // ─── Mode 2 timing breakdown ─────────────────────────────────
@@ -5068,8 +5130,8 @@ function buildResultsSummaryCompact(result){
  if(result.mode2Triggered && result.cpa==null){
   Object.assign(result, computeMode2CPA(result));
  }
- if(result.mode2Triggered && (result.dispositionCode==null || result.dispositionLabel==null)){
-  Object.assign(result, computeDispositionFromCPA(result));
+ if(result.dispositionCode==null || result.dispositionLabel==null || /^(GREEN|YELLOW|ORANGE|RED)$/i.test(String(result.dispositionCode||""))){
+  Object.assign(result, computeDisposition(result));
  }
  const adaptiveCounts = result.testMode==="mode2" ? computeMode2AdaptiveCounts(result) : null;
  const mode2WrongBreakdown = result.testMode==="mode2" ? computeMode2WrongBreakdown(result) : null;
@@ -5084,7 +5146,11 @@ function buildResultsSummaryCompact(result){
    ? `MODE 2 SUSTAINED COGSPEED PHASE: Presentation Rate ${result.mode2SustainedPresentationRateMs!=null?result.mode2SustainedPresentationRateMs.toFixed(1)+" ms":"—"} · CSR Correct ${result.correctSustainedResponses!=null?result.correctSustainedResponses:(result.mode2SustainedCorrect||0)} · SBLP ${result.sustainedBlockLimitPerformanceMs!=null?result.sustainedBlockLimitPerformanceMs.toFixed(1)+" ms":"—"} · SPI ${result.sustainedProcessingIndex!=null?result.sustainedProcessingIndex.toFixed(1)+" / 100":"—"}`
    : `MODE 2 SUSTAINED COGSPEED PHASE: not taken`;
  const cpaLine = result.testMode==="mode2" && result.mode2Triggered ? `CPA: ${result.cpa!=null?result.cpa.toFixed(1)+" / 100":"—"}` : 'CPA: —';
- const dispositionLine = result.dispositionLabel||result.dispositionCode ? `${result.dispositionCode||"—"} ${result.dispositionLabel||"—"}` : '—';
+ const dispositionLine = (result.dispositionLabel||result.dispositionCode)
+   ? (result.dispositionCode && result.dispositionLabel
+       ? `SP-FS ${result.dispositionCode} — ${result.dispositionLabel}`
+       : `${result.dispositionCode||"—"} ${result.dispositionLabel||"—"}`.trim())
+   : '—';
  const wrongBreakdownLine = result.testMode==="mode2" ? `Wrong breakdown: Cal ${mode2WrongBreakdown.calibration} · Adaptive ${mode2WrongBreakdown.adaptive} · Recovery ${mode2WrongBreakdown.recovery} · Sustained ${mode2WrongBreakdown.sustained} · Final SP ${mode2WrongBreakdown.finalSelfPaced} · Total ${mode2WrongBreakdown.total}` : null;
  el.textContent=
 moveEndReasonNearSession(`CogSpeed version: ${APP_VERSION}
@@ -5224,8 +5290,8 @@ ${getResultsMetricExplanationText(result)}`);
   if(result.mode2Triggered && result.cpa==null){
    Object.assign(result, computeMode2CPA(result));
   }
-  if(result.mode2Triggered && (result.dispositionCode==null || result.dispositionLabel==null)){
-   Object.assign(result, computeDispositionFromCPA(result));
+  if(result.dispositionCode==null || result.dispositionLabel==null || /^(GREEN|YELLOW|ORANGE|RED)$/i.test(String(result.dispositionCode||""))){
+   Object.assign(result, computeDisposition(result));
   }
   const mode2Cpi=(adaptiveMbs!=null) ? (result.mode2CpiFromMbs!=null ? result.mode2CpiFromMbs : computeCPI(adaptiveMbs)) : null;
   const adaptiveCounts=computeMode2AdaptiveCounts(result);
@@ -5294,7 +5360,7 @@ MODE 2 SUSTAINED COGSPEED PHASE
 ${hr}
 CPA — COGNITIVE PERFORMANCE ABILITY
  CPA: ${result.cpa!=null?result.cpa.toFixed(1)+" / 100":"—"}
- Disposition: ${result.dispositionCode||"—"} ${result.dispositionLabel||"—"}
+ Disposition: ${(result.dispositionCode && result.dispositionLabel) ? `SP-FS ${result.dispositionCode} — ${result.dispositionLabel}` : `${result.dispositionCode||"—"} ${result.dispositionLabel||"—"}`.trim()}
  Base CPI: ${result.cpaBaseCpi!=null?result.cpaBaseCpi.toFixed(1):"—"}
  Sustained correct-response factor: ${result.cpaCorrectWeighting!=null?(result.cpaCorrectWeighting>=0?"+":"")+result.cpaCorrectWeighting.toFixed(1):"—"}
  Sustained wrong-response factor: ${result.cpaWrongWeighting!=null?(result.cpaWrongWeighting>=0?"+":"")+result.cpaWrongWeighting.toFixed(1):"—"}
@@ -5888,16 +5954,68 @@ function computeMode2CPA(result){
  };
 }
 
-function computeDispositionFromCPA(result){
- const blank = { dispositionCode:null, dispositionLabel:null };
- if(!result || result.testMode!=="mode2" || !result.mode2Triggered) return blank;
- const cpa = Number(result.cpa);
- if(!Number.isFinite(cpa)) return blank;
- if(cpa >= 65) return { dispositionCode:"GREEN", dispositionLabel:"Clear" };
- if(cpa >= 45) return { dispositionCode:"YELLOW", dispositionLabel:"Monitor / human review recommended" };
- if(cpa >= 30) return { dispositionCode:"ORANGE", dispositionLabel:"Human review required" };
- return { dispositionCode:"RED", dispositionLabel:"Remove from Hazardous Duty" };
+function computeDisposition(result){
+ const blank = { dispositionCode:null, dispositionLabel:null, dispositionSpfs:null };
+ if(!result) return blank;
+ // Gate: only completed/successful tests get a disposition. A failed
+ // calibration or aborted run should not be assigned an SP-FS level as
+ // that would falsely read as "Unable to function" when the subject
+ // simply never produced a scorable result.
+ try{ if(!isTestSuccess(result)) return blank; }catch(e){ return blank; }
+
+ // Rev29 — disposition extended from Mode 2 only to ALL modes:
+ //   • Mode 2 uses CPA (the synthesized fit-for-duty score that already
+ //     incorporates CPI plus sustained-phase adjustments)
+ //   • Mode 1 / 3 / 4 use CPI directly, since they have no sustained
+ //     phase and CPI is already on the 0-100 scale anchored to SP-FS
+ //     via the same canonical `mode1Bands` captions.
+ //
+ // Band edges are the midpoints between the canonical CPI anchors used
+ // throughout CogSpeed (100, 80, 75, 50, 25, 11, 0 → midpoints 90, 77.5,
+ // 62.5, 37.5, 18, 5.5). Labels pulled directly from the Cognitive
+ // Performance table captions (see mode1Bands in getCognitivePerformanceTableText)
+ // so the disposition vocabulary matches the rest of the app exactly.
+ // dispositionCode is the SP-FS numeric level as a string ("1".."7");
+ // dispositionSpfs is the same value as a Number for CSV/analysis use.
+ // ┌────┬──────────────────┬──────────────────────────────────────────────┐
+ // │SPF │ Score band (CPA  │ Label (from mode1Bands)                      │
+ // │    │ or CPI)          │                                              │
+ // ├────┼──────────────────┼──────────────────────────────────────────────┤
+ // │ 7  │ ≥ 90             │ Functioning exceptionally well               │
+ // │ 6  │ 77.5 – <90       │ Functioning very well                        │
+ // │ 5  │ 62.5 – <77.5     │ Functioning normally                         │
+ // │ 4  │ 37.5 – <62.5     │ Functioning slightly less than normal        │
+ // │ 3  │ 18   – <37.5     │ Functioning starting to slow                 │
+ // │ 2  │  5.5 – <18       │ Difficult to function / becoming unsafe      │
+ // │ 1  │ <  5.5           │ Unable to function / definitely unsafe       │
+ // └────┴──────────────────┴──────────────────────────────────────────────┘
+ let score = null;
+ if(result.testMode === "mode2" && result.mode2Triggered){
+  score = Number(result.cpa);
+ } else if(result.testMode === "mode1" || result.testMode === "mode3" || result.testMode === "mode4"){
+  score = Number(result.cognitivePerformanceIndex);
+ } else if(result.testMode === "mode2"){
+  // Mode 2 that did not reach the sustained phase → no CPA was computed;
+  // fall back to CPI (still a valid 0-100 score against the same anchors).
+  score = Number(result.cognitivePerformanceIndex);
+ }
+ if(!Number.isFinite(score)) return blank;
+
+ let spfs, label;
+ if(score >= 90)      { spfs=7; label="Functioning exceptionally well"; }
+ else if(score >= 77.5){ spfs=6; label="Functioning very well"; }
+ else if(score >= 62.5){ spfs=5; label="Functioning normally"; }
+ else if(score >= 37.5){ spfs=4; label="Functioning slightly less than normal"; }
+ else if(score >= 18)  { spfs=3; label="Functioning starting to slow"; }
+ else if(score >= 5.5) { spfs=2; label="Difficult to function / becoming unsafe"; }
+ else                  { spfs=1; label="Unable to function / definitely unsafe"; }
+ return { dispositionCode: String(spfs), dispositionLabel: label, dispositionSpfs: spfs };
 }
+
+// Backward-compatible alias — older call sites use the Mode 2 name, and some
+// saved-result paths may still reference computeDispositionFromCPA. The new
+// function does the right thing for all modes, so the alias simply delegates.
+function computeDispositionFromCPA(result){ return computeDisposition(result); }
 
 function getSpeedometerSelectedIndex(){
  const s=$("speedometerSessionSelect");
@@ -7885,7 +8003,7 @@ function getMode2SpeedometerMetric(result, success){
  // to the zero-equivalent when success===false.
  const failed = success === false;
  const dispositionText = failed ? "—"
-  : (result && (result.dispositionCode || result.dispositionLabel) ? `${result.dispositionCode||"—"} ${result.dispositionLabel||"—"}` : "—");
+  : (result && result.dispositionCode ? `SP-FS ${result.dispositionCode}` : "—");
  const mbsText = failed ? "—" : (Number.isFinite(mbs)?`${Number(mbs).toFixed(1)} ms`:"—");
  const cpiText = failed ? "0.0 / 100" : (Number.isFinite(cpi)?`${Number(cpi).toFixed(1)} / 100`:"—");
  const cpaText = failed ? "0.0 / 100" : (Number.isFinite(cpa)?`${Number(cpa).toFixed(1)} / 100`:"—");
@@ -7937,7 +8055,7 @@ function renderSpeedometerOutcome(result, sessionIndex){
  const isMode2Speedometer = !!(result && result.testMode==="mode2");
  if(isMode2Speedometer){
   if(result && result.mode2Triggered && result.cpa==null) Object.assign(result, computeMode2CPA(result));
-  if(result && result.mode2Triggered && (result.dispositionCode==null || result.dispositionLabel==null)) Object.assign(result, computeDispositionFromCPA(result));
+  if(result && (result.dispositionCode==null || result.dispositionLabel==null || /^(GREEN|YELLOW|ORANGE|RED)$/i.test(String(result.dispositionCode||"")))) Object.assign(result, computeDisposition(result));
   const mode2Metric = getMode2SpeedometerMetric(result, success);
   cps = success ? mode2Metric.score : 0;
   if(success){
@@ -8786,10 +8904,18 @@ function formatLastPerfTimeText(){
       ? (r.sustainedBlockLimitPerformanceMs!=null ? Math.round(Number(r.sustainedBlockLimitPerformanceMs))+" ms" : "—")
       : (r.averageLast2BlockingScoresMs!=null ? Math.round(Number(r.averageLast2BlockingScoresMs))+" ms" : "—");
     const cpa = isMode2Sustained && r.cpa!=null ? `CPA ${Number(r.cpa).toFixed(1)}` : null;
-    const disp = isMode2Sustained && r.dispositionCode ? r.dispositionCode : null;
+    // Rev29: disposition is now computed for all modes, not just Mode 2.
+    // Mode 2 attaches it to the CPA parenthetical ("CPA 45.0 (Functioning
+    // normally)"); other modes get a standalone parenthetical after CPI.
+    // Legacy 4-tier tokens (GREEN/YELLOW/ORANGE/RED) in saved history are
+    // migrated on the fly so old sessions display the new label.
+    if(r.dispositionCode && /^(GREEN|YELLOW|ORANGE|RED)$/i.test(String(r.dispositionCode))){
+     try{ Object.assign(r, computeDisposition(r)); }catch(e){}
+    }
+    const disp = r.dispositionLabel || r.dispositionCode || null;
     const spf = r.samnPerelli && r.samnPerelli.score!=null ? r.samnPerelli.score : "—";
     const sleep = r.sleepLog && r.sleepLog.qualityLabel ? r.sleepLog.qualityLabel : (r.sleepSinceLastTest==="no" ? "No sleep before this test" : "—");
-    const cpaStr = cpa ? ` | ${cpa}${disp?" ("+disp+")":""}` : "";
+    const cpaStr = cpa ? ` | ${cpa}${disp?" ("+disp+")":""}` : (disp ? ` | Disposition: ${disp}` : "");
     return `${i+1}. ${when} | CPI ${cpi} | MBS ${mbs}${cpaStr} | SP-FS ${spf} | Sleep ${sleep}`;
   });
   return "Performance Over Date and Time Graph\n\n" + rows.join("\n");
