@@ -1,4 +1,10 @@
 ## V699 — 2026-04-19
+- Rev53 unified-menu cleanup: removed stale profileSymbolSet event wiring and removed the duplicate/stale _profileSymbolSet persistence path so the unified Test Type menu is the single source of truth.
+- Rev52 profile-menu simplification: replaced separate Challenge Set and Test Mode controls with one unified Test Type menu. Memory and Survival are now presented explicitly as Mode 2 challenge variants.
+- Rev51 profile-menu update: the Profile test-mode menu now includes all four modes — Mode 1 CogSpeed Adapted, Mode 2 CogSpeed Sustained, Mode 3 Self-paced, and Mode 4 Machine-paced.
+- Rev50 mode-selection policy update: after every completed test, the active mode now resets back to Mode 2.
+- Rev50 mode-selection policy update: Profile is now the only place that changes the active test mode for an existing user/device.
+- Rev50 admin wording update: Admin field #2 is now labeled as the default test mode for new users / reset devices.
 - Rev49 refresher update: Standard Mode 1 / Mode 2 Pattern Refresher now uses the actual dots-and-lines drawn on the gear icons, enlarged for easier on-screen recognition.
 - Rev47 restore-path fix: restoreSubjectFromProfile now delegates resolvable ownership conflicts to enforceSingleUserDevicePolicy(), while mixed-history cases remain blocked with hint-only UX.
 - Rev48 packaging alignment: CHANGELOG.md now matches the restore-to-enforcer fix line and the package version markers are aligned to 699rev48.

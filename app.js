@@ -144,7 +144,7 @@ const DEFAULTS={
 const ADMIN_FIELDS=[
  // 1-2. Device / test selection
  ["adminPasscode","1. Admin passcode","text"],
- ["testMode","2. Test mode","select:mode1|mode2|mode3|mode4"],
+ ["testMode","2. Default test mode for new users / reset devices","select:mode1|mode2|mode3|mode4"],
 
  // 3-15. Shared startup / calibration / anti-spoof settings, in program-use order
  ["initialUnusedCalibrationTrials","3. Warm-up calibration trials (default 1)","number"],
@@ -2082,6 +2082,7 @@ function finish(){
   try{ if(state.history[state.history.length-1]===result) state.history.pop(); }catch(e){}
   try{ setStatus("WARNING: Result could not be saved — storage may be full. Export CSV to preserve data."); }catch(e){}
  }
+ resetActiveModeAfterTest();
  try{ updateCPIDisplay(avgLast2Blocks()); setProbeIdle(); }catch(e){}
  try{
   setFlowDiagnostic("FINISH_RENDER", `FINISH_RENDER — ${result.endReason||"Run complete"}`);
@@ -4638,12 +4639,56 @@ function getProfileDraftTimeFormat(){
  return String(_profileTimeFormat||getEffectiveTimeFormat()) === "24" ? "24" : "12";
 }
 
+
+function getUnifiedProfileTestType(profile=null){
+ const mode = String(profile ? (profile.selectedTestMode || settings.testMode || "mode2") : (settings.testMode || "mode2")).trim();
+ const symbol = String(profile ? (profile.symbolSet || settings.symbolSet || "standard") : (settings.symbolSet || "standard")).trim().toLowerCase();
+ if(mode === "mode1") return "mode1";
+ if(mode === "mode3") return "mode3";
+ if(mode === "mode4") return "mode4";
+ if(symbol === "memory") return "memory";
+ if(symbol === "survival") return "survival";
+ return "mode2";
+}
+
+function applyUnifiedProfileTestType(value){
+ const v = String(value || "mode2").trim().toLowerCase();
+ if(v === "mode1"){
+  settings.testMode = "mode1";
+  settings.symbolSet = "standard";
+ }else if(v === "mode3"){
+  settings.testMode = "mode3";
+  settings.symbolSet = "standard";
+ }else if(v === "mode4"){
+  settings.testMode = "mode4";
+  settings.symbolSet = "standard";
+ }else if(v === "memory"){
+  settings.testMode = "mode2";
+  settings.symbolSet = "memory";
+ }else if(v === "survival"){
+  settings.testMode = "mode2";
+  settings.symbolSet = "survival";
+ }else{
+  settings.testMode = "mode2";
+  settings.symbolSet = "standard";
+ }
+ const sel = $("profileTestType");
+ if(sel) sel.value = getUnifiedProfileTestType();
+ remindProfileSaveNeeded("general");
+}
+
+function profileSelectTestMode(v){
+ const mode = String(v||"mode2").trim();
+ const current = getUnifiedProfileTestType();
+ const mapped = (mode==="mode1" || mode==="mode3" || mode==="mode4") ? mode : (current==="memory" || current==="survival" ? current : "mode2");
+ applyUnifiedProfileTestType(mapped);
+}
+
 function profileSelectSymbolSet(v){
- const raw = String(v||"standard");
- _profileSymbolSet = raw==="memory" ? "memory" : (raw==="survival" ? "survival" : "standard");
- const sel = $("profileSymbolSet");
- if(sel) sel.value = _profileSymbolSet;
- remindProfileSaveNeeded("challenge");
+ const raw = String(v||"standard").trim().toLowerCase();
+ const currentMode = String(settings.testMode||"mode2").trim();
+ const mapped = raw==="memory" ? "memory" : (raw==="survival" ? "survival" : (currentMode==="mode1" || currentMode==="mode3" || currentMode==="mode4" ? currentMode : "mode2"));
+ applyUnifiedProfileTestType(mapped);
 }
 
 function profileSelectTimeFormat(fmt){
@@ -4718,12 +4763,32 @@ function validateProfileAge(){
  return true;
 }
 
+
+function getProfileSelectedTestMode(profile){
+ const raw = String(profile?.selectedTestMode || "").trim();
+ return raw==="mode1" || raw==="mode2" || raw==="mode3" || raw==="mode4" ? raw : "";
+}
+
+function resetActiveModeAfterTest(){
+ // Operational policy:
+ // - after every completed test, the active mode returns to Mode 2
+ // - the user must go back to Profile to choose another mode
+ // - Admin field #2 is a startup/reset default only, not a sticky live selector
+ settings.testMode = "mode2";
+ settings.symbolSet = "standard";
+ try{ saveSettings(); }catch(e){}
+}
+
 function applyProfileSettings(profile){
  if(!profile) return;
  const tf = String(profile.timeFormat||"").trim();
  const ssRaw = String(profile.symbolSet||"").trim().toLowerCase();
+ const selectedMode = getProfileSelectedTestMode(profile);
  if(tf==="12" || tf==="24") settings.timeFormat = tf;
  settings.symbolSet = ssRaw==="memory" ? "memory" : (ssRaw==="survival" ? "survival" : "standard");
+ // Profile is the only place allowed to change the active mode for an
+ // existing user/device. If the profile carries a selected mode, use it now.
+ if(selectedMode) settings.testMode = selectedMode;
  try{ saveSettings(); }catch(e){}
 }
 
@@ -4743,6 +4808,9 @@ function openProfileFromContext(returnTo,email=""){
 // - time-format toggle stays local draft state until Save & Continue
 // - Scheduler lives on this page and is saved per non-Guest subject on this device only
 // - Scheduler reminders can work offline inside CogSpeed; closed-app alerts still depend on device support
+// Profile is the only place that can change the active test mode for an
+// existing user/device. After each completed test, the app resets the active
+// mode back to Mode 2; users must return to Profile to choose another mode.
 function openProfileOverlay(email){
  const safeEmail = isValidEmailAddress(email) ? String(email).trim().toLowerCase() : "";
  const stored = loadProfile();
@@ -4752,7 +4820,9 @@ function openProfileOverlay(email){
  const existingSymbolSet = existingSymbolSetRaw==="memory" ? "memory" : (existingSymbolSetRaw==="survival" ? "survival" : "standard");
  _profileGenderSelected = existing?.gender || "";
  _profileTimeFormat = String(existingTimeFormat) === "24" ? "24" : "12";
- _profileSymbolSet = existing ? existingSymbolSet : "standard";
+ _profileSymbolSet = String(settings.symbolSet||"standard").trim().toLowerCase();
+ const profileTypeSel = $("profileTestType");
+ if(profileTypeSel) profileTypeSel.value = getUnifiedProfileTestType(existing || state.profile || null);
 
  // Show email
  const ed = $("profileEmailDisplay");
@@ -4813,9 +4883,10 @@ function captureProfileInitialSnapshot(){
    birthMonth: String($("profileBirthMonth")?.value || ""),
    birthYear: String($("profileBirthYear")?.value || ""),
    emailResults: !!$("profileEmailResults")?.checked,
+   selectedTestMode: String(settings.testMode||DEFAULTS.testMode||"mode2"),
+   symbolSet: String(settings.symbolSet||"standard").trim().toLowerCase(),
    gender: String(_profileGenderSelected || ""),
-   timeFormat: String(_profileTimeFormat || ""),
-   symbolSet: String(_profileSymbolSet || "standard")
+   timeFormat: String(_profileTimeFormat || "")
   };
  }catch(e){
   _profileInitialSnapshot = null;
@@ -4840,7 +4911,7 @@ function saveAndContinueProfile(){
  const bYear = parseInt($("profileBirthYear")?.value||"0");
  const emailResults = !!$("profileEmailResults")?.checked;
  const timeFormat = getProfileDraftTimeFormat();
- const symbolSet = _profileSymbolSet === "memory" ? "memory" : (_profileSymbolSet === "survival" ? "survival" : "standard");
+ const symbolSet = String(settings.symbolSet||"standard").trim().toLowerCase();
 
  // Always save time-format settings from this page
  settings.timeFormat = timeFormat;
@@ -7941,6 +8012,7 @@ $("subjectNextBtn").onclick=()=>{
   openProfileOverlay(v);
  }
 };
+$("profileTestType")?.addEventListener("change", e=>applyUnifiedProfileTestType(e.currentTarget.value));
 $("skipRefresherBtn").onclick=()=>{
  showTutorial(); setStatus("Tutorial");
 };
@@ -9477,7 +9549,6 @@ $("refSleepBtn").onclick=()=>showSleepPrompt();
 
 $("tutorialExitSleepBtn").onclick=()=>showSleepPrompt();
 $("tutorialExitBackBtn").onclick=()=>goToStartPage();
-const _pss=$("profileSymbolSet"); if(_pss) _pss.onchange=(e)=>profileSelectSymbolSet(e.target.value);
 const _pbm_sr=$("profileBirthMonth"); if(_pbm_sr) _pbm_sr.onchange=()=>remindProfileSaveNeeded("general");
 const _pby_sr=$("profileBirthYear"); if(_pby_sr) _pby_sr.oninput=()=>remindProfileSaveNeeded("general");
 const _per=$("profileEmailResults"); if(_per) _per.onchange=()=>remindProfileSaveNeeded("general");

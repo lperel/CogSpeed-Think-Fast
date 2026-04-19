@@ -499,15 +499,20 @@
       </div>
     </div>
 
+    
     <div class="field-row" style="margin-bottom:14px">
-      <label style="font-size:16px">Challenge Set</label>
-      <select id="profileSymbolSet" style="width:100%;margin-top:6px;padding:12px;border:1px solid var(--edge);border-radius:12px;background:#0a1629;color:var(--text);font-size:17px">
-        <option value="standard">CogSpeed Sustained - Mode 2</option>
-        <option value="memory">CogSpeed Memory Challenge</option>
-        <option value="survival">CogSpeed Survival Challenge</option>
+      <label style="font-size:16px">Test Type</label>
+      <select id="profileTestType" style="width:100%;margin-top:6px;padding:12px;border:1px solid var(--edge);border-radius:12px;background:#0a1629;color:var(--text);font-size:17px">
+        <option value="mode1">Mode 1 CogSpeed Adapted</option>
+        <option value="mode2">Mode 2 CogSpeed Sustained</option>
+        <option value="memory">Mode 2 CogSpeed Memory Challenge</option>
+        <option value="survival">Mode 2 CogSpeed Survival Challenge</option>
+        <option value="mode3">Mode 3 Self-paced</option>
+        <option value="mode4">Mode 4 Machine-paced</option>
       </select>
-      <div class="field-hint" style="margin-top:6px">Memory and Survival Challenges use icon-pair matching with their own trial timing defaults and matching Tutorial / Pattern Refresher icons.</div>
+      <div class="field-hint" style="margin-top:6px">Memory and Survival are Mode 2 challenge variants that use icon-pair matching with their own timing defaults and matching Tutorial / Pattern Refresher icons.</div>
     </div>
+
 
     <!-- MODE 2 Scheduler -->
     <div id="profileSchedulerPanel" style="margin-bottom:16px;padding:14px;background:rgba(127,215,255,0.06);border:1px solid rgba(127,215,255,0.15);border-radius:12px">
@@ -1214,6 +1219,6 @@
   <div class="resp-grid" id="respGrid"></div>
 </div>
 
-<script src="app.js?v=699rev49" defer></script>
+<script src="app.js?v=699rev53" defer></script>
 </body>
 </html>
