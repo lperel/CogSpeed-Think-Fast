@@ -320,6 +320,47 @@ let settings=loadSettings();
  }
 })();
 
+// ─── Rev 62 one-time per-revision migration ───
+// Fulfills the requirement: "Admin default #2 should start every new revision
+// with Mode 2, AND after every test no matter what was selected from the
+// profile menu the next test should be Mode 2."
+//
+// The post-test reset path (resetActiveModeAfterTest) already handles the
+// second half. This block handles the first half for RETURNING users whose
+// localStorage settings blob and saved profile from an older rev still
+// carry a stale testMode/symbolSet selection.
+//
+// Logic: stamp the current app-rev string into localStorage the first time
+// this rev runs on a given device. If the stored stamp doesn't match the
+// current rev, force settings.testMode="mode2" and settings.symbolSet="standard"
+// (the admin default), strip the legacy symbolSet field out of the saved
+// profile record (profile is no longer the source of truth for test type),
+// and persist both. This fires once per fresh rev deployment per device;
+// after that, the stamp matches and nothing is touched on subsequent loads.
+const APP_REV_STAMP = "V699rev62";
+(function migrateToCurrentRev(){
+ let stored = "";
+ try{ stored = localStorage.getItem(`${STORAGE_PREFIX}_rev_stamp`) || ""; }catch(e){ stored = ""; }
+ if(stored === APP_REV_STAMP) return;
+ // Force live settings back to admin default Mode 2 Sustained.
+ settings.testMode = "mode2";
+ settings.symbolSet = "standard";
+ try{ saveSettings(); }catch(e){}
+ // Strip symbolSet out of the saved profile record if it exists there from
+ // an older rev. Profile ownership of test type is retired in Rev 62.
+ try{
+  const rawProfile = localStorage.getItem(`${STORAGE_PREFIX}_profile`);
+  if(rawProfile){
+   const p = JSON.parse(rawProfile);
+   if(p && typeof p === "object" && "symbolSet" in p){
+    delete p.symbolSet;
+    localStorage.setItem(`${STORAGE_PREFIX}_profile`, JSON.stringify(p));
+   }
+  }
+ }catch(e){ /* ignore corrupt profile blob; saveAndContinueProfile will rewrite it cleanly next save */ }
+ try{ localStorage.setItem(`${STORAGE_PREFIX}_rev_stamp`, APP_REV_STAMP); }catch(e){}
+})();
+
 // ─── State ───
 // Shared runtime state for the current session.
 // IMPORTANT: keep session-reset helpers aligned with this shape:
@@ -941,7 +982,11 @@ function makeMemoryTrial(kind,lastCorrectPos,lastProbe){
   const other = group===group1 ? group2 : group1;
   const probeNum = group[randInt(0, group.length-1)];
   // Hard rule: never show the same probe twice in a row.
-  if(lastProbe && lastProbe.num===probeNum) continue;
+  // The caller builds lastProbe as {family, count} from state.current, so
+  // check lastProbe.count here (Rev 62 field-name fix — prior revs read
+  // lastProbe.num which is undefined, silently making the no-repeat rule
+  // a no-op in Memory mode).
+  if(lastProbe && lastProbe.count===probeNum) continue;
   const matchNum = MEMORY_PAIR_MAP[probeNum];
   const correctPos = (()=>{
    if(lastCorrectPos==null) return randInt(0,5);
@@ -964,7 +1009,11 @@ function makeIconChallengeTrial(kind,lastCorrectPos,lastProbe, group1, group2, p
   const other = group===group1 ? group2 : group1;
   const probeNum = group[randInt(0, group.length-1)];
   // Hard rule: never show the same probe twice in a row.
-  if(lastProbe && lastProbe.num===probeNum) continue;
+  // The caller builds lastProbe as {family, count} from state.current, so
+  // check lastProbe.count here (Rev 62 field-name fix — prior revs read
+  // lastProbe.num which is undefined, silently making the no-repeat rule
+  // a no-op in Survival mode).
+  if(lastProbe && lastProbe.count===probeNum) continue;
   const matchNum = pairMap[probeNum];
   const correctPos = (()=>{
    if(lastCorrectPos==null) return randInt(0,5);
@@ -1034,7 +1083,8 @@ function getSurvivalSoundFamily(iconNum){
  if([1,2].includes(iconNum)) return "jets";
  if([3,4].includes(iconNum)) return "tank";
  if([5,6].includes(iconNum)) return "ship";
- if([7,8].includes(iconNum)) return "rocket";
+ if(iconNum===7) return "rocket";
+ if(iconNum===8) return "missile";
  if([9,10].includes(iconNum)) return "space";
  return "helo";
 }
@@ -1246,14 +1296,91 @@ function playSurvivalCorrectSound(iconNum){
    };
 
    // ─── Family-specific cue composition ───
+   // Rev 62 sound overhaul:
+   //   tank   — heavier cannon: slower powder-crack muzzle transient into a
+   //            long resonant barrel boom, pronounced low decay tail.
+   //   jets   — aircraft exploding: whoosh + metallic shred + fuel fireball
+   //            (resonant metallic overtones into a sustained low rumble).
+   //   missile (ICBM battery, icon 8) — pure detonation: deep pre-compression
+   //            sub ramp + full boom stack + extended low rumble tail.
+   //            No rocket whoosh (launch is over — this is the impact).
+   //   helo   — proper explosion: boom stack + brighter mid-band crack +
+   //            secondary debris rumble, whoosh shortened so the blast dominates.
+   //   rocket, ship, space — unchanged from Rev 27.
    if(fam==="tank"){
-    noise(now, 0.05, 0.65, 2800, 9000, "decay", -0.3);
-    noise(now, 0.13, 0.38, 900, 4000, "decay", -0.2);
-    boom(now+0.025, 0.38, 0.95);
+    // Muzzle crack: slightly slower, lower-pitched than a pistol crack,
+    // suggests powder/barrel rather than small-arms. Panned hard left so the
+    // shooter feels "behind" the listener.
+    noise(now,         0.025, 0.45, 3200, 10000, "decay",  -0.5);  // initial spark
+    noise(now+0.004,   0.08,  0.85, 1800, 6500,  "decay",  -0.4);  // powder crack body
+    noise(now+0.02,    0.18,  0.55, 700,  3200,  "decay",  -0.2);  // mid ring
+    // Main boom offset from crack gives the "distant cannon" sense.
+    boom(now+0.05, 0.52, 1.05);
+    // Long low tail — barrel ring / echo off the battlefield.
+    {
+     const tailT = now + 0.08;
+     const tailDur = 0.55;
+     const o=ctx.createOscillator(), g=ctx.createGain();
+     o.type="sine";
+     o.frequency.setValueAtTime(58, tailT);
+     o.frequency.exponentialRampToValueAtTime(34, tailT+tailDur);
+     g.gain.setValueAtTime(0.0001, tailT);
+     g.gain.linearRampToValueAtTime(0.32, tailT+0.010);
+     g.gain.exponentialRampToValueAtTime(0.0001, tailT+tailDur);
+     o.connect(g).connect(bus);
+     o.start(tailT); o.stop(tailT+tailDur+0.02);
+    }
    } else if(fam==="jets"){
-    noise(now, 0.20, 0.42, 1600, 9000, "whoosh", -0.6);
-    tone("sawtooth", 1600, 260, now, 0.18, 0.22, -0.3);
-    boom(now+0.20, 0.34, 0.92);
+    // Aircraft exploding: approach whoosh, metallic airframe shred,
+    // fuel fireball thump, sustained low rumble from tumbling debris.
+    noise(now,         0.16, 0.38, 1600, 9000, "whoosh", -0.6);  // approach whoosh
+    // Metallic shred: two detuned sawtooth tones through a resonant bandpass
+    // shape the "tearing airframe" quality without needing a dedicated BPF.
+    tone("sawtooth", 1800, 620, now+0.04, 0.12, 0.20, -0.35);
+    tone("sawtooth", 1350, 480, now+0.06, 0.14, 0.18, 0.25);
+    // High metallic crackle — torn metal ringing (short bandpass-ish noise).
+    {
+     const mDur = 0.09;
+     const len=Math.max(1, Math.floor(ctx.sampleRate*mDur));
+     const buf=ctx.createBuffer(1,len,ctx.sampleRate);
+     const data=buf.getChannelData(0);
+     for(let i=0;i<len;i++){
+      const env = Math.pow(1 - i/len, 1.2);
+      data[i]=(Math.random()*2-1)*env;
+     }
+     const src=ctx.createBufferSource(); src.buffer=buf;
+     const hp=ctx.createBiquadFilter(); hp.type="highpass"; hp.frequency.value=3200;
+     const lp=ctx.createBiquadFilter(); lp.type="lowpass"; lp.frequency.value=8500;
+     const g=ctx.createGain();
+     g.gain.setValueAtTime(0.0001, now+0.05);
+     g.gain.linearRampToValueAtTime(0.42, now+0.053);
+     g.gain.exponentialRampToValueAtTime(0.0001, now+0.05+mDur);
+     src.connect(hp).connect(lp).connect(g).connect(toPannedBus(-0.15));
+     src.start(now+0.05); src.stop(now+0.05+mDur+0.01);
+    }
+    // Fuel fireball: main boom.
+    boom(now+0.14, 0.42, 1.00);
+    // Tumbling debris rumble (low mid noise, decaying slowly, opposite pan).
+    {
+     const rDur = 0.50;
+     const len=Math.max(1, Math.floor(ctx.sampleRate*rDur));
+     const buf=ctx.createBuffer(1,len,ctx.sampleRate);
+     const data=buf.getChannelData(0);
+     for(let i=0;i<len;i++){
+      const t=i/len;
+      const env = Math.pow(1-t, 1.8);
+      data[i]=(Math.random()*2-1)*env;
+     }
+     const src=ctx.createBufferSource(); src.buffer=buf;
+     const hp=ctx.createBiquadFilter(); hp.type="highpass"; hp.frequency.value=90;
+     const lp=ctx.createBiquadFilter(); lp.type="lowpass"; lp.frequency.value=700;
+     const g=ctx.createGain();
+     g.gain.setValueAtTime(0.0001, now+0.18);
+     g.gain.linearRampToValueAtTime(0.36, now+0.19);
+     g.gain.exponentialRampToValueAtTime(0.0001, now+0.18+rDur);
+     src.connect(hp).connect(lp).connect(g).connect(toPannedBus(0.35));
+     src.start(now+0.18); src.stop(now+0.18+rDur+0.02);
+    }
    } else if(fam==="ship"){
     boom(now, 0.46, 1.05);
     tone("triangle", 75, 38, now+0.015, 0.40, 0.36, 0);
@@ -1263,15 +1390,61 @@ function playSurvivalCorrectSound(iconNum){
     noise(now, 0.26, 0.40, 800, 6500, "whoosh", 0.6);
     tone("sawtooth", 780, 160, now, 0.22, 0.22, 0.3);
     boom(now+0.24, 0.36, 0.92);
+   } else if(fam==="missile"){
+    // ICBM/missile battery IMPACT — this is the detonation at the target.
+    // No launch whoosh: emphasize a pure heavy boom with extended low tail
+    // so it reads as a high-yield ground explosion.
+    // Pre-compression: slightly longer sub ramp than boom()'s built-in one.
+    {
+     const preDur = 0.10;
+     const preT = now; // pre-compression starts immediately
+     const o=ctx.createOscillator(), g=ctx.createGain();
+     o.type="sine";
+     o.frequency.setValueAtTime(45, preT);
+     o.frequency.linearRampToValueAtTime(95, preT+preDur);
+     g.gain.setValueAtTime(0.0001, preT);
+     g.gain.linearRampToValueAtTime(0.40, preT+preDur);
+     g.gain.exponentialRampToValueAtTime(0.0001, preT+preDur+0.02);
+     o.connect(g).connect(bus);
+     o.start(preT); o.stop(preT+preDur+0.04);
+    }
+    // Main detonation — heavier than standard boom.
+    boom(now+0.10, 0.52, 1.10);
+    // Secondary sub-octave thump just after the main hit.
+    tone("sine", 55, 28, now+0.14, 0.48, 0.48, 0);
+    // Debris/rumble noise tail, wide (dual-side).
+    noise(now+0.20, 0.44, 0.30, 150, 1100, "decay", -0.4);
+    noise(now+0.24, 0.42, 0.28, 150, 1100, "decay", 0.4);
+    // Long low rumble — the pressure wave rolling away.
+    {
+     const tailT = now + 0.28;
+     const tailDur = 0.70;
+     const o=ctx.createOscillator(), g=ctx.createGain();
+     o.type="sine";
+     o.frequency.setValueAtTime(62, tailT);
+     o.frequency.exponentialRampToValueAtTime(30, tailT+tailDur);
+     g.gain.setValueAtTime(0.0001, tailT);
+     g.gain.linearRampToValueAtTime(0.30, tailT+0.015);
+     g.gain.exponentialRampToValueAtTime(0.0001, tailT+tailDur);
+     o.connect(g).connect(bus);
+     o.start(tailT); o.stop(tailT+tailDur+0.02);
+    }
    } else if(fam==="space"){
     tone("square", 1400, 640, now, 0.07, 0.28, -0.5);
     tone("square", 1850, 820, now+0.06, 0.07, 0.24, 0.5);
     tone("square", 2200, 1000, now+0.12, 0.05, 0.20, -0.3);
     boom(now+0.17, 0.30, 0.86);
    } else {
-    noise(now, 0.16, 0.34, 650, 4500, "whoosh", 0.5);
-    tone("sawtooth", 620, 140, now, 0.16, 0.22, 0.3);
-    boom(now+0.16, 0.34, 0.90);
+    // helo (RPG hit): explosion-forward — short approach whoosh, big boom,
+    // brighter mid-band crack from blast, and a secondary debris rumble.
+    noise(now, 0.08, 0.32, 900, 5500, "whoosh", 0.5);            // short RPG whoosh
+    boom(now+0.06, 0.44, 1.02);                                  // main blast
+    // Bright mid-band secondary crack (rotor/fuselage fragment).
+    noise(now+0.10, 0.06, 0.48, 1800, 5500, "decay", 0.2);
+    // Low secondary thump.
+    tone("sine", 70, 36, now+0.12, 0.38, 0.34, 0);
+    // Debris rumble tail, opposite pan for width.
+    noise(now+0.18, 0.36, 0.26, 180, 1200, "decay", -0.4);
    }
   };
   if(ctx.state === "suspended"){
@@ -4837,8 +5010,14 @@ function openProfileOverlay(email){
  const stored = loadProfile();
  const existing = (safeEmail && stored && String(stored.email||"").trim().toLowerCase()===safeEmail) ? stored : null;
  const existingTimeFormat = existing?.timeFormat || getEffectiveTimeFormat();
- const existingSymbolSetRaw = String(existing?.symbolSet || settings.symbolSet || "standard").trim().toLowerCase();
- const existingSymbolSet = existingSymbolSetRaw==="memory" ? "memory" : (existingSymbolSetRaw==="survival" ? "survival" : "standard");
+ // Rev 62: the saved profile must NOT drive the Test Type dropdown on open.
+ // Prior revs stored symbolSet inside the profile record and re-applied it
+ // here, which silently resurrected a stale Memory/Survival selection every
+ // time Profile opened, overriding the Rev 50/58/61 post-test reset to Mode 2
+ // Sustained. The live state (normalized above to mode2/standard) is now the
+ // single source of truth for the dropdown. The user can still change it
+ // during this Profile interaction; that change applies to live settings
+ // only and is wiped again by the post-test reset.
  _profileGenderSelected = existing?.gender || "";
  _profileTimeFormat = String(existingTimeFormat) === "24" ? "24" : "12";
  _profileSymbolSet = String(settings.symbolSet||"standard").trim().toLowerCase();
@@ -4857,6 +5036,11 @@ function openProfileOverlay(email){
  _profileReminderShown = true;
 
  // Pre-fill only when editing the matching saved email profile.
+ // Rev 62: do NOT re-apply any stored symbolSet/test-type selection here.
+ // The unified Test Type dropdown has already been set by
+ // normalizeLiveTestTypeForProfileOpen() + getUnifiedProfileTestType() above,
+ // and the live settings now authoritatively represent Mode 2 Sustained
+ // unless the user changes the dropdown during this Profile interaction.
  if(existing){
   const bm = $("profileBirthMonth"); if(bm) bm.value = existing.birthMonth||"";
   const by = $("profileBirthYear"); if(by) by.value = existing.birthYear||"";
@@ -4865,7 +5049,6 @@ function openProfileOverlay(email){
   if(existing.gender) profileSelectGender(existing.gender);
   validateProfileAge();
   profileSelectTimeFormat(_profileTimeFormat);
-  profileSelectSymbolSet(existingSymbolSet);
   captureProfileInitialSnapshot();
  } else {
   const bm = $("profileBirthMonth"); if(bm) bm.value="";
@@ -4875,7 +5058,6 @@ function openProfileOverlay(email){
   profileSelectGender("");
   const msg=$("profileAgeMsg"); if(msg) msg.textContent="";
   profileSelectTimeFormat(_profileTimeFormat);
-  profileSelectSymbolSet("standard");
  }
 
  schedulerState.activeSubjectId = safeEmail || "";
@@ -4931,11 +5113,19 @@ function saveAndContinueProfile(){
  const bYear = parseInt($("profileBirthYear")?.value||"0");
  const emailResults = !!$("profileEmailResults")?.checked;
  const timeFormat = getProfileDraftTimeFormat();
- const symbolSet = String(settings.symbolSet||"standard").trim().toLowerCase();
+
+ // Rev 62: symbolSet/testMode are live-only settings now. They are set by
+ // the Profile Test Type dropdown (applyUnifiedProfileTestType) into
+ // `settings` and persisted there via saveSettings(). They are NOT stored
+ // in the saved profile record anymore, because doing so caused the old
+ // challenge set to be resurrected on every Profile-open, overriding the
+ // post-test reset to Mode 2 Sustained. The live `settings.testMode` and
+ // `settings.symbolSet` are still persisted to localStorage by saveSettings()
+ // so the current session survives page refresh; they are wiped back to
+ // Mode 2 Sustained after every completed test by resetActiveModeAfterTest().
 
  // Always save time-format settings from this page
  settings.timeFormat = timeFormat;
- settings.symbolSet = symbolSet;
  saveSettings();
 
  // If no email is entered yet, allow returning after saving settings only.
@@ -4953,7 +5143,7 @@ function saveAndContinueProfile(){
  if(!_profileGenderSelected){ setStatus("Please select a gender."); return; }
 
  const profile = {email, birthMonth:bMonth, birthYear:bYear,
-  gender:_profileGenderSelected, emailResults, timeFormat:settings.timeFormat, symbolSet, updatedAt:Date.now()};
+  gender:_profileGenderSelected, emailResults, timeFormat:settings.timeFormat, updatedAt:Date.now()};
  schedulerState.activeSubjectId = email;
  try{
   saveProfile(profile);
