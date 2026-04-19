@@ -987,6 +987,24 @@ function getActiveRefresherPairs(){
  if(active==="survival") return [[1,2],[5,6],[9,10],[7,8],[11,12],[3,4]];
  return [];
 }
+
+function buildStandardRefresherCard(n, small=false){
+ const cls = small ? "trial-ref-card" : "ref-card";
+ const pA = DOT_PATTERNS[n];
+ const pB = LINE_PATTERNS[n];
+ const size = small ? "small" : "xlarge";
+ const gap = small ? "2px" : "6px";
+ const rowGap = small ? "2px" : "8px";
+ // Standard refresher should use the actual dots/lines drawn on the same
+ // gear icons used by the test, and the gears should be as large as is
+ // reasonably possible on the full refresher page for easier recognition.
+ const colStyle = `display:flex;flex-direction:column;align-items:center;gap:${gap};flex:1 1 0;min-width:0`;
+ const gearBoxStyle = small
+  ? `width:100%;aspect-ratio:1;max-width:64px`
+  : `width:100%;aspect-ratio:1;max-width:210px`;
+ return `<div class="${cls}"><div class="ref-num">${n}</div><div class="ref-row" style="justify-content:center;align-items:center;gap:${rowGap}"><div style="${colStyle}"><div class="ref-lbl">dots</div><div style="${gearBoxStyle}">${buildGearSVG(1,pA,size,"")}</div></div><div class="ref-arrow">↔</div><div style="${colStyle}"><div class="ref-lbl">lines</div><div style="${gearBoxStyle}">${buildGearSVG(2,pB,size,"")}</div></div></div></div>`;
+}
+
 function buildActiveRefresherCard(a,b,small=false){
  const cls = small ? "trial-ref-card" : "ref-card";
  const active = getActiveSymbolSet();
@@ -2818,9 +2836,7 @@ function renderRefresher(){
   return;
  }
  for(let i=1;i<=6;i++){
-  const c=document.createElement("div"); c.className="ref-card";
-  c.innerHTML=`<div class="ref-num">${i}</div><div class="ref-row"><div><div class="ref-lbl">dots</div>${patternToSVG(DOT_PATTERNS[i],"small")}</div><div class="ref-arrow">↔</div><div><div class="ref-lbl">lines</div>${patternToSVG(LINE_PATTERNS[i],"small")}</div></div>`;
-  grid.appendChild(c);
+  grid.insertAdjacentHTML("beforeend", buildStandardRefresherCard(i,false));
  }
 }
 
