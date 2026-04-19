@@ -3791,6 +3791,10 @@ function isBaselineQualifyingSession(result){
  if(!result) return false;
  if(isGuestHistorySubjectId(result.subjectId)) return false;
  if(!(result.testMode==="mode1" || result.testMode==="mode2")) return false;
+ // Personal Baseline uses STANDARD CogSpeed only.
+ // Memory Challenge and Survival Challenge are excluded entirely.
+ const symbolSet = getResultSymbolSet(result);
+ if(symbolSet==="memory" || symbolSet==="survival") return false;
  if(isPerfFailureSession(result)) return false;
  const mbs = getAdaptivePhaseMbs(result);
  const maxMbs = getPersonalBaselineMaxMbs();
