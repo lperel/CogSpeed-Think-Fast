@@ -521,26 +521,48 @@ function sanitizePersistedHistory(list){
  }
  return cleaned;
 }
+// Rev 43: Guest sessions must never exist on disk. Used by both the write path
+// (defensive against any caller that tries to persist a Guest row) and the
+// read path (migrates any pre-Rev-43 installs where Guest rows may have leaked
+// onto disk under the Rev 42 policy gap).
+function stripGuestRowsForDisk(list){
+ if(!Array.isArray(list)) return [];
+ return list.filter(row => {
+  const sid = String(row?.subjectId||"").trim().toLowerCase();
+  return !isGuestHistorySubjectId(sid);
+ });
+}
 // Keep load/save aligned to the same `${STORAGE_PREFIX}_history` key.
 function loadPersistedHistory(){
  try{
   const raw = JSON.parse(localStorage.getItem(`${STORAGE_PREFIX}_history`)||"[]");
   const cleaned = sanitizePersistedHistory(raw);
+  // Rev 43: migrate any legacy Guest rows that leaked onto disk under the
+  // Rev 42 policy gap so returning users do not see their signed-in history
+  // polluted by prior Guest-on-device sessions.
+  const cleanedNoGuest = stripGuestRowsForDisk(cleaned);
   try{
    const rawText = JSON.stringify(Array.isArray(raw) ? raw : []);
-   const cleanedText = JSON.stringify(cleaned);
+   const cleanedText = JSON.stringify(cleanedNoGuest);
    if(rawText !== cleanedText){
     localStorage.setItem(`${STORAGE_PREFIX}_history`, cleanedText);
    }
   }catch(e){}
-  return cleaned;
+  return cleanedNoGuest;
  }catch(e){
   return [];
  }
 }
 function savePersistedHistory(list){
  const cleaned = sanitizePersistedHistory(list);
- localStorage.setItem(`${STORAGE_PREFIX}_history`, JSON.stringify(cleaned));
+ // Rev 43: defensive Guest filter. The finish path already gates on
+ // shouldPersistSessionForLocalHistory() so no Guest row should reach this
+ // write call, but any future caller (backup/restore, admin tools, imports)
+ // is also covered here — Guest rows are dropped from the on-disk payload.
+ // The in-memory list returned to the caller is left unchanged so current-
+ // session Guest speedometer/summary views continue to work.
+ const forDisk = stripGuestRowsForDisk(cleaned);
+ localStorage.setItem(`${STORAGE_PREFIX}_history`, JSON.stringify(forDisk));
  return cleaned;
 }
 
@@ -2030,9 +2052,17 @@ function finish(){
  try{
   setFlowDiagnostic("FINISH_SAVE", `FINISH_SAVE — ${result.endReason||"Run complete"}`);
   state.history.push(result);
-  state.history = savePersistedHistory(state.history);
+  // Rev 43: Guest sessions are kept in state.history for the current-session
+  // speedometer/summary view but must never be written to localStorage. This
+  // honors the Rev 42 "Guest sessions are not stored locally" policy that was
+  // declared in the device-owner state machine but not actually enforced at
+  // the save path. savePersistedHistory() also has a defensive filter now, so
+  // Guest rows cannot land on disk regardless of caller.
+  if(shouldPersistSessionForLocalHistory(result)){
+   state.history = savePersistedHistory(state.history);
+  }
   state.speedometerLatestSessionIndex = state.history.length-1;
-  setActiveResultContext(result, state.history.length-1, isGuestHistorySubjectId(result && result.subjectId) ? "guest saved history" : "saved history");
+  setActiveResultContext(result, state.history.length-1, isGuestHistorySubjectId(result && result.subjectId) ? "guest in-memory only" : "saved history");
   try{ syncSummarySessionSelect(state.history.length-1); }catch(e){}
   try{ syncSpeedometerSessionSelect(state.history.length-1); }catch(e){}
   try{ updateStartPageLinks(); }catch(e){}
@@ -4372,39 +4402,53 @@ function clearProfile(){
    workflow, not in the on-device local session history
 */
 function getLocalHistorySubjectIds(){
+ // Ownership checks must reflect persistent local ownership on the device.
+ // Guest sessions may exist in state.history for the current-session view only,
+ // but they must not make the device look "mixed" during this runtime.
  const h = Array.isArray(state?.history) ? state.history : loadPersistedHistory();
  const ids = new Set();
  for(const row of (Array.isArray(h) ? h : [])){
   const sid = String(row?.subjectId||"").trim().toLowerCase();
-  if(sid) ids.add(sid);
+  if(!sid) continue;
+  if(isGuestHistorySubjectId(sid)) continue;
+  ids.add(sid);
  }
  return [...ids];
+}
+
+function hasInMemoryGuestOnlyRows(){
+ const h = Array.isArray(state?.history) ? state.history : [];
+ return h.some(row => isGuestHistorySubjectId(String(row?.subjectId||"").trim().toLowerCase()));
 }
 
 function getSingleUserDeviceOwnerState(){
  const p = loadProfile();
  const profileEmail = isValidEmailAddress(p?.email) ? String(p.email).trim().toLowerCase() : "";
  const historyIds = getLocalHistorySubjectIds();
- const nonGuestIds = historyIds.filter(id => !isGuestHistorySubjectId(id));
- const hasGuestHistory = historyIds.some(id => isGuestHistorySubjectId(id));
- const signedInOwners = new Set(nonGuestIds);
+ const signedInOwners = new Set(historyIds);
  if(profileEmail) signedInOwners.add(profileEmail);
+
+ // Guest-only ownership should be based on persisted local history, not
+ // transient in-memory Guest rows retained for the current-session view.
+ const persisted = loadPersistedHistory();
+ const hasPersistedGuestHistory = Array.isArray(persisted)
+  && persisted.some(row => isGuestHistorySubjectId(String(row?.subjectId||"").trim().toLowerCase()));
 
  if(signedInOwners.size > 1){
   return {
    status: "mixed",
    signedInOwners: [...signedInOwners].sort(),
-   hasGuestHistory
+   hasGuestHistory: hasPersistedGuestHistory
   };
  }
  if(signedInOwners.size === 1){
   return {
    status: "user",
    userId: [...signedInOwners][0],
-   hasGuestHistory
+   hasGuestHistory: hasPersistedGuestHistory
   };
  }
- if(hasGuestHistory){
+ if(hasPersistedGuestHistory){
   return {status: "guest"};
  }
  return {status: "empty"};
@@ -4958,7 +5002,12 @@ async function applyCogSpeedBackupFile(obj){
   localStorage.setItem(`${STORAGE_PREFIX}_settings`, JSON.stringify(obj.payload.settings || {}));
   if(obj.payload.profile!=null) localStorage.setItem(`${STORAGE_PREFIX}_profile`, JSON.stringify(obj.payload.profile));
   else localStorage.removeItem(`${STORAGE_PREFIX}_profile`);
-  localStorage.setItem(`${STORAGE_PREFIX}_history`, JSON.stringify(Array.isArray(obj.payload.history) ? obj.payload.history : []));
+  // Rev 43: strip any Guest rows from the backup payload before writing to
+  // disk. Older backups made before Rev 43 may contain persisted Guest rows
+  // under the Rev 42 policy gap; restore must not re-introduce them.
+  const backupHistoryRaw = Array.isArray(obj.payload.history) ? obj.payload.history : [];
+  const backupHistoryForDisk = stripGuestRowsForDisk(backupHistoryRaw);
+  localStorage.setItem(`${STORAGE_PREFIX}_history`, JSON.stringify(backupHistoryForDisk));
   const schedulerPayload = obj.payload && obj.payload.scheduler && typeof obj.payload.scheduler==="object" ? obj.payload.scheduler : {};
   Object.keys(localStorage).forEach(k=>{ if(k.startsWith("cogspeed_scheduler_")) localStorage.removeItem(k); });
   Object.entries(schedulerPayload).forEach(([k,v])=>{
