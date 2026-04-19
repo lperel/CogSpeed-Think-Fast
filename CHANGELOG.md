@@ -1,4 +1,5 @@
 ## V699 — 2026-04-19
+- Rev61 regression fix: preserved the hard no-repeat probe rule while restoring the post-test reset back to Mode 2 CogSpeed Sustained (standard) and the visible Profile Test Type selector.
 - Rev60b trial-selection fix: the actual probe generators now enforce a hard no-repeat rule so the next probe never equals the immediately previous probe.
 - Rev59 profile-open fix: stale lingering live test-type state is now normalized to Mode 2 CogSpeed Sustained when Profile opens, so older Mode 4 selections no longer appear by surprise.
 - Rev58 Test Type menu correction: all six options remain selectable, but after every completed test the selected menu state now returns to Mode 2 CogSpeed Sustained.

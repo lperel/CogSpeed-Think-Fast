@@ -4789,11 +4789,9 @@ function validateProfileAge(){
 
 
 function resetActiveModeAfterTest(){
- // Operational policy:
- // - after every completed test, the active test type returns to
- //   Mode 2 CogSpeed Sustained (standard symbol set)
- // - the dropdown still contains all selectable options, including Mode 4
- // - Profile is the place where the user chooses a different test type again
+ // After every completed test, return the active test type to
+ // Mode 2 CogSpeed Sustained with the standard symbol set.
+ // The unified Profile Test Type menu must reflect that reset state.
  settings.testMode = "mode2";
  settings.symbolSet = "standard";
  const sel = $("profileTestType");
