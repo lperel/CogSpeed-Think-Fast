@@ -1,4 +1,5 @@
 ## V699 — 2026-04-19
+- Rev66 profile placeholder: added a dummy future-research opt-in button on the Profile page asking whether the user would allow anonymous data download for research uses such as building population norms. No download behavior is active in this build.
 - Rev65 UI cleanup: kept rev64 behavior, cleaned the Profile email-toggle HTML markup, and bumped version markers again to invalidate stale cached shell markup.
 - Rev64 merge: incorporated the louder-explosions survival sound tuning into the latest email-toggle fix build.
 - Rev63 profile control fix: the 'Email my results' switch now makes the whole row clickable and redraws its visual state directly from the real checkbox on profile open, user tap, and save/reload. (Rev 62)

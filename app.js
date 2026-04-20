@@ -337,7 +337,7 @@ let settings=loadSettings();
 // profile record (profile is no longer the source of truth for test type),
 // and persist both. This fires once per fresh rev deployment per device;
 // after that, the stamp matches and nothing is touched on subsequent loads.
-const APP_REV_STAMP = "V699rev65";
+const APP_REV_STAMP = "V699rev66";
 (function migrateToCurrentRev(){
  let stored = "";
  try{ stored = localStorage.getItem(`${STORAGE_PREFIX}_rev_stamp`) || ""; }catch(e){ stored = ""; }
@@ -8322,6 +8322,12 @@ $("subjectNextBtn").onclick=()=>{
  }
 };
 $("profileTestType")?.addEventListener("change", e=>applyUnifiedProfileTestType(e.currentTarget.value));
+$("profileResearchPlaceholderBtn")?.addEventListener("click", ()=>{
+ try{
+  alert("Placeholder only: future versions may allow users to opt in to anonymous research-data download for studies such as population norms. No data is downloaded by this button in the current build.");
+ }catch(e){}
+ setStatus("Research opt-in placeholder only — no download is active in this build.");
+});
 $("skipRefresherBtn").onclick=()=>{
  showTutorial(); setStatus("Tutorial");
 };
