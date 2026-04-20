@@ -5,20 +5,23 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
 <title>About CogSpeed</title>
 <style>
-:root{--bg:#091426;--bg2:#132746;--panel:#0d1b33;--text:#f5fbff;--muted:#d7e7f8;--edge:#4f6f99;--accent:#7fd7ff}
+:root{--bg:#091426;--bg2:#132746;--panel:#0d1b33;--text:#f5fbff;--muted:#d7e7f8;--edge:#4f6f99;--accent:#7fd7ff;--accent2:#bcecff}
 *{box-sizing:border-box}
 body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;background:linear-gradient(135deg,var(--bg2),var(--bg) 58%,#060c16);color:var(--text)}
-.wrap{max-width:980px;margin:0 auto;padding:24px 18px 40px}
-.card{background:rgba(13,27,51,.92);border:1px solid var(--edge);border-radius:18px;padding:20px;box-shadow:0 20px 50px rgba(0,0,0,.25)}
+.wrap{max-width:1000px;margin:0 auto;padding:24px 18px 40px}
+.card{background:rgba(13,27,51,.92);border:1px solid var(--edge);border-radius:18px;padding:22px;box-shadow:0 20px 50px rgba(0,0,0,.25)}
 a{text-decoration:none;color:var(--accent)}
 .back{display:inline-block;margin-bottom:14px}
-h1{margin:0 0 14px;color:var(--accent);font-size:clamp(24px,4vw,34px)}
-h2{margin:18px 0 8px;color:var(--accent);font-size:clamp(18px,3vw,24px)}
-p,li{margin:0 0 12px;line-height:1.6;color:var(--text)}
+h1{margin:0 0 14px;color:var(--accent);font-size:clamp(26px,4vw,36px)}
+h2{margin:20px 0 8px;color:var(--accent);font-size:clamp(18px,3vw,24px)}
+p,li{margin:0 0 12px;line-height:1.65;color:var(--text)}
 ul{margin:0 0 12px 22px;padding:0}
-.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin:10px 0 14px}
-.panel{background:rgba(255,255,255,.04);border:1px solid rgba(127,215,255,.18);border-radius:14px;padding:12px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px;margin:10px 0 18px}
+.panel{background:rgba(255,255,255,.04);border:1px solid rgba(127,215,255,.18);border-radius:14px;padding:14px}
 .small{color:var(--muted);font-size:.96rem}
+.actions{display:flex;flex-wrap:wrap;gap:10px;margin:6px 0 18px}
+.btn{display:inline-flex;align-items:center;justify-content:center;padding:12px 16px;border-radius:12px;border:1px solid rgba(127,215,255,.28);background:linear-gradient(180deg,rgba(127,215,255,.16),rgba(127,215,255,.08));color:var(--text);font-weight:800}
+.note{margin-top:12px;padding:14px;border-radius:14px;background:rgba(127,215,255,.08);border:1px solid rgba(127,215,255,.18)}
 </style>
 </head>
 <body>
@@ -27,77 +30,67 @@ ul{margin:0 0 12px 22px;padding:0}
   <div class="card">
     <h1>About CogSpeed®</h1>
 
-    <p>CogSpeed is a brief cognitive performance test designed to measure how rapidly a person can identify a simple visual pattern, match it correctly, and continue performing as time pressure increases. The task emphasizes processing speed and sustained performance rather than reading, language skill, or memorization.</p>
+    <div class="actions">
+      <a class="btn" href="technical-overview.html">Read Technical Paper</a>
+      <a class="btn" href="technical-overview.pdf">Download Technical Overview PDF</a>
+    </div>
+
+    <p>CogSpeed® is a computer-adaptive, web-based cognitive performance test designed to rapidly and objectively measure aspects of cognitive processing speed and sustained performance ability. It is intended for laboratory research, field studies, repeated self-checking, and readiness screening where alertness and cognitive reliability matter.</p>
+    <p>CogSpeed is brief, portable, and practical for repeated use. It can run on a smartphone, is designed to be immediately repeatable, and usually takes less than three minutes. Because the task relies on simple visual matching rather than language-heavy content, it can be used across cultures and in many different environments.</p>
 
     <div class="grid">
-      <div class="panel"><strong>Core task</strong><br><span class="small">The center probe shows dots or lines. The subject finds the matching pattern above and taps the response gear in the same position below.</span></div>
-      <div class="panel"><strong>Primary aim</strong><br><span class="small">Estimate how well the subject can keep up accurately as presentation pace tightens or stabilizes at a challenging rate.</span></div>
-      <div class="panel"><strong>Best use</strong><br><span class="small">Repeated self-monitoring, longitudinal tracking, research, field use, and readiness screening with appropriate oversight.</span></div>
+      <div class="panel"><strong>Core task</strong><br><span class="small">The subject matches a simple visual target as quickly and accurately as possible while presentation pace adapts or remains fixed at a demanding level.</span></div>
+      <div class="panel"><strong>Primary aim</strong><br><span class="small">Estimate how rapidly and reliably a person can keep processing under increasing or sustained time pressure.</span></div>
+      <div class="panel"><strong>Best use</strong><br><span class="small">Repeated comparisons with the same person’s earlier sessions, and eventually with age- and gender-based population norms when available.</span></div>
     </div>
 
     <h2>Origins and design logic</h2>
-    <p>CogSpeed grew out of earlier adaptive information-processing work developed to measure performance decline under fatigue and demanding operational conditions. The same core logic remains: use a brief, repeatable visual task and adaptive machine pacing to estimate a person’s fastest reliable cognitive processing performance.</p>
-    <p>Rather than trying to measure knowledge, vocabulary, or memory, CogSpeed focuses on how quickly and accurately the subject can perceive, decide, and respond under sustained demand. The task is intended to be portable, repeatable, practical in the laboratory or field, and broadly usable across cultures because it relies on simple visual matching rather than language-heavy content.</p>
+    <p>CogSpeed grew out of earlier adaptive information-processing work designed to measure performance decline under fatigue and demanding operational conditions. The same basic logic remains: use a brief, repeatable visual task and machine pacing to estimate a person’s fastest reliable cognitive processing performance and how well that performance can be sustained.</p>
+    <p>CogSpeed emphasizes perception, decision, and response under time pressure rather than vocabulary, language skill, or academic knowledge. It is intended to be portable, economical, practical in laboratory and field settings, and learnable to an individual’s own baseline.</p>
 
-    <h2>How CogSpeed adapts</h2>
-    <p>When enough time is available, the matching rule is simple. As the pace becomes more demanding, results increasingly reflect the subject’s ability to keep processing correctly and consistently. The adaptive logic is designed to hunt for the fastest presentation rate the subject can reliably manage, while also checking for misses, instability, and other signs that the apparent speed may not represent true sustained performance.</p>
+    <h2>Human factors design features</h2>
+    <p>The core task does not require color vision or hearing. It uses simple visual matching rather than written language, spoken test content, or culture-specific knowledge. The software also includes response-time limits, verification checks, and anomaly-handling logic intended to improve data quality and reduce artifacts from irregular behavior such as random tapping, inattention, spoofing, faking, or other unusual response patterns.</p>
+    <p>No behavioral test is completely immune to poor effort, unusual responding, or normal moment-to-moment variability. CogSpeed is therefore best understood as a rapid, structured estimate of current performance rather than as a stand-alone diagnostic instrument.</p>
 
     <h2>How the test flow works</h2>
-    <p>The app can include saved-profile entry, optional sleep logging, a Samn-Perelli Fatigue Scale rating, and a seven-page tutorial with direct Skip to Test access from every page. After the selected mode is completed, the result can be reviewed in the Speedometer, Results Summary, Trial Detail, graphs, and export tools.</p>
+    <p>The app can include saved-profile entry, optional sleep logging, a Samn-Perelli Fatigue Scale rating, and a tutorial. The user then completes the selected test mode. After the test, results can be reviewed in the Speedometer, Results Summary, Trial Detail, graphs, and export tools.</p>
     <ul>
-      <li><strong>Mode 1 CogSpeed Adapted:</strong> starts with calibration and then uses adaptive machine pacing to estimate blocking level under increasing challenge.</li>
-      <li><strong>Mode 2 CogSpeed Sustained:</strong> reaches an adaptive level, holds a sustained fixed-rate segment there, and finishes with true self-paced final trials.</li>
-      <li><strong>Mode 3 Self-paced:</strong> allows rapid repeated responding without machine pacing, useful for practice or alternate tracking needs.</li>
-      <li><strong>Mode 4 Machine-paced:</strong> uses a calibration-derived fixed pace for a sustained presentation block without adaptive pacing changes.</li>
-    </ul>
-
-    <h2>Workflow and reporting features</h2>
-    <ul>
-      <li><strong>Personal Baseline:</strong> the Speedometer includes an in-app Personal Baseline page that summarizes recent qualifying sessions and helps place a current result in context.</li>
-      <li><strong>Mode 2 result views:</strong> Mode 2 results can be viewed as Cognitive Processing Index (CPI) and Maximum Blocking Speed (MBS), or as Cognitive Performance Ability (CPA) and Disposition, making it easier to compare speed, stability, and sustained performance quality.</li>
-      <li><strong>Profile Scheduler:</strong> Registered users can select a local on-device scheduler with Anytime, Personal, and Fit-for-Duty reminder options, including sound and voice alerts.</li>
-      <li><strong>Sleep and fatigue context:</strong> optional sleep logging and the Samn-Perelli Fatigue Scale can be saved with each session to improve interpretation of trends over date and time.</li>
-      <li><strong>In-app review:</strong> the app includes Speedometer, Results Summary, Trial Detail, response graphs, and performance-over-time graphing without requiring an external dashboard.</li>
-      <li><strong>Offline-oriented packaging:</strong> the app is designed as a progressive web app with local storage and service-worker support so it remains practical in field or low-connectivity use.</li>
+      <li><strong>Mode 1 CogSpeed Adapted:</strong> starts with self-paced calibration and then uses adaptive machine pacing to estimate blocking level under increasing challenge.</li>
+      <li><strong>Mode 2 CogSpeed Sustained:</strong> determines an adaptive performance estimate, holds a sustained fixed-rate segment near that level, and ends with final self-paced trials.</li>
+      <li><strong>Mode 3 Self-paced:</strong> runs continuous self-paced responding for a fixed period, useful for practice and response-variability work.</li>
+      <li><strong>Mode 4 Machine-paced:</strong> uses calibration-derived fixed pacing for a sustained block without adaptive pacing changes.</li>
     </ul>
 
     <h2>How to read the main results</h2>
-    <p><strong>Cognitive Processing Index (CPI)</strong> is the main normalized 0-100 summary of processing performance. <strong>Maximum Blocking Speed (MBS)</strong> is the pacing-based estimate, in milliseconds, of the presentation rate at which the subject begins to block. Higher CPI and faster sustainable MBS generally indicate better performance.</p>
-    <p><strong>Cognitive Performance Ability (CPA)</strong> is a broader Mode 2 sustained-performance estimate derived from CPI plus sustained-phase factors such as correct responses, wrongs, misses, variability, drift, lapse rate, recovery ratio, and block efficiency. Zero wrongs can help, zero or very low misses can help, moderate error levels can be neutral, and heavier error or instability patterns can lower the result.</p>
+    <p><strong>Maximum Blocking Speed (MBS)</strong> is the pacing-based estimate, in milliseconds, of the presentation rate at which the subject begins to block. <strong>Cognitive Processing Index (CPI)</strong> is the main normalized 0-100 summary derived from the MBS. Lower CPI and slower MBS generally indicate degraded cognitive performance.</p>
+    <p><strong>Cognitive Performance Ability (CPA)</strong> is a broader Mode 2 sustained-performance estimate derived from CPI plus sustained-phase factors such as correct responses, wrong responses, misses, variability, drift, lapse rate, recovery ratio, and block efficiency. Zero wrongs can help. Zero or very low misses can also help. Moderate error levels can be neutral. Heavier error, miss, or instability patterns can lower the result.</p>
     <p>CogSpeed is usually most informative when current results are compared with the subject’s own earlier sessions rather than interpreted as a single isolated number.</p>
 
+    <h2>Personal baseline and repeated use</h2>
+    <p>CogSpeed is designed to be learned to an individual’s own baseline. After enough qualifying performance has been accumulated, the app can build and store a personal baseline to help place current results in context. Repeated use can help users, researchers, or programs observe decline, recovery, instability, learning effects, sleep-related change, and other trends over time.</p>
+
     <h2>Subjective and objective context</h2>
-    <p>CogSpeed pairs objective task performance with the Samn-Perelli Fatigue Scale because self-reported state can add useful context. Subjective decline can appear before larger objective changes are obvious, and repeated use of both measures can help users, researchers, or programs follow trends over time more clearly.</p>
+    <p>Before testing, CogSpeed records the user’s current Samn-Perelli Fatigue Scale (S-PFS) rating. CogSpeed pairs objective task performance with subjective fatigue because self-reported state can add useful context. Subjective decline may appear before larger objective changes become obvious, and repeated use of both measures can help users and researchers understand change over time more clearly.</p>
 
     <h2>What CogSpeed may be sensitive to</h2>
-    <p>CogSpeed depends on rapid, sustained cognitive throughput. Therefore, it may be sensitive to fatigue, sleep loss, alcohol, some drugs, reduced alertness, normal aging effects, dementia, concussion, other brain injuries, and other conditions that slow or destabilize mental performance. However, CogSpeed does not by itself identify the cause of reduced performance.</p>
+    <p>CogSpeed depends on rapid, sustained cognitive throughput. Therefore, it may be sensitive to fatigue, sleep loss, alcohol, some drugs, reduced alertness, normal aging, dementia, concussion, other brain injuries, and other conditions that slow or destabilize mental performance. However, CogSpeed does not by itself identify the cause of reduced performance.</p>
 
-    <h2>Objectivity and anomaly detection</h2>
-    <p>CogSpeed is intended as an objective behavioral screen, but no behavioral test is completely immune to poor effort or unusual response patterns. The app therefore uses timing rules, error limits, repeatability checks, and anomaly-handling logic to reduce artifacts from random tapping, inattention, or other irregular behavior. It is best understood as a rapid, structured estimate of current performance rather than as an all-knowing diagnostic instrument.</p>
-
-    <h2>Personal, research, and fit-for-duty uses</h2>
+    <h2>Uses</h2>
     <p><strong>Personal use:</strong> repeated self-checks, trend monitoring over days and months, sleep-and-fatigue tracking, readiness checks before demanding activity, and review of baseline changes over time.</p>
-    <p><strong>Research use:</strong> laboratory fatigue studies, sleep-deprivation and circadian-rhythm work, work-rest-cycle studies, psychopharmacology, alcohol studies, traumatic brain injury research, aging and dementia comparisons, individual-differences work, and synchronized comparison with electroencephalography, functional magnetic resonance imaging, brain-scan, or artificial-intelligence analysis pipelines.</p>
+    <p><strong>Research use:</strong> fatigue studies, sleep-deprivation and circadian-rhythm work, work-rest-cycle studies, psychopharmacology, alcohol studies, traumatic brain injury research, aging and dementia comparisons, individual-differences work, and synchronized comparison with electroencephalography, functional magnetic resonance imaging, brain-scan, or artificial-intelligence analysis pipelines.</p>
     <p><strong>Fit-for-duty and operational use:</strong> preliminary readiness screening in settings where alertness and cognitive reliability matter, such as transportation, aviation, energy, industrial operations, emergency response, and other hazardous environments. CogSpeed is intended to support structured human review, not replace it.</p>
 
+    <h2>Additional challenge tests</h2>
+    <p>CogSpeed also includes supplementary challenge formats that preserve the same core scoring framework while using different symbol sets. The <strong>CogSpeed Memory Challenge</strong> increases memory demand and may be useful for studying learning effects. The <strong>CogSpeed Survival Challenge</strong> uses a combat-themed icon set to increase engagement and encourage maximum effort. These supplementary formats do not replace the program’s main focus on Mode 2 CogSpeed Sustained.</p>
+
     <h2>Privacy and deployment posture</h2>
-    <p>The app stores its working data locally on the device and is designed to function offline after installation. Profiles, scheduler settings, results history, sleep entries, and review pages are intended to support practical repeated use without requiring constant network access. Deployment-specific policies, backups, exports, and retention should still be governed by the organization or study using the app.</p><h2>Additional Challenge Tests</h2>
-<p>CogSpeed also includes optional challenge formats that use alternative symbol sets while preserving the same core CogSpeed scoring framework. These include the CogSpeed Memory Challenge and CogSpeed Survival Challenge. These challenge tests are supplementary formats only. The main focus of this program remains CogSpeed Sustained - Mode 2.</p>
+    <p>The app stores its working data locally on the device and is designed to function offline after installation. Profiles, scheduler settings, results history, sleep entries, and review pages are intended to support practical repeated use without requiring constant network access. Geolocation can record where a test was taken when location capture is available and permitted.</p>
+    <p>CogSpeed is free to use for personal or research purposes. It contains no ads, and data is not sold to or shared with unauthorized parties. Data remains on the user’s device unless the user gives explicit permission for it to be used for research purposes. Future research download features should require clear positive opt-in and appropriate informed consent.</p>
 
-<p>The CogSpeed Memory Challenge uses learned icon-pair matching instead of the original dot-and-line patterns. The subject must recognize the paired match for the center probe icon, find that matching icon in the gears above, and then tap the response gear in the same position below. This test has higher memory requirements and is difficult to learn.</p>
-
-<p>The CogSpeed Survival Challenge uses a survival/combat-themed icon set with the same paired-match rule and the same position-based response method. It preserves the CogSpeed test structure while changing the symbol set and challenge style. The intent is to add incentive to encourage the user to try their hardest to score as high as possible.</p>
-
-<p>Both challenge tests are intended as additional formats built on the CogSpeed system. They do not replace the primary role of CogSpeed Sustained - Mode 2, which remains the central focus of the program.</p>
-
-
-
-    <h2>Sponsor and contact</h2>
-    <p>CogSpeed is sponsored by <strong>Gray Matter Metrics, LLC</strong>.</p>
-    <p><strong>For more information or comments:</strong> thinkfastgmm@gmail.com</p>
+    <div class="note">
+      <strong>Sponsor and contact.</strong> CogSpeed is sponsored by Gray Matter Metrics, LLC. For more information, comments, or problem reports, contact Gray Matter Metrics, LLC at thinkfastgmm@gmail.com.
+    </div>
   </div>
 </div>
-
-
 </body>
 </html>

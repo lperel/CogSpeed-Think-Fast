@@ -1,4 +1,13 @@
+## V699 Rev 69 — 2026-04-20
+- Replaced `about.html` with a fuller, cleaner About CogSpeed page that preserves the user-facing scientific, operational, privacy, and use-case explanation in clearer language.
+- Added new supplemental methods document `technical-overview.html` plus bundled `technical-overview.pdf` titled **CogSpeed Technical Overview: Test Logic, Scoring, Baseline Construction, and Use Considerations**.
+- Added three direct entry points to the technical document: **Read Technical Paper** on the About page, **How scores are computed** on the Results Summary overlay, and **Technical Methods PDF** in the Profile research/administrative area.
+- Updated service-worker shell caching to include the new technical overview HTML/PDF assets for offline availability.
+- Bumped the cache-busting script tag to `app.js?v=699rev69`, bumped `sw.js` RELEASE to `699rev69`, and advanced `APP_REV_STAMP` to `V699rev69`.
+
 ## V699 — 2026-04-19
+- Rev68 terminology scrub: replaced every remaining old fatigue-scale abbreviation occurrence with S-PFS across the entire package, including CHANGELOG.md.
+- Rev67 terminology update: replaced S-PFS with S-PFS everywhere in the program text, code comments, results text, and graph-related labels.
 - Rev66 profile placeholder: added a dummy future-research opt-in button on the Profile page asking whether the user would allow anonymous data download for research uses such as building population norms. No download behavior is active in this build.
 - Rev65 UI cleanup: kept rev64 behavior, cleaned the Profile email-toggle HTML markup, and bumped version markers again to invalidate stale cached shell markup.
 - Rev64 merge: incorporated the louder-explosions survival sound tuning into the latest email-toggle fix build.
@@ -48,15 +57,15 @@
 - Rev41 single-user device policy: mixed local histories left over from older builds are now detected and blocked on entry until local data is cleared.
 
 ## V699 Rev 30 — 2026-04-18
-- Legacy disposition-token migration — critical fix for users with existing history. Rev 29's disposition gates checked `dispositionCode==null` before recomputing, which left saved results from before the upgrade untouched with their old 4-tier tokens ("GREEN", "YELLOW", "ORANGE", "RED"). Combined with the Rev 30 `SP-FS N —` display format, that produced nonsense strings like `SP-FS GREEN — Clear` in the summary. Added a legacy-token regex check at all four disposition gates (lines 5133, 5293, 8058, 8912) that triggers a re-compute when `dispositionCode` matches `/^(GREEN|YELLOW|ORANGE|RED)$/i`. Saved history is now migrated on the fly to the 7-tier SP-FS-aligned labels the first time each result is displayed.
-- Disposition display format upgraded to `SP-FS N — caption` in the main summary builder (line 5149) and the Mode 2 detailed summary (line 5363), matching the existing `Fatigue (SP-FS):` line format for consistency. Example: `Disposition: SP-FS 4 — Functioning slightly less than normal`. The speedometer metric box uses a tight 20px-font card and was kept compact at `SP-FS N` (e.g. `SP-FS 4`) so the full caption doesn't wrap into three lines.
-- Results Metrics Explanations text rewritten to describe the new 7-tier SP-FS-aligned disposition system. The Rev 28/29 rebuild had updated the computation but left the explanation text at line 5027 still describing the old 4-tier GREEN/YELLOW/ORANGE/RED bands with their old CPA cutoffs. Also removed the `Not used in this mode` gate on the disposition explanation since disposition now applies to all modes.
+- Legacy disposition-token migration — critical fix for users with existing history. Rev 29's disposition gates checked `dispositionCode==null` before recomputing, which left saved results from before the upgrade untouched with their old 4-tier tokens ("GREEN", "YELLOW", "ORANGE", "RED"). Combined with the Rev 30 `S-PFS N —` display format, that produced nonsense strings like `S-PFS GREEN — Clear` in the summary. Added a legacy-token regex check at all four disposition gates (lines 5133, 5293, 8058, 8912) that triggers a re-compute when `dispositionCode` matches `/^(GREEN|YELLOW|ORANGE|RED)$/i`. Saved history is now migrated on the fly to the 7-tier S-PFS-aligned labels the first time each result is displayed.
+- Disposition display format upgraded to `S-PFS N — caption` in the main summary builder (line 5149) and the Mode 2 detailed summary (line 5363), matching the existing `Fatigue (S-PFS):` line format for consistency. Example: `Disposition: S-PFS 4 — Functioning slightly less than normal`. The speedometer metric box uses a tight 20px-font card and was kept compact at `S-PFS N` (e.g. `S-PFS 4`) so the full caption doesn't wrap into three lines.
+- Results Metrics Explanations text rewritten to describe the new 7-tier S-PFS-aligned disposition system. The Rev 28/29 rebuild had updated the computation but left the explanation text at line 5027 still describing the old 4-tier GREEN/YELLOW/ORANGE/RED bands with their old CPA cutoffs. Also removed the `Not used in this mode` gate on the disposition explanation since disposition now applies to all modes.
 
 ## V699 Rev 29 — 2026-04-18
-- Disposition system extended from Mode 2 only to ALL modes. The Rev 28 rebuild created a seven-tier SP-FS-aligned disposition but gated it on `mode2Triggered`, so Modes 1/3/4 were silently returning `null`. `computeDispositionFromCPA` renamed to `computeDisposition` (old name kept as backward-compat alias that delegates to the new function). For Mode 2, the function uses CPA as before. For Modes 1/3/4, it uses CPI — which is already on the same 0-100 scale anchored to SP-FS via the canonical `mode1Bands` captions, so the same band edges and labels apply without reinterpretation. A Mode 2 test that fails before reaching the sustained phase now falls back to CPI (still a valid 0-100 score) instead of returning null. The function now also self-gates on `isTestSuccess(result)` — failed calibrations and aborted runs get null disposition instead of being falsely assigned "Unable to function." Performance-over-time row summaries now show disposition for every successful mode: Mode 2 keeps its `CPA XX.X (label)` parenthetical; Modes 1/3/4 get a new `| Disposition: label` segment after CPI/MBS. The three summary call sites that previously gated on `mode2Triggered && dispositionCode==null` now just check `dispositionCode==null` — the function itself picks the right score per mode.
+- Disposition system extended from Mode 2 only to ALL modes. The Rev 28 rebuild created a seven-tier S-PFS-aligned disposition but gated it on `mode2Triggered`, so Modes 1/3/4 were silently returning `null`. `computeDispositionFromCPA` renamed to `computeDisposition` (old name kept as backward-compat alias that delegates to the new function). For Mode 2, the function uses CPA as before. For Modes 1/3/4, it uses CPI — which is already on the same 0-100 scale anchored to S-PFS via the canonical `mode1Bands` captions, so the same band edges and labels apply without reinterpretation. A Mode 2 test that fails before reaching the sustained phase now falls back to CPI (still a valid 0-100 score) instead of returning null. The function now also self-gates on `isTestSuccess(result)` — failed calibrations and aborted runs get null disposition instead of being falsely assigned "Unable to function." Performance-over-time row summaries now show disposition for every successful mode: Mode 2 keeps its `CPA XX.X (label)` parenthetical; Modes 1/3/4 get a new `| Disposition: label` segment after CPI/MBS. The three summary call sites that previously gated on `mode2Triggered && dispositionCode==null` now just check `dispositionCode==null` — the function itself picks the right score per mode.
 
 ## V699 Rev 28 — 2026-04-18
-- CPA disposition rebuilt as a seven-tier system aligned to SP-FS levels, replacing the prior four-tier GREEN/YELLOW/ORANGE/RED mapping. Band edges are the midpoints between the canonical CPI anchors used throughout CogSpeed (100, 80, 75, 50, 25, 11, 0 → midpoints 90, 77.5, 62.5, 37.5, 18, 5.5). `dispositionCode` is now the SP-FS numeric level as a string ("1".."7"), `dispositionLabel` is pulled directly from the `mode1Bands` captions ("Functioning exceptionally well", "Functioning very well", "Functioning normally", "Functioning slightly less than normal", "Functioning starting to slow", "Difficult to function / becoming unsafe", "Unable to function / definitely unsafe") so the disposition vocabulary matches the Cognitive Performance table exactly, and a new `dispositionSpfs` numeric field is returned for CSV/research analysis. CSV export gains a `dispositionSpfs` column. Performance-over-time row summaries now show `dispositionLabel` in the parenthetical instead of the raw code, since the row already shows input SP-FS alongside CPA and a numeric disposition code there would be confusing.
+- CPA disposition rebuilt as a seven-tier system aligned to S-PFS levels, replacing the prior four-tier GREEN/YELLOW/ORANGE/RED mapping. Band edges are the midpoints between the canonical CPI anchors used throughout CogSpeed (100, 80, 75, 50, 25, 11, 0 → midpoints 90, 77.5, 62.5, 37.5, 18, 5.5). `dispositionCode` is now the S-PFS numeric level as a string ("1".."7"), `dispositionLabel` is pulled directly from the `mode1Bands` captions ("Functioning exceptionally well", "Functioning very well", "Functioning normally", "Functioning slightly less than normal", "Functioning starting to slow", "Difficult to function / becoming unsafe", "Unable to function / definitely unsafe") so the disposition vocabulary matches the Cognitive Performance table exactly, and a new `dispositionSpfs` numeric field is returned for CSV/research analysis. CSV export gains a `dispositionSpfs` column. Performance-over-time row summaries now show `dispositionLabel` in the parenthetical instead of the raw code, since the row already shows input S-PFS alongside CPA and a numeric disposition code there would be confusing.
 - Removed Pattern Refresher icons from the top of Memory and Survival trial pages per user feedback — the mini reference cards weren't useful during the test and consumed vertical space that should go to the gears. `renderTrialRefresher()` is now a no-op that always hides the `#trialRefresher` element. HTML markup retained (unchanged) so the change is fully reversible from a single function body if ever wanted back.
 - Enlarged challenge icons on trial screens for readability. With the trial refresher gone, the stim-grid and resp-grid flex containers grow into the freed vertical space and their gears scale up automatically. Additionally bumped the `"large"` size keyword's iconSize/backSize percentages inside `buildGearSVG` so the challenge icon fills more of the gear body: Survival 54% → 66% icon / 66% → 78% back, Memory 36% → 48% icon / 48% → 60% back. Probe icon sizes also raised slightly (Survival 72% → 80%, Memory 54% → 62%) so the center gear matches. xlarge refresher cards kept unchanged — they're already large.
 - CPX audit: confirmed no CPX traces remain in `app.js` or `index.html`. CPX was fully removed in V672; this rev's request to "remove all traces" is already complete in the live code. Historical V672 changelog entries noting the CPX removal are preserved as project history.
@@ -68,12 +77,12 @@
 
 ## V699 — 2026-04-18
 - Rev40 disposition logic update: Disposition is now used only for Mode 2 CPA view in the Speedometer.
-- Rev40 disposition safety override: SP-FS 1–2 forces RED and SP-FS 3 forces ORANGE regardless of CPA, but the Disposition window itself no longer displays SP-FS text.
-- Rev40 comments update: added explicit code comments explaining the Mode 2-only Disposition rule and SP-FS override behavior.
-- Rev39 speedometer dial fix: the colored arc bands on the Speedometer dial now use the canonical SP-FS 7-tier midpoint edges (5.5 / 18 / 37.5 / 62.5 / 77.5 / 90) instead of the original evenly-spaced tertile bands (15 / 30 / 45 / 65 / 76.67 / 88.33). Rev 38 had corrected the Disposition text wording but the underlying color arc was unchanged, so the needle could still land in the wrong color band for scores near an edge (e.g. CPA 63 fell in the yellow arc even though its disposition was GREEN — Functioning normally). The dial's color regions now align exactly with `computeDisposition()` and the speedometer Disposition text, so dial color, metric-box text, summary text, and CSV all agree.
-- Rev39 speedometer Disposition box now shows the combined grouped + SP-FS format, e.g. `GREEN — Clear for duty (SP-FS 6)`. Rev 38 had swapped `SP-FS N` for the 4-color group text only, which eliminated the SP-FS tier from the speedometer view and created a mismatch with the main summary's `Disposition: SP-FS 6 — Functioning very well` line and the CSV `dispositionSpfs` column. The combined format preserves both halves so research reviewers see the same SP-FS level on the speedometer and in the saved record. `getGroupedDispositionWindowTextFromScore()` now computes both the 4-color group and the 7-tier SP-FS level from the same canonical edges.
-- Rev39 Disposition explanation text extended to document the dial-arc 4-color grouping (GREEN = SP-FS 5/6/7, YELLOW = SP-FS 4, ORANGE = SP-FS 3, RED = SP-FS 1/2) alongside the existing 7-tier SP-FS band-by-band descriptions, and describes the combined speedometer format.
-- Rev38 live Speedometer fix: the actual Mode 2 disposition value shown in the Speedometer window now uses the grouped Green / Yellow / Orange / Red wording instead of `SP-FS N`.
+- Rev40 disposition safety override: S-PFS 1–2 forces RED and S-PFS 3 forces ORANGE regardless of CPA, but the Disposition window itself no longer displays S-PFS text.
+- Rev40 comments update: added explicit code comments explaining the Mode 2-only Disposition rule and S-PFS override behavior.
+- Rev39 speedometer dial fix: the colored arc bands on the Speedometer dial now use the canonical S-PFS 7-tier midpoint edges (5.5 / 18 / 37.5 / 62.5 / 77.5 / 90) instead of the original evenly-spaced tertile bands (15 / 30 / 45 / 65 / 76.67 / 88.33). Rev 38 had corrected the Disposition text wording but the underlying color arc was unchanged, so the needle could still land in the wrong color band for scores near an edge (e.g. CPA 63 fell in the yellow arc even though its disposition was GREEN — Functioning normally). The dial's color regions now align exactly with `computeDisposition()` and the speedometer Disposition text, so dial color, metric-box text, summary text, and CSV all agree.
+- Rev39 speedometer Disposition box now shows the combined grouped + S-PFS format, e.g. `GREEN — Clear for duty (S-PFS 6)`. Rev 38 had swapped `S-PFS N` for the 4-color group text only, which eliminated the S-PFS tier from the speedometer view and created a mismatch with the main summary's `Disposition: S-PFS 6 — Functioning very well` line and the CSV `dispositionSpfs` column. The combined format preserves both halves so research reviewers see the same S-PFS level on the speedometer and in the saved record. `getGroupedDispositionWindowTextFromScore()` now computes both the 4-color group and the 7-tier S-PFS level from the same canonical edges.
+- Rev39 Disposition explanation text extended to document the dial-arc 4-color grouping (GREEN = S-PFS 5/6/7, YELLOW = S-PFS 4, ORANGE = S-PFS 3, RED = S-PFS 1/2) alongside the existing 7-tier S-PFS band-by-band descriptions, and describes the combined speedometer format.
+- Rev38 live Speedometer fix: the actual Mode 2 disposition value shown in the Speedometer window now uses the grouped Green / Yellow / Orange / Red wording instead of `S-PFS N`.
 - Rev36 baseline rule update: Personal Baseline now excludes Memory Challenge and Survival Challenge sessions entirely; only Standard CogSpeed Mode 1 / Mode 2 sessions can qualify.
 - Rev34 bug fix: legacy Mode 2 rows now reconstruct CPI from MBS when stored CPI is missing, before rebuilding CPA and disposition.
 - Rev33 bug fix: legacy Mode 2 rows now rebuild CPA before disposition migration so old Mode 2 sessions can be normalized correctly.
@@ -232,7 +241,7 @@
 - Fixed the stale CPI scale comment so it matches the current 800/2800 defaults.
 - Removed the dead mode2_final no-response arming call in openTrial() and replaced it with a clarifying comment.
 - Corrected Admin field #5 and #26 labels from default 8000 to default 10000.
-- Marked the post-test SP-FS delta note as an explicit TODO.
+- Marked the post-test S-PFS delta note as an explicit TODO.
 - Removed dead sleep-window fallback code left behind after the no-autocorrection change.
 - Removed the orphaned Results-button comment block and blank whitespace from index.html.
 - Updated the CPI scale comment to match the current 800/2800 defaults.
@@ -260,7 +269,7 @@
 - Fixed the CPA disposition boundary so CPA = 65 is GREEN.
 - Cleaned up the Mode 2 summary by removing the duplicate CPA block, making the MBS gap text use the current qualifyingBlockGapMs setting, and renaming the local CPI variable.
 - Fixed Performance Over Time legend overlap and allowed Mode 3 sessions to contribute plotted CPI/ring values.
-- Fixed scheduler and backup issues: personal scheduler time sorting/window handling, missing SP-FS no longer acts like zero, legacy untimestamped baseline records are ignored, backup now includes scheduler settings, restore reinstates them, and backup formatVersion is now bounded.
+- Fixed scheduler and backup issues: personal scheduler time sorting/window handling, missing S-PFS no longer acts like zero, legacy untimestamped baseline records are ignored, backup now includes scheduler settings, restore reinstates them, and backup formatVersion is now bounded.
 - Updated remaining scheduler wording to say "registered user" instead of "saved subject" where applicable.
 - Updated visible app/package versioning to V694.
 - Fixed the remaining Mode 2 Scheduler Guest-warning strings in both index.html and app.js so only one "registered user" message is shown.
@@ -331,7 +340,7 @@
 # V685 — 2026-04-15
 
 - Added Personal Baseline as a rolling average of the most recent 5 qualifying Mode 1 / Mode 2 adaptive-phase MBS scores.
-- Baseline qualifies only for non-failed sessions with adaptive-phase MBS > 1800 ms and SP-FS 5, 6, or 7.
+- Baseline qualifies only for non-failed sessions with adaptive-phase MBS > 1800 ms and S-PFS 5, 6, or 7.
 - Personal Baseline now appears on the Speedometer and in Results Summary pages.
 - Added Speedometer dropdown item `Download Personal Baseline` as the last menu item; it downloads a self-contained HTML report with status block, table, and graph.
 - Fixed a critical Mode 2 duration bug: sustained-only elapsed subtraction now uses the logged `durationMs` field and no longer double-counts with `+ rt`.
@@ -345,8 +354,8 @@
 - Scheduler Save Settings button wiring was prepared in code for direct use if present in the UI.
 
 ## V683
-- Fixed Fit for Duty SP-FS extraction so scheduler reads `samnPerelli.score` from saved Mode 2 results instead of coercing the whole object to `NaN`.
-- Corrected Fit for Duty SP-FS thresholds to match the Samn-Perelli scale orientation: lower SP-FS now shortens the next interval and higher SP-FS can lengthen it.
+- Fixed Fit for Duty S-PFS extraction so scheduler reads `samnPerelli.score` from saved Mode 2 results instead of coercing the whole object to `NaN`.
+- Corrected Fit for Duty S-PFS thresholds to match the Samn-Perelli scale orientation: lower S-PFS now shortens the next interval and higher S-PFS can lengthen it.
 - Fixed the 1-minute Scheduler background test so it uses its own timer, never overwrites the real reminder timer, and rearms the real reminder after the test completes.
 - Refactored scheduler draft saving into a shared helper used by Profile Save & Continue so scheduler save logic is no longer dead drift.
 - Separated the Fit for Duty-only incomplete-session filter from the general Scheduler Status readout so Last Completed Mode 2 reflects the latest session seen by the subject.
@@ -430,7 +439,7 @@ V668
 - made calibration and sustained/final self-paced background blue slightly darker while keeping them matched
 
 V663
-- Graph legend now says “Green diamond = SP-FS”.
+- Graph legend now says “Green diamond = S-PFS”.
 - Enlarged MBS label and window text on Speedometer dial.
 - Calibration and Sustained phases continue to use the same light blue test background.
 
@@ -497,7 +506,7 @@ V658
 - Corrected the Performance Over Date and Time graph so the blue marker always plots CPI for all modes, including Mode 2 CogSpeed Sustained.
 - Kept the orange MBS ring as a companion marker at the same CPI position by design, instead of implying an independently plotted SPI or SBLP point.
 - Changed graph metric preference so Mode 2 sessions use adaptive MBS before SBLP when deriving CPI and the left-axis MBS labels.
-- Moved the SP-FS right-side scale and label farther right for readability.
+- Moved the S-PFS right-side scale and label farther right for readability.
 - Updated package/app version strings to V625.
 
 ## V618 — Admin label clarification for Mode 1 restart
@@ -566,7 +575,7 @@ V658
 - Dead speedEmailSelectBtn wiring removed (element never existed in index.html).
 
 ### Label and terminology fixes
-- "FATIGUE (S-PF)" corrected to "FATIGUE (SP-FS)" in all four summary builders.
+- "FATIGUE (S-PF)" corrected to "FATIGUE (S-PFS)" in all four summary builders.
 - "Condition 4" inline comment updated to match section header "Slow calibration halt".
 - "SELF-PACE CALIBRATION" corrected to "SELF-PACED CALIBRATION" in compact summary.
 - armNoResponseTimer header comment now mentions Mode 2 final self-paced coverage.
@@ -664,8 +673,8 @@ V658
 - Smoke and sparks now use the local FX corner coordinates again.
 - Kept the V606 Performance over Date and Time legend fix intact.
 
-## V606 — SP-FS restored to Performance over Date and Time legend
-- Added SP-FS back to the legend on the Performance over Date and Time graph.
+## V606 — S-PFS restored to Performance over Date and Time legend
+- Added S-PFS back to the legend on the Performance over Date and Time graph.
 - Kept CPI as the blue dot and MBS as the orange open circle around the same point.
 
 ## V605 — Performance over Date and Time CPI/MBS markers aligned
@@ -956,13 +965,13 @@ available data source in the session record.
   max 10 pts), error-type penalty (omissions + commissions weighted separately, max 10 pts),
   and degradation penalty (CDI preferred over raw decay + RT slope, max 25 pts).
 
-SP-FS 4: −3 pts, 3: −6, 2: −10, 1: −15. SP-FS 5–7: no adjustment.
+S-PFS 4: −3 pts, 3: −6, 2: −10, 1: −15. S-PFS 5–7: no adjustment.
 
 mapping objective performance onto the corrected Samn-Perelli scale:
 4=Less than sharp (46–59), 3=Dull/losing focus (32–45), 2=Groggy (18–31),
 1=Unable to function (0–17).
 
-**SP-FS divergence** — SP-FS_reported minus FFS. Positive = performing worse than
+**S-PFS divergence** — S-PFS_reported minus FFS. Positive = performing worse than
 declared state predicts (underreporting); +2 = note discrepancy; +3 or more = significant
 underreporting flag displayed in results.
 
@@ -1130,14 +1139,14 @@ block updated to define all new terms.
 - Kept calibration and adaptive backgrounds unchanged.
 - Refreshed live/package version references to V524.
 
-## V523 — Mode 4 phase background cues + SP-FS emphasis
+## V523 — Mode 4 phase background cues + S-PFS emphasis
 - Added modest phase background colors on the gear page: calibration medium gray, adaptive current gray, sustained light gray.
 - Kept the visual change background-only with no timing, scoring, or layout changes.
-- Updated the Mode 4 cognitive performance table so the SP-FS column/header is visually emphasized and the current SP-FS row is highlighted.
+- Updated the Mode 4 cognitive performance table so the S-PFS column/header is visually emphasized and the current S-PFS row is highlighted.
 - Refreshed visible/package version references to V523.
 
 ## V522 — Mode 4 cognitive table columns
-- Added dynamic SP-FS and description-of-performance columns to the Mode 2 CogSpeed Sustained cognitive performance table so it scales when the sustained-trial target changes.
+- Added dynamic S-PFS and description-of-performance columns to the Mode 2 CogSpeed Sustained cognitive performance table so it scales when the sustained-trial target changes.
 - Kept the table mapped from CSR to CPI with the user score flagged.
 
 ## V521 — Admin test-mode dropdown labels renamed
@@ -1606,6 +1615,6 @@ It is meant to provide a readable history without overloading inline code commen
 
 
 ## V661
-- Restored SP-FS item 5 wording to **"Okay, about normal"** while keeping the acronym as **SP-FS**.
+- Restored S-PFS item 5 wording to **"Okay, about normal"** while keeping the acronym as **S-PFS**.
 - Changed test-phase backgrounds to blue tones: calibration = light blue; adaptive/recovery/fixed machine-paced = medium blue; sustained/final self-paced = light blue.
 - Updated all package version wiring to V661.

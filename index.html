@@ -518,6 +518,7 @@
       <div style="font-size:18px;font-weight:800;color:var(--text);margin-bottom:6px">FUTURE RESEARCH OPTION</div>
       <div class="field-hint" style="margin-bottom:10px">Would you allow your data to be anonymously downloaded for research purposes, such as building population norms?</div>
       <button type="button" id="profileResearchPlaceholderBtn" class="ctrl-btn" style="width:100%;font-size:16px">Allow Anonymous Research Download (Placeholder Only)</button>
+      <a href="technical-overview.pdf" class="ctrl-btn" style="width:100%;font-size:16px;margin-top:10px;text-decoration:none;display:inline-flex;align-items:center;justify-content:center">Technical Methods PDF</a>
       <div class="field-hint" style="margin-top:8px">Placeholder only. No research download is active in this build. Future versions would require positive user opt-in.</div>
     </div>
 
@@ -587,7 +588,7 @@
         <div id="fitDutySchedulePanel" class="field-row hidden" style="margin-bottom:12px">
           <label style="font-size:16px">Fit for Duty Schedule</label>
           <div class="field-hint" style="margin-top:6px">Uses last completed valid Mode 2 only.</div>
-          <div class="field-hint">Uses CPI and SP-FS.</div>
+          <div class="field-hint">Uses CPI and S-PFS.</div>
           <div class="field-hint">Lower CPI and/or higher fatigue may trigger earlier follow-up.</div>
           <div class="field-hint" style="margin-bottom:8px">Higher CPI and lower fatigue may allow later follow-up.</div>
           <div style="display:grid;gap:10px">
@@ -860,7 +861,7 @@
       This sleep duration looks unusual. Please check hour and AM/PM selections.
     </div>
 
-    <button class="ctrl-btn" id="sleepContinueBtn" style="width:100%;margin-top:14px;font-size:22px;font-weight:900;min-height:60px">Continue → SP-FS</button>
+    <button class="ctrl-btn" id="sleepContinueBtn" style="width:100%;margin-top:14px;font-size:22px;font-weight:900;min-height:60px">Continue → S-PFS</button>
 
     <div class="controls" style="margin-top:10px;gap:8px">
       <button class="ctrl-btn" id="sleepBackBtn" style="font-size:15px">Back</button>
@@ -874,7 +875,7 @@
     <div style="text-align:center;margin-bottom:6px">
       <div style="font-size:clamp(22px,3.8dvh,30px);font-weight:900;color:var(--accent);letter-spacing:.03em;line-height:1.2">Samn-Perelli</div>
       <div style="font-size:clamp(22px,3.8dvh,30px);font-weight:900;color:var(--accent);letter-spacing:.03em;line-height:1.2">Fatigue Scale</div>
-      <div style="font-size:clamp(15px,2.2dvh,18px);font-weight:700;color:var(--muted);margin-top:4px">(SP-FS)</div>
+      <div style="font-size:clamp(15px,2.2dvh,18px);font-weight:700;color:var(--muted);margin-top:4px">(S-PFS)</div>
     </div>
     <p style="font-size:clamp(15px,2.2dvh,18px);color:var(--muted);text-align:center;margin-bottom:10px;font-weight:500">How do you feel right now?</p>
     <div class="fatigue-list" id="fatigueList" style="flex:1;gap:8px"></div>
@@ -1014,6 +1015,7 @@
       <button class="ctrl-btn" id="summaryRestartBtn" style="flex:1">New Test</button>
       <button class="ctrl-btn" id="summarySpeedometerBtn" style="flex:1">Speedometer</button>
             <button class="ctrl-btn" id="summaryRankedBtn" style="flex:1">Ranked Averages</button>
+      <a class="ctrl-btn" href="technical-overview.html" id="summaryHowScoresBtn" style="flex:1;text-decoration:none;display:inline-flex;align-items:center;justify-content:center">How scores are computed</a>
       <button id="summaryProfileBtn" style="background:none;border:none;color:rgba(127,215,255,0.85);font-size:18px;padding:4px 10px;cursor:pointer">⚙</button>
       <button id="summaryAdminBtn" style="background:none;border:none;color:rgba(127,215,255,0.3);font-size:11px;padding:4px 10px;cursor:pointer;font-family:inherit;letter-spacing:.05em">Admin →</button>
     </div>
@@ -1044,7 +1046,7 @@
     <div id="personalBaselineGraph" style="margin:0 auto 12px;max-width:980px;background:#081321;border:1px solid var(--edge);border-radius:12px;padding:12px;overflow:auto"></div>
     <div style="background:#060e1a;border:1px solid var(--edge);border-radius:12px;padding:10px;overflow:auto">
       <table id="personalBaselineTable" style="width:100%;border-collapse:collapse;color:var(--text);font-size:14px">
-        <thead><tr><th style="text-align:left;padding:8px;border-bottom:1px solid var(--edge)">#</th><th style="text-align:left;padding:8px;border-bottom:1px solid var(--edge)">Date / Time</th><th style="text-align:left;padding:8px;border-bottom:1px solid var(--edge)">Mode</th><th style="text-align:right;padding:8px;border-bottom:1px solid var(--edge)">MBS (ms)</th><th style="text-align:right;padding:8px;border-bottom:1px solid var(--edge)">SP-FS</th></tr></thead>
+        <thead><tr><th style="text-align:left;padding:8px;border-bottom:1px solid var(--edge)">#</th><th style="text-align:left;padding:8px;border-bottom:1px solid var(--edge)">Date / Time</th><th style="text-align:left;padding:8px;border-bottom:1px solid var(--edge)">Mode</th><th style="text-align:right;padding:8px;border-bottom:1px solid var(--edge)">MBS (ms)</th><th style="text-align:right;padding:8px;border-bottom:1px solid var(--edge)">S-PFS</th></tr></thead>
         <tbody></tbody>
       </table>
     </div>
@@ -1145,7 +1147,7 @@
 <div id="trialLogOverlay" class="overlay hidden">
   <div class="modal" style="max-width:min(99vw,1200px);width:min(99vw,1200px)">
     <h2>Trial Detail Log</h2>
-    <p class="modal-hint" id="trialLogMeta">SP-FS —</p>
+    <p class="modal-hint" id="trialLogMeta">S-PFS —</p>
     <div style="margin-bottom:8px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
       <select id="trialLogSessionSelect" style="flex:1;padding:8px;border:1px solid var(--edge);border-radius:10px;background:#0a1629;color:var(--text);font-size:13px"></select>
     </div>
@@ -1174,7 +1176,7 @@
 <div id="rateRtOverlay" class="overlay hidden">
   <div class="modal" style="max-width:min(99vw,1120px)">
     <h2 style="font-size:clamp(20px,3.2dvh,28px)">Presentation Rate vs Response Time</h2>
-    <p class="modal-hint" id="rateRtMeta">SP-FS —</p>
+    <p class="modal-hint" id="rateRtMeta">S-PFS —</p>
     <div id="rateRtInfoBar" style="margin-bottom:8px;padding:8px 10px;border:1px solid var(--edge);border-radius:10px;background:#0a1629;color:var(--muted);font-size:12px;line-height:1.35">No session selected</div>
     <div style="margin-bottom:8px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
       <select id="rateRtSessionSelect" style="flex:1;padding:8px;border:1px solid var(--edge);border-radius:10px;background:#0a1629;color:var(--text);font-size:13px"></select>
@@ -1226,6 +1228,6 @@
   <div class="resp-grid" id="respGrid"></div>
 </div>
 
-<script src="app.js?v=699rev66" defer></script>
+<script src="app.js?v=699rev69" defer></script>
 </body>
 </html>

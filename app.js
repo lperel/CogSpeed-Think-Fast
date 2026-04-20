@@ -260,10 +260,10 @@ const LINE_PATTERNS={
  6:[["v",17,28],["v",50,28],["v",83,28],["v",17,72],["v",50,72],["v",83,72]]
 };
 // ═══════════════════════════════════════════════════════════════
-// SECTION: SP-FS — SAMN-PERELLI FATIGUE SCALE
+// SECTION: S-PFS — SAMN-PERELLI FATIGUE SCALE
 // 7-point Likert scale. Score 7=fully alert, 1=unable to function.
 // Validated by Samn & Perelli (1982). Collected before each test.
-// TODO: post-test SP-FS delta collection not yet implemented.
+// TODO: post-test S-PFS delta collection not yet implemented.
 // ═══════════════════════════════════════════════════════════════
 const SAMN_PERELLI=[
  [7,"Full alert, wide awake"],
@@ -337,7 +337,7 @@ let settings=loadSettings();
 // profile record (profile is no longer the source of truth for test type),
 // and persist both. This fires once per fresh rev deployment per device;
 // after that, the stamp matches and nothing is touched on subsequent loads.
-const APP_REV_STAMP = "V699rev66";
+const APP_REV_STAMP = "V699rev69";
 (function migrateToCurrentRev(){
  let stored = "";
  try{ stored = localStorage.getItem(`${STORAGE_PREFIX}_rev_stamp`) || ""; }catch(e){ stored = ""; }
@@ -365,7 +365,7 @@ const APP_REV_STAMP = "V699rev66";
 // Shared runtime state for the current session.
 // IMPORTANT: keep session-reset helpers aligned with this shape:
 //   - resetTrialStateOnly()       = clear active trial/test runtime only
-//   - resetPretestEntryState()    = clear sleep / SP-FS entry path only
+//   - resetPretestEntryState()    = clear sleep / S-PFS entry path only
 //   - resetSubjectSessionState()  = full subject/session reset
 // Several recent regressions came from clearing the wrong fields at the
 // wrong time (especially sleep fields and guest/profile state).
@@ -3075,10 +3075,10 @@ function renderRefresher(){
 }
 
 // ─── Fatigue checklist ───
-// ─── SP-FS PAGE RENDERING ─────────────────────────────────────
+// ─── S-PFS PAGE RENDERING ─────────────────────────────────────
 // Full-page overlay. 7 items with large cyan numbers (1-7).
 // Subject taps one item → reveals "▶ Start Test!" button.
-// Title: Samn-Perelli Fatigue Scale (SP-FS).
+// Title: Samn-Perelli Fatigue Scale (S-PFS).
 // ──────────────────────────────────────────────────────────────
 function renderFatigueChecklist(){
  const f=$("fatigueList"); f.innerHTML="";
@@ -3095,7 +3095,7 @@ function renderFatigueChecklist(){
    f.querySelectorAll(".fatigue-item").forEach(el=>el.style.background="");
    b.style.background="rgba(0,180,255,0.22)";
    state.samnPerelli={score,label}; fatigueOut.textContent=String(score);
-   setStatus(`SP-FS: ${score} — ${label}`);
+   setStatus(`S-PFS: ${score} — ${label}`);
    const sb=$("fatigueStartBtn"); if(sb) sb.classList.remove("hidden");
   };
   f.appendChild(b);
@@ -3347,7 +3347,7 @@ function drawRTScatterChart(canvas,rtLog,blocks,meanRT,sdRT){
 // Mode 2 / Mode 3 response-time graph
 // - full graph shows session number once in subtitle
 // - smaller ms = better performance and graphs higher
-// - avoid duplicate mode / SP-FS labels on full graph
+// - avoid duplicate mode / S-PFS labels on full graph
 
 function drawModeResultChart(canvas, result){
  const log=Array.isArray(result&&result.rtLog)?result.rtLog:[];
@@ -3515,7 +3515,7 @@ function formatModePooledRankSection(mode){
 // ─── Export / Email ───
 // ─── EXPORT / EMAIL ───────────────────────────────────────────
 // exportCSV(): downloads history as ${STORAGE_PREFIX}_history.csv
-//  80 columns: session, subject, date, SP-FS, calibration, blocks,
+//  80 columns: session, subject, date, S-PFS, calibration, blocks,
 //  CPI, sustained metrics (SBLP/SPI), CPA + factors,
 //  Disposition, timing quality, sleep, paced stats, end reason.
 // ──────────────────────────────────────────────────────────────
@@ -3859,7 +3859,7 @@ function updateScheduleTypeHelpText(type){
  el.textContent = type==="personal"
   ? "Mode 2 reminders at fixed interval or selected daily times. Voice can optionally repeat once."
   : type==="fit_duty"
-   ? "Next Mode 2 reminder is based on last completed Mode 2 CPI and SP-FS."
+   ? "Next Mode 2 reminder is based on last completed Mode 2 CPI and S-PFS."
    : "No reminders. Subject may take Mode 2 at any time.";
 }
 function renderSchedulerStatusFields(s){
@@ -4235,7 +4235,7 @@ function openPersonalBaselinePage(sessionIndex){
  if(statusEl) statusEl.textContent = statusText;
  if(metaEl){
   const sessionTime = result.time ? new Date(result.time).toLocaleString() : "—";
-  metaEl.innerHTML = `<div><strong>Subject:</strong> ${escapeHtml(String(result.subjectId||"—"))}</div><div><strong>Baseline as of session:</strong> ${escapeHtml(sessionTime)}</div><div><strong>Qualifying sessions available:</strong> ${baseline.qualifyingCount} / 5</div><div style="margin-top:6px">Rolling baseline uses the most recent 5 qualifying non-Guest Mode 1 / Mode 2 adaptive-phase MBS scores with MBS &le; ${getPersonalBaselineMaxMbs()} ms, SP-FS 5–7, and no failed sessions.</div>`;
+  metaEl.innerHTML = `<div><strong>Subject:</strong> ${escapeHtml(String(result.subjectId||"—"))}</div><div><strong>Baseline as of session:</strong> ${escapeHtml(sessionTime)}</div><div><strong>Qualifying sessions available:</strong> ${baseline.qualifyingCount} / 5</div><div style="margin-top:6px">Rolling baseline uses the most recent 5 qualifying non-Guest Mode 1 / Mode 2 adaptive-phase MBS scores with MBS &le; ${getPersonalBaselineMaxMbs()} ms, S-PFS 5–7, and no failed sessions.</div>`;
  }
  if(graphEl) graphEl.innerHTML = buildPersonalBaselineSvg(rows, baseline.established ? baseline.averageMbs : null);
  if(tbody){
@@ -4248,9 +4248,9 @@ function openPersonalBaselinePage(sessionIndex){
  $("personalBaselineOverlay").classList.remove("hidden");
  setStatus("Personal Baseline");
 }
-// Fit for Duty uses the most recent completed valid local Mode 2 plus SP-FS.
-// Lower CPI and lower SP-FS (more fatigued/impaired) shorten the next interval.
-// Higher CPI and higher SP-FS (more alert/rested) lengthen the next interval.
+// Fit for Duty uses the most recent completed valid local Mode 2 plus S-PFS.
+// Lower CPI and lower S-PFS (more fatigued/impaired) shorten the next interval.
+// Higher CPI and higher S-PFS (more alert/rested) lengthen the next interval.
 function computeFitDutyNextReminderAt(s, now=new Date()){
  const latest = getLatestCompletedMode2Result(s?.fitDutyIgnoreIncomplete!==false);
  let minutes = Math.max(60, Number(s.fitDutyDefaultIntervalHr||4) * 60);
@@ -5613,10 +5613,10 @@ function isTestSuccess(resultOrReason){
 // ─── Summary ───
 // ─── SUMMARY TEST RESULTS ─────────────────────────────────────
 // Formats full monospace result text (state.lastResultText).
-// Includes: subject ID, date/time, location, SP-FS, calibration,
+// Includes: subject ID, date/time, location, S-PFS, calibration,
 //  block scores, CPI, CPA + factors, Disposition, response
 //  stats, end reason, reference table.
-// REFERENCE TABLE: 7-row SP-FS/CPI/MBS lookup from Perelli (2026)
+// REFERENCE TABLE: 7-row S-PFS/CPI/MBS lookup from Perelli (2026)
 //  with ← YOUR SCORE arrow on the matching CPI band.
 // ──────────────────────────────────────────────────────────────
 // Pooled mode-specific ranking summaries:
@@ -5692,7 +5692,7 @@ function getCognitivePerformanceTableText(result){
    const csrLabel = csr!=null ? csr : "—";
    rows[nearestIdx].mark = `← YOUR SCORES: CSR ${csrLabel} | CPI ${cpiLabel} | MBS ${mbsLabel}`;
   }
-  const headers=["[SP-FS]","CSR","CPI","MBS","DESCRIPTION OF PERFORMANCE"];
+  const headers=["[S-PFS]","CSR","CPI","MBS","DESCRIPTION OF PERFORMANCE"];
   const spfsDisplay = v => (actualSpfs!=null && Number(v)===actualSpfs) ? `▶${v}◀` : String(v);
   const widths=[
    Math.max(headers[0].length, ...rows.map(r=>spfsDisplay(r.spfs).length)),
@@ -5729,7 +5729,7 @@ function getCognitivePerformanceTableText(result){
  const leftHeader = "Cognitive Performance Table";
  const rightHeader = "Cognitive Performance Capability *";
  const leftRows = rows.map((r,i)=>{
-   const spfsLabel = (actualSpfs!=null && r.spfs===actualSpfs) ? `[SP-FS ${r.spfs}]` : `SP-FS ${r.spfs}`;
+   const spfsLabel = (actualSpfs!=null && r.spfs===actualSpfs) ? `[S-PFS ${r.spfs}]` : `S-PFS ${r.spfs}`;
    const mark = i===nearestIdx ? "  ← CPI" : "";
    return `${spfsLabel}: CPI ${r.cpi.toString().padStart(3," ")} | ${r.ms} ms${mark}`;
  });
@@ -5776,7 +5776,7 @@ RESULTS METRIC EXPLANATIONS
  CPA factor 7 — Lapse-Rate Factor = based on the percent of correct sustained responses that are slower than 2× the median correct sustained RT. More lapse-like sustained responses can reduce CPA.${usesMode2Metrics?"":" Not used in this mode."}
  CPA factor 8 — Block-Efficiency Factor = based on adaptive paced trials divided by block count. Better block efficiency can support CPA, while poorer efficiency can reduce it. 10–30 trials per block is the typical range.${usesMode2Metrics?"":" Not used in this mode."}
  CPA max total reduction cap = the total of all negative CPA adjustments is limited by the Admin max reduction factor × CPI. This prevents multiple mild penalties from driving CPA implausibly low in one session.${usesMode2Metrics?"":" Not used in this mode."}
- Disposition = operational recommendation aligned to the seven-point Samn-Perelli Fatigue Scale (SP-FS). For Mode 2 the CPA score drives the disposition; for Modes 1, 3, and 4 the CPI score is used (same 0–100 scale, same band edges). Bands use the midpoints between the canonical CPI anchors and map to the same captions as the Cognitive Performance table: ≥ 90 = SP-FS 7, Functioning exceptionally well. 77.5 to <90 = SP-FS 6, Functioning very well. 62.5 to <77.5 = SP-FS 5, Functioning normally. 37.5 to <62.5 = SP-FS 4, Functioning slightly less than normal. 18 to <37.5 = SP-FS 3, Functioning starting to slow. 5.5 to <18 = SP-FS 2, Difficult to function / becoming unsafe. <5.5 = SP-FS 1, Unable to function / definitely unsafe. The Speedometer dial groups these seven tiers into four operational colors: GREEN — Clear for duty (SP-FS 5, 6, 7). YELLOW — Monitor / human review recommended (SP-FS 4). ORANGE — Human review required (SP-FS 3). RED — Remove from Hazardous Duty (SP-FS 1, 2). The Speedometer Disposition window shows both halves together, e.g. "GREEN — Clear for duty (SP-FS 6)". CogSpeed disposition is a structured recommendation requiring human review — not a standalone fitness determination.`;
+ Disposition = operational recommendation aligned to the seven-point Samn-Perelli Fatigue Scale (S-PFS). For Mode 2 the CPA score drives the disposition; for Modes 1, 3, and 4 the CPI score is used (same 0–100 scale, same band edges). Bands use the midpoints between the canonical CPI anchors and map to the same captions as the Cognitive Performance table: ≥ 90 = S-PFS 7, Functioning exceptionally well. 77.5 to <90 = S-PFS 6, Functioning very well. 62.5 to <77.5 = S-PFS 5, Functioning normally. 37.5 to <62.5 = S-PFS 4, Functioning slightly less than normal. 18 to <37.5 = S-PFS 3, Functioning starting to slow. 5.5 to <18 = S-PFS 2, Difficult to function / becoming unsafe. <5.5 = S-PFS 1, Unable to function / definitely unsafe. The Speedometer dial groups these seven tiers into four operational colors: GREEN — Clear for duty (S-PFS 5, 6, 7). YELLOW — Monitor / human review recommended (S-PFS 4). ORANGE — Human review required (S-PFS 3). RED — Remove from Hazardous Duty (S-PFS 1, 2). The Speedometer Disposition window shows both halves together, e.g. "GREEN — Clear for duty (S-PFS 6)". CogSpeed disposition is a structured recommendation requiring human review — not a standalone fitness determination.`;
 }
 
 // ─── Mode 2 timing breakdown ─────────────────────────────────
@@ -5900,7 +5900,7 @@ function buildResultsSummaryCompact(result){
  const cpaLine = result.testMode==="mode2" && result.mode2Triggered ? `CPA: ${result.cpa!=null?result.cpa.toFixed(1)+" / 100":"—"}` : 'CPA: —';
  const dispositionLine = (result.dispositionLabel||result.dispositionCode)
    ? (result.dispositionCode && result.dispositionLabel
-       ? `SP-FS ${result.dispositionCode} — ${result.dispositionLabel}`
+       ? `S-PFS ${result.dispositionCode} — ${result.dispositionLabel}`
        : `${result.dispositionCode||"—"} ${result.dispositionLabel||"—"}`.trim())
    : '—';
  const wrongBreakdownLine = result.testMode==="mode2" ? `Wrong breakdown: Cal ${mode2WrongBreakdown.calibration} · Adaptive ${mode2WrongBreakdown.adaptive} · Recovery ${mode2WrongBreakdown.recovery} · Sustained ${mode2WrongBreakdown.sustained} · Final SP ${mode2WrongBreakdown.finalSelfPaced} · Total ${mode2WrongBreakdown.total}` : null;
@@ -5913,7 +5913,7 @@ Location: ${geoStr}
 Date/Time: ${result.time?new Date(result.time).toLocaleString():"—"}
 Total Trial Presentations: ${totalPresentations}
 Total Test Duration${result.testMode==="mode2"?" (excludes sustained MP)":""}: ${result.testMode==="mode2"&&timing?formatDuration(timing.totalMs):totalDuration}
-Fatigue (SP-FS): ${spf}
+Fatigue (S-PFS): ${spf}
 Sleep: ${sleepLine.replace(/^SLEEP:\s*/,'')}
 ${formatSleepSummaryMetricsLine(result)}
 ${formatTimeSinceLastTestLine(result)||""}
@@ -5957,7 +5957,7 @@ Total trial presentations: ${computeTotalTrialPresentations(result)}
 Test duration: ${formatDuration(result.testDurationMs)}
 Location:   ${geoStr}
 ${hr}
-FATIGUE (SP-FS)
+FATIGUE (S-PFS)
  Pre-test rating: ${spf}
 ${formatSleepLine(result)}
 ${formatTimeSinceLastSleepLine(result)||""}
@@ -5995,7 +5995,7 @@ Total trial presentations: ${computeTotalTrialPresentations(result)}
 Test duration: ${formatDuration(result.testDurationMs)}
 Location:   ${geoStr}
 ${hr}
-FATIGUE (SP-FS)
+FATIGUE (S-PFS)
  Pre-test rating: ${spf}
 ${formatSleepLine(result)}
 ${formatTimeSinceLastSleepLine(result)||""}
@@ -6062,7 +6062,7 @@ Sustained-only duration (excluded from total): ${formatDuration(timing.sustained
 Final self-paced duration: ${formatDuration(timing.finalSelfPacedMs)}
 Location:   ${geoStr}
 ${hr}
-FATIGUE (SP-FS)
+FATIGUE (S-PFS)
  Pre-test rating: ${spf}
 ${formatSleepLine(result)}
 ${formatTimeSinceLastSleepLine(result)||""}
@@ -6112,7 +6112,7 @@ MODE 2 SUSTAINED COGSPEED PHASE
 ${hr}
 CPA — COGNITIVE PERFORMANCE ABILITY
  CPA: ${result.cpa!=null?result.cpa.toFixed(1)+" / 100":"—"}
- Disposition: ${(result.dispositionCode && result.dispositionLabel) ? `SP-FS ${result.dispositionCode} — ${result.dispositionLabel}` : `${result.dispositionCode||"—"} ${result.dispositionLabel||"—"}`.trim()}
+ Disposition: ${(result.dispositionCode && result.dispositionLabel) ? `S-PFS ${result.dispositionCode} — ${result.dispositionLabel}` : `${result.dispositionCode||"—"} ${result.dispositionLabel||"—"}`.trim()}
  Base CPI: ${result.cpaBaseCpi!=null?result.cpaBaseCpi.toFixed(1):"—"}
  Sustained correct-response factor: ${result.cpaCorrectWeighting!=null?(result.cpaCorrectWeighting>=0?"+":"")+result.cpaCorrectWeighting.toFixed(1):"—"}
  Sustained wrong-response factor: ${result.cpaWrongWeighting!=null?(result.cpaWrongWeighting>=0?"+":"")+result.cpaWrongWeighting.toFixed(1):"—"}
@@ -6163,7 +6163,7 @@ Total trial presentations: ${computeTotalTrialPresentations(result)}
 Test duration: ${formatDuration(result.testDurationMs)}
 Location:   ${geoStr}
 ${hr}
-FATIGUE (SP-FS)
+FATIGUE (S-PFS)
  Pre-test rating: ${spf}
 ${formatSleepLine(result)}
 ${formatTimeSinceLastSleepLine(result)||""}
@@ -6247,15 +6247,15 @@ function drawSpeedometer(canvas, scoreValue, success, scoreLabel="CPI", tipLabel
  ctx.beginPath(); ctx.arc(cx,cy,R*1.02,0,Math.PI*2);
  ctx.strokeStyle = "rgba(255,255,255,0.38)"; ctx.lineWidth = R*0.012; ctx.stroke();
 
- // Disposition-based outer arc using canonical SP-FS 7-tier midpoint edges.
+ // Disposition-based outer arc using canonical S-PFS 7-tier midpoint edges.
  // Band edges (5.5, 18, 37.5, 62.5, 77.5, 90) are the midpoints between the
  // canonical CPI anchors (100, 80, 75, 50, 25, 11, 0) — the same edges used
  // by computeDisposition() and the Cognitive Performance table captions.
  // Colors grouped per the speedometer disposition window:
- //   RED     = SP-FS 1 (<5.5), SP-FS 2 (5.5–<18)   → "Remove from Hazardous Duty"
- //   ORANGE  = SP-FS 3 (18–<37.5)                  → "Human review required"
- //   YELLOW  = SP-FS 4 (37.5–<62.5)                → "Monitor / human review recommended"
- //   GREEN   = SP-FS 5 (62.5–<77.5), 6 (77.5–<90), 7 (≥90) → "Clear for duty"
+ //   RED     = S-PFS 1 (<5.5), S-PFS 2 (5.5–<18)   → "Remove from Hazardous Duty"
+ //   ORANGE  = S-PFS 3 (18–<37.5)                  → "Human review required"
+ //   YELLOW  = S-PFS 4 (37.5–<62.5)                → "Monitor / human review recommended"
+ //   GREEN   = S-PFS 5 (62.5–<77.5), 6 (77.5–<90), 7 (≥90) → "Clear for duty"
  const arcBands = [
   {s:0,    e:5.5,  c:"#650000"},
   {s:5.5,  e:18,   c:"#cf2020"},
@@ -6718,7 +6718,7 @@ function computeDisposition(result){
  const blank = { dispositionCode:null, dispositionLabel:null, dispositionSpfs:null };
  if(!result) return blank;
  // Gate: only completed/successful tests get a disposition. A failed
- // calibration or aborted run should not be assigned an SP-FS level as
+ // calibration or aborted run should not be assigned an S-PFS level as
  // that would falsely read as "Unable to function" when the subject
  // simply never produced a scorable result.
  try{ if(!isTestSuccess(result)) return blank; }catch(e){ return blank; }
@@ -6727,7 +6727,7 @@ function computeDisposition(result){
  //   • Mode 2 uses CPA (the synthesized fit-for-duty score that already
  //     incorporates CPI plus sustained-phase adjustments)
  //   • Mode 1 / 3 / 4 use CPI directly, since they have no sustained
- //     phase and CPI is already on the 0-100 scale anchored to SP-FS
+ //     phase and CPI is already on the 0-100 scale anchored to S-PFS
  //     via the same canonical `mode1Bands` captions.
  //
  // Band edges are the midpoints between the canonical CPI anchors used
@@ -6735,7 +6735,7 @@ function computeDisposition(result){
  // 62.5, 37.5, 18, 5.5). Labels pulled directly from the Cognitive
  // Performance table captions (see mode1Bands in getCognitivePerformanceTableText)
  // so the disposition vocabulary matches the rest of the app exactly.
- // dispositionCode is the SP-FS numeric level as a string ("1".."7");
+ // dispositionCode is the S-PFS numeric level as a string ("1".."7");
  // dispositionSpfs is the same value as a Number for CSV/analysis use.
  // ┌────┬──────────────────┬──────────────────────────────────────────────┐
  // │SPF │ Score band (CPA  │ Label (from mode1Bands)                      │
@@ -6890,7 +6890,7 @@ function showResultsPage(resultOverride){
 // ─── Session control ───
 // ─── SESSION STATE MANAGEMENT ─────────────────────────────────
 // resetTrialStateOnly(): clears only active test/runtime state.
-// resetPretestEntryState(): clears sleep/SP-FS entry state.
+// resetPretestEntryState(): clears sleep/S-PFS entry state.
 // resetSubjectSessionState(): clears runtime + pretest state while preserving saved profile/settings.
 // saveSettings() / loadSettings(): persist to localStorage.
 // ──────────────────────────────────────────────────────────────
@@ -7081,12 +7081,12 @@ function buildTrialLog(sessionIndex){
  const result=state.history[idx];
  const log=result?result.rtLog:state.rtLog;
  const meta=$("trialLogMeta"); if(meta && result){
-  meta.textContent=`SP-FS ${result.samnPerelli?result.samnPerelli.score:"—"}`;
+  meta.textContent=`S-PFS ${result.samnPerelli?result.samnPerelli.score:"—"}`;
  }
  tbody.innerHTML="";
  if(!log||!log.length){
   tbody.innerHTML='<tr><td colspan="11" style="text-align:center;color:var(--muted);padding:12px">No trial data for this session</td></tr>';
-  const meta=$("trialLogMeta"); if(meta) meta.textContent="SP-FS —";
+  const meta=$("trialLogMeta"); if(meta) meta.textContent="S-PFS —";
   return;
  }
  // Color coding
@@ -7324,7 +7324,7 @@ function buildRateRtOverlay(sessionIndex){
  const sessionsForChart = sameModeSessions.length ? sameModeSessions : (result ? [{...result, _actualIndex: idx}] : []);
  const meta=$("rateRtMeta");
  if(meta){
-  meta.textContent = result ? `SP-FS ${result.samnPerelli?result.samnPerelli.score:"—"}` : "SP-FS —";
+  meta.textContent = result ? `S-PFS ${result.samnPerelli?result.samnPerelli.score:"—"}` : "S-PFS —";
  }
  const info=$("rateRtInfoBar");
  if(info){
@@ -7685,7 +7685,7 @@ ${getTutorialTapInstructionHtml()}
       <strong style="color:rgba(255,255,255,0.85)">Just respond as fast as you can.</strong>
      </div>
      <div style="margin-top:10px;padding:8px 12px;background:rgba(127,215,255,0.08);border:1px solid rgba(127,215,255,0.3);border-radius:10px;font-size:13px;color:rgba(200,230,255,0.85);line-height:1.5">
-      <span style="color:#7fd7ff;font-weight:700">Up next:</span> First go to the Sleep Logger path. If you have not slept before this test, answer No there. Then rate your fatigue (SP-FS), then the test begins!
+      <span style="color:#7fd7ff;font-weight:700">Up next:</span> First go to the Sleep Logger path. If you have not slept before this test, answer No there. Then rate your fatigue (S-PFS), then the test begins!
      </div>
     </div>
    </div>`;
@@ -7702,7 +7702,7 @@ ${getTutorialTapInstructionHtml()}
       CogSpeed works best when you build your own personal Baseline. Your Baseline is a rolling average of your last 5 qualifying Mode 1 or Mode 2 MBS scores.
      </div>
      <div style="margin-top:12px;font-size:14px;line-height:1.6;color:rgba(220,235,255,0.88);background:rgba(127,215,255,0.08);border:1px solid rgba(127,215,255,0.22);border-radius:12px;padding:10px 12px">
-      Baseline sessions must be non-failed non-Guest tests with <strong>MBS at or below ${getPersonalBaselineMaxMbs()} ms</strong> and <strong>SP-FS of 5, 6, or 7</strong>. This helps CogSpeed track changes from your own normal level and capture learning effects over time.
+      Baseline sessions must be non-failed non-Guest tests with <strong>MBS at or below ${getPersonalBaselineMaxMbs()} ms</strong> and <strong>S-PFS of 5, 6, or 7</strong>. This helps CogSpeed track changes from your own normal level and capture learning effects over time.
      </div>
     </div>
    </div>`;
@@ -7719,7 +7719,7 @@ ${getTutorialTapInstructionHtml()}
       On the Profile page, the Mode 2 Scheduler can remind you when to test again. You can choose <strong>Anytime</strong>, a <strong>Personal</strong> schedule, or <strong>Fit for Duty</strong>.
      </div>
      <div style="margin-top:12px;font-size:14px;line-height:1.6;color:rgba(220,235,255,0.88);background:rgba(127,215,255,0.08);border:1px solid rgba(127,215,255,0.22);border-radius:12px;padding:10px 12px">
-      Personal lets you test at set times. Fit for Duty adjusts the next reminder from your latest Mode 2 CPI and SP-FS. Scheduler is for registered users only, not Guest.
+      Personal lets you test at set times. Fit for Duty adjusts the next reminder from your latest Mode 2 CPI and S-PFS. Scheduler is for registered users only, not Guest.
      </div>
     </div>
    </div>`;
@@ -7795,7 +7795,7 @@ function tutSetStep(n){
 // 7-step walkthrough: Probe → Targets → Rule → Tap Match → React Fast!
 //  then Personal Baseline, then Profile Scheduler.
 // Each step shows mini trial screen (22% opacity) in background where useful.
-// Appears after Pattern Refresher, before SP-FS page.
+// Appears after Pattern Refresher, before S-PFS page.
 // Skip to Test button is available on every step.
 // ──────────────────────────────────────────────────────────────
 
@@ -8704,7 +8704,7 @@ function drawSpfGauge(canvas, spf){
  ctx.fillStyle = "#7fd7ff";
  ctx.font = `800 ${Math.max(12, Math.round(H*0.14))}px -apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif`;
  ctx.textAlign = "center";
- ctx.fillText(`SP-FS ${value!=null ? value : "—"}`, W/2, Math.round(H*0.90));
+ ctx.fillText(`S-PFS ${value!=null ? value : "—"}`, W/2, Math.round(H*0.90));
 }
 
 function renderSpfGaugeForResult(result){
@@ -8761,22 +8761,22 @@ function renderSpeedometerSleepMetrics(result){
   </div>`;
 }
 
-// Rev 39: returns the combined grouped disposition text with the SP-FS tier in
-// parentheses — e.g. "GREEN — Clear for duty (SP-FS 6)". The grouping half
-// matches the speedometer dial's 4-color arc regions; the SP-FS tier matches
+// Rev 39: returns the combined grouped disposition text with the S-PFS tier in
+// parentheses — e.g. "GREEN — Clear for duty (S-PFS 6)". The grouping half
+// matches the speedometer dial's 4-color arc regions; the S-PFS tier matches
 // the same 7-tier edges used by computeDisposition() and the main summary's
-// "SP-FS N — caption" line. Using both halves here keeps the speedometer's
+// "S-PFS N — caption" line. Using both halves here keeps the speedometer's
 // Disposition box consistent with both the color arc and the saved summary/CSV.
 function getMode2DispositionWindowText(result){
  // MODE 2 ONLY:
  // Disposition is an operational recommendation derived from CPA, not CPI.
- // The Speedometer disposition window intentionally does NOT display SP-FS text
- // because visible SP-FS and visible CPA/Disposition can otherwise disagree and
+ // The Speedometer disposition window intentionally does NOT display S-PFS text
+ // because visible S-PFS and visible CPA/Disposition can otherwise disagree and
  // confuse the operator.
  //
  // Safety override rule:
- // - If pre-test SP-FS is 1 or 2, force RED regardless of CPA
- // - If pre-test SP-FS is 3, force ORANGE regardless of CPA
+ // - If pre-test S-PFS is 1 or 2, force RED regardless of CPA
+ // - If pre-test S-PFS is 3, force ORANGE regardless of CPA
  // - Otherwise use CPA bands only
  //   GREEN  = CPA >= 62.5
  //   YELLOW = CPA >= 37.5 and < 62.5
@@ -9309,7 +9309,7 @@ function drawPerformanceOverTimeChart(canvas,hist){
   ctx.save();
   ctx.translate(W-8, PAD.top + cH/2); ctx.rotate(Math.PI/2);
   ctx.fillStyle="#88ff88"; ctx.textAlign="center"; ctx.font="bold 12px sans-serif";
-  ctx.fillText("SP-FS 1–7 (up is better)", 0, 0); ctx.restore();
+  ctx.fillText("S-PFS 1–7 (up is better)", 0, 0); ctx.restore();
 
   ctx.strokeStyle="rgba(79,111,153,0.35)";
   ctx.beginPath(); ctx.moveTo(PAD.left, PAD.top+cH); ctx.lineTo(PAD.left+cW, PAD.top+cH); ctx.stroke();
@@ -9473,7 +9473,7 @@ function drawPerformanceOverTimeChart(canvas,hist){
   ctx.rotate(Math.PI/4);
   ctx.fillRect(-3.8,-3.8,7.6,7.6);
   ctx.restore();
-  ctx.fillText("Green diamond = SP-FS", PAD.left+18, spLegendY+8);
+  ctx.fillText("Green diamond = S-PFS", PAD.left+18, spLegendY+8);
 
   const legendY = PAD.top + cH + 38;
   ctx.fillStyle = "#ff4d4f"; ctx.fillRect(PAD.left, legendY, 12, 8);
@@ -9728,7 +9728,7 @@ function formatLastPerfTimeText(){
     const spf = r.samnPerelli && r.samnPerelli.score!=null ? r.samnPerelli.score : "—";
     const sleep = r.sleepLog && r.sleepLog.qualityLabel ? r.sleepLog.qualityLabel : (r.sleepSinceLastTest==="no" ? "No sleep before this test" : "—");
     const cpaStr = cpa ? ` | ${cpa}${disp?" ("+disp+")":""}` : (disp ? ` | Disposition: ${disp}` : "");
-    return `${i+1}. ${when} | CPI ${cpi} | MBS ${mbs}${cpaStr} | SP-FS ${spf} | Sleep ${sleep}`;
+    return `${i+1}. ${when} | CPI ${cpi} | MBS ${mbs}${cpaStr} | S-PFS ${spf} | Sleep ${sleep}`;
   });
   return "Performance Over Date and Time Graph\n\n" + rows.join("\n");
 }
