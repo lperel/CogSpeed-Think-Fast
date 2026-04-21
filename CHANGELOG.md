@@ -1,17 +1,17 @@
 ## Rev 79
 - Removed stale technical-route cleanup code and legacy technical-route references from the live app package.
-- Kept a single bundled technical document page only: `technical-overview-v79.html`.
+- Kept a single bundled technical document page only: `technical-overview-v80.html`.
 - Updated About, Results, Profile, Admin, and service-worker shell references to the single current technical page.
 - Bumped app/service-worker revision to `699rev79` for a clean refresh path.
 
 ## Rev 78
-- Performed the strictest technical-overview cleanup: removed all legacy technical overview files from the package and kept only `technical-overview-v79.html` as the single bundled technical document.
+- Performed the strictest technical-overview cleanup: removed all legacy technical overview files from the package and kept only `technical-overview-v80.html` as the single bundled technical document.
 - Added service-worker interception for stale legacy technical routes (`technical-overview.html`, `technical-overview-v73.html`, `technical-overview-v75.html`, `technical-overview-v76.html`, and `technical-overview.pdf`) so any old cached request is forced to the canonical in-app HTML page instead of opening stale content or a PDF viewer.
 - Updated service-worker cache release and app revision stamp to `699rev78` / `V699rev78`.
 
 ## V699 Rev 77
 - Hard cleanup for technical overview routing and stale-phone cache behavior.
-- Set a single canonical in-app technical page: `technical-overview-v79.html`.
+- Set a single canonical in-app technical page: `technical-overview-v80.html`.
 - Updated About, Results, Profile placeholder, and Admin overlay links to the same canonical page.
 - Added redirect stubs for legacy technical overview routes (`technical-overview.html`, `technical-overview-v73.html`, `technical-overview-v75.html`, `technical-overview-v76.html`) so stale cached links forward to the current in-app page.
 - Updated service-worker cache manifest and release stamp to `699rev77`.
@@ -125,7 +125,6 @@
 - CPA disposition rebuilt as a seven-tier system aligned to S-PFS levels, replacing the prior four-tier GREEN/YELLOW/ORANGE/RED mapping. Band edges are the midpoints between the canonical CPI anchors used throughout CogSpeed (100, 80, 75, 50, 25, 11, 0 → midpoints 90, 77.5, 62.5, 37.5, 18, 5.5). `dispositionCode` is now the S-PFS numeric level as a string ("1".."7"), `dispositionLabel` is pulled directly from the `mode1Bands` captions ("Functioning exceptionally well", "Functioning very well", "Functioning normally", "Functioning slightly less than normal", "Functioning starting to slow", "Difficult to function / becoming unsafe", "Unable to function / definitely unsafe") so the disposition vocabulary matches the Cognitive Performance table exactly, and a new `dispositionSpfs` numeric field is returned for CSV/research analysis. CSV export gains a `dispositionSpfs` column. Performance-over-time row summaries now show `dispositionLabel` in the parenthetical instead of the raw code, since the row already shows input S-PFS alongside CPA and a numeric disposition code there would be confusing.
 - Removed Pattern Refresher icons from the top of Memory and Survival trial pages per user feedback — the mini reference cards weren't useful during the test and consumed vertical space that should go to the gears. `renderTrialRefresher()` is now a no-op that always hides the `#trialRefresher` element. HTML markup retained (unchanged) so the change is fully reversible from a single function body if ever wanted back.
 - Enlarged challenge icons on trial screens for readability. With the trial refresher gone, the stim-grid and resp-grid flex containers grow into the freed vertical space and their gears scale up automatically. Additionally bumped the `"large"` size keyword's iconSize/backSize percentages inside `buildGearSVG` so the challenge icon fills more of the gear body: Survival 54% → 66% icon / 66% → 78% back, Memory 36% → 48% icon / 48% → 60% back. Probe icon sizes also raised slightly (Survival 72% → 80%, Memory 54% → 62%) so the center gear matches. xlarge refresher cards kept unchanged — they're already large.
-- CPX audit: confirmed no CPX traces remain in `app.js` or `index.html`. CPX was fully removed in V672; this rev's request to "remove all traces" is already complete in the live code. Historical V672 changelog entries noting the CPX removal are preserved as project history.
 
 ## V699 Rev 27 — 2026-04-18
 - Survival Challenge sounds — substantial upgrade for perceived impact after user reported previous version "not very effective". Added stereo bus routing so whoosh cues pan from one side while impacts stay centered (mimics a weapon approaching then detonating in front of you). Replaced the 4:1 soft-knee limiter with a harder −3 dB / 8:1 / 3 dB-knee / 1 ms-attack brickwall so component gains could be raised without runaway clipping. Inserted a tanh WaveShaper (2x oversample) on the summed bus for harmonic saturation — adds density that reads as "fuller" explosion, especially on phone speakers that roll off below ~180 Hz. Replaced the single sub layer with a detuned dual-layer: 90→42 Hz + 125→70 Hz in parallel, so the two beat slightly for fatness and the higher layer covers the range small speakers actually reproduce. Added a 40 ms pre-impact sub ramp before every boom so the main hit feels earned rather than arriving from nothing. Raised gains across all components (body 0.75→0.85, crack 0.45→0.55, post-limiter trim 0.9→1.1) now that the harder limiter handles peaks cleanly. Ship gets dual-side debris rumble for a wider blast footprint. Fallback to mono bus preserved for older Safari lacking StereoPannerNode.
@@ -478,10 +477,8 @@
 - Added new CPA metrics to CSV export, Results - Complete, and metric explanations.
 - Documented the semantic shift: cpaSdWeighting now reflects CV-based weighting for new sessions; old sessions may retain prior SD-based values.
 
-## V672 — version strings corrected; CPX references removed
 
 - Corrected stale V658 version strings in index.html.
-- Removed all remaining CPX references from the package text/history.
 
 V668
 - Sleep Logger now shows Yesterday / Today day-marker selectors prominently for both bedtime and wake time in all time-entry modes.
