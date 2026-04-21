@@ -1,12 +1,17 @@
+## V699 Rev 75
+- Removed `technical-overview.pdf` from the package and from the service-worker cache list so the app no longer exposes or preloads a PDF that can strand phone/PWA users outside the app shell.
+- Renamed the in-app technical page to `technical-overview-v75.html` and updated About, Results, Profile, and Admin links to force a fresh safe HTML route instead of any stale cached document.
+- Kept the persistent `Back to CogSpeed` / `Return to App` navigation on the technical overview page.
+
 ## Rev 74
-- Removed the in-app `Open PDF version` buttons from `technical-overview.html` so phone/PWA users cannot be stranded outside the CogSpeed app shell by launching the PDF viewer.
-- Kept `technical-overview.html` as the only in-app technical-document route, with explicit return buttons back to `index.html`. The bundled PDF remains in the package for archival/reference use only and is no longer exposed through the app UI.
-- Bumped the cache-busting script tag to `app.js?v=699rev74`, bumped `sw.js` RELEASE to `699rev74`, and advanced `APP_REV_STAMP` to `V699rev74`. `APP_VERSION` remains `V699` because this is a safe-navigation revision only.
+- Removed the in-app `Open PDF version` buttons from `technical-overview-v75.html` so phone/PWA users cannot be stranded outside the CogSpeed app shell by launching the PDF viewer.
+- Kept `technical-overview-v75.html` as the only in-app technical-document route, with explicit return buttons back to `index.html`. The bundled PDF remains in the package for archival/reference use only and is no longer exposed through the app UI.
+- Bumped the cache-busting script tag to `app.js?v=699rev75`, bumped `sw.js` RELEASE to `699rev75`, and advanced `APP_REV_STAMP` to `V699rev75`. `APP_VERSION` remains `V699` because this is a safe-navigation revision only.
 
 ## Rev 73
-- Made `technical-overview.html` the primary destination for all in-app technical-document entry points. The About page secondary button, the Profile research placeholder button, and the Admin overlay button now all route to the in-app HTML overview instead of opening the PDF directly.
-- Added persistent explicit return navigation on `technical-overview.html`: a fixed top `← Back to CogSpeed` button plus bottom return actions so phone/PWA users do not get stranded outside the app shell.
-- Kept the PDF as a secondary option only on `technical-overview.html` via `Open PDF version`, opened in a separate target so the HTML page remains the safe primary route.
+- Made `technical-overview-v75.html` the primary destination for all in-app technical-document entry points. The About page secondary button, the Profile research placeholder button, and the Admin overlay button now all route to the in-app HTML overview instead of opening the PDF directly.
+- Added persistent explicit return navigation on `technical-overview-v75.html`: a fixed top `← Back to CogSpeed` button plus bottom return actions so phone/PWA users do not get stranded outside the app shell.
+- Kept the PDF as a secondary option only on `technical-overview-v75.html` via `Open PDF version`, opened in a separate target so the HTML page remains the safe primary route.
 - Bumped the cache-busting script tag to `app.js?v=699rev73`, bumped `sw.js` RELEASE to `699rev73`, and advanced `APP_REV_STAMP` to `V699rev73`. `APP_VERSION` remains `V699` because this is a navigation/document-delivery revision only.
 
 ## V699 Rev 72
@@ -28,7 +33,7 @@
 
 ## V699 Rev 69 — 2026-04-20
 - Replaced `about.html` with a fuller, cleaner About CogSpeed page that preserves the user-facing scientific, operational, privacy, and use-case explanation in clearer language.
-- Added new supplemental methods document `technical-overview.html` plus bundled `technical-overview.pdf` titled **CogSpeed Technical Overview: Test Logic, Scoring, Baseline Construction, and Use Considerations**.
+- Added new supplemental methods document `technical-overview-v75.html` plus bundled `technical-overview.pdf` titled **CogSpeed Technical Overview: Test Logic, Scoring, Baseline Construction, and Use Considerations**.
 - Added three direct entry points to the technical document: **Read Technical Paper** on the About page, **How scores are computed** on the Results Summary overlay, and **Technical Methods PDF** in the Profile research/administrative area.
 - Updated service-worker shell caching to include the new technical overview HTML/PDF assets for offline availability.
 - Bumped the cache-busting script tag to `app.js?v=699rev69`, bumped `sw.js` RELEASE to `699rev69`, and advanced `APP_REV_STAMP` to `V699rev69`.
