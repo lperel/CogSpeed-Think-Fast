@@ -1,3 +1,7 @@
+## V699 Rev 72
+- Replaced `technical-overview.pdf` with a more conservative PDF export for better cross-viewer compatibility after the Rev 71 PDF was reported as corrupted in use.
+- Bumped the cache-busting script tag to `app.js?v=699rev72`, bumped `sw.js` RELEASE to `699rev72`, and advanced `APP_REV_STAMP` to `V699rev72`. `APP_VERSION` remains `V699` because this is a document-compatibility revision only.
+
 ## V699 Rev 70 — 2026-04-20
 - Rev71 patch: Scheduler **Test Voice** now mirrors the corrected sound-test behavior. The app always asks whether the user heard the voice prompt and uses the user's answer as the PASS/FAIL authority, while still noting a speech-event failure in the status line when relevant.
 - Rev71 UI placement fix: added **📘 Technical Methods PDF** directly inside the real Admin overlay while preserving the existing Profile-page research placeholder link, so the technical document is now available in both locations.
