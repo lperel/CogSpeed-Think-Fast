@@ -1,6 +1,12 @@
+## Rev 73
+- Made `technical-overview.html` the primary destination for all in-app technical-document entry points. The About page secondary button, the Profile research placeholder button, and the Admin overlay button now all route to the in-app HTML overview instead of opening the PDF directly.
+- Added persistent explicit return navigation on `technical-overview.html`: a fixed top `← Back to CogSpeed` button plus bottom return actions so phone/PWA users do not get stranded outside the app shell.
+- Kept the PDF as a secondary option only on `technical-overview.html` via `Open PDF version`, opened in a separate target so the HTML page remains the safe primary route.
+- Bumped the cache-busting script tag to `app.js?v=699rev73`, bumped `sw.js` RELEASE to `699rev73`, and advanced `APP_REV_STAMP` to `V699rev73`. `APP_VERSION` remains `V699` because this is a navigation/document-delivery revision only.
+
 ## V699 Rev 72
 - Replaced `technical-overview.pdf` with a more conservative PDF export for better cross-viewer compatibility after the Rev 71 PDF was reported as corrupted in use.
-- Bumped the cache-busting script tag to `app.js?v=699rev72`, bumped `sw.js` RELEASE to `699rev72`, and advanced `APP_REV_STAMP` to `V699rev72`. `APP_VERSION` remains `V699` because this is a document-compatibility revision only.
+- Bumped the cache-busting script tag to `app.js?v=699rev73`, bumped `sw.js` RELEASE to `699rev73`, and advanced `APP_REV_STAMP` to `V699rev73`. `APP_VERSION` remains `V699` because this is a document-compatibility revision only.
 
 ## V699 Rev 70 — 2026-04-20
 - Rev71 patch: Scheduler **Test Voice** now mirrors the corrected sound-test behavior. The app always asks whether the user heard the voice prompt and uses the user's answer as the PASS/FAIL authority, while still noting a speech-event failure in the status line when relevant.
