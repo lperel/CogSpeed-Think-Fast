@@ -337,7 +337,7 @@ let settings=loadSettings();
 // profile record (profile is no longer the source of truth for test type),
 // and persist both. This fires once per fresh rev deployment per device;
 // after that, the stamp matches and nothing is touched on subsequent loads.
-const APP_REV_STAMP = "V699rev69";
+const APP_REV_STAMP = "V699rev71";
 (function migrateToCurrentRev(){
  let stored = "";
  try{ stored = localStorage.getItem(`${STORAGE_PREFIX}_rev_stamp`) || ""; }catch(e){ stored = ""; }
@@ -1122,6 +1122,18 @@ function playSurvivalCorrectSound(iconNum){
   if(!AC) return;
   state._survivalAudioCtx = state._survivalAudioCtx || new AC();
   const ctx = state._survivalAudioCtx;
+  // Rev 70: Duck the master gain for cues that arrive within 120ms of the
+  // prior cue. Previously, consecutive fast correct taps (sub-400ms RT in
+  // Survival mode) could stack 15-20 oscillator/buffer sources each with
+  // tails up to 1.8s, slamming the limiter into heavy compression and
+  // making all subsequent hits sound muffled. Ducking preserves every hit
+  // as distinct while keeping the summed signal in the limiter's linear
+  // range.
+  const nowMs = (typeof performance !== "undefined" && performance.now) ? performance.now() : Date.now();
+  const dtMs = nowMs - (state._lastSurvivalSoundMs || 0);
+  state._lastSurvivalSoundMs = nowMs;
+  // 1.0 at ≥120ms gap, 0.55 at 0ms gap, linear between.
+  const duckFactor = dtMs >= 120 ? 1.0 : 0.55 + 0.45 * (dtMs / 120);
   const emit = ()=>{
    const now = ctx.currentTime + 0.005;
    const fam = getSurvivalSoundFamily(iconNum);
@@ -1160,7 +1172,7 @@ function playSurvivalCorrectSound(iconNum){
    masterComp.release.value = 0.15;
 
    const masterGain = ctx.createGain();
-   masterGain.gain.value = 1.5;
+   masterGain.gain.value = 1.5 * duckFactor;
    bus.connect(saturator).connect(masterComp).connect(masterGain).connect(ctx.destination);
 
    // Route to a specific stereo position. pan ∈ [-1, 1]. Falls back to
@@ -3753,7 +3765,11 @@ const schedulerState = {
  repeatTimerId: null,
  bgTestTimerId: null,
  backgroundTestDueAt: null,
- backgroundTestPending: false
+ backgroundTestPending: false,
+ // Rev 70: Track currently-playing scheduler Audio so rapid Test button taps
+ // don't spawn overlapping playbacks. Set in playSchedulerSound, cleared on
+ // playback end/abort.
+ activeAudio: null
 };
 
 function getSchedulerStorageKey(subjectId){
@@ -4293,15 +4309,34 @@ function stopSchedulerTimers(){
 // Scheduler sound test waits for the bundled clip to finish before asking the
 // subject whether it was heard. Resolving on playback start can suppress audio
 // on phones because the confirmation dialog steals focus mid-playback.
+//
+// Rev 70: If a prior Audio is still playing (e.g. user taps Test Sound twice
+// in quick succession), stop and release it before starting a new one so the
+// clips don't overlap.
 function playSchedulerSound(soundKey){
  if(!soundKey || soundKey==="off") return Promise.resolve(false);
  const src = SCHEDULER_SOUND_FILES[soundKey];
  if(!src) return Promise.resolve(false);
+ // Stop any already-playing scheduler Audio.
+ try{
+  const prev = schedulerState.activeAudio;
+  if(prev){
+   prev.onended = null; prev.onerror = null; prev.onabort = null;
+   try{ prev.pause(); }catch(e){}
+   schedulerState.activeAudio = null;
+  }
+ }catch(e){}
  return new Promise(resolve=>{
   try{
    const a = new Audio(src);
+   schedulerState.activeAudio = a;
    let settled = false;
-   const done = (ok)=>{ if(settled) return; settled = true; resolve(ok); };
+   const done = (ok)=>{
+    if(settled) return;
+    settled = true;
+    if(schedulerState.activeAudio === a) schedulerState.activeAudio = null;
+    resolve(ok);
+   };
    a.preload = "auto";
    a.volume = 1.0;
    a.currentTime = 0;
@@ -4501,14 +4536,23 @@ Press OK if you saw it.`);
  setStatus(seen ? "In-app text PASS" : "In-app text FAIL");
 }
 function onSchedulerTestSound(){
+ // Rev 70: Always prompt the user to confirm whether they heard the sound.
+ // Previously `const heard = ok && confirm(...)` silently marked FAIL if the
+ // HTMLAudioElement fired onabort/onerror — iOS Safari fires onabort after
+ // successful cached playback under memory pressure, so this produced false
+ // negatives. The user is the authority on whether the sound was audible.
  playSchedulerSound(schedulerState.settings.alertSound).then(ok=>{
   setTimeout(()=>{
-   const heard = ok && confirm("Did you hear the alert sound? Press OK for Yes.");
+   const heard = confirm("Did you hear the alert sound? Press OK for Yes.");
    schedulerState.settings.deviceTest.sound = heard ? "PASS" : "FAIL";
    const el=$("schedulerSoundTestResult"); if(el) el.textContent = `Sound: ${heard?"PASS":"FAIL"}`;
    persistActiveSchedulerSettings();
    renderSchedulerDeviceFields(schedulerState.settings.deviceTest);
-   setStatus(heard ? "In-app sound PASS" : "In-app sound FAIL");
+   if(!heard && ok === false){
+    setStatus("In-app sound FAIL (playback event reported failure)");
+   } else {
+    setStatus(heard ? "In-app sound PASS" : "In-app sound FAIL");
+   }
   }, 250);
  });
 }
@@ -4521,12 +4565,16 @@ async function onSchedulerTestVoice(){
   return;
  }
  const ok = await speakSchedulerPrompt("personal");
- const heard = ok && confirm("Did you hear the voice prompt? Press OK for Yes.");
+ const heard = confirm("Did you hear the voice prompt? Press OK for Yes.");
  schedulerState.settings.deviceTest.voice = heard ? "PASS" : "FAIL";
  const el=$("schedulerVoiceTestResult"); if(el) el.textContent = `Voice: ${heard?"PASS":"FAIL"}`;
  persistActiveSchedulerSettings();
  renderSchedulerDeviceFields(schedulerState.settings.deviceTest);
- setStatus(heard ? "In-app voice PASS" : "In-app voice FAIL");
+ if(!heard && ok === false){
+  setStatus("In-app voice FAIL (speech event reported failure)");
+ } else {
+  setStatus(heard ? "In-app voice PASS" : "In-app voice FAIL");
+ }
 }
 function onSchedulerTestNotification(){
  if(typeof Notification === "undefined"){
@@ -8469,7 +8517,7 @@ bindSchedulerPressFeedback();
 })();
 refreshSchedulerDeviceStatus();
 window.addEventListener("focus", ()=>{ maybeFinishBackgroundTest(); refreshSchedulerDeviceStatus(); });
-document.addEventListener("visibilitychange", ()=>{ if(document.visibilityState === "visible") maybeFinishBackgroundTest(); });
+// Rev 70: visibilitychange listener consolidated at end of file to avoid duplicate registration.
 $("tutSkipBtn").onclick=()=>tutSkip();
 $("unlockBtn").onclick=()=>{
  const v=$("adminPass").value;
@@ -9840,7 +9888,21 @@ function wireEmailDraftAction(){
 /* ===== end Editable recipient field ===== */
 
 document.addEventListener("visibilitychange", ()=>{
- if(document.visibilityState === "visible") maybeFinishBackgroundTest();
+ if(document.visibilityState === "visible"){
+  maybeFinishBackgroundTest();
+ } else {
+  // Rev 70: Release the Survival AudioContext when the tab is hidden to
+  // free ~5-15MB on mobile. It will be recreated lazily on the next call
+  // to playSurvivalCorrectSound(). Guarded so a close() failure on older
+  // Safari doesn't break visibility handling.
+  try{
+   const ctx = state && state._survivalAudioCtx;
+   if(ctx && typeof ctx.close === "function" && ctx.state !== "closed"){
+    ctx.close().catch(()=>{});
+   }
+   if(state) state._survivalAudioCtx = null;
+  }catch(e){}
+ }
 });
 
 // One-time status note if old local admin overrides were auto-repaired.
