@@ -1,3 +1,8 @@
+## Rev 74
+- Removed the in-app `Open PDF version` buttons from `technical-overview.html` so phone/PWA users cannot be stranded outside the CogSpeed app shell by launching the PDF viewer.
+- Kept `technical-overview.html` as the only in-app technical-document route, with explicit return buttons back to `index.html`. The bundled PDF remains in the package for archival/reference use only and is no longer exposed through the app UI.
+- Bumped the cache-busting script tag to `app.js?v=699rev74`, bumped `sw.js` RELEASE to `699rev74`, and advanced `APP_REV_STAMP` to `V699rev74`. `APP_VERSION` remains `V699` because this is a safe-navigation revision only.
+
 ## Rev 73
 - Made `technical-overview.html` the primary destination for all in-app technical-document entry points. The About page secondary button, the Profile research placeholder button, and the Admin overlay button now all route to the in-app HTML overview instead of opening the PDF directly.
 - Added persistent explicit return navigation on `technical-overview.html`: a fixed top `← Back to CogSpeed` button plus bottom return actions so phone/PWA users do not get stranded outside the app shell.
