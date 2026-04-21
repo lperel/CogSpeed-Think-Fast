@@ -1,5 +1,5 @@
 // Keep RELEASE in sync with APP_VERSION in app.js and the versioned app.js query in index.html.
-const RELEASE = "699rev76";
+const RELEASE = "699rev79";
 const CACHE_NAME = `cogspeed-v${RELEASE}-shell-v${RELEASE}`;
 const APP_SHELL = [
   "./",
@@ -9,7 +9,7 @@ const APP_SHELL = [
   "./privacy.html",
   "./terms.html",
   "./about.html",
-  "./technical-overview-v76.html",
+  "./technical-overview-v79.html",
   "./CogSpeed.jpeg",
   "./GMM FIREBIRD.png",
   "./brain-background.jpeg",
@@ -51,6 +51,7 @@ const APP_SHELL = [
   "./scheduler-beep.wav",
   "./scheduler-double-beep.wav"
 ];
+
 
 // Core shell assets must install atomically so the app can boot offline.
 // Larger media assets are cached opportunistically so one missing file does not abort SW install.
