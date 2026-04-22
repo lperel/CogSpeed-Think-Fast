@@ -1,3 +1,25 @@
+## Rev 92 — Research upload security hardening
+- Removed email/subject fallback from the anonymous research ID path. Research upload now uses an explicit or generated anonymous research ID only.
+- Added computed baseline upload context so research lane classification uses real baseline logic from the app rather than guessed result fields.
+- Added real research upload settings wiring for endpoint, learning-session inclusion, auto-upload, and raw-retention policy.
+- Minimized raw local retention by pruning verified raw payload bodies when retention is disabled while preserving hashes, receipts, and verified summary metadata.
+- Kept local scores provisional in research mode and prepared the client to accept server-verified scores and signed receipts as the authority.
+- Added a Technical Overview security section describing anonymous IDs, baseline-gated upload lanes, provisional-vs-verified results, and future immutable backend storage.
+
+## Rev 91
+- Focused audit/correction pass on the Rev 90 research-capture scaffold.
+- Added the missing research-capture helper implementations under the requested names: `buildScoringSnapshot()`, `buildResearchUploadPayload()`, `enqueueUpload()`, `flushUploadQueue()`, and `applyVerificationReceipt()`.
+- Added supporting persistence helpers for the raw-session store, upload-queue store, and verification-receipt store, plus session UUID generation, model-version stamping, and verification-status labeling.
+- Kept immediate on-device results provisional by default, while preserving a path for later verification receipt application and server-side recomputation.
+- Added Profile support for research-mode lock alongside anonymous research-upload controls and persisted the lock state with settings/profile saves.
+- Expanded the Technical Overview with a dedicated Security Features and Research Verification discussion describing provisional local scoring, capture hashing, upload queuing, and later receipt-based verification.
+
+## Rev 90
+- Added research-capture security scaffold: provisional vs verified session status, compact raw-session store, upload queue store, verification receipt store, session UUIDs, payload/trial/settings hashes, scoring snapshot capture, and model-version stamping.
+- Refactored finish() to build a compact research payload, hash it, save provisional local results, queue consented uploads, and mark sessions unverified until a receipt is applied.
+- Added Profile controls for anonymous research upload opt-in and research anonymous ID; added Admin research-mode lock default.
+- Added verification metadata to CSV export and visible provisional/verified status on Results and Speedometer views.
+
 ## Rev 88
 - Revised the in-app Technical Overview Mode 2 / CPA section with a fuller explanation of the normative CPA scaffold, including the bounded sustained-start rule, expected-profile comparison logic, capped CPA adjustment logic, and why Mode 2 remains the primary evaluative mode.
 - Added a clear step-by-step Mode 2 CPA calculation section and compact formulas so the documentation explains how CPA is derived without exposing the app as a black box.
@@ -33,18 +55,18 @@
 
 ## Rev 79
 - Removed stale technical-route cleanup code and legacy technical-route references from the live app package.
-- Kept a single bundled technical document page only: `technical-overview-v89.html`.
+- Kept a single bundled technical document page only: `technical-overview-v91.html`.
 - Updated About, Results, Profile, Admin, and service-worker shell references to the single current technical page.
 - Bumped app/service-worker revision to `699rev79` for a clean refresh path.
 
 ## Rev 78
-- Performed the strictest technical-overview cleanup: removed all legacy technical overview files from the package and kept only `technical-overview-v89.html` as the single bundled technical document.
+- Performed the strictest technical-overview cleanup: removed all legacy technical overview files from the package and kept only `technical-overview-v91.html` as the single bundled technical document.
 - Added service-worker interception for stale legacy technical routes (`technical-overview.html`, `technical-overview-v73.html`, `technical-overview-v75.html`, `technical-overview-v76.html`, and `technical-overview.pdf`) so any old cached request is forced to the canonical in-app HTML page instead of opening stale content or a PDF viewer.
 - Updated service-worker cache release and app revision stamp to `699rev78` / `V699rev78`.
 
 ## V699 Rev 77
 - Hard cleanup for technical overview routing and stale-phone cache behavior.
-- Set a single canonical in-app technical page: `technical-overview-v89.html`.
+- Set a single canonical in-app technical page: `technical-overview-v91.html`.
 - Updated About, Results, Profile placeholder, and Admin overlay links to the same canonical page.
 - Added redirect stubs for legacy technical overview routes (`technical-overview.html`, `technical-overview-v73.html`, `technical-overview-v75.html`, `technical-overview-v76.html`) so stale cached links forward to the current in-app page.
 - Updated service-worker cache manifest and release stamp to `699rev77`.

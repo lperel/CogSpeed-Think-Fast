@@ -515,11 +515,34 @@
 
 
         <div id="profileResearchPlaceholderPanel" style="margin-bottom:16px;padding:14px;background:rgba(127,215,255,0.06);border:1px solid rgba(127,215,255,0.15);border-radius:12px">
-      <div style="font-size:18px;font-weight:800;color:var(--text);margin-bottom:6px">FUTURE RESEARCH OPTION</div>
-      <div class="field-hint" style="margin-bottom:10px">Would you allow your data to be anonymously downloaded for research purposes, such as building population norms?</div>
-      <button type="button" id="profileResearchPlaceholderBtn" class="ctrl-btn" style="width:100%;font-size:16px">Allow Anonymous Research Download (Placeholder Only)</button>
-      <a href="technical-overview-v89.html" class="ctrl-btn" style="width:100%;font-size:16px;margin-top:10px;text-decoration:none;display:inline-flex;align-items:center;justify-content:center">Technical Methods</a>
-      <div class="field-hint" style="margin-top:8px">Placeholder only. No research download is active in this build. Future versions would require positive user opt-in.</div>
+      <div style="font-size:18px;font-weight:800;color:var(--text);margin-bottom:6px">RESEARCH UPLOAD</div>
+      <div class="field-hint" style="margin-bottom:10px">Optional anonymous research upload. Local results remain provisional until verified after upload.</div>
+      <label style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+        <input type="checkbox" id="profileResearchUploadEnabled" />
+        <span>Allow anonymous research upload</span>
+      </label>
+      <label style="font-size:16px">Research Anonymous ID</label>
+      <input id="profileResearchAnonymousId" type="text" placeholder="RID-..." style="width:100%;margin-top:6px;padding:12px;border:1px solid var(--edge);border-radius:12px;background:#0a1629;color:var(--text);font-size:17px">
+      <label style="display:flex;align-items:center;gap:10px;margin-top:10px">
+        <input type="checkbox" id="profileResearchModeLocked" />
+        <span>Research-mode lock scoring settings on this device</span>
+      </label>
+      <label style="font-size:16px;margin-top:10px;display:block">Research Upload Endpoint</label>
+      <input id="profileResearchUploadEndpoint" type="text" placeholder="https://..." style="width:100%;margin-top:6px;padding:12px;border:1px solid var(--edge);border-radius:12px;background:#0a1629;color:var(--text);font-size:17px">
+      <label style="display:flex;align-items:center;gap:10px;margin-top:10px">
+        <input type="checkbox" id="profileResearchIncludeLearning" />
+        <span>Allow pre-baseline learning sessions to upload</span>
+      </label>
+      <label style="display:flex;align-items:center;gap:10px;margin-top:10px">
+        <input type="checkbox" id="profileResearchAutoUpload" />
+        <span>Auto-upload queued research sessions when online</span>
+      </label>
+      <label style="display:flex;align-items:center;gap:10px;margin-top:10px">
+        <input type="checkbox" id="profileResearchRetainRaw" />
+        <span>Keep raw research payload on device after verification</span>
+      </label>
+      <a href="technical-overview-v92.html" class="ctrl-btn" style="width:100%;font-size:16px;margin-top:10px;text-decoration:none;display:inline-flex;align-items:center;justify-content:center">Technical Methods</a>
+      <div class="field-hint" style="margin-top:8px">Research upload uses an anonymous research ID only. Local scores remain provisional in research mode until a verification receipt is applied. When raw retention is off, verified sessions keep hashes and receipt metadata while pruning bulky raw payload content from this device.</div>
     </div>
 
     <!-- MODE 2 Scheduler -->
@@ -907,7 +930,7 @@
       </div>
       <div class="controls" style="margin-bottom:8px;display:grid;grid-template-columns:1fr 1fr;gap:6px">
         <button class="ctrl-btn" id="adminLastResultBtn" style="width:100%;background:linear-gradient(180deg,#1a3355,#0d1b33);border-color:#4f8fcc">📄 Last Results</button>
-        <a class="ctrl-btn" id="adminTechnicalPdfBtn" href="technical-overview-v89.html" style="width:100%;background:linear-gradient(180deg,#1a3355,#0d1b33);border-color:#4f8fcc;text-decoration:none;display:inline-flex;align-items:center;justify-content:center">📘 Technical Methods</a>
+        <a class="ctrl-btn" id="adminTechnicalPdfBtn" href="technical-overview-v92.html" style="width:100%;background:linear-gradient(180deg,#1a3355,#0d1b33);border-color:#4f8fcc;text-decoration:none;display:inline-flex;align-items:center;justify-content:center">📘 Technical Methods</a>
         <button class="ctrl-btn" id="adminBackBtn">Start Page</button>
         <button class="ctrl-btn" id="adminSpeedometerBtn">Speedometer</button>
       </div>
@@ -971,6 +994,7 @@
   <div id="speedometerBaselineText" style="margin:0 auto 10px;text-align:center;max-width:min(92vw,720px);font-size:clamp(15px,3.8vw,24px);font-weight:800;color:#7fd7ff">Baseline not yet established, Test again.</div>
   <!-- SUCCESS! / Test Failed label -->
   <div id="outcomeText" class="outcome-text" style="margin:8px 0 6px;font-size:clamp(24px,6vw,48px)"></div>
+  <div id="outcomeVerificationText" style="margin:0 0 8px;text-align:center;font-size:clamp(13px,3.2vw,18px);font-weight:700;color:#7fd7ff"></div>
   <div style="display:grid;grid-template-columns:auto 1fr auto;gap:8px;align-items:center;width:min(92vw,700px);margin:0 auto 8px">
     <button class="ctrl-btn" id="speedometerPrevBtn" style="padding:10px 12px;min-height:42px">← Prev</button>
     <select id="speedometerSessionSelect" style="width:100%;padding:12px 14px;border-radius:12px;border:1px solid var(--edge);background:#081321;color:var(--text);font-size:15px"></select>
@@ -1016,7 +1040,7 @@
       <button class="ctrl-btn" id="summaryRestartBtn" style="flex:1">New Test</button>
       <button class="ctrl-btn" id="summarySpeedometerBtn" style="flex:1">Speedometer</button>
             <button class="ctrl-btn" id="summaryRankedBtn" style="flex:1">Ranked Averages</button>
-      <a class="ctrl-btn" href="technical-overview-v89.html" id="summaryHowScoresBtn" style="flex:1;text-decoration:none;display:inline-flex;align-items:center;justify-content:center">How scores are computed</a>
+      <a class="ctrl-btn" href="technical-overview-v92.html" id="summaryHowScoresBtn" style="flex:1;text-decoration:none;display:inline-flex;align-items:center;justify-content:center">How scores are computed</a>
       <button id="summaryProfileBtn" style="background:none;border:none;color:rgba(127,215,255,0.85);font-size:18px;padding:4px 10px;cursor:pointer">⚙</button>
       <button id="summaryAdminBtn" style="background:none;border:none;color:rgba(127,215,255,0.3);font-size:11px;padding:4px 10px;cursor:pointer;font-family:inherit;letter-spacing:.05em">Admin →</button>
     </div>
@@ -1118,7 +1142,9 @@
       <div id="perfRangeInfo" style="font-size:12px;color:var(--muted);text-align:center"></div>
     </div>
     
-    <canvas id="perfTimeGraph" width="1100" height="620" style="display:block;width:100%;height:min(62vh,620px);border-radius:12px;border:1px solid var(--edge);background:#081321"></canvas>
+    <div id="perfTimeGraphWrap" style="overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch;padding-bottom:4px">
+      <canvas id="perfTimeGraph" width="1100" height="620" style="display:block;min-width:100%;height:min(62vh,620px);border-radius:12px;border:1px solid var(--edge);background:#081321"></canvas>
+    </div>
     <div class="controls" style="margin-top:12px">
       <button class="ctrl-btn" id="perfTimeBackBtn" style="flex:1">Speedometer</button>
       <button id="perfTimeAdminBtn" style="background:none;border:none;color:rgba(127,215,255,0.38);font-size:12px;padding:6px 10px;cursor:pointer;font-family:inherit;letter-spacing:.05em">Admin</button>
@@ -1229,6 +1255,6 @@
   <div class="resp-grid" id="respGrid"></div>
 </div>
 
-<script src="app.js?v=699rev89" defer></script>
+<script src="app.js?v=699rev92" defer></script>
 </body>
 </html>

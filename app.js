@@ -146,7 +146,12 @@ const DEFAULTS={
  mode2NormWeightMiss:3.5,
  mode2NormWeightDrift:1.5,
  mode2NormWeightCv:1.5,
- mode2NormMaxDelta:12
+ mode2NormMaxDelta:12,
+ researchModeLocked:0,
+ researchUploadEndpoint:'',
+ researchIncludeLearningSessions:0,
+ researchAutoUpload:0,
+ researchRetainRawAfterVerify:0
 };
 
 // ═══════════════════════════════════════════════════════════════
@@ -254,7 +259,12 @@ const ADMIN_FIELDS=[
  ["mode2NormMaxDelta","80. Mode 2 CPA max total divergence from CPI (points, default 12)","number"],
 
  // 81. Diagnostics
- ["deviceBenchmarkEnabled","81. Device benchmark (0=off, 1=on)","number"]
+ ["deviceBenchmarkEnabled","81. Device benchmark (0=off, 1=on)","number"],
+ ["researchModeLocked","82. Research-mode lock (0=off, 1=on)","number"],
+ ["researchUploadEndpoint","83. Research upload endpoint URL (leave blank to disable uploads)","text"],
+ ["researchIncludeLearningSessions","84. Research upload include learning/pre-baseline sessions (0=off, 1=on)","number"],
+ ["researchAutoUpload","85. Research upload automatically when online (0=off, 1=on)","number"],
+ ["researchRetainRawAfterVerify","86. Keep raw research payload on device after verification (0=off, 1=on)","number"]
 ];
 
 // ─── Patterns ───
@@ -358,7 +368,7 @@ let settings=loadSettings();
 // profile record (profile is no longer the source of truth for test type),
 // and persist both. This fires once per fresh rev deployment per device;
 // after that, the stamp matches and nothing is touched on subsequent loads.
-const APP_REV_STAMP = "V699rev89";
+const APP_REV_STAMP = "V699rev92";
 (function migrateToCurrentRev(){
  let stored = "";
  try{ stored = localStorage.getItem(`${STORAGE_PREFIX}_rev_stamp`) || ""; }catch(e){ stored = ""; }
@@ -2233,7 +2243,7 @@ function failOpenResultsHandoff(result, stage, err){
  try{ renderSpeedometerOutcome(fallbackResult); }catch(e){}
  try{ updateStartPageLinks(); }catch(e){}
 }
-function finish(){
+async function finish(){
  if(state.phase==="finished") return;
  clearTimer(); clearNoResponseTimer(); clearMaxTestTimer();
  state.phase="finished";
@@ -2336,6 +2346,30 @@ function finish(){
   }
   Object.assign(result, computeMode2CPA(result));
   Object.assign(result, computeDisposition(result));
+  result.sessionUuid = generateSessionUuid();
+  result.modelVersions = currentResearchModelVersions();
+  result.cpaModelVersion = result.modelVersions.cpaModelVersion;
+  result.baselineModelVersion = result.modelVersions.baselineModelVersion;
+  result.localProvisionalScores = { cpi: result.cognitivePerformanceIndex ?? null, mbs: result.averageLast2BlockingScoresMs ?? null, cpa: result.cpa ?? null, disposition: result.dispositionLabel || null };
+  result.verificationStatus = "local_only";
+  const baselineUploadContext = buildBaselineUploadContext(result);
+  result.baselineUploadContext = baselineUploadContext;
+  result.personalBaselineValue = baselineUploadContext.rollingBaselineValue;
+  result.personalBaselineQualifyingCount = baselineUploadContext.qualifyingBaselineCount;
+  result.personalBaselineUsedNowCount = baselineUploadContext.usedNowCount;
+  result.personalBaselineStatus = baselineUploadContext.baselineReason;
+  result.researchUploadLane = classifyResearchUploadLane(result, baselineUploadContext, settings);
+  const payload = await buildResearchUploadPayload(result);
+  result.payloadHash = payload.payloadHash;
+  result.trialLogHash = payload.trialLogHash;
+  result.settingsHash = payload.settingsHash;
+  result.localCaptureStored = true;
+  saveRawSessionStore({ ...loadRawSessionStore(), [payload.sessionUuid]: payload });
+  if(payload.lane !== "do_not_upload"){
+   enqueueUpload(payload);
+   result.verificationStatus = "queued";
+   if(settings.researchAutoUpload) flushUploadQueue().catch(()=>{});
+  }
  }catch(err){
   console.error("finish compute failed", err);
   failOpenResultsHandoff(result, "COMPUTE", err);
@@ -2359,6 +2393,7 @@ function finish(){
   try{ syncSpeedometerSessionSelect(state.history.length-1); }catch(e){}
   try{ updateStartPageLinks(); }catch(e){}
   try{ if(getCurrentSavedSubjectId()) refreshSchedulerStatus(); }catch(e){}
+  try{ flushUploadQueue(); }catch(e){}
  }catch(err){
   console.error("finish save failed", err);
   try{ if(state.history[state.history.length-1]===result) state.history.pop(); }catch(e){}
@@ -3591,7 +3626,7 @@ function exportCSV(){
   "pacedCorrect","pacedWrong","spRestartWrong","meanPacedRtMs","pacedRtSd",
   "avgFrameOvershootMs","maxFrameOvershootMs","avgRafIntervalMs","maxRafIntervalMs",
   "cpa","cpaBaseCpi","cpaCorrectWeighting","cpaWrongWeighting","cpaMissedWeighting","cpaSdWeighting","cpaDriftWeighting","cpaRecoveryWeighting","cpaLapseWeighting","cpaEfficiencyWeighting","cpaSustainedResponseSdMs","cpaSustainedCvPct","cpaEarlyMedianRtMs","cpaLateMedianRtMs","cpaSustainedDriftRatio","cpaRecoveryCalibRatio","cpaLapseRatePct","cpaTrialsPerBlock","dispositionCode","dispositionLabel","dispositionSpfs",
-  "testDurationMs","endReason","location"];
+  "testDurationMs","endReason","location","sessionUuid","payloadHash","trialLogHash","settingsHash","verificationStatus","verificationReceiptId","cpaModelVersion","baselineModelVersion"];
  const rows=h.map((raw,i)=>{ const r=normalizeLegacyResultRow(raw); return [
   i+1,
   r.testMode||"",
@@ -3650,7 +3685,20 @@ function exportCSV(){
   r.dispositionSpfs!=null?r.dispositionSpfs:"",
   r.testDurationMs!=null?Math.round(r.testDurationMs):"",
   r.endReason||"",
-  (r.geo&&r.geo.address)||""
+  (r.geo&&r.geo.address)||"",
+  r.sessionUuid||"",
+  r.payloadHash||"",
+  r.trialLogHash||"",
+  r.settingsHash||"",
+  r.verificationStatus||"",
+  r.verificationReceiptId||"",
+  (r.modelVersions&&r.modelVersions.cpaModelVersion)||"",
+  (r.modelVersions&&r.modelVersions.baselineModelVersion)||"",
+  r.researchUploadLane||"",
+  (r.serverVerifiedScores&&r.serverVerifiedScores.cpi)!=null?r.serverVerifiedScores.cpi:"",
+  (r.serverVerifiedScores&&r.serverVerifiedScores.mbs)!=null?r.serverVerifiedScores.mbs:"",
+  (r.serverVerifiedScores&&r.serverVerifiedScores.cpa)!=null?r.serverVerifiedScores.cpa:"",
+  r.appRevStamp||APP_REV_STAMP||""
  ].map(csvCell).join(",");
  });
  const csv=[cols.map(csvCell).join(","), ...rows].join("\n");
@@ -4717,6 +4765,369 @@ function clearSchedulerReminderStatus(){
 // ═══════════════════════════════════════════════════════════════
 
 const PROFILE_KEY = `${STORAGE_PREFIX}_profile`;
+const RAW_SESSION_STORE_KEY = `${STORAGE_PREFIX}_raw_sessions`;
+const UPLOAD_QUEUE_STORE_KEY = `${STORAGE_PREFIX}_upload_queue`;
+const VERIFICATION_RECEIPTS_STORE_KEY = `${STORAGE_PREFIX}_verification_receipts`;
+
+function safeJsonParse(raw, fallback){
+ try{ return raw!=null ? JSON.parse(raw) : fallback; }catch(e){ return fallback; }
+}
+function loadRawSessionStore(){
+ return safeJsonParse(localStorage.getItem(RAW_SESSION_STORE_KEY), {});
+}
+function saveRawSessionStore(store){
+ localStorage.setItem(RAW_SESSION_STORE_KEY, JSON.stringify(store||{}));
+ return store||{};
+}
+function loadUploadQueue(){
+ const q = safeJsonParse(localStorage.getItem(UPLOAD_QUEUE_STORE_KEY), []);
+ return Array.isArray(q) ? q : [];
+}
+function saveUploadQueue(queue){
+ const clean = Array.isArray(queue) ? queue : [];
+ localStorage.setItem(UPLOAD_QUEUE_STORE_KEY, JSON.stringify(clean));
+ return clean;
+}
+function loadVerificationReceiptStore(){
+ return safeJsonParse(localStorage.getItem(VERIFICATION_RECEIPTS_STORE_KEY), {});
+}
+function saveVerificationReceiptStore(store){
+ localStorage.setItem(VERIFICATION_RECEIPTS_STORE_KEY, JSON.stringify(store||{}));
+ return store||{};
+}
+function generateSessionUuid(){
+ try{
+  if(window.crypto && crypto.randomUUID) return crypto.randomUUID();
+ }catch(e){}
+ return `sess-${Date.now().toString(36)}-${Math.random().toString(36).slice(2,10)}`;
+}
+function persistResearchIdentity(){
+ try{
+  const profile = state.profile || loadProfile() || {};
+  if(state.researchAnonymousId) profile.researchAnonymousId = state.researchAnonymousId;
+  saveProfile(profile);
+  state.profile = profile;
+ }catch(e){}
+}
+function ensureResearchAnonymousId(){
+ const existing = String(state.profile?.researchAnonymousId || state.researchAnonymousId || '').trim();
+ if(existing) return existing;
+ let rid = '';
+ try{ if(window.crypto && crypto.randomUUID) rid = `RID-${crypto.randomUUID()}`; }catch(e){}
+ if(!rid) rid = `RID-${Date.now().toString(36)}-${Math.random().toString(36).slice(2,8)}`;
+ state.researchAnonymousId = rid;
+ if(!state.profile) state.profile = loadProfile() || {};
+ state.profile.researchAnonymousId = rid;
+ persistResearchIdentity();
+ const el = $("profileResearchAnonymousId"); if(el && !el.value) el.value = rid;
+ return rid;
+}
+function currentResearchModelVersions(){
+ return {
+  cpaModelVersion: 'mode2-cpa-norm-v1',
+  baselineModelVersion: 'baseline-v1',
+  cpiModelVersion: 'cpi-v1',
+  dispositionModelVersion: 'disp-v1'
+ };
+}
+function getVerificationStatusLabel(result){
+ const code = String(result?.verificationStatus||'local_only').toLowerCase();
+ if(code==='verified') return 'Verified';
+ if(code==='uploaded') return 'Uploaded — awaiting receipt';
+ if(code==='queued') return 'Queued for upload';
+ if(code==='rejected') return 'Rejected / needs review';
+ if(code==='restored_unverified') return 'Restored — unverified';
+ return 'Local provisional — unverified';
+}
+function buildScoringSnapshot(){
+ const mode2 = {
+  sustainedReliefMinMs: Number(settings.mode2SustainedReliefMinMs ?? settings.mode2ReliefMinMs ?? 120),
+  sustainedReliefPct: Number(settings.mode2SustainedReliefPct ?? 0.10),
+  sustainedReliefMaxMs: Number(settings.mode2SustainedReliefMaxMs ?? 220),
+  normMaxDelta: Number(settings.mode2NormMaxDelta ?? 12),
+  qualifyingBlockGapMs: Number(settings.qualifyingBlockGapMs ?? 250),
+  sustainedTrialCount: Number(settings.mode2SustainedTrialCount ?? 20),
+  finalTrialCount: Number(settings.mode2FinalTrialCount ?? 2)
+ };
+ const adminFields = [
+  'mode2NormExpectedCorrectRate','mode2NormExpectedWrongRate','mode2NormExpectedMissRate','mode2NormExpectedDriftPct','mode2NormExpectedCvPct',
+  'mode2NormToleranceCorrectRate','mode2NormToleranceWrongRate','mode2NormToleranceMissRate','mode2NormToleranceDriftPct','mode2NormToleranceCvPct',
+  'mode2NormWeightCorrect','mode2NormWeightWrong','mode2NormWeightMiss','mode2NormWeightDrift','mode2NormWeightCv','mode2NormMaxDelta'
+ ];
+ const profile = {};
+ adminFields.forEach(k=>{ if(settings[k] != null) profile[k] = settings[k]; });
+ return {
+  capturedAtIso: new Date().toISOString(),
+  release: RELEASE,
+  appVersion: APP_VERSION,
+  appRevStamp: APP_REV_STAMP,
+  researchModeLocked: !!settings.researchModeLocked,
+  models: currentResearchModelVersions(),
+  mode2,
+  profiles: profile,
+  researchUploadPolicy: {
+   includeLearningSessions: !!settings.researchIncludeLearningSessions,
+   autoUpload: !!settings.researchAutoUpload,
+   retainRawAfterVerify: !!settings.researchRetainRawAfterVerify
+  }
+ };
+}
+async function hashPayload(obj){
+ return computeCogSpeedBackupHash(obj);
+}
+async function hashTrialLog(rtLog){
+ return computeCogSpeedBackupHash(Array.isArray(rtLog)?rtLog:[]);
+}
+async function hashSettingsSnapshot(snapshot){
+ return computeCogSpeedBackupHash(snapshot||{});
+}
+function buildBaselineUploadContext(result){
+ const sid = String(result?.subjectId||'').trim();
+ const staged = Array.isArray(state.history) ? [...state.history, result] : [result];
+ const baseline = computePersonalBaseline(staged, sid, result?.time || null);
+ const currentIndex = staged.length - 1;
+ const currentQual = !!isBaselineQualifyingSession(result);
+ const currentRow = Array.isArray(baseline.allQualifying) ? baseline.allQualifying.find(row => row && row.sourceIndex === currentIndex) : null;
+ return {
+  baselineEstablished: !!baseline.established,
+  qualifyingBaselineCount: Number(baseline.qualifyingCount||0),
+  rollingBaselineValue: baseline.averageMbs ?? null,
+  isCurrentSessionBaselineQualifying: currentQual,
+  currentSessionUsedInRollingBaseline: !!currentRow?.usedInCurrentBaseline,
+  usedNowCount: Array.isArray(baseline.lastFive) ? baseline.lastFive.length : 0,
+  baselineReason: baseline.statusText || (baseline.established ? 'Baseline established.' : 'Baseline not yet established, Test again.')
+ };
+}
+async function buildResearchUploadPayload(result){
+ const scoringSnapshot = buildScoringSnapshot();
+ const baselineStatus = result.baselineUploadContext || buildBaselineUploadContext(result);
+ const participantResearchId = ensureResearchAnonymousId();
+ const payload = {
+  sessionUuid: result.sessionUuid,
+  lane: result.researchUploadLane || 'do_not_upload',
+  verificationStatus: result.verificationStatus || 'local_only',
+  capturedAtIso: result.time || new Date().toISOString(),
+  participantResearchId,
+  appVersion: APP_VERSION,
+  appRevStamp: APP_REV_STAMP,
+  modelVersions: currentResearchModelVersions(),
+  scoringSnapshot,
+  demographics: {
+   age: result.profile?.age ?? null,
+   gender: result.profile?.gender ?? null,
+   emailResults: !!result.profile?.emailResults
+  },
+  samnPerelli: result.samnPerelli || null,
+  sleepLog: result.sleepLog || null,
+  baselineStatus,
+  provisionalScores: result.localProvisionalScores || {
+   cpi: result.cognitivePerformanceIndex ?? null,
+   mbs: result.averageLast2BlockingScoresMs ?? null,
+   cpa: result.cpa ?? null,
+   disposition: result.dispositionLabel || null
+  },
+  resultSummary: {
+   testMode: result.testMode,
+   totalTrials: result.totalTrials ?? null,
+   totalResponses: result.totalResponses ?? null,
+   totalCorrect: result.totalCorrect ?? null,
+   totalIncorrect: result.totalIncorrect ?? null,
+   missedTrials: result.missedTrials ?? null,
+   timingQuality: result.timingQuality || null,
+   mode2TimingSummary: result.mode2TimingSummary || null,
+   geo: result.geo || null
+  },
+  rtLog: Array.isArray(result.rtLog) ? result.rtLog : []
+ };
+ payload.trialLogHash = await hashTrialLog(payload.rtLog);
+ payload.settingsHash = await hashSettingsSnapshot(scoringSnapshot);
+ payload.payloadHash = await hashPayload({
+  sessionUuid: payload.sessionUuid,
+  lane: payload.lane,
+  verificationStatus: payload.verificationStatus,
+  capturedAtIso: payload.capturedAtIso,
+  participantResearchId: payload.participantResearchId,
+  appVersion: payload.appVersion,
+  appRevStamp: payload.appRevStamp,
+  modelVersions: payload.modelVersions,
+  scoringSnapshot: payload.scoringSnapshot,
+  demographics: payload.demographics,
+  samnPerelli: payload.samnPerelli,
+  sleepLog: payload.sleepLog,
+  baselineStatus: payload.baselineStatus,
+  provisionalScores: payload.provisionalScores,
+  resultSummary: payload.resultSummary,
+  trialLogHash: payload.trialLogHash,
+  settingsHash: payload.settingsHash
+ });
+ return payload;
+}
+function classifyResearchUploadLane(result, baselineCtx=null, settingsObj=settings){
+ const profile = state.profile || loadProfile() || {};
+ if(!profile.researchUploadEnabled) return 'do_not_upload';
+ if(result?.testAborted || result?.invalidSession) return 'quarantine';
+ if(String(result?.verificationStatus||'').toLowerCase()==='rejected') return 'quarantine';
+ const ctx = baselineCtx || result?.baselineUploadContext || buildBaselineUploadContext(result);
+ const learningOverride = !!settingsObj.researchIncludeLearningSessions;
+ if(learningOverride) return ctx.baselineEstablished ? 'normative' : 'learning';
+ return ctx.baselineEstablished ? 'normative' : 'do_not_upload';
+}
+function enqueueUpload(payload){
+ const queue = loadUploadQueue();
+ const existing = queue.findIndex(item => item && item.sessionUuid === payload.sessionUuid);
+ const rawStore = loadRawSessionStore();
+ rawStore[payload.sessionUuid] = {
+  sessionUuid: payload.sessionUuid,
+  payloadHash: payload.payloadHash,
+  trialLogHash: payload.trialLogHash,
+  settingsHash: payload.settingsHash,
+  verificationStatus: payload.verificationStatus,
+  lane: payload.lane,
+  capturedAtIso: payload.capturedAtIso,
+  participantResearchId: payload.participantResearchId,
+  modelVersions: payload.modelVersions,
+  provisionalScores: payload.provisionalScores,
+  baselineStatus: payload.baselineStatus,
+  resultSummary: payload.resultSummary,
+  payload
+ };
+ saveRawSessionStore(rawStore);
+ const record = {
+  sessionUuid: payload.sessionUuid,
+  lane: payload.lane,
+  payloadHash: payload.payloadHash,
+  enqueuedAtIso: new Date().toISOString(),
+  attempts: existing>=0 ? Number(queue[existing].attempts||0) : 0,
+  lastAttemptIso: existing>=0 ? (queue[existing].lastAttemptIso||null) : null,
+  status: 'queued'
+ };
+ if(existing>=0) queue[existing]=record; else queue.push(record);
+ saveUploadQueue(queue);
+ return record;
+}
+async function flushUploadQueue(){
+ const queue = loadUploadQueue();
+ if(!queue.length) return {queued:0, uploaded:0};
+ const endpoint = String(settings.researchUploadEndpoint || '').trim();
+ if(!settings.researchUploadEnabled && !state.profile?.researchUploadEnabled){
+  saveUploadQueue(queue);
+  return {queued: queue.length, uploaded:0};
+ }
+ if(!endpoint || !navigator.onLine){
+  saveUploadQueue(queue);
+  return {queued: queue.length, uploaded:0};
+ }
+ const rawStore = loadRawSessionStore();
+ const keep = [];
+ let uploaded = 0;
+ for(const item of queue){
+  try{
+   const payload = rawStore[item.sessionUuid]?.payload;
+   if(!payload){ item.status='missing_raw_payload'; keep.push(item); continue; }
+   item.attempts = Number(item.attempts||0) + 1;
+   item.lastAttemptIso = new Date().toISOString();
+   const resp = await fetch(endpoint, {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify(payload)
+   });
+   if(!resp.ok) throw new Error(`HTTP ${resp.status}`);
+   let receipt = null;
+   try{ receipt = await resp.json(); }catch(e){ receipt = null; }
+   if(receipt) applyVerificationReceipt(receipt);
+   else applyVerificationReceipt({sessionUuid:item.sessionUuid, verificationStatus:'uploaded', serverPayloadHash: payload.payloadHash});
+   uploaded += 1;
+  }catch(err){
+   item.status = 'queued';
+   item.lastError = String(err && err.message ? err.message : err);
+   keep.push(item);
+  }
+ }
+ saveUploadQueue(keep);
+ return {queued: keep.length, uploaded};
+}
+function pruneVerifiedRawSessions(){
+ if(settings.researchRetainRawAfterVerify) return false;
+ const rawStore = loadRawSessionStore();
+ let changed = false;
+ Object.keys(rawStore).forEach(sessionUuid => {
+  const row = rawStore[sessionUuid];
+  const status = String(row?.verificationStatus || '').toLowerCase();
+  if(status === 'verified' || status === 'uploaded'){
+   rawStore[sessionUuid] = {
+    sessionUuid,
+    payloadHash: row.payloadHash || null,
+    trialLogHash: row.trialLogHash || null,
+    settingsHash: row.settingsHash || null,
+    verificationStatus: row.verificationStatus,
+    verificationReceiptId: row.verificationReceiptId || null,
+    capturedAtIso: row.capturedAtIso || null,
+    lane: row.lane || null,
+    participantResearchId: row.participantResearchId || null,
+    modelVersions: row.modelVersions || null,
+    resultSummary: row.resultSummary || null,
+    provisionalScores: row.provisionalScores || null,
+    baselineStatus: row.baselineStatus || null
+   };
+   changed = true;
+  }
+ });
+ if(changed) saveRawSessionStore(rawStore);
+ return changed;
+}
+function applyVerificationReceipt(receipt){
+ const sessionUuid = receipt && receipt.sessionUuid ? receipt.sessionUuid : null;
+ if(!sessionUuid) return false;
+ const rawStore = loadRawSessionStore();
+ const localPayloadHash = rawStore[sessionUuid]?.payloadHash || null;
+ if(receipt.serverPayloadHash && localPayloadHash && receipt.serverPayloadHash !== localPayloadHash) return false;
+ const receipts = loadVerificationReceiptStore();
+ receipts[sessionUuid] = {
+  ...receipt,
+  receivedAtIso: receipt.receivedAtIso || new Date().toISOString()
+ };
+ saveVerificationReceiptStore(receipts);
+ if(rawStore[sessionUuid]){
+  rawStore[sessionUuid].verificationStatus = receipt.verificationStatus || 'verified';
+  rawStore[sessionUuid].verificationReceiptId = receipt.receiptId || receipt.verificationReceiptId || rawStore[sessionUuid].verificationReceiptId || sessionUuid;
+  rawStore[sessionUuid].serverComputedScores = receipt.verifiedScores || receipt.serverComputedScores || rawStore[sessionUuid].serverComputedScores || null;
+  rawStore[sessionUuid].serverPayloadHash = receipt.serverPayloadHash || rawStore[sessionUuid].serverPayloadHash || null;
+  rawStore[sessionUuid].receiptSignature = receipt.receiptSignature || rawStore[sessionUuid].receiptSignature || null;
+  saveRawSessionStore(rawStore);
+ }
+ let changed = false;
+ if(Array.isArray(state.history)){
+  state.history = state.history.map(row => {
+   if(row && row.sessionUuid === sessionUuid){
+    changed = true;
+    const verifiedScores = receipt.verifiedScores || receipt.serverComputedScores || row.serverVerifiedScores || null;
+    const next = {
+     ...row,
+     verificationStatus: receipt.verificationStatus || 'verified',
+     verificationReceiptId: receipt.receiptId || receipt.verificationReceiptId || row.verificationReceiptId || sessionUuid,
+     verifiedAtIso: receipt.verifiedAtIso || new Date().toISOString(),
+     serverVerifiedScores: verifiedScores,
+     serverComputedScores: verifiedScores,
+     receiptSignature: receipt.receiptSignature || row.receiptSignature || null,
+     localProvisionalScores: row.localProvisionalScores || null
+    };
+    if(verifiedScores){
+     if(verifiedScores.cpi != null) next.cognitivePerformanceIndex = verifiedScores.cpi;
+     if(verifiedScores.mbs != null) next.averageLast2BlockingScoresMs = verifiedScores.mbs;
+     if(verifiedScores.cpa != null) next.cpa = verifiedScores.cpa;
+     if(verifiedScores.disposition) next.dispositionLabel = verifiedScores.disposition;
+    }
+    return next;
+   }
+   return row;
+  });
+  try{ state.history = savePersistedHistory(state.history); }catch(e){}
+ }
+ pruneVerifiedRawSessions();
+ return changed;
+}
+
+window.addEventListener('online', ()=>{ if(settings.researchAutoUpload){ flushUploadQueue().catch(()=>{}); } });
 
 function loadProfile(){
  try { return JSON.parse(localStorage.getItem(PROFILE_KEY)||"null"); } catch(e){ return null; }
@@ -5224,6 +5635,13 @@ function openProfileOverlay(email){
   profileToggleEmail(!!existing.emailResults, {silent:true});
   bindProfileEmailToggleRow();
   if(existing.gender) profileSelectGender(existing.gender);
+  const ru = $("profileResearchUploadEnabled"); if(ru) ru.checked = !!existing.researchUploadEnabled;
+  const rid = $("profileResearchAnonymousId"); if(rid) rid.value = existing.researchAnonymousId || "";
+  const rml = $("profileResearchModeLocked"); if(rml) rml.checked = !!settings.researchModeLocked;
+  const rep = $("profileResearchUploadEndpoint"); if(rep) rep.value = settings.researchUploadEndpoint || '';
+  const ril = $("profileResearchIncludeLearning"); if(ril) ril.checked = !!settings.researchIncludeLearningSessions;
+  const rau = $("profileResearchAutoUpload"); if(rau) rau.checked = !!settings.researchAutoUpload;
+  const rrv = $("profileResearchRetainRaw"); if(rrv) rrv.checked = !!settings.researchRetainRawAfterVerify;
   validateProfileAge();
   profileSelectTimeFormat(_profileTimeFormat);
   captureProfileInitialSnapshot();
@@ -5234,6 +5652,13 @@ function openProfileOverlay(email){
   profileToggleEmail(false, {silent:true});
   bindProfileEmailToggleRow();
   profileSelectGender("");
+  const ru = $("profileResearchUploadEnabled"); if(ru) ru.checked = false;
+  const rid = $("profileResearchAnonymousId"); if(rid) rid.value = "";
+  const rml = $("profileResearchModeLocked"); if(rml) rml.checked = !!settings.researchModeLocked;
+  const rep = $("profileResearchUploadEndpoint"); if(rep) rep.value = settings.researchUploadEndpoint || '';
+  const ril = $("profileResearchIncludeLearning"); if(ril) ril.checked = !!settings.researchIncludeLearningSessions;
+  const rau = $("profileResearchAutoUpload"); if(rau) rau.checked = !!settings.researchAutoUpload;
+  const rrv = $("profileResearchRetainRaw"); if(rrv) rrv.checked = !!settings.researchRetainRawAfterVerify;
   const msg=$("profileAgeMsg"); if(msg) msg.textContent="";
   profileSelectTimeFormat(_profileTimeFormat);
  }
@@ -5291,7 +5716,14 @@ function captureProfileInitialSnapshot(){
    emailResults: !!$("profileEmailResults")?.checked,
    symbolSet: String(settings.symbolSet||"standard").trim().toLowerCase(),
    gender: String(_profileGenderSelected || ""),
-   timeFormat: String(_profileTimeFormat || "")
+   timeFormat: String(_profileTimeFormat || ""),
+   researchUploadEnabled: !!($("profileResearchUploadEnabled")?.checked),
+   researchAnonymousId: String($("profileResearchAnonymousId")?.value || "").trim(),
+   researchModeLocked: !!($("profileResearchModeLocked")?.checked),
+   researchUploadEndpoint: String($("profileResearchUploadEndpoint")?.value || '').trim(),
+   researchIncludeLearningSessions: !!($("profileResearchIncludeLearning")?.checked),
+   researchAutoUpload: !!($("profileResearchAutoUpload")?.checked),
+   researchRetainRawAfterVerify: !!($("profileResearchRetainRaw")?.checked)
   };
  }catch(e){
   _profileInitialSnapshot = null;
@@ -5329,6 +5761,11 @@ function saveAndContinueProfile(){
 
  // Always save time-format settings from this page
  settings.timeFormat = timeFormat;
+ settings.researchModeLocked = ($("profileResearchModeLocked")?.checked) ? 1 : 0;
+ settings.researchUploadEndpoint = String($("profileResearchUploadEndpoint")?.value || '').trim();
+ settings.researchIncludeLearningSessions = ($("profileResearchIncludeLearning")?.checked) ? 1 : 0;
+ settings.researchAutoUpload = ($("profileResearchAutoUpload")?.checked) ? 1 : 0;
+ settings.researchRetainRawAfterVerify = ($("profileResearchRetainRaw")?.checked) ? 1 : 0;
  saveSettings();
 
  // If no email is entered yet, allow returning after saving settings only.
@@ -5345,8 +5782,24 @@ function saveAndContinueProfile(){
  if(!validateProfileAge()){ setStatus("Please enter a valid date of birth (14+)."); return; }
  if(!_profileGenderSelected){ setStatus("Please select a gender."); return; }
 
+ const researchUploadEnabled = !!($("profileResearchUploadEnabled")?.checked);
+ const researchAnonymousId = String($("profileResearchAnonymousId")?.value||"").trim() || ensureResearchAnonymousId();
+ const researchModeLocked = !!($("profileResearchModeLocked")?.checked);
+ const researchUploadEndpoint = String($("profileResearchUploadEndpoint")?.value||'').trim();
+ const researchIncludeLearningSessions = !!($("profileResearchIncludeLearning")?.checked);
+ const researchAutoUpload = !!($("profileResearchAutoUpload")?.checked);
+ const researchRetainRawAfterVerify = !!($("profileResearchRetainRaw")?.checked);
+ settings.researchModeLocked = researchModeLocked ? 1 : 0;
+ settings.researchUploadEndpoint = researchUploadEndpoint;
+ settings.researchIncludeLearningSessions = researchIncludeLearningSessions ? 1 : 0;
+ settings.researchAutoUpload = researchAutoUpload ? 1 : 0;
+ settings.researchRetainRawAfterVerify = researchRetainRawAfterVerify ? 1 : 0;
+ saveSettings();
  const profile = {email, birthMonth:bMonth, birthYear:bYear,
-  gender:_profileGenderSelected, emailResults, timeFormat:settings.timeFormat, updatedAt:Date.now()};
+  gender:_profileGenderSelected, emailResults, timeFormat:settings.timeFormat, updatedAt:Date.now(),
+  researchUploadEnabled, researchAnonymousId, researchModeLocked, researchUploadEndpoint, researchIncludeLearningSessions, researchAutoUpload, researchRetainRawAfterVerify,
+  researchConsentVersion: researchUploadEnabled ? "research-upload-v1" : null,
+  researchConsentTimestamp: researchUploadEnabled ? new Date().toISOString() : null};
  schedulerState.activeSubjectId = email;
  try{
   saveProfile(profile);
@@ -6063,6 +6516,16 @@ RESULTS METRICS EXPLANATIONS:
 ${getResultsMetricExplanationText(result)}`);
 }
 
+function buildVerificationSummaryLines(result){
+ const models = result && result.modelVersions ? result.modelVersions : currentResearchModelVersions();
+ return `Verification status: ${getVerificationStatusLabel(result)}
+Session UUID: ${result && result.sessionUuid ? result.sessionUuid : "—"}
+Payload hash: ${result && result.payloadHash ? result.payloadHash : "—"}
+Trial-log hash: ${result && result.trialLogHash ? result.trialLogHash : "—"}
+Settings hash: ${result && result.settingsHash ? result.settingsHash : "—"}
+Model versions: CPA ${models.cpaModelVersion||"—"}; Baseline ${models.baselineModelVersion||"—"}`;
+}
+
 function buildSummary(result){
  const el=$("summaryText"); if(!el) return;
  const hr="─────────────────────────";
@@ -6082,6 +6545,7 @@ Test Mode:  ${formatModeTag(result.testMode)}
 Session:    ${result.sessionNumber!=null?result.sessionNumber:"—"}
 Subject ID:  ${result.subjectId}
 Date / Time:  ${new Date(result.time).toLocaleString()}
+${buildVerificationSummaryLines(result)}
 Total trial presentations: ${computeTotalTrialPresentations(result)}
 Test duration: ${formatDuration(result.testDurationMs)}
 Location:   ${geoStr}
@@ -6120,6 +6584,7 @@ Test Mode:  ${formatModeTag(result.testMode)}
 Session:    ${result.sessionNumber!=null?result.sessionNumber:"—"}
 Subject ID:  ${result.subjectId}
 Date / Time:  ${new Date(result.time).toLocaleString()}
+${buildVerificationSummaryLines(result)}
 Total trial presentations: ${computeTotalTrialPresentations(result)}
 Test duration: ${formatDuration(result.testDurationMs)}
 Location:   ${geoStr}
@@ -6184,6 +6649,7 @@ Test Mode:  ${formatModeTag(result.testMode)}
 Session:    ${result.sessionNumber!=null?result.sessionNumber:"—"}
 Subject ID:  ${result.subjectId}
 Date / Time:  ${new Date(result.time).toLocaleString()}
+${buildVerificationSummaryLines(result)}
 Total trial presentations: ${computeTotalTrialPresentations(result)}
 Total test duration: ${formatDuration(timing.totalMs)}
 Calibration phase duration: ${timing.calibrationMs?formatDuration(timing.calibrationMs):"—"}
@@ -6289,6 +6755,7 @@ Test Mode:  ${formatModeTag(result.testMode)}
 Session:    ${result.sessionNumber!=null?result.sessionNumber:"—"}
 Subject ID:  ${result.subjectId}
 Date / Time:  ${new Date(result.time).toLocaleString()}
+${buildVerificationSummaryLines(result)}
 Total trial presentations: ${computeTotalTrialPresentations(result)}
 Test duration: ${formatDuration(result.testDurationMs)}
 Location:   ${geoStr}
@@ -8495,12 +8962,13 @@ $("subjectNextBtn").onclick=()=>{
  }
 };
 $("profileTestType")?.addEventListener("change", e=>applyUnifiedProfileTestType(e.currentTarget.value));
-$("profileResearchPlaceholderBtn")?.addEventListener("click", ()=>{
- try{
-  alert("Placeholder only: future versions may allow users to opt in to anonymous research-data download for studies such as population norms. No data is downloaded by this button in the current build.");
- }catch(e){}
- setStatus("Research opt-in placeholder only — no download is active in this build.");
+$("profileResearchUploadEnabled")?.addEventListener("change", e=>{
+ const on=!!e.currentTarget.checked;
+ const anon=$("profileResearchAnonymousId");
+ if(on && anon && !String(anon.value||"").trim()) anon.value = `RID-${Date.now().toString(36).toUpperCase()}`;
+ setStatus(on ? "Anonymous research upload enabled for future verified upload builds." : "Anonymous research upload disabled.");
 });
+$("profileResearchAnonymousId")?.addEventListener("change", ()=>setStatus("Research anonymous ID updated."));
 $("skipRefresherBtn").onclick=()=>{
  showTutorial(); setStatus("Tutorial");
 };
@@ -9079,6 +9547,7 @@ function renderSpeedometerOutcome(result, sessionIndex){
  stopSpeedometer();
  setTimeout(()=>animateSpeedometer(canvas, cps, success, scoreLabel, metricLabel, metricValueText), 80);
  renderSpfGaugeForResult(result);
+ const ovt=$("outcomeVerificationText"); if(ovt) ovt.textContent = getVerificationStatusLabel(result);
  renderSpeedometerSleepMetrics(result);
  renderSpeedometerBaseline(result);
  setTestingQuiet(false);
@@ -9348,8 +9817,12 @@ function wirePerfGraphControls(){
 function drawPerformanceOverTimeChart(canvas,hist){
   if(!canvas) return;
   const dpr = window.devicePixelRatio || 1;
-  const cssW = Math.max(320, Math.round(canvas.clientWidth || canvas.offsetWidth || 900));
+  const wrap = $("perfTimeGraphWrap");
+  const viewportW = Math.max(320, Math.round((wrap && wrap.clientWidth) || canvas.parentElement?.clientWidth || canvas.clientWidth || canvas.offsetWidth || 900));
+  const desiredW = Math.max(viewportW, Math.min(2800, Math.max(1100, n * 54 + 260)));
+  const cssW = desiredW;
   const cssH = Math.max(320, Math.round(canvas.clientHeight || 520));
+  canvas.style.width = `${cssW}px`;
   canvas.width = Math.round(cssW * dpr);
   canvas.height = Math.round(cssH * dpr);
   const ctx = canvas.getContext("2d");
@@ -9599,7 +10072,7 @@ function drawPerformanceOverTimeChart(canvas,hist){
 
   drawLine(spfVals, v=>yRightFromSpf(v), "#88ff88", "diamond");
   drawCombinedPerfMarkers(scoreVals, metricVals, estimatedScoreFlags);
-  drawLine(cpaVals, v=>yLeftFromScore(v), "#d6a7ff", "square", {markerDx:10, markerSize:5.4, strokeMarker:true});
+  drawLine(cpaVals, v=>yLeftFromScore(v), "#d6a7ff", "square", {markerDx:8, markerSize:3.2, strokeMarker:true});
 
   const sleepBarY = PAD.top + cH + 18;
   const sleepBarH = 10;
@@ -10054,3 +10527,6 @@ $("tutorialExitBackBtn").onclick=()=>goToStartPage();
 const _pbm_sr=$("profileBirthMonth"); if(_pbm_sr) _pbm_sr.onchange=()=>remindProfileSaveNeeded("general");
 const _pby_sr=$("profileBirthYear"); if(_pby_sr) _pby_sr.oninput=()=>remindProfileSaveNeeded("general");
 const _per=$("profileEmailResults"); if(_per) _per.onchange=()=>remindProfileSaveNeeded("general");
+
+
+window.addEventListener("online", ()=>{ try{ flushUploadQueue(); }catch(e){} });
