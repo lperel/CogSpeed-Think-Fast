@@ -358,7 +358,7 @@ let settings=loadSettings();
 // profile record (profile is no longer the source of truth for test type),
 // and persist both. This fires once per fresh rev deployment per device;
 // after that, the stamp matches and nothing is touched on subsequent loads.
-const APP_REV_STAMP = "V699rev84";
+const APP_REV_STAMP = "V699rev85";
 (function migrateToCurrentRev(){
  let stored = "";
  try{ stored = localStorage.getItem(`${STORAGE_PREFIX}_rev_stamp`) || ""; }catch(e){ stored = ""; }
@@ -5888,9 +5888,19 @@ RESULTS METRIC EXPLANATIONS
 // and sustained-only time (explicitly excluded from max-time failure accounting).
 function computeMode2TimingSummary(result){
  const entries=Array.isArray(result&&result.rtLog)?result.rtLog:[];
+ const elapsedMsForEntry=(entry)=>{
+  if(!entry) return null;
+  const phase=String(entry.phase||"");
+  const rtMs=Number(entry.rt);
+  const durMs=Number(entry.durationMs);
+  if(["calibration","mode2_final"].includes(phase) && Number.isFinite(rtMs)) return Math.max(0, rtMs);
+  if(Number.isFinite(durMs)) return Math.max(0, durMs);
+  if(Number.isFinite(rtMs)) return Math.max(0, rtMs);
+  return null;
+ };
  const sumPhases=(phases)=>entries
-  .filter(e=>phases.includes(String(e.phase||"")) && Number.isFinite(Number(e.durationMs)))
-  .reduce((s,e)=>s+Number(e.durationMs),0);
+  .filter(e=>phases.includes(String(e.phase||"")))
+  .reduce((s,e)=>s + (elapsedMsForEntry(e)||0),0);
  const calibrationMs=sumPhases(["calibration"]);
  const adaptiveOnlyMs=sumPhases(["paced","paced_wrong","paced_late_correct","paced_late_wrong","missed","recovery"]);
  const sustainedOnlyMs=sumPhases(["mode2_sustained","mode2_sustained_wrong","mode2_sustained_missed"]);
@@ -6027,7 +6037,11 @@ Subject ID: ${result.subjectId||"—"}
 Location: ${geoStr}
 Date/Time: ${result.time?new Date(result.time).toLocaleString():"—"}
 Total Trial Presentations: ${totalPresentations}
-Total Test Duration${result.testMode==="mode2"?" (excludes sustained MP)":""}: ${result.testMode==="mode2"&&timing?formatDuration(timing.totalMs):totalDuration}
+Total Test Duration: ${result.testMode==="mode2"&&timing?formatDuration(timing.totalMs):totalDuration}
+${result.testMode==="mode2"&&timing?`Calibration Phase Duration: ${timing.calibrationMs?formatDuration(timing.calibrationMs):"—"}
+Adaptive Phase Duration: ${timing.adaptiveMs?formatDuration(timing.adaptiveMs):"—"}
+Sustained Phase Duration: ${timing.sustainedOnlyMs?formatDuration(timing.sustainedOnlyMs):"—"}
+Final Self-paced Duration: ${timing.finalSelfPacedMs?formatDuration(timing.finalSelfPacedMs):"—"}`:""}
 Fatigue (S-PFS): ${spf}
 Sleep: ${sleepLine.replace(/^SLEEP:\s*/,'')}
 ${formatSleepSummaryMetricsLine(result)}

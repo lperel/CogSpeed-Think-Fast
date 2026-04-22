@@ -1,3 +1,10 @@
+## Rev 85 — Mode 2 results timing fix (both Results pages)
+
+- Fixed Mode 2 timing breakdown so calibration duration is derived from saved trial timing instead of disappearing as `—` when calibration rows do not carry a paced `durationMs` value.
+- Fixed Total test duration on both Results pages to include all available Mode 2 segments: calibration + adaptive + sustained + final self-paced (if present).
+- Updated both Results-page summary variants to show the same Mode 2 timing breakdown lines: Total test duration, Calibration phase duration, Adaptive phase duration, Sustained phase duration, and Final self-paced duration when present.
+- Bumped the cache-busting script tag to `app.js?v=699rev85`, bumped `sw.js` RELEASE to `699rev85`, and advanced `APP_REV_STAMP` to `V699rev85`. `APP_VERSION` remains `V699` because this is a Results-page timing fix only.
+
 ## V699 Rev 84
 - Reworked Mode 2 CPA into a normative scaffold that starts sustained trials at adaptive MBS plus a bounded relief margin and then compares sustained behavior to an expected profile for that CPI level.
 - Added editable Admin defaults for the new CPA scaffold: relief minimum / percent / cap, expected correct/wrong/miss/drift/CV profile by CPI bucket, tolerance bands, factor weights, and max CPA divergence from CPI.
