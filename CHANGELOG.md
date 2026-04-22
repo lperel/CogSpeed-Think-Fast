@@ -33,18 +33,18 @@
 
 ## Rev 79
 - Removed stale technical-route cleanup code and legacy technical-route references from the live app package.
-- Kept a single bundled technical document page only: `technical-overview-v88.html`.
+- Kept a single bundled technical document page only: `technical-overview-v89.html`.
 - Updated About, Results, Profile, Admin, and service-worker shell references to the single current technical page.
 - Bumped app/service-worker revision to `699rev79` for a clean refresh path.
 
 ## Rev 78
-- Performed the strictest technical-overview cleanup: removed all legacy technical overview files from the package and kept only `technical-overview-v88.html` as the single bundled technical document.
+- Performed the strictest technical-overview cleanup: removed all legacy technical overview files from the package and kept only `technical-overview-v89.html` as the single bundled technical document.
 - Added service-worker interception for stale legacy technical routes (`technical-overview.html`, `technical-overview-v73.html`, `technical-overview-v75.html`, `technical-overview-v76.html`, and `technical-overview.pdf`) so any old cached request is forced to the canonical in-app HTML page instead of opening stale content or a PDF viewer.
 - Updated service-worker cache release and app revision stamp to `699rev78` / `V699rev78`.
 
 ## V699 Rev 77
 - Hard cleanup for technical overview routing and stale-phone cache behavior.
-- Set a single canonical in-app technical page: `technical-overview-v88.html`.
+- Set a single canonical in-app technical page: `technical-overview-v89.html`.
 - Updated About, Results, Profile placeholder, and Admin overlay links to the same canonical page.
 - Added redirect stubs for legacy technical overview routes (`technical-overview.html`, `technical-overview-v73.html`, `technical-overview-v75.html`, `technical-overview-v76.html`) so stale cached links forward to the current in-app page.
 - Updated service-worker cache manifest and release stamp to `699rev77`.
