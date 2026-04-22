@@ -3,7 +3,7 @@
 - Removed the stale open-blue/estimated CPI note from the Performance over Date and Time graph and now always render the CPI center as the normal filled blue marker.
 - Reworked the Performance over Date and Time graph x-axis to use true continuous session timestamps instead of evenly spaced session order, so overnight gaps and other elapsed-time gaps remain visible on the chart.
 - Removed the verification/provenance block from Results Summary only, while leaving Results - Complete unchanged.
-- Bumped the cache-busting script tag to `app.js?v=699rev97`, bumped `sw.js` RELEASE to `699rev97`, and advanced `APP_REV_STAMP` to `V699rev97`. `APP_VERSION` remains `V699` because this is a behavior/UI correction revision only.
+- Bumped the cache-busting script tag to `app.js?v=699rev98`, bumped `sw.js` RELEASE to `699rev98`, and advanced `APP_REV_STAMP` to `V699rev98`. `APP_VERSION` remains `V699` because this is a behavior/UI correction revision only.
 
 ## Rev 94
 - Moved verification/provenance block to the bottom of both Results summaries.

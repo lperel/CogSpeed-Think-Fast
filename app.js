@@ -368,7 +368,7 @@ let settings=loadSettings();
 // profile record (profile is no longer the source of truth for test type),
 // and persist both. This fires once per fresh rev deployment per device;
 // after that, the stamp matches and nothing is touched on subsequent loads.
-const APP_REV_STAMP = "V699rev97";
+const APP_REV_STAMP = "V699rev98";
 (function migrateToCurrentRev(){
  let stored = "";
  try{ stored = localStorage.getItem(`${STORAGE_PREFIX}_rev_stamp`) || ""; }catch(e){ stored = ""; }
@@ -9909,7 +9909,7 @@ function drawPerformanceOverTimeChart(canvas,hist){
     worstMs = Number(settings.cpiWorstMs)||DEFAULTS.cpiWorstMs;
   }
   const setLabelForAxis = homogeneousSet === "memory" ? "Memory" : homogeneousSet === "survival" ? "Survival" : "Standard";
-  const PAD = {top:72,right:118,bottom:n===1?82:112,left:126};
+  const PAD = {top:72,right:118,bottom:138,left:126};
   const cW = W - PAD.left - PAD.right;
   const cH = H - PAD.top - PAD.bottom;
 
@@ -9994,28 +9994,80 @@ function drawPerformanceOverTimeChart(canvas,hist){
   ctx.fillStyle="#88ff88"; ctx.textAlign="center"; ctx.font="bold 12px sans-serif";
   ctx.fillText("S-PFS 1–7 (up is better)", 0, 0); ctx.restore();
 
-  ctx.strokeStyle="rgba(79,111,153,0.35)";
+  ctx.strokeStyle="rgba(79,111,153,0.55)";
+  ctx.lineWidth = 1.2;
   ctx.beginPath(); ctx.moveTo(PAD.left, PAD.top+cH); ctx.lineTo(PAD.left+cW, PAD.top+cH); ctx.stroke();
 
-  ctx.font="10px sans-serif";
-  ctx.fillStyle="#9ab6d3";
-  if(n===1){
-    const d=new Date(slice[0].time);
-    const label=`${d.toLocaleDateString("en-US",{month:"numeric",day:"numeric",year:"2-digit"})} ${d.toLocaleTimeString("en-US",{hour:"2-digit",minute:"2-digit"})}`;
-    ctx.textAlign="center";
-    ctx.fillText(label, xOf(0), PAD.top+cH+26);
+  function choosePerfTickStep(spanMs){
+    const H = 60*60*1000;
+    const D = 24*H;
+    const steps = [
+      1*H, 2*H, 3*H, 4*H, 6*H, 8*H, 12*H,
+      1*D, 2*D, 3*D, 7*D, 14*D, 30*D, 60*D
+    ];
+    for(const step of steps){
+      if(spanMs / step <= 7) return step;
+    }
+    return 90*D;
+  }
+  function formatPerfTickDate(ms, stepMs){
+    const d = new Date(ms);
+    if(stepMs >= 24*60*60*1000){
+      return d.toLocaleDateString("en-US", {month:"numeric", day:"numeric", year:"2-digit"});
+    }
+    return d.toLocaleDateString("en-US", {month:"numeric", day:"numeric"});
+  }
+  function formatPerfTickTime(ms, stepMs){
+    const d = new Date(ms);
+    if(stepMs >= 24*60*60*1000) return "";
+    return d.toLocaleTimeString("en-US", {hour:"numeric", minute:"2-digit"});
+  }
+
+  ctx.font="11px sans-serif";
+  ctx.fillStyle="#b9cee2";
+  ctx.textAlign="center";
+
+  const axisLabelY = PAD.top + cH + 58;
+  const axisTitleY = H - 12;
+  const spanMs = (Number.isFinite(minTime) && Number.isFinite(maxTime)) ? Math.max(0, maxTime - minTime) : 0;
+
+  if(n===1 || !Number.isFinite(minTime) || !Number.isFinite(maxTime) || maxTime<=minTime){
+    const onlyMs = Number.isFinite(timeVals[0]) ? timeVals[0] : Date.now();
+    const x = xOf(0);
+    ctx.strokeStyle = "rgba(185,206,226,0.55)";
+    ctx.beginPath(); ctx.moveTo(x, PAD.top+cH); ctx.lineTo(x, PAD.top+cH+8); ctx.stroke();
+    ctx.fillText(formatPerfTickDate(onlyMs, 0), x, axisLabelY-14);
+    const t = formatPerfTickTime(onlyMs, 0);
+    if(t) ctx.fillText(t, x, axisLabelY+2);
   }else{
-    ctx.textAlign="right";
-    const labelStep = Math.max(1, Math.ceil(n/12));
-    slice.forEach((r,i)=>{
-      if(i % labelStep !== 0 && i !== n-1) return;
-      const x=xOf(i), y=PAD.top+cH+8;
-      const d = new Date(r.time);
-      const raw = `${d.toLocaleDateString("en-US",{month:"numeric",day:"numeric"})} ${d.toLocaleTimeString("en-US",{hour:"2-digit",minute:"2-digit"})}`;
-      const label = raw.length>22 ? raw.slice(0,22) : raw;
-      ctx.save(); ctx.translate(x,y); ctx.rotate(-Math.PI/4); ctx.fillText(label,0,0); ctx.restore();
+    const stepMs = choosePerfTickStep(spanMs);
+    const tickStart = Math.ceil(minTime / stepMs) * stepMs;
+    const tickVals = [];
+    for(let t=tickStart; t<=maxTime+1; t+=stepMs){
+      tickVals.push(t);
+      if(tickVals.length > 12) break;
+    }
+    if(!tickVals.length || tickVals[0] !== minTime) tickVals.unshift(minTime);
+    if(tickVals[tickVals.length-1] !== maxTime) tickVals.push(maxTime);
+
+    const deduped = [];
+    tickVals.forEach(t=>{
+      if(!deduped.length || Math.abs(deduped[deduped.length-1]-t) > stepMs*0.25) deduped.push(t);
+    });
+
+    deduped.forEach((t, idx)=>{
+      const x = PAD.left + ((t-minTime)/(maxTime-minTime))*cW;
+      ctx.strokeStyle = idx===0 || idx===deduped.length-1 ? "rgba(185,206,226,0.55)" : "rgba(127,215,255,0.20)";
+      ctx.beginPath(); ctx.moveTo(x, PAD.top); ctx.lineTo(x, PAD.top+cH+8); ctx.stroke();
+      ctx.fillText(formatPerfTickDate(t, stepMs), x, axisLabelY-14);
+      const timeLine = formatPerfTickTime(t, stepMs);
+      if(timeLine) ctx.fillText(timeLine, x, axisLabelY+2);
     });
   }
+
+  ctx.fillStyle="#d7e7f8";
+  ctx.font="bold 11px sans-serif";
+  ctx.fillText("Date / Time (continuous, device local)", PAD.left + cW/2, axisTitleY);
 
   function drawLine(vals, yFunc, color, style, opts={}){
     const markerDx = Number(opts.markerDx)||0;
