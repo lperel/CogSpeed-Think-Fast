@@ -69,7 +69,9 @@ const DEFAULTS={
  mode4PacedTrialLimit:140,
  mode4MaxDurationMs:120000,
  mode4BaselineFactor:1.1,
- mode2SustainedStartFactor:1.1,
+ mode2SustainedReliefMinMs:120,
+ mode2SustainedReliefPct:0.10,
+ mode2SustainedReliefMaxMs:220,
  mode2SustainedTrialCount:20,
  mode2SustainedWrongFailPercent:50,
  mode2SustainedRollMeanWindow:10,
@@ -126,15 +128,25 @@ const DEFAULTS={
  lateResponseThresholdMs:600, // first response <600ms on next frame may belong to prior frame; a second >=600ms response belongs to current frame
  RecoveryInterTrialDelayMsStart:0, // delay before opening the next recovery or terminal-recovery trial
  ResumeToPacedDelayMs:0, // delay before resuming paced mode after recovery succeeds
- mode2CpaCorrectBuckets:"0-10:0;11-12:0.1;13-14:0.2;15-18:0.3;19-20:0.4",
- mode2CpaWrongBuckets:"0-0:0.1;1-4:0;5-8:-0.2;9-12:-0.3;13-15:-0.5;16-18:-0.8;19-20:-0.9",
- mode2CpaMissedBuckets:"0-2:0.1;3-4:0;5-8:-0.2;9-12:-0.3;13-15:-0.5;16-18:-0.8;19-20:-0.9",
- mode2CpaCvBuckets:"0-10:0.2;10.01-15:0.1;15.01-20:0;20.01-30:-0.1;30.01-50:-0.2;50.01-inf:-0.3",
- mode2CpaDriftBuckets:"0-10:0;10.0001-30:-0.01;30.0001-40:-0.05;40.0001-inf:-0.1",
- mode2CpaMaxReductionFactor:0.9,
- mode2CpaRecoveryRatioBuckets:"0-1.10:0;1.11-1.25:-0.05;1.26-1.50:-0.10;1.51-inf:-0.20",
- mode2CpaLapseRateBuckets:"0-5:0;5.01-15:-0.05;15.01-30:-0.10;30.01-inf:-0.20",
- mode2CpaEfficiencyBuckets:"0-10:-0.03;10.01-30:0;30.01-50:-0.03;50.01-inf:-0.07"
+ // Mode 2 normative CPA scaffold defaults. These are intentionally editable
+ // in Admin because field research is expected to refine both the challenge
+ // rule and the expected sustained-performance profile.
+ mode2NormExpectedCorrectRate:"0-20:0.82;20.01-40:0.80;40.01-60:0.76;60.01-80:0.70;80.01-100:0.62",
+ mode2NormExpectedWrongRate:"0-20:0.03;20.01-40:0.04;40.01-60:0.05;60.01-80:0.07;80.01-100:0.09",
+ mode2NormExpectedMissRate:"0-20:0.15;20.01-40:0.16;40.01-60:0.19;60.01-80:0.23;80.01-100:0.29",
+ mode2NormExpectedDriftPct:"0-20:4;20.01-40:5;40.01-60:7;60.01-80:9;80.01-100:12",
+ mode2NormExpectedCvPct:"0-20:12;20.01-40:13;40.01-60:15;60.01-80:18;80.01-100:22",
+ mode2NormToleranceCorrectRate:0.12,
+ mode2NormToleranceWrongRate:0.08,
+ mode2NormToleranceMissRate:0.10,
+ mode2NormToleranceDriftPct:8,
+ mode2NormToleranceCvPct:10,
+ mode2NormWeightCorrect:3.0,
+ mode2NormWeightWrong:2.5,
+ mode2NormWeightMiss:3.5,
+ mode2NormWeightDrift:1.5,
+ mode2NormWeightCv:1.5,
+ mode2NormMaxDelta:12
 };
 
 // ═══════════════════════════════════════════════════════════════
@@ -185,55 +197,64 @@ const ADMIN_FIELDS=[
  ["personalBaselineMaxMbs","35. Personal Baseline maximum qualifying MBS (ms, default 1900)","number"],
 
  // 36-42. Mode 2 runtime flow settings, in program-use order
- ["mode2SustainedStartFactor","36. Mode 2 sustained start factor × MBS (default 1.1)","number"],
- ["mode2SustainedTrialCount","37. Mode 2 sustained trials at MBS × factor (default 20)","number"],
- ["mode2SustainedWrongFailPercent","38. Mode 2 wrong-fail threshold for sustained phase (default 50% of sustained trials)","number"],
- ["mode2SustainedRollMeanWindow","39. Mode 2 anti-spoof rolling mean window in Sustained Phase (default 10)","number"],
- ["mode2SustainedRollMeanThreshold","40. Mode 2 anti-spoof rolling mean threshold in Sustained Phase (default 0.50)","number"],
- ["mode2LateResponseThresholdMs","41. Mode 2 late response reassignment threshold (ms, default 600)","number"],
- ["mode2FinalTrialCount","42. Mode 2 final self-paced trials (default 2)","number"],
+ ["mode2SustainedReliefMinMs","36. Mode 2 sustained relief minimum (ms, default 120)","number"],
+ ["mode2SustainedReliefPct","37. Mode 2 sustained relief % of adaptive MBS (default 0.10 = 10%)","number"],
+ ["mode2SustainedReliefMaxMs","38. Mode 2 sustained relief cap (ms, default 220)","number"],
+ ["mode2SustainedTrialCount","39. Mode 2 sustained trials at adaptive MBS + relief (default 20)","number"],
+ ["mode2SustainedWrongFailPercent","40. Mode 2 wrong-fail threshold for sustained phase (default 50% of sustained trials)","number"],
+ ["mode2SustainedRollMeanWindow","41. Mode 2 anti-spoof rolling mean window in Sustained Phase (default 10)","number"],
+ ["mode2SustainedRollMeanThreshold","42. Mode 2 anti-spoof rolling mean threshold in Sustained Phase (default 0.50)","number"],
+ ["mode2LateResponseThresholdMs","43. Mode 2 late response reassignment threshold (ms, default 600)","number"],
+ ["mode2FinalTrialCount","44. Mode 2 final self-paced trials (default 2)","number"],
 
- // 43-44. Mode 3 Self-paced, in program-use order
- ["mode3TrialLimit","43. Mode 3 self-paced trial limit (default 150)","number"],
- ["mode3MaxDurationMs","44. Mode 3 total duration ms (default 120000)","number"],
+ // 45-46. Mode 3 Self-paced, in program-use order
+ ["mode3TrialLimit","45. Mode 3 self-paced trial limit (default 150)","number"],
+ ["mode3MaxDurationMs","46. Mode 3 total duration ms (default 120000)","number"],
 
- // 45-48. Mode 4 Machine-paced, in program-use order
- ["mode4CalibrationTrials","45. Mode 4 self-paced calibration trials (default 10)","number"],
- ["mode4BaselineFactor","46. Mode 4 MP baseline factor from cal avg (default 1.1)","number"],
- ["mode4PacedTrialLimit","47. Mode 4 fixed machine-paced trial limit (default 140)","number"],
- ["mode4MaxDurationMs","48. Mode 4 total duration ms (default 120000)","number"],
+ // 47-50. Mode 4 Machine-paced, in program-use order
+ ["mode4CalibrationTrials","47. Mode 4 self-paced calibration trials (default 10)","number"],
+ ["mode4BaselineFactor","48. Mode 4 MP baseline factor from cal avg (default 1.1)","number"],
+ ["mode4PacedTrialLimit","49. Mode 4 fixed machine-paced trial limit (default 140)","number"],
+ ["mode4MaxDurationMs","50. Mode 4 total duration ms (default 120000)","number"],
 
- // 49-55. Memory Challenge defaults
- ["memoryNoResponseTimeoutMs","49. Memory Challenge no-response timeout (ms, default 15000)","number"],
- ["memoryMinDurationMs","50. Memory Challenge MP frame minimum duration (ms, default 1400)","number"],
- ["memoryMaxDurationMs","51. Memory Challenge MP frame maximum duration (ms, default 5000)","number"],
- ["memoryCpiBestMs","52. Memory Challenge CPI best ms anchor (default 1400)","number"],
- ["memoryCpiWorstMs","53. Memory Challenge CPI worst ms anchor (default 3000)","number"],
- ["memoryBaselineMaxMbs","54. Memory Challenge baseline max qualifying MBS (ms, default 3200)","number"],
+ // 51-57. Memory Challenge defaults
+ ["memoryNoResponseTimeoutMs","51. Memory Challenge no-response timeout (ms, default 15000)","number"],
+ ["memoryMinDurationMs","52. Memory Challenge MP frame minimum duration (ms, default 1400)","number"],
+ ["memoryMaxDurationMs","53. Memory Challenge MP frame maximum duration (ms, default 5000)","number"],
+ ["memoryCpiBestMs","54. Memory Challenge CPI best ms anchor (default 1400)","number"],
+ ["memoryCpiWorstMs","55. Memory Challenge CPI worst ms anchor (default 3000)","number"],
+ ["memoryBaselineMaxMbs","56. Memory Challenge baseline max qualifying MBS (ms, default 3200)","number"],
  ["memoryMaxTestDurationMs","55. Memory Challenge max total test time (ms, default 240000)","number"],
 
- // 56-62. Survival Challenge defaults
- ["survivalNoResponseTimeoutMs","56. Survival Challenge no-response timeout (ms, default 15000)","number"],
- ["survivalMinDurationMs","57. Survival Challenge MP frame minimum duration (ms, default 1500)","number"],
- ["survivalMaxDurationMs","58. Survival Challenge MP frame maximum duration (ms, default 5200)","number"],
- ["survivalCpiBestMs","59. Survival Challenge CPI best ms anchor (default 1000)","number"],
- ["survivalCpiWorstMs","60. Survival Challenge CPI worst ms anchor (default 3000)","number"],
- ["survivalBaselineMaxMbs","61. Survival Challenge baseline max qualifying MBS (ms, default 3400)","number"],
+ // 58-64. Survival Challenge defaults
+ ["survivalNoResponseTimeoutMs","58. Survival Challenge no-response timeout (ms, default 15000)","number"],
+ ["survivalMinDurationMs","59. Survival Challenge MP frame minimum duration (ms, default 1500)","number"],
+ ["survivalMaxDurationMs","60. Survival Challenge MP frame maximum duration (ms, default 5200)","number"],
+ ["survivalCpiBestMs","61. Survival Challenge CPI best ms anchor (default 1000)","number"],
+ ["survivalCpiWorstMs","62. Survival Challenge CPI worst ms anchor (default 3000)","number"],
+ ["survivalBaselineMaxMbs","63. Survival Challenge baseline max qualifying MBS (ms, default 3400)","number"],
  ["survivalMaxTestDurationMs","62. Survival Challenge max total test time (ms, default 200000) — gives Survival extra headroom over the 150000ms used by Standard/Memory because slower frame timing needs more session budget","number"],
 
- // 63-71. Mode 2 CPA editable defaults
- ["mode2CpaCorrectBuckets","63. Mode 2 CPA correct buckets (min-max:multiplier; ...)","text"],
- ["mode2CpaWrongBuckets","64. Mode 2 CPA wrong buckets (min-max:multiplier; ...)","text"],
- ["mode2CpaMissedBuckets","65. Mode 2 CPA missed buckets (min-max:multiplier; ...)","text"],
- ["mode2CpaCvBuckets","66. Mode 2 CPA CV% buckets — CV=(sustained RT SD ÷ mean RT) × 100; 0–10%=very consistent; >30%=high variability penalty (min-max:multiplier; ...)","text"],
- ["mode2CpaDriftBuckets","67. Mode 2 CPA drift % buckets — percent slowing; negative drift forced to 0 before bucketing (min-max:multiplier; ...)","text"],
- ["mode2CpaMaxReductionFactor","68. Mode 2 CPA max reduction factor × CPI — cap on total CPA reduction (default 0.9)","number"],
- ["mode2CpaRecoveryRatioBuckets","69. Mode 2 CPA recovery ratio buckets — mean recovery RT ÷ calibration avg RT; 1.0=no drift; 1.5=50% slower in recovery (min-max:multiplier; ...)","text"],
- ["mode2CpaLapseRateBuckets","70. Mode 2 CPA lapse rate % buckets — lapse: correct RT > 2× median sustained RT; 0%=no lapses; 30%+=frequent ceiling breaches (min-max:multiplier; ...)","text"],
- ["mode2CpaEfficiencyBuckets","71. Mode 2 CPA block efficiency buckets — adaptive paced trials ÷ block count; <10=rapid blocks; 10–30=typical; >50=highly unstable threshold (min-max:multiplier; ...)","text"],
+ // 65-79. Mode 2 normative CPA defaults
+ ["mode2NormExpectedCorrectRate","65. Mode 2 expected sustained correct rate by CPI bucket (min-max:value; ...)","text"],
+ ["mode2NormExpectedWrongRate","66. Mode 2 expected sustained wrong rate by CPI bucket (min-max:value; ...)","text"],
+ ["mode2NormExpectedMissRate","67. Mode 2 expected sustained miss rate by CPI bucket (min-max:value; ...)","text"],
+ ["mode2NormExpectedDriftPct","68. Mode 2 expected sustained drift % by CPI bucket (min-max:value; ...)","text"],
+ ["mode2NormExpectedCvPct","69. Mode 2 expected sustained CV% by CPI bucket (min-max:value; ...)","text"],
+ ["mode2NormToleranceCorrectRate","70. Mode 2 correct-rate tolerance around expected profile (default 0.12)","number"],
+ ["mode2NormToleranceWrongRate","71. Mode 2 wrong-rate tolerance around expected profile (default 0.08)","number"],
+ ["mode2NormToleranceMissRate","72. Mode 2 miss-rate tolerance around expected profile (default 0.10)","number"],
+ ["mode2NormToleranceDriftPct","73. Mode 2 drift tolerance % around expected profile (default 8)","number"],
+ ["mode2NormToleranceCvPct","74. Mode 2 CV tolerance % around expected profile (default 10)","number"],
+ ["mode2NormWeightCorrect","75. Mode 2 CPA weight for correct-rate deviation (default 3.0)","number"],
+ ["mode2NormWeightWrong","76. Mode 2 CPA weight for wrong-rate deviation (default 2.5)","number"],
+ ["mode2NormWeightMiss","77. Mode 2 CPA weight for miss-rate deviation (default 3.5)","number"],
+ ["mode2NormWeightDrift","78. Mode 2 CPA weight for drift deviation (default 1.5)","number"],
+ ["mode2NormWeightCv","79. Mode 2 CPA weight for CV deviation (default 1.5)","number"],
+ ["mode2NormMaxDelta","80. Mode 2 CPA max total divergence from CPI (points, default 12)","number"],
 
- // 72. Diagnostics
- ["deviceBenchmarkEnabled","72. Device benchmark (0=off, 1=on)","number"]
+ // 81. Diagnostics
+ ["deviceBenchmarkEnabled","81. Device benchmark (0=off, 1=on)","number"]
 ];
 
 // ─── Patterns ───
@@ -337,7 +358,7 @@ let settings=loadSettings();
 // profile record (profile is no longer the source of truth for test type),
 // and persist both. This fires once per fresh rev deployment per device;
 // after that, the stamp matches and nothing is touched on subsequent loads.
-const APP_REV_STAMP = "V699rev80";
+const APP_REV_STAMP = "V699rev84";
 (function migrateToCurrentRev(){
  let stored = "";
  try{ stored = localStorage.getItem(`${STORAGE_PREFIX}_rev_stamp`) || ""; }catch(e){ stored = ""; }
@@ -391,7 +412,7 @@ const state={
  sleepLog:null,
  pendingPriorMiss:null, pendingLatePacing:null,
  activeFrameTiming:null, frameOvershootLog:[], rafIntervalLog:[],
- mode2Triggered:false, mode2AdaptiveMbsMs:null, mode2SustainedPresentationRateMs:null,
+ mode2Triggered:false, mode2AdaptiveMbsMs:null, mode2SustainedPresentationRateMs:null, mode2SustainedReliefMs:null, mode2SustainedChallengeRatio:null,
  mode2SustainedPresented:0, mode2SustainedCorrect:0, mode2SustainedWrong:0, mode2SustainedMissed:0,
  mode2SustainedCorrectRTs:[], mode2SustainedRollMeanLog:[], mode2PendingPriorMiss:null, mode2FinalTrialsPresented:0,
  mode2FinalCorrect:0, mode2FinalWrong:0, mode2FinalRTs:[],
@@ -1863,6 +1884,7 @@ function logTrial({phase,rt,outcome,responseIndex,counted,timing,pacing}){
   phase==="paced" || phase==="paced_wrong" || phase==="paced_late_correct" || phase==="paced_late_wrong" || phase==="missed" || phase==="paced_fixed" || phase==="paced_fixed_wrong" || phase==="paced_fixed_missed"
  ) ? (state.presentedRoundDuration!=null ? state.presentedRoundDuration : (state.duration?Math.round(state.duration):null))
    : (state.duration?Math.round(state.duration):null);
+ const isMode2SustainedRow = ["mode2_sustained","mode2_sustained_wrong","mode2_sustained_missed"].includes(phase);
  state.rtLog.push({
   seq:state.rtLog.length+1, phase, clockTime:new Date().toISOString(),
   durationMs:loggedDurationMs,
@@ -1880,7 +1902,16 @@ function logTrial({phase,rt,outcome,responseIndex,counted,timing,pacing}){
   maxRafIntervalMs: timing&&timing.maxRafIntervalMs!=null ? timing.maxRafIntervalMs : null,
   nextRateMs: pacing&&pacing.nextRateMs!=null ? pacing.nextRateMs : null,
   rateChangeMs: pacing&&pacing.rateChangeMs!=null ? pacing.rateChangeMs : null,
-  rateChangeReason: pacing&&pacing.rateChangeReason ? pacing.rateChangeReason : ""
+  rateChangeReason: pacing&&pacing.rateChangeReason ? pacing.rateChangeReason : "",
+  ...(isMode2SustainedRow ? {
+   mode2AdaptiveMbsMs: state.mode2AdaptiveMbsMs!=null ? Math.round(state.mode2AdaptiveMbsMs) : null,
+   mode2AdaptiveCpi: state.mode2AdaptiveMbsMs!=null ? Number(computeCPI(state.mode2AdaptiveMbsMs).toFixed(1)) : null,
+   mode2SustainedRateMs: state.mode2SustainedPresentationRateMs!=null ? Math.round(state.mode2SustainedPresentationRateMs) : null,
+   mode2SustainedReliefMs: state.mode2SustainedReliefMs!=null ? Math.round(state.mode2SustainedReliefMs) : null,
+   mode2SustainedChallengeRatio: state.mode2SustainedChallengeRatio!=null ? Number(state.mode2SustainedChallengeRatio.toFixed(3)) : null,
+   mode2SustainedTrialOrdinal: state.mode2SustainedPresented || null,
+   mode2NormativeModelVersion: getMode2NormativeModelVersion()
+  } : {})
  });
 }
 
@@ -1971,9 +2002,11 @@ function maybeTriggerTerminalRule(){
    if(avg2==null) return false;
    state.mode2Triggered = true;
    state.mode2AdaptiveMbsMs = avg2;
-   const sustainedStartFactor = Number(settings.mode2SustainedStartFactor)||DEFAULTS.mode2SustainedStartFactor;
-   const sustainedRate = clamp(avg2 * sustainedStartFactor, Number(getCurrentMinDurationMs())||DEFAULTS.minDurationMs, Number(getCurrentMaxDurationMs())||DEFAULTS.maxDurationMs);
+   const reliefCtx = computeMode2SustainedReliefContext(avg2);
+   const sustainedRate = clamp(reliefCtx.startMs, Number(getCurrentMinDurationMs())||DEFAULTS.minDurationMs, Number(getCurrentMaxDurationMs())||DEFAULTS.maxDurationMs);
    state.mode2SustainedPresentationRateMs = sustainedRate;
+   state.mode2SustainedReliefMs = reliefCtx.reliefMs;
+   state.mode2SustainedChallengeRatio = reliefCtx.challengeRatio;
    state.mode2SustainedPresented = 0;
    state.mode2SustainedCorrect = 0;
    state.mode2SustainedWrong = 0;
@@ -2181,6 +2214,8 @@ function failOpenResultsHandoff(result, stage, err){
   cognitivePerformanceIndex: null,
   averageLast2BlockingScoresMs: null,
   mode2Triggered: false,
+  mode2SustainedReliefMs: null,
+  mode2SustainedChallengeRatio: null,
   time:new Date().toISOString(),
   subjectId:subjectKey(state.subjectId||"0")
  };
@@ -2277,6 +2312,8 @@ function finish(){
    mode2SustainedTargetCount: isMode2() ? Math.max(1, Number(settings.mode2SustainedTrialCount)||20) : null,
    mode2FinalTrialTargetCount: isMode2() ? Math.max(1, Number(settings.mode2FinalTrialCount)||2) : null,
    mode2SustainedPresentationRateMs: state.mode2SustainedPresentationRateMs,
+   mode2SustainedReliefMs: state.mode2SustainedReliefMs,
+   mode2SustainedChallengeRatio: state.mode2SustainedChallengeRatio,
    mode2SustainedPresented: state.mode2SustainedPresented,
    mode2SustainedCorrect: state.mode2SustainedCorrect,
    mode2SustainedWrong: state.mode2SustainedWrong,
@@ -2408,7 +2445,7 @@ function openTrial(kind){
   state.presentedRoundDuration = Math.round(state.duration);
   state.mode2SustainedPresented += 1;
   phaseLabel.textContent=`Mode 2 Sustained · ${Math.round(state.duration)}ms`;
-  setStatus(`Mode 2 sustained trials at MBS × ${(Number(settings.mode2SustainedStartFactor)||DEFAULTS.mode2SustainedStartFactor).toFixed(1)}`);
+  setStatus(`Mode 2 sustained trials at adaptive MBS + relief margin (${state.mode2SustainedReliefMs!=null?Math.round(state.mode2SustainedReliefMs):"—"} ms)`);
  }else if(kind==="recovery"){
   clearTimer();
   state.duration=null; state.lastFrameDuration=null; state.presentedRoundDuration=null;
@@ -2525,7 +2562,7 @@ function finalizeMode2SustainedPendingMiss(){
  const savedPresented = state.presentedRoundDuration;
  state.current = pm.trial;
  state.presentedRoundDuration = pm.durationMs;
- logTrial({phase:"mode2_sustained_missed",rt:null,outcome:"missed",responseIndex:null,timing:pm.timing||null,pacing:{nextRateMs:state.duration,rateChangeMs:0,rateChangeReason:"Mode 2 sustained fixed rate (MBS × factor)"}});
+ logTrial({phase:"mode2_sustained_missed",rt:null,outcome:"missed",responseIndex:null,timing:pm.timing||null,pacing:{nextRateMs:state.duration,rateChangeMs:0,rateChangeReason:"Mode 2 sustained fixed rate (adaptive MBS + relief margin)"}});
  state.current = savedCurrent;
  state.presentedRoundDuration = savedPresented;
  state.missedTrials += 1;
@@ -2578,7 +2615,7 @@ if(state.phase==="mode2_sustained"){
   const limit=Math.max(1, Number(settings.mode2SustainedTrialCount)||20);
   if(truelyMissed){
    if(state.mode2SustainedPresented >= limit){
-    logTrial({phase:"mode2_sustained_missed",rt:null,outcome:"missed",responseIndex:null,timing:frameTiming,pacing:{nextRateMs:state.duration,rateChangeMs:0,rateChangeReason:"Mode 2 sustained fixed rate (MBS × factor)"}});
+    logTrial({phase:"mode2_sustained_missed",rt:null,outcome:"missed",responseIndex:null,timing:frameTiming,pacing:{nextRateMs:state.duration,rateChangeMs:0,rateChangeReason:"Mode 2 sustained fixed rate (adaptive MBS + relief margin)"}});
     state.missedTrials+=1;
     state.mode2SustainedMissed+=1;
     state.phase="mode2_final";
@@ -2864,7 +2901,7 @@ function handleTap(index,eventTimeStamp){
     const savedPresented = state.presentedRoundDuration;
     state.current = prior;
     state.presentedRoundDuration = priorDur;
-    logTrial({phase:"mode2_sustained",rt:eRT,outcome:"correct",responseIndex:index,timing:state.mode2PendingPriorMiss?.timing||null,pacing:{nextRateMs:state.duration,rateChangeMs:0,rateChangeReason:"Mode 2 sustained fixed rate (late rescue)"}});
+    logTrial({phase:"mode2_sustained",rt:eRT,outcome:"correct",responseIndex:index,timing:state.mode2PendingPriorMiss?.timing||null,pacing:{nextRateMs:state.duration,rateChangeMs:0,rateChangeReason:"Mode 2 sustained fixed rate (adaptive MBS + relief margin, late rescue)"}});
     state.current = savedCurrent;
     state.presentedRoundDuration = savedPresented;
    flashBtn(index,true);
@@ -2878,7 +2915,7 @@ function handleTap(index,eventTimeStamp){
     const savedPresented = state.presentedRoundDuration;
     state.current = prior;
     state.presentedRoundDuration = priorDur;
-    logTrial({phase:"mode2_sustained_wrong",rt:rt,outcome:"wrong",responseIndex:index,timing:state.mode2PendingPriorMiss?.timing||null,pacing:{nextRateMs:state.duration,rateChangeMs:0,rateChangeReason:"Mode 2 sustained fixed rate (late rescue)"}});
+    logTrial({phase:"mode2_sustained_wrong",rt:rt,outcome:"wrong",responseIndex:index,timing:state.mode2PendingPriorMiss?.timing||null,pacing:{nextRateMs:state.duration,rateChangeMs:0,rateChangeReason:"Mode 2 sustained fixed rate (adaptive MBS + relief margin, late rescue)"}});
     state.current = savedCurrent;
     state.presentedRoundDuration = savedPresented;
     flashBtn(index,false);
@@ -2905,7 +2942,7 @@ function handleTap(index,eventTimeStamp){
   if(state.current&&!state.current.resolved&&trialMatches(state.current,index)){
    state.current.resolved=true; state.totalResponses+=1; state.totalCorrect+=1; state.mode2SustainedCorrect+=1; state.pacedRTs.push(rt); state.mode2SustainedCorrectRTs.push(rt);
    state.hadResponse=true;
-   logTrial({phase:"mode2_sustained",rt,outcome:"correct",responseIndex:index,timing:timingSummary,pacing:{nextRateMs:state.duration,rateChangeMs:0,rateChangeReason:"Mode 2 sustained fixed rate (MBS × factor)"}});
+   logTrial({phase:"mode2_sustained",rt,outcome:"correct",responseIndex:index,timing:timingSummary,pacing:{nextRateMs:state.duration,rateChangeMs:0,rateChangeReason:"Mode 2 sustained fixed rate (adaptive MBS + relief margin)"}});
    flashBtn(index,true);
    // Do NOT call openTrial here — the RAF frame timer must run to full duration.
    // onPacedFrameEnd() will advance to the next trial when the window expires.
@@ -2916,13 +2953,13 @@ function handleTap(index,eventTimeStamp){
   state.totalResponses+=1; state.totalIncorrect+=1; state.pacedErrors+=1; state.mode2SustainedWrong+=1;
   const sustainedWrongLimit=getMode2SustainedWrongFailLimit();
   if(state.mode2SustainedWrong >= sustainedWrongLimit){
-   logTrial({phase:"mode2_sustained_wrong",rt,outcome:"wrong",responseIndex:index,timing:timingSummary,pacing:{nextRateMs:state.duration,rateChangeMs:0,rateChangeReason:"Mode 2 sustained fixed rate (MBS × factor)"}});
+   logTrial({phase:"mode2_sustained_wrong",rt,outcome:"wrong",responseIndex:index,timing:timingSummary,pacing:{nextRateMs:state.duration,rateChangeMs:0,rateChangeReason:"Mode 2 sustained fixed rate (adaptive MBS + relief margin)"}});
    flashBtn(index,false);
    if(checkMode2SustainedRollingMean(false)) return;
    state.endReason=`Mode 2 stopped: sustained-phase wrong-response limit reached (${state.mode2SustainedWrong}/${sustainedWrongLimit}).`;
    finish(); return;
   }
-  logTrial({phase:"mode2_sustained_wrong",rt,outcome:"wrong",responseIndex:index,timing:timingSummary,pacing:{nextRateMs:state.duration,rateChangeMs:0,rateChangeReason:"Mode 2 sustained fixed rate (MBS × factor)"}});
+  logTrial({phase:"mode2_sustained_wrong",rt,outcome:"wrong",responseIndex:index,timing:timingSummary,pacing:{nextRateMs:state.duration,rateChangeMs:0,rateChangeReason:"Mode 2 sustained fixed rate (adaptive MBS + relief margin)"}});
   if(checkMaxPacedWrong()) return;
   flashBtn(index,false);
   // Do NOT call openTrial here — the RAF frame timer must run to full duration.
@@ -3144,35 +3181,44 @@ function renderAdmin(){
  const note=document.createElement("div");
  note.style.cssText="margin-top:14px;padding:12px 14px;border:1px solid var(--edge);border-radius:12px;background:#0a1629;color:var(--text);white-space:pre-wrap;line-height:1.35;font-size:13px";
  note.textContent = [
-  "Mode 2 CPA editable defaults",
-  "Format for bucket fields: min-max:multiplier; min-max:multiplier",
-  "Use inf for an open-ended upper bound (example: 50.01-inf:-0.2).",
+  "Mode 2 normative CPA defaults",
+  "Bucket fields use min-max:value; min-max:value.",
+  "Use inf for an open-ended upper bound (example: 80.01-inf:0.62).",
   "",
-  "Current default bucket specs:",
-  `49 Correct: ${DEFAULTS.mode2CpaCorrectBuckets}`,
-  `50 Wrong: ${DEFAULTS.mode2CpaWrongBuckets}`,
-  `51 Missed: ${DEFAULTS.mode2CpaMissedBuckets}`,
-  `52 CV%: ${DEFAULTS.mode2CpaCvBuckets}`,
-  `53 Drift %: ${DEFAULTS.mode2CpaDriftBuckets}`,
-  `54 Max reduction factor × CPI: ${DEFAULTS.mode2CpaMaxReductionFactor}`,
-  `55 Recovery ratio: ${DEFAULTS.mode2CpaRecoveryRatioBuckets}`,
-  `56 Lapse rate %: ${DEFAULTS.mode2CpaLapseRateBuckets}`,
-  `57 Block efficiency: ${DEFAULTS.mode2CpaEfficiencyBuckets}`,
+  "Challenge rule defaults:",
+  `36 Relief minimum ms: ${DEFAULTS.mode2SustainedReliefMinMs}`,
+  `37 Relief percent of MBS: ${DEFAULTS.mode2SustainedReliefPct}`,
+  `38 Relief cap ms: ${DEFAULTS.mode2SustainedReliefMaxMs}`,
   "",
-  "Field 52 — CV% buckets: CV = (sustained RT SD ÷ mean RT) × 100.",
-  "  0–10% = very consistent responding (positive weight).",
-  "  Above 30% = highly variable (penalty).",
-  "Field 55 — Recovery ratio: mean recovery RT ÷ calibration avg RT.",
-  "  1.0 = no drift; 1.5 = 50% slower during recovery trials.",
-  "Field 56 — Lapse rate%: lapse defined as correct RT > 2× median sustained RT.",
-  "  0% = no lapses; 30%+ = frequent ceiling breaches.",
-  "Field 57 — Block efficiency: adaptive paced trials ÷ block count.",
-  "  <10 = blocks formed very rapidly (poor threshold stability).",
-  "  10–30 = typical range. >50 = highly unstable threshold.",
-  "Field 54 — Max reduction cap: total CPA reduction is limited to this × CPI.",
-  "  Default 0.9 means CPA cannot fall below CPI × (1 – 0.9) = 10% of CPI.",
+  "Expected sustained-profile defaults by adaptive CPI:",
+  `65 Correct rate: ${DEFAULTS.mode2NormExpectedCorrectRate}`,
+  `66 Wrong rate: ${DEFAULTS.mode2NormExpectedWrongRate}`,
+  `67 Miss rate: ${DEFAULTS.mode2NormExpectedMissRate}`,
+  `68 Drift %: ${DEFAULTS.mode2NormExpectedDriftPct}`,
+  `69 CV%: ${DEFAULTS.mode2NormExpectedCvPct}`,
   "",
-  "Drift buckets use percent slowing; negative drift is forced to 0 before bucketing."
+  "Tolerance defaults around the expected profile:",
+  `70 Correct tolerance: ${DEFAULTS.mode2NormToleranceCorrectRate}`,
+  `71 Wrong tolerance: ${DEFAULTS.mode2NormToleranceWrongRate}`,
+  `72 Miss tolerance: ${DEFAULTS.mode2NormToleranceMissRate}`,
+  `73 Drift tolerance %: ${DEFAULTS.mode2NormToleranceDriftPct}`,
+  `74 CV tolerance %: ${DEFAULTS.mode2NormToleranceCvPct}`,
+  "",
+  "CPA point weights and cap:",
+  `75 Correct weight: ${DEFAULTS.mode2NormWeightCorrect}`,
+  `76 Wrong weight: ${DEFAULTS.mode2NormWeightWrong}`,
+  `77 Miss weight: ${DEFAULTS.mode2NormWeightMiss}`,
+  `78 Drift weight: ${DEFAULTS.mode2NormWeightDrift}`,
+  `79 CV weight: ${DEFAULTS.mode2NormWeightCv}`,
+  `80 Max CPA divergence from CPI: ±${DEFAULTS.mode2NormMaxDelta}`,
+  "",
+  "Interpretation:",
+  "Mode 2 now uses a bounded challenge rule (adaptive MBS + relief margin) and",
+  "then compares observed sustained behavior to the expected profile for that CPI level.",
+  "CPA is CPI plus or minus the weighted residual from that expected profile.",
+  "These defaults are a normative scaffold only and must be refined with field research.",
+  "",
+  "Observed drift remains positive-only slowing; improvement does not create an automatic bonus."
  ].join("\n");
  w.appendChild(note);
 }
@@ -4149,7 +4195,7 @@ function computePersonalBaseline(results, subjectId, cutoffTime=null){
  const all = Array.isArray(results) ? results : [];
  const sid = String(subjectId||"").trim();
  if(!sid || isGuestBaselineSubject(sid)) return {
-  established:false, qualifyingCount:0, averageMbs:null, lastFive:[],
+  established:false, qualifyingCount:0, averageMbs:null, lastFive:[], allQualifying:[],
   statusText:"Baseline not yet established, Test again.", subjectId:sid
  };
  const cutoffMs = cutoffTime ? new Date(cutoffTime).getTime() : null;
@@ -4159,13 +4205,20 @@ function computePersonalBaseline(results, subjectId, cutoffTime=null){
   .filter(({r})=> cutoffMs==null || Date.parse(r?.time) <= cutoffMs)
   .filter(({r})=> isBaselineQualifyingSession(r))
   .sort((a,b)=> Date.parse(a.r.time)-Date.parse(b.r.time));
- const lastFive = qualifying.slice(-5).map(({r,idx})=>mapBaselineRow(r, idx));
+ const startOfLastFive = Math.max(0, qualifying.length - 5);
+ const allQualifying = qualifying.map(({r,idx}, orderIndex)=> ({
+  ...mapBaselineRow(r, idx),
+  orderIndex,
+  usedInCurrentBaseline: orderIndex >= startOfLastFive
+ }));
+ const lastFive = allQualifying.slice(-5);
  if(lastFive.length < 5){
   return {
    established:false,
    qualifyingCount:qualifying.length,
    averageMbs:null,
    lastFive,
+   allQualifying,
    statusText:"Baseline not yet established, Test again.",
    subjectId:sid
   };
@@ -4176,6 +4229,7 @@ function computePersonalBaseline(results, subjectId, cutoffTime=null){
   qualifyingCount:qualifying.length,
   averageMbs:avg,
   lastFive,
+  allQualifying,
   statusText:`Baseline: ${avg} ms`,
   subjectId:sid
  };
@@ -4214,7 +4268,7 @@ function buildPersonalBaselineSvg(rows, avg){
  // Inverted plot: lower ms is better, so lower values draw higher on the chart.
  const y = v => T + ((v-lo)/(hi-lo||1))*ph;
  const poly = rows.map((r,i)=>`${x(i).toFixed(1)},${y(r.mbs).toFixed(1)}`).join(' ');
- let parts=[`<div style="width:100%;max-width:100%;overflow-x:hidden">`,svgOpen,`<rect width="100%" height="100%" fill="#081321" rx="16"/>`,`<text x="${W/2}" y="22" fill="#7fd7ff" text-anchor="middle" font-family="Arial,sans-serif" font-size="20" font-weight="700">Personal Baseline — Last 5 Qualifying MBS Scores</text>`];
+ let parts=[`<div style="width:100%;max-width:100%;overflow-x:hidden">`,svgOpen,`<rect width="100%" height="100%" fill="#081321" rx="16"/>`,`<text x="${W/2}" y="22" fill="#7fd7ff" text-anchor="middle" font-family="Arial,sans-serif" font-size="20" font-weight="700">Personal Baseline — All Qualifying MBS Scores</text>`];
  for(let i=0;i<5;i++){
   const v = lo + (hi-lo)*(i/4);
   const yy = y(v);
@@ -4225,7 +4279,9 @@ function buildPersonalBaselineSvg(rows, avg){
  if(rows.length>1) parts.push(`<polyline fill="none" stroke="#7fd7ff" stroke-width="3" points="${poly}"/>`);
  rows.forEach((r,i)=>{
   const xx=x(i), yy=y(r.mbs);
-  parts.push(`<circle cx="${xx.toFixed(1)}" cy="${yy.toFixed(1)}" r="5.5" fill="#ffd36f" stroke="#ffffff" stroke-width="1.2"/>`);
+  const fill = r.usedInCurrentBaseline ? "#72d572" : "#ffd36f";
+  const radius = r.usedInCurrentBaseline ? 6.4 : 5.5;
+  parts.push(`<circle cx="${xx.toFixed(1)}" cy="${yy.toFixed(1)}" r="${radius}" fill="${fill}" stroke="#ffffff" stroke-width="1.2"/>`);
   parts.push(`<text x="${xx.toFixed(1)}" y="${H-B+22}" fill="#c8d7e5" text-anchor="middle" font-family="Arial,sans-serif" font-size="12">${i+1}</text>`);
  });
  if(Number.isFinite(avg)){
@@ -4233,7 +4289,7 @@ function buildPersonalBaselineSvg(rows, avg){
   parts.push(`<line x1="${L}" y1="${yy.toFixed(1)}" x2="${W-R}" y2="${yy.toFixed(1)}" stroke="#72d572" stroke-width="2" stroke-dasharray="8 6"/>`);
   parts.push(`<text x="${W-R}" y="${Math.max(T+14,(yy-8)).toFixed(1)}" fill="#72d572" text-anchor="end" font-family="Arial,sans-serif" font-size="14" font-weight="700">Average ${Math.round(avg)} ms</text>`);
  }
- parts.push(`<text x="${W/2}" y="${H-12}" fill="#9fb4c8" text-anchor="middle" font-family="Arial,sans-serif" font-size="13">Qualifying session order (oldest to newest within current rolling baseline)</text></svg></div>`);
+ parts.push(`<text x="${W/2}" y="${H-12}" fill="#9fb4c8" text-anchor="middle" font-family="Arial,sans-serif" font-size="13">Qualifying session order (oldest to newest); current rolling baseline uses the last 5 marked points</text></svg></div>`);
  return parts.join('');
 }
 function openPersonalBaselinePage(sessionIndex){
@@ -4241,7 +4297,7 @@ function openPersonalBaselinePage(sessionIndex){
  const result = ctx.result;
  if(!result){ setStatus("No session available for Personal Baseline"); return; }
  const baseline = getPersonalBaselineForResult(result);
- const rows = baseline.lastFive || [];
+ const rows = baseline.allQualifying || baseline.lastFive || [];
  const statusText = baseline.established ? `Baseline: ${baseline.averageMbs} ms` : "Baseline not yet established, Test again.";
  const statusEl = $("personalBaselineStatus");
  const metaEl = $("personalBaselineMeta");
@@ -4251,13 +4307,13 @@ function openPersonalBaselinePage(sessionIndex){
  if(statusEl) statusEl.textContent = statusText;
  if(metaEl){
   const sessionTime = result.time ? new Date(result.time).toLocaleString() : "—";
-  metaEl.innerHTML = `<div><strong>Subject:</strong> ${escapeHtml(String(result.subjectId||"—"))}</div><div><strong>Baseline as of session:</strong> ${escapeHtml(sessionTime)}</div><div><strong>Qualifying sessions available:</strong> ${baseline.qualifyingCount} / 5</div><div style="margin-top:6px">Rolling baseline uses the most recent 5 qualifying non-Guest Mode 1 / Mode 2 adaptive-phase MBS scores with MBS &le; ${getPersonalBaselineMaxMbs()} ms, S-PFS 5–7, and no failed sessions.</div>`;
+  metaEl.innerHTML = `<div><strong>Subject:</strong> ${escapeHtml(String(result.subjectId||"—"))}</div><div><strong>Baseline as of session:</strong> ${escapeHtml(sessionTime)}</div><div><strong>Qualifying sessions available:</strong> ${baseline.qualifyingCount}</div><div style="margin-top:6px">All qualifying sessions are shown below. The rolling baseline value itself uses the most recent 5 qualifying non-Guest Mode 1 / Mode 2 adaptive-phase MBS scores with MBS &le; ${getPersonalBaselineMaxMbs()} ms, S-PFS 5–7, and no failed sessions.</div>`;
  }
  if(graphEl) graphEl.innerHTML = buildPersonalBaselineSvg(rows, baseline.established ? baseline.averageMbs : null);
  if(tbody){
-  const bodyRows = rows.map((row,idx)=>`<tr><td style="padding:8px;border-bottom:1px solid var(--edge)">${idx+1}</td><td style="padding:8px;border-bottom:1px solid var(--edge)">${escapeHtml(row.time ? new Date(row.time).toLocaleString() : "—")}</td><td style="padding:8px;border-bottom:1px solid var(--edge)">${escapeHtml(row.modeLabel||formatModeTag(row.testMode))}</td><td style="padding:8px;border-bottom:1px solid var(--edge);text-align:right">${Number(row.mbs).toFixed(1)}</td><td style="padding:8px;border-bottom:1px solid var(--edge);text-align:right">${row.spfs}</td></tr>`).join('');
-  const avgRow = baseline.established ? `<tr><td style="padding:8px"></td><td style="padding:8px"><strong>Average</strong></td><td style="padding:8px"></td><td style="padding:8px;text-align:right"><strong>${baseline.averageMbs}</strong></td><td style="padding:8px"></td></tr>` : "";
-  tbody.innerHTML = bodyRows || '<tr><td colspan="5" style="padding:10px">No qualifying baseline sessions yet.</td></tr>';
+  const bodyRows = rows.map((row,idx)=>`<tr><td style="padding:8px;border-bottom:1px solid var(--edge)">${idx+1}</td><td style="padding:8px;border-bottom:1px solid var(--edge)">${escapeHtml(row.time ? new Date(row.time).toLocaleString() : "—")}</td><td style="padding:8px;border-bottom:1px solid var(--edge)">${escapeHtml(row.modeLabel||formatModeTag(row.testMode))}</td><td style="padding:8px;border-bottom:1px solid var(--edge);text-align:right">${Number(row.mbs).toFixed(1)}</td><td style="padding:8px;border-bottom:1px solid var(--edge);text-align:right">${row.spfs}</td><td style="padding:8px;border-bottom:1px solid var(--edge);text-align:center">${row.usedInCurrentBaseline ? "Yes" : ""}</td></tr>`).join('');
+  const avgRow = baseline.established ? `<tr><td style="padding:8px"></td><td style="padding:8px"><strong>Current rolling baseline average</strong></td><td style="padding:8px"></td><td style="padding:8px;text-align:right"><strong>${baseline.averageMbs}</strong></td><td style="padding:8px"></td><td style="padding:8px;text-align:center"><strong>Last 5</strong></td></tr>` : "";
+  tbody.innerHTML = bodyRows || '<tr><td colspan="6" style="padding:10px">No qualifying baseline sessions yet.</td></tr>';
   if(avgRow) tbody.insertAdjacentHTML("beforeend", avgRow);
  }
  $("outcomeOverlay").classList.add("hidden");
@@ -5832,13 +5888,24 @@ RESULTS METRIC EXPLANATIONS
 // and sustained-only time (explicitly excluded from max-time failure accounting).
 function computeMode2TimingSummary(result){
  const entries=Array.isArray(result&&result.rtLog)?result.rtLog:[];
- const sumPhases=(phases)=>entries.filter(e=>phases.includes(String(e.phase||"")) && Number.isFinite(Number(e.durationMs))).reduce((s,e)=>s+Number(e.durationMs),0);
+ const sumPhases=(phases)=>entries
+  .filter(e=>phases.includes(String(e.phase||"")) && Number.isFinite(Number(e.durationMs)))
+  .reduce((s,e)=>s+Number(e.durationMs),0);
+ const calibrationMs=sumPhases(["calibration"]);
+ const adaptiveOnlyMs=sumPhases(["paced","paced_wrong","paced_late_correct","paced_late_wrong","missed","recovery"]);
  const sustainedOnlyMs=sumPhases(["mode2_sustained","mode2_sustained_wrong","mode2_sustained_missed"]);
  const finalSelfPacedMs=sumPhases(["mode2_final"]);
- const sustainedFinalMs=sustainedOnlyMs + finalSelfPacedMs;
- const totalMs=Number(result&&result.testDurationMs)||0;
- const adaptiveMs=Math.max(0,totalMs-finalSelfPacedMs);
- return {totalMs,adaptiveMs,sustainedOnlyMs,sustainedFinalMs,finalSelfPacedMs};
+ const adaptiveMs=adaptiveOnlyMs || Math.max(0, (Number(result&&result.testDurationMs)||0) - finalSelfPacedMs - calibrationMs);
+ const nonSustainedMs=(Number(result&&result.testDurationMs)||0) || (calibrationMs + adaptiveMs + finalSelfPacedMs);
+ const totalMs = calibrationMs + adaptiveMs + sustainedOnlyMs + finalSelfPacedMs;
+ return {
+  totalMs,
+  calibrationMs,
+  adaptiveMs,
+  sustainedOnlyMs,
+  finalSelfPacedMs,
+  nonSustainedMs
+ };
 }
 
 // ─── Mode 2 block list text ──────────────────────────────────
@@ -6104,10 +6171,11 @@ Session:    ${result.sessionNumber!=null?result.sessionNumber:"—"}
 Subject ID:  ${result.subjectId}
 Date / Time:  ${new Date(result.time).toLocaleString()}
 Total trial presentations: ${computeTotalTrialPresentations(result)}
-Total TEST duration (excludes sustained MP): ${formatDuration(timing.totalMs)}
-Calibration → end of adaptive paced trials: ${formatDuration(timing.adaptiveMs)}
-Sustained-only duration (excluded from total): ${formatDuration(timing.sustainedOnlyMs)}
-Final self-paced duration: ${formatDuration(timing.finalSelfPacedMs)}
+Total test duration: ${formatDuration(timing.totalMs)}
+Calibration phase duration: ${timing.calibrationMs?formatDuration(timing.calibrationMs):"—"}
+Adaptive phase duration: ${timing.adaptiveMs?formatDuration(timing.adaptiveMs):"—"}
+Sustained phase duration: ${timing.sustainedOnlyMs?formatDuration(timing.sustainedOnlyMs):"—"}
+Final self-paced duration: ${timing.finalSelfPacedMs?formatDuration(timing.finalSelfPacedMs):"—"}
 Location:   ${geoStr}
 ${hr}
 FATIGUE (S-PFS)
@@ -6477,12 +6545,12 @@ function syncSummarySessionSelect(selectedIdx){
  const desired = state.history.map((r,idx)=>String(idx)).join('|');
  if(existing !== desired){
   s.innerHTML = state.history.map((r,idx)=>{
-   const stamp = r && r.time ? new Date(r.time).toLocaleString() : `Session ${idx+1}`;
+   const dt = r && r.time ? new Date(r.time) : null;
+   const stamp = dt ? dt.toLocaleDateString() : `Session ${idx+1}`;
    const mode = r && r.testMode ? formatModeTag(r.testMode) : '—';
-   const subj = r && r.subjectId ? r.subjectId : '—';
    const setKey = getResultSymbolSet(r);
    const setLabel = setKey==="memory" ? "Memory" : setKey==="survival" ? "Survival" : "Std";
-   return `<option value="${idx}">Session ${idx+1} • ${mode} • ${setLabel} • ${subj} • ${stamp}</option>`;
+   return `<option value="${idx}">Session ${idx+1} · ${mode} · ${setLabel} · ${stamp}</option>`;
   }).join('');
  }
  if(s.options.length){
@@ -6549,24 +6617,64 @@ function median(arr){
  return s.length%2 ? s[m] : (s[m-1]+s[m])/2;
 }
 
-function bucketedCpaMultiplier(value, buckets){
+function getBucketValue(value, buckets, fallback=0){
  const raw = Number(value);
- if(!Number.isFinite(raw)) return 0;
+ if(!Number.isFinite(raw)) return fallback;
  const n = Math.round(raw * 100) / 100;
- for(const [lo, hi, mult] of buckets){
-  if(n >= lo && n <= hi) return mult;
+ for(const [lo, hi, v] of buckets){
+  if(n >= lo && n <= hi) return v;
  }
- return 0;
+ return fallback;
 }
 
-function clampCpaFactorDelta(delta, cpi, floorFactor){
- const base = Number(cpi);
- const d = Number(delta);
- const ff = Number(floorFactor);
- if(!Number.isFinite(base) || !Number.isFinite(d)) return 0;
- const factor = Number.isFinite(ff) ? Math.max(0, Math.min(1, ff)) : 0.9;
- const floor = -factor * base;
- return Math.max(floor, d);
+function clampSigned(value, limit){
+ const v = Number(value);
+ const lim = Math.max(0, Number(limit)||0);
+ if(!Number.isFinite(v)) return 0;
+ return Math.max(-lim, Math.min(lim, v));
+}
+
+function normalizeResidual(observed, expected, tolerance, beneficialHigher=true){
+ const obs = Number(observed), exp = Number(expected), tol = Number(tolerance);
+ if(!Number.isFinite(obs) || !Number.isFinite(exp) || !Number.isFinite(tol) || tol<=0) return 0;
+ const raw = beneficialHigher ? (obs-exp)/tol : (exp-obs)/tol;
+ return clampSigned(raw, 1);
+}
+
+function getMode2NormativeModelVersion(){
+ return "Mode 2 normative CPA scaffold v1 — field validation required";
+}
+
+function computeMode2SustainedReliefContext(mbsMs){
+ const mbs = Number(mbsMs);
+ if(!Number.isFinite(mbs) || mbs<=0) return { reliefMs:null, startMs:null, challengeRatio:null };
+ const minMs = Math.max(0, Number(settings.mode2SustainedReliefMinMs)||DEFAULTS.mode2SustainedReliefMinMs);
+ const pct = Math.max(0, Number(settings.mode2SustainedReliefPct)||DEFAULTS.mode2SustainedReliefPct);
+ const maxMs = Math.max(minMs, Number(settings.mode2SustainedReliefMaxMs)||DEFAULTS.mode2SustainedReliefMaxMs);
+ const reliefMs = Math.min(maxMs, Math.max(minMs, Math.round(mbs * pct)));
+ const startMs = Math.round(mbs + reliefMs);
+ const challengeRatio = startMs>0 ? startMs/mbs : null;
+ return { reliefMs, startMs, challengeRatio };
+}
+
+function getMode2ExpectedProfileForCpi(cpi){
+ const correctBuckets = parseBucketSpec(settings.mode2NormExpectedCorrectRate,
+  [[0,20,0.82],[20.01,40,0.80],[40.01,60,0.76],[60.01,80,0.70],[80.01,100,0.62]]);
+ const wrongBuckets = parseBucketSpec(settings.mode2NormExpectedWrongRate,
+  [[0,20,0.03],[20.01,40,0.04],[40.01,60,0.05],[60.01,80,0.07],[80.01,100,0.09]]);
+ const missBuckets = parseBucketSpec(settings.mode2NormExpectedMissRate,
+  [[0,20,0.15],[20.01,40,0.16],[40.01,60,0.19],[60.01,80,0.23],[80.01,100,0.29]]);
+ const driftBuckets = parseBucketSpec(settings.mode2NormExpectedDriftPct,
+  [[0,20,4],[20.01,40,5],[40.01,60,7],[60.01,80,9],[80.01,100,12]]);
+ const cvBuckets = parseBucketSpec(settings.mode2NormExpectedCvPct,
+  [[0,20,12],[20.01,40,13],[40.01,60,15],[60.01,80,18],[80.01,100,22]]);
+ return {
+  expectedCorrectRate: getBucketValue(cpi, correctBuckets, 0.7),
+  expectedWrongRate: getBucketValue(cpi, wrongBuckets, 0.06),
+  expectedMissRate: getBucketValue(cpi, missBuckets, 0.2),
+  expectedDriftPct: getBucketValue(cpi, driftBuckets, 8),
+  expectedCvPct: getBucketValue(cpi, cvBuckets, 16)
+ };
 }
 
 function getMode2SustainedRespondedEntries(rtLog){
@@ -6613,20 +6721,25 @@ function parseBucketSpec(spec, fallback){
 function computeMode2CPA(result){
  const blank = {
   cpa:null, cpaBaseCpi:null,
+  cpaAdjustmentApplied:null,
+  cpaNormativeModelVersion:getMode2NormativeModelVersion(),
+  cpaExpectedCorrectRate:null, cpaExpectedWrongRate:null, cpaExpectedMissRate:null,
+  cpaExpectedDriftPct:null, cpaExpectedCvPct:null,
+  cpaObservedCorrectRate:null, cpaObservedWrongRate:null, cpaObservedMissRate:null,
+  cpaObservedDriftPct:null, cpaObservedCvPct:null,
   cpaCorrectWeighting:null, cpaWrongWeighting:null,
-  cpaMissedWeighting:null,
-  cpaSdWeighting:null,
-  cpaDriftWeighting:null,
-  cpaRecoveryWeighting:null,
-  cpaLapseWeighting:null,
-  cpaEfficiencyWeighting:null,
+  cpaMissedWeighting:null, cpaSdWeighting:null, cpaDriftWeighting:null,
+  cpaCorrectResidual:null, cpaWrongResidual:null, cpaMissedResidual:null,
+  cpaCvResidual:null, cpaDriftResidual:null,
   cpaSustainedResponseSdMs:null,
   cpaSustainedCvPct:null,
   cpaSustainedDriftRatio:null,
   cpaEarlyMedianRtMs:null, cpaLateMedianRtMs:null,
   cpaRecoveryCalibRatio:null,
   cpaLapseRatePct:null,
-  cpaTrialsPerBlock:null
+  cpaTrialsPerBlock:null,
+  cpaSustainedReliefMs:null,
+  cpaSustainedChallengeRatio:null
  };
  if(!result || result.testMode!=="mode2" || !result.mode2Triggered) return blank;
 
@@ -6636,12 +6749,14 @@ function computeMode2CPA(result){
  const correct = Number(result.mode2SustainedCorrect)||0;
  const wrong   = Number(result.mode2SustainedWrong)||0;
  const missed  = Number(result.mode2SustainedMissed)||0;
+ const presented = Math.max(1, Number(result.mode2SustainedPresented)||0, correct+wrong+missed);
+ const correctRate = correct / presented;
+ const wrongRate = wrong / presented;
+ const missRate = missed / presented;
 
  const log = Array.isArray(result.rtLog) ? result.rtLog : [];
 
- // Sustained RT descriptors are based on correct sustained responses only.
- // CV% should reflect the stability of valid sustained processing rather than
- // mixing in wrong-response timings, which can distort consistency estimates.
+ // Correct sustained RT descriptors remain useful as secondary diagnostics.
  const sustainedCorrectRTs = log
   .filter(e=>e && e.phase==="mode2_sustained" && e.outcome==="correct" && Number.isFinite(Number(e.rt)))
   .map(e=>Number(e.rt));
@@ -6650,8 +6765,7 @@ function computeMode2CPA(result){
  const responseCvPct = (responseSd!=null && responseMean!=null && responseMean>0)
   ? (responseSd/responseMean)*100 : null;
 
- // Drift compares early and late medians of correct sustained RTs and converts
- // slowing to a positive-only percentage. Improvement never reduces the score.
+ // Early-vs-late drift remains a positive-only slowing percentage.
  let earlyMedian=null, lateMedian=null, driftRatio=null;
  if(sustainedCorrectRTs.length>=2){
   const half=Math.floor(sustainedCorrectRTs.length/2);
@@ -6662,9 +6776,10 @@ function computeMode2CPA(result){
     driftRatio=Math.max(0,(lateMedian-earlyMedian)/earlyMedian);
   }
  }
+ const driftPct = driftRatio!=null ? driftRatio*100 : null;
 
- // Recovery-to-calibration ratio measures whether self-paced recovery trials
- // became slower than the original self-paced calibration baseline.
+ // Recovery / lapse / efficiency are still logged because future field work
+ // may prove them useful, but Rev 84 no longer makes them direct CPA drivers.
  const recoveryRTs = log
   .filter(e=>e && e.phase==="recovery" && Number.isFinite(Number(e.rt)))
   .map(e=>Number(e.rt));
@@ -6672,19 +6787,12 @@ function computeMode2CPA(result){
  const recoveryMeanRT = recoveryRTs.length>=1 ? mean(recoveryRTs) : null;
  const recoveryCalibRatio = (recoveryMeanRT!=null && calibAvg!=null && calibAvg>0)
   ? recoveryMeanRT/calibAvg : null;
-
- // Lapse rate focuses on the tail of correct sustained RTs. A lapse is any
- // correct sustained response slower than 2× the median correct sustained RT.
  const sustainedMedianRT = sustainedCorrectRTs.length ? median(sustainedCorrectRTs) : null;
  const lapseThreshold = sustainedMedianRT!=null ? 2*sustainedMedianRT : null;
  const lapseCount = lapseThreshold!=null
   ? sustainedCorrectRTs.filter(rt=>rt>lapseThreshold).length : 0;
  const lapseRatePct = (lapseThreshold!=null && sustainedCorrectRTs.length>0)
   ? (lapseCount/sustainedCorrectRTs.length)*100 : null;
-
- // Block formation efficiency measures how many adaptive paced trials were
- // needed to form each block. Very low values suggest rapid failure; very high
- // values suggest an unstable threshold during adaptation.
  const blockCount = Number(result.blockCount)||0;
  const adaptiveTrials = log.filter(e=>e && [
   "paced","paced_wrong","paced_late_correct","paced_late_wrong","missed"
@@ -6692,49 +6800,32 @@ function computeMode2CPA(result){
  const trialsPerBlock = (blockCount>0 && adaptiveTrials>0)
   ? adaptiveTrials/blockCount : null;
 
- const correctBuckets = parseBucketSpec(settings.mode2CpaCorrectBuckets,
-  [[0,10,0],[11,12,0.1],[13,14,0.2],[15,18,0.3],[19,20,0.4]]);
- const wrongBuckets = parseBucketSpec(settings.mode2CpaWrongBuckets,
-  [[0,0,0.1],[1,4,0],[5,8,-0.2],[9,12,-0.3],[13,15,-0.5],[16,18,-0.8],[19,20,-0.9]]);
- const missedBuckets = parseBucketSpec(settings.mode2CpaMissedBuckets,
-  [[0,2,0.1],[3,4,0],[5,8,-0.2],[9,12,-0.3],[13,15,-0.5],[16,18,-0.8],[19,20,-0.9]]);
- const cvBuckets = parseBucketSpec(settings.mode2CpaCvBuckets,
-  [[0,10,0.2],[10.01,15,0.1],[15.01,20,0],[20.01,30,-0.1],[30.01,50,-0.2],[50.01,Number.POSITIVE_INFINITY,-0.3]]);
- const driftBuckets = parseBucketSpec(settings.mode2CpaDriftBuckets,
-  [[0,10,0],[10.0001,30,-0.01],[30.0001,40,-0.05],[40.0001,Number.POSITIVE_INFINITY,-0.10]]);
- const recoveryBuckets = parseBucketSpec(settings.mode2CpaRecoveryRatioBuckets,
-  [[0,1.10,0],[1.11,1.25,-0.05],[1.26,1.50,-0.10],[1.51,Number.POSITIVE_INFINITY,-0.20]]);
- const lapseBuckets = parseBucketSpec(settings.mode2CpaLapseRateBuckets,
-  [[0,5,0],[5.01,15,-0.05],[15.01,30,-0.10],[30.01,Number.POSITIVE_INFINITY,-0.20]]);
- const efficiencyBuckets = parseBucketSpec(settings.mode2CpaEfficiencyBuckets,
-  [[0,10,-0.03],[10.01,30,0],[30.01,50,-0.03],[50.01,Number.POSITIVE_INFINITY,-0.07]]);
+ const expected = getMode2ExpectedProfileForCpi(cpi);
+ const tolCorrect = Number(settings.mode2NormToleranceCorrectRate)||DEFAULTS.mode2NormToleranceCorrectRate;
+ const tolWrong = Number(settings.mode2NormToleranceWrongRate)||DEFAULTS.mode2NormToleranceWrongRate;
+ const tolMiss = Number(settings.mode2NormToleranceMissRate)||DEFAULTS.mode2NormToleranceMissRate;
+ const tolDrift = Number(settings.mode2NormToleranceDriftPct)||DEFAULTS.mode2NormToleranceDriftPct;
+ const tolCv = Number(settings.mode2NormToleranceCvPct)||DEFAULTS.mode2NormToleranceCvPct;
 
- // Field 54 max-reduction cap: limits total negative CPA adjustment so that
- // several mild penalties do not compound into an implausibly low end-state
- // ability estimate.
- const maxReductionFactorRaw = Number(settings.mode2CpaMaxReductionFactor);
- const maxReductionFactor = clamp(Number.isFinite(maxReductionFactorRaw) ? maxReductionFactorRaw : DEFAULTS.mode2CpaMaxReductionFactor, 0, 1);
+ const correctResidual = normalizeResidual(correctRate, expected.expectedCorrectRate, tolCorrect, true);
+ const wrongResidual = normalizeResidual(wrongRate, expected.expectedWrongRate, tolWrong, false);
+ const missResidual = normalizeResidual(missRate, expected.expectedMissRate, tolMiss, false);
+ const driftResidual = normalizeResidual(driftPct!=null ? driftPct : expected.expectedDriftPct, expected.expectedDriftPct, tolDrift, false);
+ const cvResidual = normalizeResidual(responseCvPct!=null ? responseCvPct : expected.expectedCvPct, expected.expectedCvPct, tolCv, false);
 
- const correctAdj = clampCpaFactorDelta(cpi*bucketedCpaMultiplier(correct,correctBuckets), cpi, maxReductionFactor);
- const wrongAdj = clampCpaFactorDelta(cpi*bucketedCpaMultiplier(wrong,wrongBuckets), cpi, maxReductionFactor);
- const missedAdj = clampCpaFactorDelta(cpi*bucketedCpaMultiplier(missed,missedBuckets), cpi, maxReductionFactor);
- const cvAdj = responseCvPct!=null
-  ? clampCpaFactorDelta(cpi*bucketedCpaMultiplier(responseCvPct,cvBuckets), cpi, maxReductionFactor) : 0;
- const driftPct = driftRatio!=null ? driftRatio*100 : null;
- const driftAdj = (driftPct!=null && sustainedCorrectRTs.length>=2)
-  ? clampCpaFactorDelta(cpi*bucketedCpaMultiplier(driftPct,driftBuckets), cpi, maxReductionFactor) : 0;
- const recoveryAdj = recoveryCalibRatio!=null
-  ? clampCpaFactorDelta(cpi*bucketedCpaMultiplier(recoveryCalibRatio,recoveryBuckets), cpi, maxReductionFactor) : 0;
- const lapseAdj = lapseRatePct!=null
-  ? clampCpaFactorDelta(cpi*bucketedCpaMultiplier(lapseRatePct,lapseBuckets), cpi, maxReductionFactor) : 0;
- const efficiencyAdj = trialsPerBlock!=null
-  ? clampCpaFactorDelta(cpi*bucketedCpaMultiplier(trialsPerBlock,efficiencyBuckets), cpi, maxReductionFactor) : 0;
- const allAdj = correctAdj+wrongAdj+missedAdj+cvAdj+driftAdj+recoveryAdj+lapseAdj+efficiencyAdj;
- const minAllowed = -maxReductionFactor * cpi;
- const cappedAllAdj = Math.max(minAllowed, allAdj);
+ const correctAdj = correctResidual * (Number(settings.mode2NormWeightCorrect)||DEFAULTS.mode2NormWeightCorrect);
+ const wrongAdj = wrongResidual * (Number(settings.mode2NormWeightWrong)||DEFAULTS.mode2NormWeightWrong);
+ const missedAdj = missResidual * (Number(settings.mode2NormWeightMiss)||DEFAULTS.mode2NormWeightMiss);
+ const driftAdj = driftResidual * (Number(settings.mode2NormWeightDrift)||DEFAULTS.mode2NormWeightDrift);
+ const cvAdj = cvResidual * (Number(settings.mode2NormWeightCv)||DEFAULTS.mode2NormWeightCv);
+ const rawAdj = correctAdj + wrongAdj + missedAdj + driftAdj + cvAdj;
+ const maxDelta = Math.max(0, Number(settings.mode2NormMaxDelta)||DEFAULTS.mode2NormMaxDelta);
+ const cappedAdj = clampSigned(rawAdj, maxDelta);
+ const cpa = Math.max(0, Math.min(100, cpi + cappedAdj));
 
- const rawCpa = cpi + cappedAllAdj;
- const cpa = Math.max(0, Math.min(100, rawCpa));
+ const reliefCtx = computeMode2SustainedReliefContext(result.mode2AdaptiveMbsMs!=null ? result.mode2AdaptiveMbsMs : null);
+ const reliefMs = result.mode2SustainedReliefMs!=null ? Number(result.mode2SustainedReliefMs) : reliefCtx.reliefMs;
+ const challengeRatio = result.mode2SustainedChallengeRatio!=null ? Number(result.mode2SustainedChallengeRatio) : reliefCtx.challengeRatio;
 
  const r1 = v=>v!=null&&Number.isFinite(Number(v))?Number(Number(v).toFixed(1)):null;
  const r2 = v=>v!=null&&Number.isFinite(Number(v))?Number(Number(v).toFixed(2)):null;
@@ -6743,14 +6834,28 @@ function computeMode2CPA(result){
  return {
   cpa: r1(cpa),
   cpaBaseCpi: r1(cpi),
+  cpaAdjustmentApplied: r1(cappedAdj),
+  cpaNormativeModelVersion: getMode2NormativeModelVersion(),
+  cpaExpectedCorrectRate: r3(expected.expectedCorrectRate),
+  cpaExpectedWrongRate: r3(expected.expectedWrongRate),
+  cpaExpectedMissRate: r3(expected.expectedMissRate),
+  cpaExpectedDriftPct: r1(expected.expectedDriftPct),
+  cpaExpectedCvPct: r1(expected.expectedCvPct),
+  cpaObservedCorrectRate: r3(correctRate),
+  cpaObservedWrongRate: r3(wrongRate),
+  cpaObservedMissRate: r3(missRate),
+  cpaObservedDriftPct: r1(driftPct),
+  cpaObservedCvPct: r1(responseCvPct),
   cpaCorrectWeighting: r1(correctAdj),
   cpaWrongWeighting: r1(wrongAdj),
   cpaMissedWeighting: r1(missedAdj),
   cpaSdWeighting: r1(cvAdj),
   cpaDriftWeighting: r1(driftAdj),
-  cpaRecoveryWeighting: r1(recoveryAdj),
-  cpaLapseWeighting: r1(lapseAdj),
-  cpaEfficiencyWeighting: r1(efficiencyAdj),
+  cpaCorrectResidual: r2(correctResidual),
+  cpaWrongResidual: r2(wrongResidual),
+  cpaMissedResidual: r2(missResidual),
+  cpaCvResidual: r2(cvResidual),
+  cpaDriftResidual: r2(driftResidual),
   cpaSustainedResponseSdMs: r1(responseSd),
   cpaSustainedCvPct: r1(responseCvPct),
   cpaSustainedDriftRatio: sustainedCorrectRTs.length>=2 ? r3(driftRatio) : null,
@@ -6758,7 +6863,9 @@ function computeMode2CPA(result){
   cpaLateMedianRtMs: r1(lateMedian),
   cpaRecoveryCalibRatio: r2(recoveryCalibRatio),
   cpaLapseRatePct: r1(lapseRatePct),
-  cpaTrialsPerBlock: r1(trialsPerBlock)
+  cpaTrialsPerBlock: r1(trialsPerBlock),
+  cpaSustainedReliefMs: r1(reliefMs),
+  cpaSustainedChallengeRatio: r3(challengeRatio)
  };
 }
 
@@ -6958,7 +7065,7 @@ function resetTrialStateOnly(){
  state.geo=null; state.benchmark=null; state.lastResultText=null;
  state.pendingPriorMiss=null; state.pendingLatePacing=null;
  state.activeFrameTiming=null; state.frameOvershootLog=[]; state.rafIntervalLog=[];
- state.mode2Triggered=false; state.mode2AdaptiveMbsMs=null; state.mode2SustainedPresentationRateMs=null;
+ state.mode2Triggered=false; state.mode2AdaptiveMbsMs=null; state.mode2SustainedPresentationRateMs=null; state.mode2SustainedReliefMs=null; state.mode2SustainedChallengeRatio=null;
  state.mode2SustainedPresented=0; state.mode2SustainedCorrect=0; state.mode2SustainedWrong=0; state.mode2SustainedMissed=0;
  state.mode2SustainedCorrectRTs=[]; state.mode2FinalTrialsPresented=0; state.mode2FinalCorrect=0; state.mode2FinalWrong=0; state.mode2FinalRTs=[]; state.summaryVariant="complete";
  updateCPIDisplay(null); updateMetrics(); setProbeIdle(); setTestingQuiet(false);
