@@ -1732,3 +1732,7 @@ It is meant to provide a readable history without overloading inline code commen
 - Restored S-PFS item 5 wording to **"Okay, about normal"** while keeping the acronym as **S-PFS**.
 - Changed test-phase backgrounds to blue tones: calibration = light blue; adaptive/recovery/fixed machine-paced = medium blue; sustained/final self-paced = light blue.
 - Updated all package version wiring to V661.
+
+## V699 Rev 96
+- Admin passcode now only needs to be entered once per revision on a given device/browser.
+- Unlock state is remembered for the current APP_REV_STAMP and resets automatically on a new revision.

@@ -368,7 +368,7 @@ let settings=loadSettings();
 // profile record (profile is no longer the source of truth for test type),
 // and persist both. This fires once per fresh rev deployment per device;
 // after that, the stamp matches and nothing is touched on subsequent loads.
-const APP_REV_STAMP = "V699rev92";
+const APP_REV_STAMP = "V699rev96";
 (function migrateToCurrentRev(){
  let stored = "";
  try{ stored = localStorage.getItem(`${STORAGE_PREFIX}_rev_stamp`) || ""; }catch(e){ stored = ""; }
@@ -7599,7 +7599,7 @@ function startOverFlow(){
  schedulerState.activeSubjectId = "";
  schedulerState.settings = structuredClone(DEFAULT_SCHEDULER_SETTINGS);
  fatigueOut.textContent="—"; $("subjectIdInput").value="";
- _adminUnlocked=false;
+ persistAdminUnlockForCurrentRev(false);
  // Full reset: clear welcome-back display but preserve saved profile in localStorage
  const wl=$("subjectWelcome"); if(wl) wl.style.display="none";
  const we=$("welcomeEmail"); if(we) we.textContent="";
@@ -9021,6 +9021,22 @@ if(_fsb) _fsb.onclick=startTest;
 let _adminUnlocked = false;
 // _adminReturnTo: tracks which page opened admin so Close returns there.
 let _adminReturnTo = "subjectOverlay"; // default return destination
+const ADMIN_UNLOCK_REV_KEY = `${STORAGE_PREFIX}_admin_unlock_rev`;
+function loadAdminUnlockForCurrentRev(){
+ try{
+  _adminUnlocked = localStorage.getItem(ADMIN_UNLOCK_REV_KEY) === APP_REV_STAMP;
+ }catch(e){
+  _adminUnlocked = false;
+ }
+}
+function persistAdminUnlockForCurrentRev(unlocked){
+ _adminUnlocked = !!unlocked;
+ try{
+  if(_adminUnlocked) localStorage.setItem(ADMIN_UNLOCK_REV_KEY, APP_REV_STAMP);
+  else localStorage.removeItem(ADMIN_UNLOCK_REV_KEY);
+ }catch(e){}
+}
+loadAdminUnlockForCurrentRev();
 function showAdminOverlay(){
  $("adminOverlay").classList.remove("hidden");
  if(_adminUnlocked){
@@ -9121,8 +9137,8 @@ $("tutSkipBtn").onclick=()=>tutSkip();
 $("unlockBtn").onclick=()=>{
  const v=$("adminPass").value;
  if(v===settings.adminPasscode){
-  _adminUnlocked=true;
-  $("adminGate").classList.add("hidden"); $("adminBody").classList.remove("hidden"); renderAdmin(); setStatus("Admin unlocked");
+  persistAdminUnlockForCurrentRev(true);
+  $("adminGate").classList.add("hidden"); $("adminBody").classList.remove("hidden"); renderAdmin(); setStatus("Admin unlocked for this revision");
  } else setStatus("Incorrect passcode — default is 4822");
 };
 $("closeAdminBtn").onclick=()=>{
