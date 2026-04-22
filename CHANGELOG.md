@@ -1,3 +1,10 @@
+## Rev 97
+- Fixed the Personal Baseline overlay so it always computes from the subject's full saved history, independent of which session is selected on the Speedometer. The graph/table now show the full qualifying MBS set, and the rolling baseline still uses the latest 5 qualifying sessions.
+- Removed the stale open-blue/estimated CPI note from the Performance over Date and Time graph and now always render the CPI center as the normal filled blue marker.
+- Reworked the Performance over Date and Time graph x-axis to use true continuous session timestamps instead of evenly spaced session order, so overnight gaps and other elapsed-time gaps remain visible on the chart.
+- Removed the verification/provenance block from Results Summary only, while leaving Results - Complete unchanged.
+- Bumped the cache-busting script tag to `app.js?v=699rev97`, bumped `sw.js` RELEASE to `699rev97`, and advanced `APP_REV_STAMP` to `V699rev97`. `APP_VERSION` remains `V699` because this is a behavior/UI correction revision only.
+
 ## Rev 94
 - Moved verification/provenance block to the bottom of both Results summaries.
 - Fixed Performance over Date and Time graph layout by making the chart canvas dynamically wider inside a horizontal scroller and shrinking CPA square markers.

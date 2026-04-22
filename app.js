@@ -368,7 +368,7 @@ let settings=loadSettings();
 // profile record (profile is no longer the source of truth for test type),
 // and persist both. This fires once per fresh rev deployment per device;
 // after that, the stamp matches and nothing is touched on subsequent loads.
-const APP_REV_STAMP = "V699rev96";
+const APP_REV_STAMP = "V699rev97";
 (function migrateToCurrentRev(){
  let stored = "";
  try{ stored = localStorage.getItem(`${STORAGE_PREFIX}_rev_stamp`) || ""; }catch(e){ stored = ""; }
@@ -4344,7 +4344,8 @@ function openPersonalBaselinePage(sessionIndex){
  const ctx = resolveResultContext(null, sessionIndex, "personal baseline");
  const result = ctx.result;
  if(!result){ setStatus("No session available for Personal Baseline"); return; }
- const baseline = getPersonalBaselineForResult(result);
+ const sid = String(result?.subjectId||"").trim();
+ const baseline = computePersonalBaseline(state.history, sid, null);
  const rows = baseline.allQualifying || baseline.lastFive || [];
  const statusText = baseline.established ? `Baseline: ${baseline.averageMbs} ms` : "Baseline not yet established, Test again.";
  const statusEl = $("personalBaselineStatus");
@@ -4355,7 +4356,7 @@ function openPersonalBaselinePage(sessionIndex){
  if(statusEl) statusEl.textContent = statusText;
  if(metaEl){
   const sessionTime = result.time ? new Date(result.time).toLocaleString() : "—";
-  metaEl.innerHTML = `<div><strong>Subject:</strong> ${escapeHtml(String(result.subjectId||"—"))}</div><div><strong>Baseline as of session:</strong> ${escapeHtml(sessionTime)}</div><div><strong>Qualifying sessions available:</strong> ${baseline.qualifyingCount}</div><div style="margin-top:6px">All qualifying sessions are shown below. The rolling baseline value itself uses the most recent 5 qualifying non-Guest Mode 1 / Mode 2 adaptive-phase MBS scores with MBS &le; ${getPersonalBaselineMaxMbs()} ms, S-PFS 5–7, and no failed sessions.</div>`;
+  metaEl.innerHTML = `<div><strong>Subject:</strong> ${escapeHtml(String(result.subjectId||"—"))}</div><div><strong>Selected session:</strong> ${escapeHtml(sessionTime)}</div><div><strong>Qualifying sessions available:</strong> ${baseline.qualifyingCount}</div><div style="margin-top:6px">All qualifying sessions are shown below across the subject's full saved history. The rolling baseline value itself uses the most recent 5 qualifying non-Guest Mode 1 / Mode 2 adaptive-phase MBS scores with MBS &le; ${getPersonalBaselineMaxMbs()} ms, S-PFS 5–7, and no failed sessions.</div>`;
  }
  if(graphEl) graphEl.innerHTML = buildPersonalBaselineSvg(rows, baseline.established ? baseline.averageMbs : null);
  if(tbody){
@@ -6512,9 +6513,7 @@ ${cpaLine}
 Disposition: ${dispositionLine}
 END Reason: ${result.endReason||"Run complete"}
 ${hr}
-${buildVerificationSummaryLines(result)}
-${hr}
-RESULTS METRICS EXPLANATIONS:
+${buildResultsSummaryCompactFooter()}${buildResultsSummaryCompactFooter()?`\n${hr}\n`:""}RESULTS METRICS EXPLANATIONS:
 ${getResultsMetricExplanationText(result)}`);
 }
 
@@ -6526,6 +6525,10 @@ Payload hash: ${result && result.payloadHash ? result.payloadHash : "—"}
 Trial-log hash: ${result && result.trialLogHash ? result.trialLogHash : "—"}
 Settings hash: ${result && result.settingsHash ? result.settingsHash : "—"}
 Model versions: CPA ${models.cpaModelVersion||"—"}; Baseline ${models.baselineModelVersion||"—"}`;
+}
+
+function buildResultsSummaryCompactFooter(){
+ return "";
 }
 
 function buildSummary(result){
@@ -9844,7 +9847,10 @@ function drawPerformanceOverTimeChart(canvas,hist){
   const nForWidth = Math.max(1, filteredForWidth.length);
   const scroller = canvas.parentElement;
   const viewportW = Math.max(320, Math.round((scroller && scroller.clientWidth) || canvas.clientWidth || canvas.offsetWidth || 900));
-  const dynamicW = Math.max(viewportW, 960, 180 + nForWidth * 64);
+  const filteredMs = filteredForWidth.map(r=>perfSessionUtcMs(r)).filter(Number.isFinite);
+  const spanMsForWidth = filteredMs.length>1 ? Math.max(1, filteredMs[filteredMs.length-1] - filteredMs[0]) : 0;
+  const spanHoursForWidth = spanMsForWidth / 3600000;
+  const dynamicW = Math.max(viewportW, 960, 180 + nForWidth * 64, 180 + Math.round(spanHoursForWidth * 18));
   canvas.style.width = dynamicW + "px";
   canvas.style.minWidth = dynamicW + "px";
   const cssW = dynamicW;
@@ -9915,9 +9921,15 @@ function drawPerformanceOverTimeChart(canvas,hist){
   const ringLegend = "Orange circle = MBS";
   const cpaLegend = "Purple square = CPA";
 
+  const timeVals = slice.map(r=>perfSessionUtcMs(r));
+  const validTimeVals = timeVals.filter(Number.isFinite);
+  const minTime = validTimeVals.length ? validTimeVals[0] : NaN;
+  const maxTime = validTimeVals.length ? validTimeVals[validTimeVals.length-1] : NaN;
   function xOf(i){
-    if(n<=1) return PAD.left + cW/2;
-    return PAD.left + (i/(n-1))*cW;
+    if(n<=1 || !Number.isFinite(minTime) || !Number.isFinite(maxTime) || maxTime<=minTime) return PAD.left + cW/2;
+    const t = timeVals[i];
+    if(!Number.isFinite(t)) return PAD.left + cW/2;
+    return PAD.left + ((t-minTime)/(maxTime-minTime))*cW;
   }
   function yLeftFromScore(v){ return PAD.top + cH - ((v-0)/100)*cH; }
   function yRightFromSpf(v){ return PAD.top + cH - (((v-1)/6))*cH; }
@@ -9965,7 +9977,7 @@ function drawPerformanceOverTimeChart(canvas,hist){
   const rangeLabel = perfGraphState.preset === "custom"
     ? `    Range: ${perfGraphState.fromDate||"start"} → ${perfGraphState.toDate||"end"}`
     : (perfGraphState.preset === "last14" ? "    Range: Last 14 sessions" : "");
-  ctx.fillText(`All sessions sequentially    Subjects: ${subjectCount}    Sessions: ${n}    Chronology: Device Local Time${rangeLabel}`, PAD.left, 46);
+  ctx.fillText(`Continuous date/time axis    Subjects: ${subjectCount}    Sessions: ${n}    Chronology: Device Local Time${rangeLabel}`, PAD.left, 46);
 
   ctx.save();
   ctx.translate(18, PAD.top + cH/2); ctx.rotate(-Math.PI/2);
@@ -10039,7 +10051,7 @@ function drawPerformanceOverTimeChart(canvas,hist){
     });
   }
 
-  function drawCombinedPerfMarkers(scoreVals, metricVals, estimatedFlags=[]){
+  function drawCombinedPerfMarkers(scoreVals, metricVals){
     ctx.strokeStyle="#7fd7ff";
     ctx.lineWidth=2.5;
     ctx.beginPath();
@@ -10059,22 +10071,15 @@ function drawPerformanceOverTimeChart(canvas,hist){
       const y = yLeftFromScore(score);
       ctx.beginPath(); ctx.arc(x,y,5.8,0,Math.PI*2);
       ctx.strokeStyle="#ffb357"; ctx.lineWidth=2.2; ctx.stroke();
-      const estimated = !!estimatedFlags[i];
       ctx.beginPath(); ctx.arc(x,y,2.8,0,Math.PI*2);
-      if(estimated){
-        ctx.strokeStyle="#7fd7ff";
-        ctx.lineWidth=1.8;
-        ctx.stroke();
-      }else{
-        ctx.fillStyle="#7fd7ff";
-        ctx.fill();
-      }
+      ctx.fillStyle="#7fd7ff";
+      ctx.fill();
     });
   }
 
   const scoreVals = slice.map(r=>perfSessionCpi(r));
   const metricVals = slice.map(r=>perfSessionMs(r));
-  const estimatedScoreFlags = slice.map(r=>perfSessionCpiEstimated(r));
+  const estimatedScoreFlags = [];
   const cpaVals = slice.map(r=>r && r.testMode==="mode2" && r.mode2Triggered && Number.isFinite(Number(r.cpa)) ? Number(r.cpa) : null);
   const spfVals = slice.map(r=>r && r.samnPerelli && r.samnPerelli.score!=null ? Number(r.samnPerelli.score) : null);
   function sleepQualityColor(r){
@@ -10096,7 +10101,7 @@ function drawPerformanceOverTimeChart(canvas,hist){
   }
 
   drawLine(spfVals, v=>yRightFromSpf(v), "#88ff88", "diamond");
-  drawCombinedPerfMarkers(scoreVals, metricVals, estimatedScoreFlags);
+  drawCombinedPerfMarkers(scoreVals, metricVals);
   drawLine(cpaVals, v=>yLeftFromScore(v), "#d6a7ff", "square", {markerDx:8, markerSize:3.7, strokeMarker:true});
 
   const sleepBarY = PAD.top + cH + 18;
@@ -10121,22 +10126,15 @@ function drawPerformanceOverTimeChart(canvas,hist){
   ctx.fillStyle="#7fd7ff";
   ctx.fillText(dotLegend, PAD.left+18, PAD.top-14);
   ctx.beginPath();
-  ctx.arc(PAD.left+118, PAD.top-18, 2.8, 0, Math.PI*2);
-  ctx.strokeStyle="#7fd7ff";
-  ctx.lineWidth=1.8;
-  ctx.stroke();
-  ctx.fillStyle="#d7e7f8";
-  ctx.fillText("Open blue center = estimated CPI", PAD.left+126, PAD.top-14);
-  ctx.beginPath();
-  ctx.arc(PAD.left+320, PAD.top-18, 5.6, 0, Math.PI*2);
+  ctx.arc(PAD.left+210, PAD.top-18, 5.6, 0, Math.PI*2);
   ctx.strokeStyle="#ffb357";
   ctx.lineWidth=2.2;
   ctx.stroke();
   ctx.fillStyle="#ffb357";
-  ctx.fillText(ringLegend, PAD.left+332, PAD.top-14);
+  ctx.fillText(ringLegend, PAD.left+222, PAD.top-14);
   ctx.fillStyle="#d6a7ff";
-  ctx.fillRect(PAD.left+462, PAD.top-22, 8, 8);
-  ctx.fillText(cpaLegend, PAD.left+478, PAD.top-14);
+  ctx.fillRect(PAD.left+352, PAD.top-22, 8, 8);
+  ctx.fillText(cpaLegend, PAD.left+368, PAD.top-14);
   const spLegendY = PAD.top + 4;
   ctx.fillStyle="#88ff88";
   ctx.save();
