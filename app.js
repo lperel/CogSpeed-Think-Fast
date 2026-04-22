@@ -6512,6 +6512,8 @@ ${cpaLine}
 Disposition: ${dispositionLine}
 END Reason: ${result.endReason||"Run complete"}
 ${hr}
+${buildVerificationSummaryLines(result)}
+${hr}
 RESULTS METRICS EXPLANATIONS:
 ${getResultsMetricExplanationText(result)}`);
 }
@@ -6545,7 +6547,6 @@ Test Mode:  ${formatModeTag(result.testMode)}
 Session:    ${result.sessionNumber!=null?result.sessionNumber:"—"}
 Subject ID:  ${result.subjectId}
 Date / Time:  ${new Date(result.time).toLocaleString()}
-${buildVerificationSummaryLines(result)}
 Total trial presentations: ${computeTotalTrialPresentations(result)}
 Test duration: ${formatDuration(result.testDurationMs)}
 Location:   ${geoStr}
@@ -6573,6 +6574,8 @@ COGNITIVE PERFORMANCE TABLE
 ${hr}
 END REASON
  ${result.endReason||"Run complete"}
+${hr}
+${buildVerificationSummaryLines(result)}
 ${getResultsMetricExplanationText(result)}`);
   return;
  }
@@ -6584,7 +6587,6 @@ Test Mode:  ${formatModeTag(result.testMode)}
 Session:    ${result.sessionNumber!=null?result.sessionNumber:"—"}
 Subject ID:  ${result.subjectId}
 Date / Time:  ${new Date(result.time).toLocaleString()}
-${buildVerificationSummaryLines(result)}
 Total trial presentations: ${computeTotalTrialPresentations(result)}
 Test duration: ${formatDuration(result.testDurationMs)}
 Location:   ${geoStr}
@@ -6620,6 +6622,8 @@ COGNITIVE PERFORMANCE TABLE
 ${hr}
 END REASON
  ${result.endReason||"Run complete"}
+${hr}
+${buildVerificationSummaryLines(result)}
 ${getResultsMetricExplanationText(result)}`);
   return;
  }
@@ -6649,7 +6653,6 @@ Test Mode:  ${formatModeTag(result.testMode)}
 Session:    ${result.sessionNumber!=null?result.sessionNumber:"—"}
 Subject ID:  ${result.subjectId}
 Date / Time:  ${new Date(result.time).toLocaleString()}
-${buildVerificationSummaryLines(result)}
 Total trial presentations: ${computeTotalTrialPresentations(result)}
 Total test duration: ${formatDuration(timing.totalMs)}
 Calibration phase duration: ${timing.calibrationMs?formatDuration(timing.calibrationMs):"—"}
@@ -6739,6 +6742,8 @@ COGNITIVE PERFORMANCE TABLE
 ${hr}
 END REASON
  ${result.endReason||"Run complete"}
+${hr}
+${buildVerificationSummaryLines(result)}
 ${getResultsMetricExplanationText(result)}`);
   return;
  }
@@ -6755,7 +6760,6 @@ Test Mode:  ${formatModeTag(result.testMode)}
 Session:    ${result.sessionNumber!=null?result.sessionNumber:"—"}
 Subject ID:  ${result.subjectId}
 Date / Time:  ${new Date(result.time).toLocaleString()}
-${buildVerificationSummaryLines(result)}
 Total trial presentations: ${computeTotalTrialPresentations(result)}
 Test duration: ${formatDuration(result.testDurationMs)}
 Location:   ${geoStr}
@@ -6785,6 +6789,8 @@ COGNITIVE PERFORMANCE TABLE
 ${hr}
 END REASON
  ${result.endReason||"Run complete"}
+${hr}
+${buildVerificationSummaryLines(result)}
 ${getResultsMetricExplanationText(result)}`);
 }
 
@@ -9817,12 +9823,16 @@ function wirePerfGraphControls(){
 function drawPerformanceOverTimeChart(canvas,hist){
   if(!canvas) return;
   const dpr = window.devicePixelRatio || 1;
-  const wrap = $("perfTimeGraphWrap");
-  const viewportW = Math.max(320, Math.round((wrap && wrap.clientWidth) || canvas.parentElement?.clientWidth || canvas.clientWidth || canvas.offsetWidth || 900));
-  const desiredW = Math.max(viewportW, Math.min(2800, Math.max(1100, n * 54 + 260)));
-  const cssW = desiredW;
+  const fullHist = hist||[];
+  const filteredForWidth = filterSessionsForPerfGraph(fullHist);
+  const nForWidth = Math.max(1, filteredForWidth.length);
+  const scroller = canvas.parentElement;
+  const viewportW = Math.max(320, Math.round((scroller && scroller.clientWidth) || canvas.clientWidth || canvas.offsetWidth || 900));
+  const dynamicW = Math.max(viewportW, 960, 180 + nForWidth * 64);
+  canvas.style.width = dynamicW + "px";
+  canvas.style.minWidth = dynamicW + "px";
+  const cssW = dynamicW;
   const cssH = Math.max(320, Math.round(canvas.clientHeight || 520));
-  canvas.style.width = `${cssW}px`;
   canvas.width = Math.round(cssW * dpr);
   canvas.height = Math.round(cssH * dpr);
   const ctx = canvas.getContext("2d");
@@ -9833,7 +9843,6 @@ function drawPerformanceOverTimeChart(canvas,hist){
   ctx.fillStyle="#081321";
   ctx.fillRect(0,0,W,H);
 
-  const fullHist = hist||[];
   if(!fullHist.length){
     ctx.fillStyle="#d7e7f8";
     ctx.font="bold 16px sans-serif";
@@ -10072,7 +10081,7 @@ function drawPerformanceOverTimeChart(canvas,hist){
 
   drawLine(spfVals, v=>yRightFromSpf(v), "#88ff88", "diamond");
   drawCombinedPerfMarkers(scoreVals, metricVals, estimatedScoreFlags);
-  drawLine(cpaVals, v=>yLeftFromScore(v), "#d6a7ff", "square", {markerDx:8, markerSize:3.2, strokeMarker:true});
+  drawLine(cpaVals, v=>yLeftFromScore(v), "#d6a7ff", "square", {markerDx:8, markerSize:3.7, strokeMarker:true});
 
   const sleepBarY = PAD.top + cH + 18;
   const sleepBarH = 10;

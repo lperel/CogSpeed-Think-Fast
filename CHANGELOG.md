@@ -1,3 +1,8 @@
+## Rev 94
+- Moved verification/provenance block to the bottom of both Results summaries.
+- Fixed Performance over Date and Time graph layout by making the chart canvas dynamically wider inside a horizontal scroller and shrinking CPA square markers.
+- Preserved Personal Baseline behavior so the Personal Baseline view shows all sessions that qualify for baseline.
+
 ## Rev 92 — Research upload security hardening
 - Removed email/subject fallback from the anonymous research ID path. Research upload now uses an explicit or generated anonymous research ID only.
 - Added computed baseline upload context so research lane classification uses real baseline logic from the app rather than guessed result fields.
