@@ -358,7 +358,7 @@ let settings=loadSettings();
 // profile record (profile is no longer the source of truth for test type),
 // and persist both. This fires once per fresh rev deployment per device;
 // after that, the stamp matches and nothing is touched on subsequent loads.
-const APP_REV_STAMP = "V699rev85";
+const APP_REV_STAMP = "V699rev88";
 (function migrateToCurrentRev(){
  let stored = "";
  try{ stored = localStorage.getItem(`${STORAGE_PREFIX}_rev_stamp`) || ""; }catch(e){ stored = ""; }
@@ -6551,6 +6551,15 @@ function getSummarySelectedIndex(){
  return Number.isFinite(idx) ? Math.max(0, Math.min(state.history.length-1, idx)) : Math.max(0, state.history.length-1);
 }
 
+function formatCompactResultModeLabel(result){
+ const mode = result && result.testMode ? String(result.testMode) : '';
+ if(mode === 'mode1') return 'M1 Adapted';
+ if(mode === 'mode2') return 'M2 Sustained';
+ if(mode === 'mode3') return 'M3 Self-paced';
+ if(mode === 'mode4') return 'M4 Machine-paced';
+ return '—';
+}
+
 function syncSummarySessionSelect(selectedIdx){
  const s=$("summarySessionSelect");
  if(!s) return;
@@ -6560,11 +6569,9 @@ function syncSummarySessionSelect(selectedIdx){
  if(existing !== desired){
   s.innerHTML = state.history.map((r,idx)=>{
    const dt = r && r.time ? new Date(r.time) : null;
-   const stamp = dt ? dt.toLocaleDateString() : `Session ${idx+1}`;
-   const mode = r && r.testMode ? formatModeTag(r.testMode) : '—';
-   const setKey = getResultSymbolSet(r);
-   const setLabel = setKey==="memory" ? "Memory" : setKey==="survival" ? "Survival" : "Std";
-   return `<option value="${idx}">Session ${idx+1} · ${mode} · ${setLabel} · ${stamp}</option>`;
+   const stamp = dt ? dt.toLocaleDateString() : `Sess ${idx+1}`;
+   const mode = formatCompactResultModeLabel(r);
+   return `<option value="${idx}">Sess ${idx+1} · ${mode} · ${stamp}</option>`;
   }).join('');
  }
  if(s.options.length){
@@ -6989,12 +6996,9 @@ function syncSpeedometerSessionSelect(selectedIdx){
  if(existing !== desired){
   s.innerHTML = orderedIdx.map((idx)=>{
    const r = state.history[idx];
-   const stamp = r && r.time ? new Date(r.time).toLocaleString() : `Session ${idx+1}`;
-   const mode = r && r.testMode ? formatModeTag(r.testMode) : '—';
-   const subj = r && r.subjectId ? r.subjectId : '—';
-   const setKey = getResultSymbolSet(r);
-   const setLabel = setKey==="memory" ? "Memory" : setKey==="survival" ? "Survival" : "Std";
-   return `<option value="${idx}">Session ${idx+1} · ${mode} · ${setLabel} · ${subj} · ${stamp}</option>`;
+   const stamp = r && r.time ? new Date(r.time).toLocaleDateString() : `Sess ${idx+1}`;
+   const mode = formatCompactResultModeLabel(r);
+   return `<option value="${idx}">Sess ${idx+1} · ${mode} · ${stamp}</option>`;
   }).join('');
  }
  if(s.options.length){

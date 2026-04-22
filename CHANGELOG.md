@@ -1,3 +1,14 @@
+## Rev 88
+- Revised the in-app Technical Overview Mode 2 / CPA section with a fuller explanation of the normative CPA scaffold, including the bounded sustained-start rule, expected-profile comparison logic, capped CPA adjustment logic, and why Mode 2 remains the primary evaluative mode.
+- Added a clear step-by-step Mode 2 CPA calculation section and compact formulas so the documentation explains how CPA is derived without exposing the app as a black box.
+
+## Rev 87
+- Shortened Results/Speedometer session selector labels for phone screens: "Session" → "Sess", removed subject/email, shortened stamp to date only, and compacted mode names to M1 Adapted / M2 Sustained / M3 Self-paced / M4 Machine-paced.
+
+## Rev 86 — Personal Baseline always shows all qualifying sessions
+- Rebuilt from Rev 85 with the Personal Baseline overlay behavior explicitly retained: whenever Personal Baseline is shown, the graph and table show **all qualifying sessions** available as of that result, not only the rolling five.
+- The rolling baseline value itself still uses the **most recent 5 qualifying sessions**.
+
 ## Rev 85 — Mode 2 results timing fix (both Results pages)
 
 - Fixed Mode 2 timing breakdown so calibration duration is derived from saved trial timing instead of disappearing as `—` when calibration rows do not carry a paced `durationMs` value.
@@ -22,18 +33,18 @@
 
 ## Rev 79
 - Removed stale technical-route cleanup code and legacy technical-route references from the live app package.
-- Kept a single bundled technical document page only: `technical-overview-v84.html`.
+- Kept a single bundled technical document page only: `technical-overview-v88.html`.
 - Updated About, Results, Profile, Admin, and service-worker shell references to the single current technical page.
 - Bumped app/service-worker revision to `699rev79` for a clean refresh path.
 
 ## Rev 78
-- Performed the strictest technical-overview cleanup: removed all legacy technical overview files from the package and kept only `technical-overview-v84.html` as the single bundled technical document.
+- Performed the strictest technical-overview cleanup: removed all legacy technical overview files from the package and kept only `technical-overview-v88.html` as the single bundled technical document.
 - Added service-worker interception for stale legacy technical routes (`technical-overview.html`, `technical-overview-v73.html`, `technical-overview-v75.html`, `technical-overview-v76.html`, and `technical-overview.pdf`) so any old cached request is forced to the canonical in-app HTML page instead of opening stale content or a PDF viewer.
 - Updated service-worker cache release and app revision stamp to `699rev78` / `V699rev78`.
 
 ## V699 Rev 77
 - Hard cleanup for technical overview routing and stale-phone cache behavior.
-- Set a single canonical in-app technical page: `technical-overview-v84.html`.
+- Set a single canonical in-app technical page: `technical-overview-v88.html`.
 - Updated About, Results, Profile placeholder, and Admin overlay links to the same canonical page.
 - Added redirect stubs for legacy technical overview routes (`technical-overview.html`, `technical-overview-v73.html`, `technical-overview-v75.html`, `technical-overview-v76.html`) so stale cached links forward to the current in-app page.
 - Updated service-worker cache manifest and release stamp to `699rev77`.

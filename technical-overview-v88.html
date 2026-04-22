@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
+<title>CogSpeed Technical Overview: Test Logic, Scoring, Baseline Construction, and Use Considerations</title>
+<style>
+:root{--bg:#081321;--bg2:#102440;--panel:#0d1b33;--text:#f5fbff;--muted:#d9e7f5;--edge:#4f6f99;--accent:#7fd7ff}
+*{box-sizing:border-box}
+body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;background:linear-gradient(135deg,var(--bg2),var(--bg) 60%,#050b14);color:var(--text)}
+.wrap{max-width:1060px;margin:0 auto;padding:96px 18px 96px}
+.card{background:rgba(13,27,51,.94);border:1px solid var(--edge);border-radius:18px;padding:24px;box-shadow:0 20px 50px rgba(0,0,0,.25)}
+a{text-decoration:none;color:var(--accent)}
+.topbar{position:fixed;top:0;left:0;right:0;z-index:1000;padding:12px calc(12px + env(safe-area-inset-right,0px)) 12px calc(12px + env(safe-area-inset-left,0px));background:rgba(5,11,20,.92);backdrop-filter:blur(10px);border-bottom:1px solid rgba(127,215,255,.18)}
+.topbar-inner{max-width:1060px;margin:0 auto;display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap}
+.back{display:inline-flex;align-items:center;justify-content:center;padding:12px 16px;border-radius:12px;border:1px solid rgba(127,215,255,.28);background:linear-gradient(180deg,rgba(127,215,255,.18),rgba(127,215,255,.08));color:var(--text);font-weight:800;min-height:46px}
+.back.secondary{background:rgba(255,255,255,.04)}
+h1{margin:0 0 6px;color:var(--accent);font-size:clamp(26px,4vw,38px);line-height:1.2}
+h2{margin:24px 0 10px;color:var(--accent);font-size:clamp(20px,3vw,26px)}
+h3{margin:18px 0 8px;color:#bfeaff;font-size:clamp(17px,2.4vw,21px)}
+p,li{margin:0 0 12px;line-height:1.68;color:var(--text)}
+ul{margin:0 0 12px 22px;padding:0}
+ol{margin:0 0 12px 22px;padding:0}
+.small{color:var(--muted)}
+.kicker{color:var(--muted);font-size:1rem;margin-bottom:18px}
+.actions{display:flex;flex-wrap:wrap;gap:10px;margin:8px 0 18px}
+.bottom-actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:28px;padding-top:20px;border-top:1px solid rgba(127,215,255,.14);font-size:0.98rem}
+.btn{display:inline-flex;align-items:center;justify-content:center;padding:12px 16px;border-radius:12px;border:1px solid rgba(127,215,255,.28);background:linear-gradient(180deg,rgba(127,215,255,.16),rgba(127,215,255,.08));color:var(--text);font-weight:800}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px;margin:12px 0 18px}
+.panel{background:rgba(255,255,255,.04);border:1px solid rgba(127,215,255,.16);border-radius:14px;padding:14px}
+.toc{columns:2;column-gap:28px}
+.note{padding:14px;border-radius:14px;background:rgba(127,215,255,.08);border:1px solid rgba(127,215,255,.18);margin:14px 0}
+.table{width:100%;border-collapse:collapse;margin:10px 0 16px}
+.table th,.table td{border:1px solid rgba(127,215,255,.18);padding:10px 12px;vertical-align:top;text-align:left}
+.table th{background:rgba(127,215,255,.12);color:var(--accent)}
+@media (max-width:760px){.toc{columns:1}.topbar-inner{align-items:stretch}.back{width:100%}}
+@media print{body{background:#fff !important;color:#111 !important}.wrap{max-width:none;padding:0}.card{box-shadow:none;border:1px solid #c7d3de;background:#fff}.btn,.back{display:none}a{color:#124f87}h1,h2,h3{color:#124f87 !important}.kicker,.small,.toc li{color:#333 !important}.panel,.note{background:#f5f8fb !important;border-color:#d6e0ea !important}.table th{background:#eaf2f9 !important;color:#124f87 !important}.table td{color:#111 !important}.card p,.card li,.card ol{color:#111 !important}}
+</style>
+</head>
+<body>
+<div class="topbar">
+  <div class="topbar-inner">
+    <a class="back" href="index.html">← Back to CogSpeed</a>
+  </div>
+</div>
+<div class="wrap">
+  <div class="card">
+    <h1>CogSpeed Technical Overview: Test Logic, Scoring, Baseline Construction, and Use Considerations</h1>
+    <div class="kicker">Supplemental methods paper for users, researchers, operators, and reviewers who want more detail than the main About CogSpeed page provides.</div>
+    
+
+    <div class="note"><strong>Purpose of this document.</strong> The About page is intended to be readable and practical. This Technical Overview preserves the broader rationale, definitions, workflow, scoring concepts, anomaly handling, baseline logic, scheduling concepts, challenge formats, privacy posture, and use limitations that more technical readers may need.</div>
+
+    <h2>Contents</h2>
+    <div class="toc">
+      <ol>
+        <li>What CogSpeed is designed to measure</li>
+        <li>Task structure and human-factors design</li>
+        <li>Workflow and test flow</li>
+        <li>Mode architecture</li>
+        <li>Main scores and how to read them</li>
+        <li>Mode 2 sustained-performance refinement</li>
+        <li>Samn-Perelli Fatigue Scale integration</li>
+        <li>Personal baseline construction</li>
+        <li>Scheduler and repeated-use logic</li>
+        <li>Data handling, offline use, and geolocation</li>
+        <li>Challenge formats and administrator controls</li>
+        <li>Use cases, limitations, deployment cautions, and references</li>
+      </ol>
+    </div>
+
+    <h2>1. What CogSpeed is designed to measure</h2>
+    <p>CogSpeed is a computer-adaptive, web-based cognitive performance test designed to rapidly and objectively measure aspects of cognitive processing speed and sustained performance ability. The task is meant to estimate how quickly and reliably a subject can continue correct visual matching as time pressure increases or as the pace is held at a challenging level.</p>
+    <p>The system is intended for portable, economical, repeated use. It can be used in laboratory research, field work, repeated self-checking, and operational screening programs where current cognitive readiness matters. The test is designed to be learnable to an individual’s own baseline and is usually most informative when a current result is compared with that person’s earlier sessions rather than interpreted as a single isolated number.</p>
+    <p>CogSpeed is not intended to diagnose disease, injury, intoxication source, or any other cause of decline. Rather, it is intended to detect and quantify performance change that may be associated with fatigue, sleep loss, alcohol, some drugs, reduced alertness, normal aging, dementia, concussion, traumatic brain injury, and other conditions that slow or destabilize mental performance.</p>
+
+    <h2>2. Task structure and human-factors design</h2>
+    <h3>Core visual-matching task</h3>
+    <p>The subject sees a simple target pattern and must identify the matching response as quickly and accurately as possible. The design intentionally emphasizes perception, decision, and rapid response under time pressure rather than reading, language, arithmetic, or memorized knowledge.</p>
+    <h3>Cross-cultural and low-burden design</h3>
+    <p>The task relies on simple visual matching rather than language-heavy or culture-specific content. The core test does not require color vision or hearing. These features support broad usability and reduce avoidable barriers in field and research use.</p>
+    <h3>Objectivity and anomaly handling</h3>
+    <p>CogSpeed includes response-time limits, verification checks, error-pattern review, and anomaly-handling logic intended to improve data quality and reduce artifacts from random tapping, poor attention, spoofing, faking, and other irregular behavior. These methods can improve the objectivity of the measurement, but no behavioral test is completely immune to poor effort, unusual response patterns, or ordinary moment-to-moment variability.</p>
+
+    <h2>3. Workflow and test flow</h2>
+    <p>A typical session can include profile entry, optional sleep logging, a Samn-Perelli Fatigue Scale (S-PFS) rating, and then the selected test mode. If the user is new to the task, a tutorial can be completed before testing. After test completion, results can be reviewed immediately in the Speedometer, Results Summary, Trial Detail, and graph views, and can be exported or e-mailed when needed.</p>
+    <p>Three scheduling approaches can also be used for repeated testing when scheduling is desired: an anytime option, a personal fixed schedule, and a fit-for-duty logic that adjusts the next reminder interval using recent CogSpeed performance and S-PFS values. In the current build, the scheduler is local to the device and designed primarily for registered users rather than Guests.</p>
+
+    <h2>4. Mode architecture</h2>
+    <table class="table">
+      <thead><tr><th>Mode</th><th>Purpose</th><th>Logic summary</th></tr></thead>
+      <tbody>
+        <tr><td><strong>Mode 1 CogSpeed Adapted</strong></td><td>Estimate blocking level under adaptive challenge.</td><td>Begins with self-paced calibration, then tightens or relaxes pacing to find the fastest reliable performance range.</td></tr>
+        <tr><td><strong>Mode 2 CogSpeed Sustained</strong></td><td>Default and primary evaluative mode.</td><td>Finds an adaptive estimate first, then tests whether that level can actually be sustained under continued fixed-rate demand, and ends with final self-paced trials.</td></tr>
+        <tr><td><strong>Mode 3 Self-paced</strong></td><td>Practice and self-paced variability work.</td><td>Continuous self-paced responding for a fixed period, usually about two minutes.</td></tr>
+        <tr><td><strong>Mode 4 Machine-paced</strong></td><td>Steady fixed-pace examination after calibration.</td><td>Uses a calibration-derived fixed rate without adaptive pacing changes, usually for about two minutes.</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Mode 1 CogSpeed Adapted</h3>
+    <p>Mode 1 begins with a self-paced calibration phase intended to estimate the user’s comfortable response speed. It then shifts to adaptive machine pacing that hunts for the fastest presentation rate the user can continue to handle correctly. The rate becomes faster or slower depending on response pattern until the subject blocks, meaning two consecutive misses under the current block rule.</p>
+    <p>The adaptive sequence continues until the last two qualifying block points are close enough to each other that their average can be treated as the best estimate of the user’s <strong>Maximum Blocking Speed (MBS)</strong>. That MBS is then normalized into the <strong>Cognitive Processing Index (CPI)</strong>.</p>
+
+    <h3>Mode 2 CogSpeed Sustained</h3>
+    <p>Mode 2 is the default mode and the program’s primary mode for evaluating cognitive performance ability. It first derives an adaptive estimate, then continues with a sustained fixed-rate segment at or near that level to determine whether the apparent performance limit can actually be maintained. It then finishes with final self-paced trials that provide additional context after the sustained demand segment.</p>
+    <p>Mode 2 therefore separates two related but distinct questions: how fast the subject appears able to perform in the adaptive phase, and how well that performance can actually be sustained when the pace is held near that adaptive estimate.</p>
+
+    <h3>Mode 3 Self-paced</h3>
+    <p>Mode 3 consists of continuous self-paced responding for a fixed period, usually about two minutes. It is useful for practice, familiarization, and research on response consistency and variability under self-paced conditions.</p>
+
+    <h3>Mode 4 Machine-paced</h3>
+    <p>Mode 4 begins with calibration and then presents repeated fixed, non-adaptive, machine-paced trials near the estimated upper end of the user’s cognitive processing speed for a fixed period, usually about two minutes. It is useful when a steady challenge level is preferred over continued adaptive pacing changes.</p>
+
+    <h2>5. Main scores and how to read them</h2>
+    <h3>Maximum Blocking Speed (MBS)</h3>
+    <p>MBS is the pacing-based estimate, in milliseconds, of the presentation rate at which the user begins to block under the app’s block definition. It is a core speed-derived measurement rather than a diagnosis. Slower MBS values generally indicate reduced performance.</p>
+
+    <h3>Cognitive Processing Index (CPI)</h3>
+    <p>CPI is a normalized 0-100 summary derived from MBS. It is intended to make interpretation easier by converting the speed-derived MBS into a simpler standardized scale. Lower CPI generally indicates degraded cognitive performance.</p>
+
+    <h3>Cognitive Performance Ability (CPA)</h3>
+    <p>CPA is the broader Mode 2 sustained-performance estimate derived from CPI plus sustained-phase indicators. It is intended to estimate how well the user can sustain near-maximum performance under continued demand rather than relying only on the adaptive estimate.</p>
+
+    <h3>Disposition</h3>
+    <p>Mode 2 can also present a simple operational disposition derived from CPA bands. The disposition view is intended as a practical summary aid, not as a replacement for full results review or human judgment.</p>
+
+    <h2>6. Mode 2 sustained-performance refinement</h2>
+    <p>Mode 2 is deliberately broader than a pure speed estimate. After the adaptive phase produces MBS and CPI, CogSpeed examines the sustained phase for signs that the adaptive estimate either understated or overstated true sustained ability. It then finishes with post-load self-paced trials. That three-part sequence is the main reason Mode 2 is the primary evaluative mode rather than Mode 1 alone: it provides an adaptive ceiling estimate (CPI), a sustained-performance check on that ceiling (CPA refinement), and a post-load readout after the demanding segment. The goal is not merely to record speed, but to triangulate whether the apparent speed can be maintained with adequate stability and what the subject looks like immediately after load.</p>
+    <p>The sustained refinement framework can incorporate factors such as:</p>
+    <ul>
+      <li>correct sustained responses</li>
+      <li>wrong responses</li>
+      <li>missed responses</li>
+      <li>response variability</li>
+      <li>drift across the sustained segment</li>
+      <li>lapse rate</li>
+      <li>recovery ratio</li>
+      <li>block efficiency and related stability signals</li>
+    </ul>
+    <p>These factors are intentionally directional rather than uniformly punitive. In the current build, CPA starts from CPI and is then adjusted by bucketed sustained-phase weightings. The exact formula is configurable in Admin and is therefore not reduced here to one fixed published constant, but the mechanism is not arbitrary: wrong and missed-response burden are the strongest single-count drivers, while variability, drift, lapse rate, recovery ratio, and efficiency act as continuous or semi-continuous stability checks. Zero wrongs and zero or very low misses can reduce CPA penalty or modestly increase the result. Moderate levels can be neutral. Heavier error, miss, or instability patterns can lower CPA, indicating that the initial CPI may have been an overestimate of the subject’s true sustained cognitive ability.</p><p>In the current build, CPA can diverge materially from CPI. The score is always bounded to the same 0-100 scale, and the total negative adjustment is capped so several penalties do not drive the result below a plausible range. Practically, that means two sessions with the same CPI can finish with meaningfully different CPA values if one subject sustains the fixed-rate demand cleanly and the other shows misses, slowing, high variability, or poor recovery.</p>
+
+    <h2>7. Samn-Perelli Fatigue Scale integration</h2>
+    <p>CogSpeed incorporates the Samn-Perelli Fatigue Scale (S-PFS) because subjective fatigue data can add useful context to objective performance data. The Samn-Perelli scale has been used in fatigue research since the early 1980s. A foundational reference is Samn, S., & Perelli, L. (1981), <em>Estimating Aircrew Fatigue: A Technique with Application to Airlift Operations</em>, SAM-TR-82-21. The scale has also been discussed or recommended in aviation and fatigue-risk-management contexts by major organizations such as IATA, ICAO, and IFALPA. It has also been used in other industries concerned with fatigue risk and even integrated for in-flight pilot-fatigue recording in commercial aviation.</p>
+    <p>Before testing, the user records a current S-PFS rating. CogSpeed then stores and displays that subjective state together with objective task performance. This pairing is useful because subjective decline can appear before larger objective changes become obvious, and because repeated use of both measures can help users, researchers, or programs interpret change over time more clearly.</p>
+    <p>Very low S-PFS categories may be associated with reduced functional effectiveness, but CogSpeed uses S-PFS as contextual information rather than as a stand-alone determination of capability.</p>
+
+    <h2>8. Personal baseline construction</h2>
+    <p>CogSpeed is intended to be learned to an individual’s own baseline. Once enough qualifying performance has been accumulated, the app can construct a personal baseline so current results can be interpreted against that user’s own recent history instead of as an isolated score.</p>
+    <p>In the current build, the personal baseline logic uses recent qualifying non-Guest sessions and excludes failed sessions. Only sessions meeting the build’s qualifying rules are included. This design is intended to reduce noise and prevent poor-quality sessions from distorting the baseline. The baseline is therefore a rolling performance reference rather than a permanent trait label.</p>
+    <p>Repeated use allows review of decline, recovery, instability, learning effects, sleep-related change, and other trends over time. This longitudinal perspective is one of the program’s most important strengths.</p>
+
+    <h2>9. Scheduler and repeated-use logic</h2>
+    <p>CogSpeed includes local on-device scheduling features intended to support repeated use in practical settings. Three reminder types are supported conceptually:</p>
+    <ul>
+      <li><strong>Anytime:</strong> test whenever the user chooses.</li>
+      <li><strong>Personal:</strong> fixed reminders based on user-selected cadence or times.</li>
+      <li><strong>Fit-for-Duty:</strong> dynamic intervals based on the most recent valid Mode 2 results and S-PFS values.</li>
+    </ul>
+    <p>In fit-for-duty use, lower CPI combined with lower S-PFS tends to shorten the next interval, while stronger performance and higher S-PFS can lengthen it. This feature is intended to help repeated-testing programs adapt reminder timing to recent condition rather than using one rigid interval for all states.</p>
+
+    <h2>10. Data handling, offline use, and geolocation</h2>
+    <p>The current app is designed as an offline-oriented progressive web app. Profiles, scheduler settings, results history, sleep entries, and review pages are stored locally on the device to support field use without requiring continuous network access. This local-first design is useful in low-connectivity environments and reduces dependence on external infrastructure for routine use.</p>
+    <p>Geolocation can record where the test was taken when location capture is available and permitted. In some deployments, location metadata may be relevant to fitness-for-duty, field verification, or research documentation. Deployment-specific data governance, export, backup, and retention policies should still be set by the organization or study using the app.</p>
+    <p>The current build also includes a placeholder research-consent panel. No anonymous research download is active in this build. Any future research-upload capability should require explicit positive user opt-in and appropriate informed consent.</p>
+
+    <h2>11. Challenge formats and administrator controls</h2>
+    <h3>Challenge formats</h3>
+    <p>CogSpeed includes two optional challenge variants that preserve the main framework while changing the symbol set:</p>
+    <ul>
+      <li><strong>CogSpeed Memory Challenge:</strong> an alternative matching set intended to increase memory demand and make learning effects easier to study.</li>
+      <li><strong>CogSpeed Survival Challenge:</strong> a combat-themed icon set intended to increase engagement and encourage maximum effort.</li>
+    </ul>
+    <p>These challenge formats are supplementary only. The main operational and research focus remains Mode 2 CogSpeed Sustained.</p>
+    <h3>Administrator controls</h3>
+    <p>The app includes a large set of administrator-adjustable defaults for research and deployment control. These settings govern pacing, duration, thresholds, calibration behavior, challenge defaults, scheduler behavior, and other operational parameters. This flexibility is useful for research and field deployment, but it also means administrators should document the parameter set being used in any formal study or program.</p>
+
+    <h2>12. Use cases, limitations, deployment cautions, and references</h2>
+    <h3>Personal use</h3>
+    <p>CogSpeed can be used for repeated self-checks of alertness, review of sleep and fatigue trends, readiness checks before demanding activity, and observation of baseline change over time.</p>
+    <h3>Research use</h3>
+    <p>CogSpeed can be used in fatigue, sleep-deprivation, circadian-rhythm, work-rest-cycle, psychopharmacology, alcohol, traumatic brain injury, aging, dementia, and individual-differences research. CogSpeed measures may also be synchronized with EEG, fMRI, and other brain-measurement methods for more advanced analysis, including artificial-intelligence analysis.</p>
+    <h3>Operational and fit-for-duty use</h3>
+    <p>CogSpeed may be useful as a rapid preliminary screen in settings where alertness and cognitive reliability matter, including transportation, aviation, energy, industrial operations, emergency response, and other hazardous environments.</p>
+    <div class="note"><strong>Important limitation.</strong> In operational settings, CogSpeed should be treated as a preliminary screening and review-support tool. It should not be used as the sole basis for employment actions, clinical determinations, operational restrictions, or disciplinary measures. Individuals showing decline may require additional supervisory, operational, or clinical evaluation. Field research is still required to confirm sensitivity, specificity, generalizability, and deployment-specific claim boundaries across populations, environments, devices, and use cases.</div>
+    <p>CogSpeed is free to use for personal or research purposes, contains no ads, and data is not sold to or shared with unauthorized parties. Data remains on the user’s device unless and until the user explicitly agrees to research use.</p>
+
+    <h3>Why Mode 2 is the primary mode</h3>
+    <p>Mode 1 is useful because it rapidly estimates an adaptive ceiling. Mode 2 is more valuable when the goal is real-world readiness or fatigue-sensitive research because it does not stop at that ceiling estimate. It deliberately collects three related but distinct streams of information in one session: an adaptive ceiling estimate (CPI), a sustained-performance check on that ceiling (CPA), and a post-load self-paced readout. That triangulation is the central design argument for making Mode 2 the default mode. The added time is justified because it reduces the risk of over-trusting a single adaptive estimate when sustained performance quality and post-load state may tell a more complete story.</p>
+    <h3>Need for field validation</h3>
+    <p>The program’s design logic is strong, but not every intended interpretation is established simply by building the task. Claims about fatigue detection, fit-for-duty value, sensitivity to alcohol or drugs, cross-device stability, age effects, concussion utility, or physiological correlation still require field research, external validation, and setting-specific confirmation. CogSpeed should therefore be described as a structured measurement platform whose strongest claims are those that have been directly tested in the target population and setting.</p>
+    <h3>References and historical notes</h3>
+    <ul>
+      <li>Samn, S., &amp; Perelli, L. (1981). <em>Estimating Aircrew Fatigue: A Technique with Application to Airlift Operations</em>. SAM-TR-82-21.</li>
+      <li>Powell, D. M. C., Spencer, M. B., Holland, D., Broadbent, E., &amp; Petrie, K. J. (2011). <em>Automated collection of fatigue ratings at the top of descent</em>. Aviation, Space, and Environmental Medicine, 82(9), 892-898.</li>
+      <li>The Discrete Information Processing Test (DIPT) is part of the historical background for short, repeated, machine-paced information-processing tasks used in operational fatigue research.</li>
+    </ul>
+
+    <h2>Sponsor and contact</h2>
+    <p>CogSpeed is sponsored by <strong>Gray Matter Metrics, LLC</strong>. For more information, comments, or problem reports, contact <strong>thinkfastgmm@gmail.com</strong>.</p>
+    <div class="bottom-actions">
+      <a class="btn" href="index.html">← Back to CogSpeed</a>
+      <a class="btn" href="about.html">About CogSpeed</a>
+          </div>
+  </div>
+</div>
+</body>
+</html>
