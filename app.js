@@ -8,10 +8,8 @@ function shouldPersistSessionForLocalHistory(result){
 // ═══════════════════════════════════════════════════
 // CogSpeed source
 // ═══════════════════════════════════════════════════
-// Current visible build version used in UI and exports.
-// Keep BASE_STORAGE_VERSION fixed unless intentionally migrating stored data.
-const BASE_STORAGE_VERSION = "V699";
-const APP_VERSION = "V699rev112";
+// Current visible build version used in UI and email subject lines.
+const APP_VERSION = "V699";
 
 // ═══════════════════════════════════════════════════
 // Current behavior summary (historical details live in CHANGELOG.md)
@@ -27,8 +25,7 @@ const APP_VERSION = "V699rev112";
 // ═══════════════════════════════════════════════════
 
 const RELEASE = APP_VERSION.replace(/^V/i, "");
-const STORAGE_RELEASE = BASE_STORAGE_VERSION.replace(/^V/i, "");
-const STORAGE_PREFIX = `cogspeed_v${STORAGE_RELEASE}`;
+const STORAGE_PREFIX = `cogspeed_v${RELEASE}`;
 
 // ─── Version guard ───
 (function(){
@@ -371,7 +368,7 @@ let settings=loadSettings();
 // profile record (profile is no longer the source of truth for test type),
 // and persist both. This fires once per fresh rev deployment per device;
 // after that, the stamp matches and nothing is touched on subsequent loads.
-const APP_REV_STAMP = "V699rev112";
+const APP_REV_STAMP = "V699rev113";
 (function migrateToCurrentRev(){
  let stored = "";
  try{ stored = localStorage.getItem(`${STORAGE_PREFIX}_rev_stamp`) || ""; }catch(e){ stored = ""; }
@@ -7032,10 +7029,27 @@ function getSummarySelectedIndex(){
  return Number.isFinite(idx) ? Math.max(0, Math.min(state.history.length-1, idx)) : Math.max(0, state.history.length-1);
 }
 
+function getFullResultModeLabel(result){
+ const mode = result && result.testMode ? String(result.testMode) : '';
+ if(mode === 'mode2'){
+  if(isResultSurvivalChallenge(result)) return 'Mode 2 CogSpeed Survival Challenge';
+  if(isResultMemoryChallenge(result)) return 'Mode 2 CogSpeed Memory Challenge';
+  return 'Mode 2 CogSpeed Sustained';
+ }
+ if(mode === 'mode1') return 'Mode 1 CogSpeed Adapted';
+ if(mode === 'mode3') return 'Mode 3 Self-paced';
+ if(mode === 'mode4') return 'Mode 4 Machine-paced';
+ return '—';
+}
+
 function formatCompactResultModeLabel(result){
  const mode = result && result.testMode ? String(result.testMode) : '';
+ if(mode === 'mode2'){
+  if(isResultSurvivalChallenge(result)) return 'M2 Survival';
+  if(isResultMemoryChallenge(result)) return 'M2 Memory';
+  return 'M2 Sustained';
+ }
  if(mode === 'mode1') return 'M1 Adapted';
- if(mode === 'mode2') return 'M2 Sustained';
  if(mode === 'mode3') return 'M3 Self-paced';
  if(mode === 'mode4') return 'M4 Machine-paced';
  return '—';
@@ -9580,6 +9594,17 @@ function renderSpeedometerOutcome(result, sessionIndex){
  const ovt=$("outcomeVerificationText"); if(ovt){ ovt.textContent = ""; ovt.style.display = "none"; }
  renderSpeedometerSleepMetrics(result);
  renderSpeedometerBaseline(result);
+ const speedometerSessionInfo = $("speedometerSessionInfo");
+ if(speedometerSessionInfo){
+  const fullModeLabel = getFullResultModeLabel(result);
+  if(fullModeLabel && fullModeLabel !== '—'){
+   speedometerSessionInfo.textContent = fullModeLabel;
+   speedometerSessionInfo.style.display = 'block';
+  }else{
+   speedometerSessionInfo.textContent = '';
+   speedometerSessionInfo.style.display = 'none';
+  }
+ }
  setTestingQuiet(false);
 }
 

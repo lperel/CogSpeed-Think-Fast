@@ -1,9 +1,3 @@
-- Rev112 version-alignment rebuild:
-  - Aligned surfaced package version markers to `V699rev112` across `index.html`, `manifest.json`, `sw.js`, and `APP_REV_STAMP`.
-  - Updated `APP_VERSION` to `V699rev112` for visible/exported version reporting.
-  - Introduced `BASE_STORAGE_VERSION = "V699"` so the storage prefix stays on the existing `cogspeed_v699` namespace and does not orphan prior subject data.
-  - Bumped the cache-busting script tag to `app.js?v=699rev112` and `sw.js` RELEASE to `699rev112`.
-
 - Rev111 strict stale-code cleanup only:
   - Removed `fromDate` / `toDate` and the hidden custom-range wiring from the Performance over Date and Time graph so only the live range options remain (`24h`, `7d`, `Last 30 sessions`, `All history`).
   - Scrubbed the remaining stale `SPC` / `SPCMP` comment reference from `app.js`.
