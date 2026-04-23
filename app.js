@@ -368,7 +368,7 @@ let settings=loadSettings();
 // profile record (profile is no longer the source of truth for test type),
 // and persist both. This fires once per fresh rev deployment per device;
 // after that, the stamp matches and nothing is touched on subsequent loads.
-const APP_REV_STAMP = "V699rev129";
+const APP_REV_STAMP = "V699rev132";
 // Version policy: APP_VERSION preserves base storage/schema continuity; DISPLAY_VERSION is what users see.
 const DISPLAY_VERSION = APP_REV_STAMP || APP_VERSION;
 (function migrateToCurrentRev(){
@@ -7001,23 +7001,32 @@ function drawSpeedometer(canvas, scoreValue, success, scoreLabel="CPI", tipLabel
  drawNeedle(na, success ? dark : "#b10000", 1);
 
  if(lowerWindows.length >= 1){
-  const item = lowerWindows[0] || {label:"—", value:"—"};
-  const bw = R*1.04, bh = R*0.18;
-  const bx = cx - bw/2, by = cy + R*0.47;
-  ctx.beginPath();
-  if(ctx.roundRect) ctx.roundRect(bx, by, bw, bh, R*0.012); else ctx.rect(bx, by, bw, bh);
-  ctx.fillStyle = "#d9df4c";
-  ctx.fill();
-  ctx.strokeStyle = "rgba(0,0,0,0.45)";
-  ctx.lineWidth = R*0.008;
-  ctx.stroke();
-  ctx.fillStyle = dark;
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-  ctx.font = `700 ${(R*0.050).toFixed(1)}px Arial,sans-serif`;
-  ctx.fillText(String(item.value||"—"), bx + bw/2, by + bh*0.56);
-  ctx.font = `700 ${(R*0.082).toFixed(1)}px Arial,sans-serif`;
-  ctx.fillText(String(item.label||"—"), bx + bw/2, by - R*0.06);
+  const bh = R*0.18;
+  const gap = R*0.08;
+  const count = Math.min(2, lowerWindows.length);
+  const bw = count === 1 ? R*1.04 : R*0.48;
+  const totalW = count === 1 ? bw : (bw*2 + gap);
+  const bx1 = cx - totalW/2;
+  const bx2 = bx1 + bw + gap;
+  const by = cy + R*0.47;
+  const boxes = count === 1 ? [bx1] : [bx1, bx2];
+  boxes.forEach((bx, i)=>{
+   const item = lowerWindows[i] || {label:"—", value:"—"};
+   ctx.beginPath();
+   if(ctx.roundRect) ctx.roundRect(bx, by, bw, bh, R*0.012); else ctx.rect(bx, by, bw, bh);
+   ctx.fillStyle = "#d9df4c";
+   ctx.fill();
+   ctx.strokeStyle = "rgba(0,0,0,0.45)";
+   ctx.lineWidth = R*0.008;
+   ctx.stroke();
+   ctx.fillStyle = dark;
+   ctx.textAlign = "center";
+   ctx.textBaseline = "middle";
+   ctx.font = `700 ${(R*0.050).toFixed(1)}px Arial,sans-serif`;
+   ctx.fillText(String(item.value||"—"), bx + bw/2, by + bh*0.56);
+   ctx.font = `700 ${(R*0.082).toFixed(1)}px Arial,sans-serif`;
+   ctx.fillText(String(item.label||"—"), bx + bw/2, by - R*0.06);
+  });
  } else if(success && tipValue){
   const bw = R*0.72, bh = R*0.18;
   const bx = cx - bw/2, by = cy + R*0.47;
@@ -7066,7 +7075,7 @@ function animateSpeedometer(canvas, targetScore, success, scoreLabel="CPI", tipL
    const dt=ts-ditherStart;
    cps=finalCPI+Math.sin(dt*0.0044)*0.54+Math.sin(dt*0.0071)*0.26;
   }
-  drawSpeedometer(canvas, cps, success, scoreLabel, tipLabel, tipValue);
+  drawSpeedometer(canvas, cps, success, scoreLabel, tipLabel, tipValue, opts);
   _speedoRaf=requestAnimationFrame(frame);
  }
  _speedoRaf=requestAnimationFrame(frame);
