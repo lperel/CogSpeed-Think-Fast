@@ -368,7 +368,7 @@ let settings=loadSettings();
 // profile record (profile is no longer the source of truth for test type),
 // and persist both. This fires once per fresh rev deployment per device;
 // after that, the stamp matches and nothing is touched on subsequent loads.
-const APP_REV_STAMP = "V699rev119";
+const APP_REV_STAMP = "V699rev121";
 // Version policy: APP_VERSION preserves base storage/schema continuity; DISPLAY_VERSION is what users see.
 const DISPLAY_VERSION = APP_REV_STAMP || APP_VERSION;
 (function migrateToCurrentRev(){
@@ -9792,15 +9792,19 @@ function filterSessionsForPerfGraph(hist){
   const base = getPerfGraphBaseSessions(hist);
   if(!base.length) return base;
   const lastMs = perfSessionUtcMs(base[base.length-1]);
-  if(perfGraphState.preset === "all") return base;
-  if(perfGraphState.preset === "30sessions") return base.slice(-30);
-  if(perfGraphState.preset === "24h"){
+  let filtered = base;
+  if(perfGraphState.preset === "all") filtered = base;
+  else if(perfGraphState.preset === "30sessions") filtered = base.slice(-30);
+  else if(perfGraphState.preset === "24h"){
     const startMs = lastMs - (24 * 60 * 60 * 1000);
-    return base.filter(r=> perfSessionUtcMs(r) >= startMs);
-  }
-  if(perfGraphState.preset === "7d"){
+    filtered = base.filter(r=> perfSessionUtcMs(r) >= startMs);
+  } else if(perfGraphState.preset === "7d"){
     const startMs = lastMs - (7 * 24 * 60 * 60 * 1000);
-    return base.filter(r=> perfSessionUtcMs(r) >= startMs);
+    filtered = base.filter(r=> perfSessionUtcMs(r) >= startMs);
+  }
+  if(filtered.length) return filtered;
+  if(perfGraphState.preset === "24h" || perfGraphState.preset === "7d"){
+    return base.slice(-Math.min(30, base.length));
   }
   return base;
 }
@@ -9820,6 +9824,12 @@ function syncPerfGraphControls(hist){
   if(info){
     if(!base.length){
       info.textContent = "No saved sessions yet.";
+    }else if((perfGraphState.preset === "24h" || perfGraphState.preset === "7d") && !base.filter(r=>{
+      const lastMs = perfSessionUtcMs(base[base.length-1]);
+      const startMs = perfGraphState.preset === "24h" ? (lastMs - (24 * 60 * 60 * 1000)) : (lastMs - (7 * 24 * 60 * 60 * 1000));
+      return perfSessionUtcMs(r) >= startMs;
+    }).length){
+      info.textContent = `No sessions were found in the selected ${perfGraphState.preset === "24h" ? "24-hour" : "7-day"} window. Showing the most recent ${filtered.length} session${filtered.length===1?"":"s"} instead.`;
     }else if(perfGraphState.preset === "24h"){
       info.textContent = `Showing sessions from the last 24 hours.`;
     }else if(perfGraphState.preset === "7d"){
@@ -9850,6 +9860,7 @@ function wirePerfGraphControls(){
 
 function drawPerformanceOverTimeChart(canvas,hist){
   if(!canvas) return;
+  try{
   const fullHist = hist || [];
   const scroller = canvas.parentElement;
   const viewportW = Math.max(320, Math.round((scroller && scroller.clientWidth) || canvas.clientWidth || canvas.offsetWidth || 900));
@@ -10321,6 +10332,28 @@ function drawPerformanceOverTimeChart(canvas,hist){
   ctx.fillStyle = "#d7e7f8"; ctx.fillText("Restless", PAD.left+126, legendY);
   ctx.fillStyle = "#46d36a"; ctx.fillRect(PAD.left+198, legendY-8, 12, 8);
   ctx.fillStyle = "#d7e7f8"; ctx.fillText("Good", PAD.left+216, legendY);
+  }catch(err){
+    const dpr = window.devicePixelRatio || 1;
+    const cssW = Math.max(900, Math.round(canvas.clientWidth || canvas.offsetWidth || 900));
+    const cssH = Math.max(620, Math.round(canvas.clientHeight || canvas.offsetHeight || 620));
+    canvas.style.width = cssW + "px";
+    canvas.style.minWidth = cssW + "px";
+    canvas.style.height = cssH + "px";
+    canvas.width = Math.round(cssW * dpr);
+    canvas.height = Math.round(cssH * dpr);
+    const ctx = canvas.getContext("2d");
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+    ctx.clearRect(0,0,cssW,cssH);
+    ctx.fillStyle = "#081321";
+    ctx.fillRect(0,0,cssW,cssH);
+    ctx.fillStyle = "#d7e7f8";
+    ctx.font = "bold 16px sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText("Performance graph unavailable for this view", cssW/2, cssH/2 - 10);
+    ctx.font = "12px sans-serif";
+    ctx.fillText("Switch range or reopen the graph.", cssW/2, cssH/2 + 18);
+    try{ console.error("Performance-over-time graph render failed", err); }catch(_e){}
+  }
 }
 
 function getLastGraphableResult(){
