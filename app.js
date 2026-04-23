@@ -368,7 +368,7 @@ let settings=loadSettings();
 // profile record (profile is no longer the source of truth for test type),
 // and persist both. This fires once per fresh rev deployment per device;
 // after that, the stamp matches and nothing is touched on subsequent loads.
-const APP_REV_STAMP = "V699rev132";
+const APP_REV_STAMP = "V699rev133";
 // Version policy: APP_VERSION preserves base storage/schema continuity; DISPLAY_VERSION is what users see.
 const DISPLAY_VERSION = APP_REV_STAMP || APP_VERSION;
 (function migrateToCurrentRev(){
@@ -6974,31 +6974,62 @@ function drawSpeedometer(canvas, scoreValue, success, scoreLabel="CPI", tipLabel
   ctx.fillText("CPA", cx + R*0.24, cy + R*0.30);
  }
 
- function drawNeedle(angle, color, widthScale){
+ function drawPrimaryNeedle(angle, color){
   ctx.save();
   ctx.translate(cx,cy);
   ctx.rotate(angle);
   ctx.beginPath();
   ctx.moveTo(R*0.02, 0);
-  ctx.lineTo(R*0.12, -R*0.028*widthScale);
-  ctx.lineTo(R*0.54, -R*0.016*widthScale);
+  ctx.lineTo(R*0.12, -R*0.028);
+  ctx.lineTo(R*0.54, -R*0.016);
   ctx.lineTo(R*0.84, 0);
-  ctx.lineTo(R*0.54, R*0.016*widthScale);
-  ctx.lineTo(R*0.12, R*0.028*widthScale);
+  ctx.lineTo(R*0.54, R*0.016);
+  ctx.lineTo(R*0.12, R*0.028);
   ctx.closePath();
   ctx.fillStyle = color;
   ctx.fill();
   ctx.beginPath();
-  ctx.moveTo(R*0.08, -R*0.004*widthScale);
-  ctx.lineTo(R*0.72, -R*0.002*widthScale);
+  ctx.moveTo(R*0.08, -R*0.004);
+  ctx.lineTo(R*0.72, -R*0.002);
   ctx.strokeStyle = "rgba(255,255,255,0.22)";
-  ctx.lineWidth = R*0.005*widthScale;
+  ctx.lineWidth = R*0.005;
   ctx.stroke();
   ctx.restore();
  }
-
- if(secondaryNeedleValue != null) drawNeedle(toAngle(secondaryNeedleValue), secondaryColor, 0.72);
- drawNeedle(na, success ? dark : "#b10000", 1);
+ 
+ function drawSecondaryNeedle(angle, color){
+  ctx.save();
+  ctx.translate(cx,cy);
+  ctx.rotate(angle);
+  ctx.beginPath();
+  ctx.moveTo(R*0.02, 0);
+  ctx.lineTo(R*0.10, -R*0.018);
+  ctx.lineTo(R*0.56, -R*0.008);
+  ctx.lineTo(R*0.78, 0);
+  ctx.lineTo(R*0.56, R*0.008);
+  ctx.lineTo(R*0.10, R*0.018);
+  ctx.closePath();
+  ctx.fillStyle = color;
+  ctx.fill();
+  ctx.strokeStyle = "rgba(255,255,255,0.35)";
+  ctx.lineWidth = R*0.004;
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.arc(R*0.82, 0, R*0.025, 0, Math.PI*2);
+  ctx.fillStyle = "#ffffff";
+  ctx.fill();
+  ctx.strokeStyle = color;
+  ctx.lineWidth = R*0.008;
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.arc(R*0.82, 0, R*0.010, 0, Math.PI*2);
+  ctx.fillStyle = color;
+  ctx.fill();
+  ctx.restore();
+ }
+ 
+ if(secondaryNeedleValue != null) drawSecondaryNeedle(toAngle(secondaryNeedleValue), secondaryColor);
+ drawPrimaryNeedle(na, success ? dark : "#b10000");
 
  if(lowerWindows.length >= 1){
   const bh = R*0.18;
@@ -9460,9 +9491,7 @@ function drawSpfGauge(canvas, spf){
 
 function renderSpfGaugeForResult(result){
  const canvas = $("spfGaugeCanvas");
- if(!canvas) return;
- const spf = result && result.samnPerelli && result.samnPerelli.score!=null ? Number(result.samnPerelli.score) : null;
- drawSpfGauge(canvas, spf);
+ if(canvas) canvas.style.display = "none";
 }
 
 function getSleepQualityBadge(result){
@@ -9624,7 +9653,6 @@ function renderSpeedometerOutcome(result, sessionIndex){
  if(idx>=0){ syncSpeedometerSessionSelect(idx); }
  stopSpeedometer();
  setTimeout(()=>animateSpeedometer(canvas, cps, success, scoreLabel, metricLabel, metricValueText, speedoOptions), 80);
- renderSpfGaugeForResult(result);
  const ovt=$("outcomeVerificationText"); if(ovt){ ovt.textContent = ""; ovt.style.display = "none"; }
  renderSpeedometerSleepMetrics(result);
  renderSpeedometerBaseline(result);
