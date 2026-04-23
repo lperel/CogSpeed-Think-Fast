@@ -1,3 +1,4 @@
+- Moved **Data Upload for Research** below the Mode 2 Scheduler ON/OFF buttons and the "No Mode 2 reminders scheduled." text on Profile.
 ## Rev 115
 - Restored the **Technical Methods** button to the main Profile page.
 - Kept the separate **Data Upload for Research** page for research-upload controls and explanatory text only.
