@@ -368,7 +368,7 @@ let settings=loadSettings();
 // profile record (profile is no longer the source of truth for test type),
 // and persist both. This fires once per fresh rev deployment per device;
 // after that, the stamp matches and nothing is touched on subsequent loads.
-const APP_REV_STAMP = "V699rev101";
+const APP_REV_STAMP = "V699rev102";
 (function migrateToCurrentRev(){
  let stored = "";
  try{ stored = localStorage.getItem(`${STORAGE_PREFIX}_rev_stamp`) || ""; }catch(e){ stored = ""; }
@@ -9892,8 +9892,17 @@ function drawPerformanceOverTimeChart(canvas,hist){
     ctx.fillText("No valid session timestamps yet", W/2, H/2);
     return;
   }
-  let minTime = Math.min(...validTimes);
-  let maxTime = Math.max(...validTimes);
+  const sleepSpans = slice.map(r=>{
+    const bed = r?.sleepLog?.bedDateTimeIso ? new Date(r.sleepLog.bedDateTimeIso).getTime() : null;
+    const wake = (r?.sleepLog?.wakeDateTimeIso || r?.sleepLog?.lastWakeDateTimeIso) ? new Date(r.sleepLog.wakeDateTimeIso || r.sleepLog.lastWakeDateTimeIso).getTime() : null;
+    const color = sleepQualityColor(r);
+    return (Number.isFinite(bed) && Number.isFinite(wake) && wake > bed && color) ? {start:bed, end:wake, color} : null;
+  });
+  const validSleepStarts = sleepSpans.filter(Boolean).map(s=>s.start);
+  const validSleepEnds = sleepSpans.filter(Boolean).map(s=>s.end);
+
+  let minTime = Math.min(...validTimes, ...(validSleepStarts.length ? validSleepStarts : [Math.min(...validTimes)]));
+  let maxTime = Math.max(...validTimes, ...(validSleepEnds.length ? validSleepEnds : [Math.max(...validTimes)]));
   if(!(maxTime > minTime)){
     minTime -= 30 * 60 * 1000;
     maxTime += 30 * 60 * 1000;
@@ -10154,9 +10163,8 @@ function drawPerformanceOverTimeChart(canvas,hist){
     if(q==="good") return "#46d36a";
     return null;
   }
-  const sleepColors = slice.map(r=>sleepQualityColor(r));
 
-  const hasAnyMetric = scoreVals.some(v=>v!=null) || metricVals.some(v=>v!=null) || cpaVals.some(v=>v!=null) || spfVals.some(v=>v!=null) || sleepColors.some(v=>v!=null);
+  const hasAnyMetric = scoreVals.some(v=>v!=null) || metricVals.some(v=>v!=null) || cpaVals.some(v=>v!=null) || spfVals.some(v=>v!=null) || sleepSpans.some(v=>v!=null);
   if(!hasAnyMetric){
     ctx.fillStyle="#d7e7f8";
     ctx.font="bold 15px sans-serif";
@@ -10169,25 +10177,18 @@ function drawPerformanceOverTimeChart(canvas,hist){
   drawCombinedPerfMarkers(scoreVals, metricVals);
   drawLine(cpaVals, v=>yLeftFromScore(v), "#d6a7ff", "square", {markerDx:8, markerSize:3.7, strokeMarker:true});
 
-  let sleepW = 18;
-  if(n > 1){
-    let minGap = Infinity;
-    for(let i=1;i<n;i++){
-      if(sessionTimes[i]==null || sessionTimes[i-1]==null) continue;
-      minGap = Math.min(minGap, Math.abs(xOfIndex(i) - xOfIndex(i-1)));
-    }
-    if(Number.isFinite(minGap)) sleepW = Math.max(8, Math.min(20, minGap * 0.55));
-  } else {
-    sleepW = Math.min(28, cW * 0.18);
-  }
-  sleepColors.forEach((color,i)=>{
-    if(!color || sessionTimes[i]==null) return;
-    const x = xOfIndex(i) - sleepW/2;
-    ctx.fillStyle = color;
-    ctx.fillRect(x, sleepBarY, sleepW, sleepBarH);
+  sleepSpans.forEach(span=>{
+    if(!span) return;
+    const startFrac = (span.start - minTime) / timeSpan;
+    const endFrac = (span.end - minTime) / timeSpan;
+    const x1 = PAD.left + Math.max(0, Math.min(1, startFrac)) * cW;
+    const x2 = PAD.left + Math.max(0, Math.min(1, endFrac)) * cW;
+    const barW = Math.max(2, x2 - x1);
+    ctx.fillStyle = span.color;
+    ctx.fillRect(x1, sleepBarY, barW, sleepBarH);
     ctx.strokeStyle = "rgba(215,231,248,0.35)";
     ctx.lineWidth = 1;
-    ctx.strokeRect(x, sleepBarY, sleepW, sleepBarH);
+    ctx.strokeRect(x1, sleepBarY, barW, sleepBarH);
   });
 
   ctx.textAlign="left";
