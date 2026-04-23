@@ -368,7 +368,7 @@ let settings=loadSettings();
 // profile record (profile is no longer the source of truth for test type),
 // and persist both. This fires once per fresh rev deployment per device;
 // after that, the stamp matches and nothing is touched on subsequent loads.
-const APP_REV_STAMP = "V699rev137";
+const APP_REV_STAMP = "V699rev139";
 // Version policy: APP_VERSION preserves base storage/schema continuity; DISPLAY_VERSION is what users see.
 const DISPLAY_VERSION = APP_REV_STAMP || APP_VERSION;
 (function migrateToCurrentRev(){
@@ -428,7 +428,10 @@ const state={
  mode2SustainedPresented:0, mode2SustainedCorrect:0, mode2SustainedWrong:0, mode2SustainedMissed:0,
  mode2SustainedCorrectRTs:[], mode2SustainedRollMeanLog:[], mode2PendingPriorMiss:null, mode2FinalTrialsPresented:0,
  mode2FinalCorrect:0, mode2FinalWrong:0, mode2FinalRTs:[],
- speedometerMode2Metric:"cpi",
+ // V699rev139: state.speedometerMode2Metric removed — the CPI/CPA toggle was
+ // eliminated in rev137; Mode 2 now always shows both needles. The field is
+ // confirmed dead (no readers remain) and has been deleted to prevent future
+ // confusion.
  speedometerLatestSessionIndex:null,
  summaryVariant:"complete"
  // pendingPriorMiss:
@@ -6937,10 +6940,29 @@ function drawSpeedometer(canvas, scoreValue, success, scoreLabel="CPI", tipLabel
   ctx.fillText(String(v), x, y);
  }
 
- // explicit score label — keep it low on the dial so the needle does not obscure it
+ // Explicit score label(s) — kept low on the dial so the needle does not obscure
+ // them. V699rev139: when a secondary needle is present (Mode 2 dual-needle
+ // layout) render BOTH labels side by side, each colored to match its needle
+ // (CPI = dark/primary, CPA = blue/secondary). Modes 1/3/4 never pass a
+ // secondary needle, so they continue to show a single centered "CPI" label.
+ const hasSecondaryNeedleForLabels = !!(opts && opts.secondaryNeedle && Number.isFinite(Number(opts.secondaryNeedle.value)));
  ctx.font = `700 ${(R*0.104).toFixed(1)}px Arial,sans-serif`;
- ctx.fillStyle = dark;
- ctx.fillText(String(scoreLabel||"CPI"), cx, cy + R*0.22);
+ ctx.textAlign = "center";
+ ctx.textBaseline = "middle";
+ if(hasSecondaryNeedleForLabels){
+  const secondaryColor = String(opts.secondaryNeedle.color || "#2d6cdf");
+  // Horizontal offset from center — pushes the two labels far enough apart
+  // that they don't touch at typical dial sizes.
+  const labelOffset = R*0.16;
+  const labelY = cy + R*0.22;
+  ctx.fillStyle = dark;
+  ctx.fillText("CPI", cx - labelOffset, labelY);
+  ctx.fillStyle = secondaryColor;
+  ctx.fillText("CPA", cx + labelOffset, labelY);
+ } else {
+  ctx.fillStyle = dark;
+  ctx.fillText(String(scoreLabel||"CPI"), cx, cy + R*0.22);
+ }
 
  // vintage-style spear needle without a rear tail
  ctx.save();
@@ -9611,11 +9633,14 @@ function getMode2SpeedometerMetric(result, success){
  return {
   // The dial is driven by CPI (primary needle). CPA is shown as the secondary
   // needle. Disposition text lives in the single box below the dial.
+  // V699rev139: cpiValue and cpaValue are nulled on failure so callers that
+  // read them (e.g. the secondary-needle value lookup) never draw a stale
+  // needle on a failed test.
   score: failed ? 0 : (Number.isFinite(cpi)?Math.max(0,Math.min(100,cpi)):0),
   scoreLabel: "CPI",
   mbsText,
-  cpiValue: Number.isFinite(cpi) ? cpi : null,
-  cpaValue: Number.isFinite(cpa) ? cpa : null,
+  cpiValue: failed ? null : (Number.isFinite(cpi) ? cpi : null),
+  cpaValue: failed ? null : (Number.isFinite(cpa) ? cpa : null),
   boxes: [
    {label:"Disposition", value:dispositionText}
   ]
@@ -9677,7 +9702,8 @@ function renderSpeedometerOutcome(result, sessionIndex){
   // CPI (solid filled spear, dark), secondary = CPA (hollow outlined spear,
   // blue). The two shapes are distinguishable beyond color alone so the
   // display remains legible for colorblind users and in grayscale output.
-  const cpiNeedle = Number.isFinite(Number(mode2Metric.cpiValue)) ? Number(mode2Metric.cpiValue) : Number(result && result.cognitivePerformanceIndex);
+  // (V699rev139 cleanup: removed the unused local `cpiNeedle` — the primary
+  // needle is driven by `cps` above, not a separate opts entry.)
   const cpaNeedle = Number.isFinite(Number(mode2Metric.cpaValue)) ? Number(mode2Metric.cpaValue) : Number(result && result.cpa);
   speedoOpts = speedoOpts || {};
   if(success && Number.isFinite(cpaNeedle)){
