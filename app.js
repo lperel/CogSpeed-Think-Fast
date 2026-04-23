@@ -368,7 +368,7 @@ let settings=loadSettings();
 // profile record (profile is no longer the source of truth for test type),
 // and persist both. This fires once per fresh rev deployment per device;
 // after that, the stamp matches and nothing is touched on subsequent loads.
-const APP_REV_STAMP = "V699rev124";
+const APP_REV_STAMP = "V699rev127";
 // Version policy: APP_VERSION preserves base storage/schema continuity; DISPLAY_VERSION is what users see.
 const DISPLAY_VERSION = APP_REV_STAMP || APP_VERSION;
 (function migrateToCurrentRev(){
@@ -7001,15 +7001,17 @@ function drawSpeedometer(canvas, scoreValue, success, scoreLabel="CPI", tipLabel
  if(secondaryNeedleValue != null) drawNeedle(toAngle(secondaryNeedleValue), secondaryColor, 0.72);
  drawNeedle(na, success ? dark : "#b10000", 1);
 
- if(lowerWindows.length >= 2){
+ if(lowerWindows.length >= 1){
   const bh = R*0.18;
   const gap = R*0.08;
-  const bw = R*0.48;
-  const totalW = bw*2 + gap;
+  const count = Math.min(2, lowerWindows.length);
+  const bw = count === 1 ? R*1.04 : R*0.48;
+  const totalW = count === 1 ? bw : (bw*2 + gap);
   const bx1 = cx - totalW/2;
   const bx2 = bx1 + bw + gap;
   const by = cy + R*0.47;
-  [bx1, bx2].forEach((bx, i)=>{
+  const boxes = count === 1 ? [bx1] : [bx1, bx2];
+  boxes.forEach((bx, i)=>{
    const item = lowerWindows[i] || {label:"—", value:"—"};
    ctx.beginPath();
    if(ctx.roundRect) ctx.roundRect(bx, by, bw, bh, R*0.012); else ctx.rect(bx, by, bw, bh);
@@ -9551,17 +9553,12 @@ function getMode2DispositionWindowText(result){
 function getMode2SpeedometerMetric(result, success){
  const mbs = Number(result && (result.mode2AdaptiveMbsMs!=null ? result.mode2AdaptiveMbsMs : result.averageLast2BlockingScoresMs));
  const cpi = Number.isFinite(mbs) ? computeCPI(mbs) : (Number.isFinite(Number(result && result.cognitivePerformanceIndex)) ? Number(result.cognitivePerformanceIndex) : null);
- const cpa = Number(result && result.cpa);
  const failed = success === false;
- const dispositionText = failed ? "—" : getMode2DispositionWindowText(result);
- const mbsText = failed ? "—" : (Number.isFinite(mbs)?`${Number(mbs).toFixed(1)} ms`:"—");
+  const mbsText = failed ? "—" : (Number.isFinite(mbs)?`${Number(mbs).toFixed(1)} ms`:"—");
  return {
   score: failed ? 0 : (Number.isFinite(cpi)?Math.max(0,Math.min(100,cpi)):0),
-  scoreLabel: "CPI / CPA",
+  scoreLabel: "CPI",
   mbsText,
-  boxes: [
-    {label:"Disposition", value:dispositionText}
-  ]
  };
 }
 
@@ -9589,7 +9586,6 @@ function renderSpeedometerOutcome(result, sessionIndex){
   if(result && result.mode2Triggered && result.cpa==null) Object.assign(result, computeMode2CPA(result));
   const mode2Metric = getMode2SpeedometerMetric(result, success);
   const cpiNeedle = Number.isFinite(Number(result && result.cognitivePerformanceIndex)) ? Math.max(0, Math.min(100, Number(result.cognitivePerformanceIndex))) : mode2Metric.score;
-  const cpaNeedle = Number.isFinite(Number(result && result.cpa)) ? Math.max(0, Math.min(100, Number(result.cpa))) : null;
   cps = success ? cpiNeedle : 0;
   if(success){
    mbs = Number(result && (result.mode2AdaptiveMbsMs!=null ? result.mode2AdaptiveMbsMs : result.averageLast2BlockingScoresMs));
@@ -9601,13 +9597,12 @@ function renderSpeedometerOutcome(result, sessionIndex){
    metricLabel = "MBS";
    metricValueText = null;
   }
-  scoreLabel = "CPI / CPA";
+  scoreLabel = "CPI";
   speedoOptions = {
-   secondaryNeedleValue: success ? cpaNeedle : null,
    lowerWindows: [
-    {label:"Disposition", value: success ? getMode2DispositionWindowText(result) : "—"}
+    {label:"Disposition", value: getMode2DispositionWindowText(result)}
    ],
-   spfsCode: success ? Number(result && (result.dispositionSpfs!=null ? result.dispositionSpfs : result.dispositionCode)) : null
+   spfsCode: Number.isFinite(Number(result && result.samnPerelli && result.samnPerelli.score)) ? Number(result.samnPerelli.score) : null
   };
  } else {
   speedoOptions = {
