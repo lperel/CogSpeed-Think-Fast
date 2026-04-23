@@ -368,7 +368,7 @@ let settings=loadSettings();
 // profile record (profile is no longer the source of truth for test type),
 // and persist both. This fires once per fresh rev deployment per device;
 // after that, the stamp matches and nothing is touched on subsequent loads.
-const APP_REV_STAMP = "V699rev139";
+const APP_REV_STAMP = "V699rev140";
 // Version policy: APP_VERSION preserves base storage/schema continuity; DISPLAY_VERSION is what users see.
 const DISPLAY_VERSION = APP_REV_STAMP || APP_VERSION;
 (function migrateToCurrentRev(){
@@ -428,7 +428,7 @@ const state={
  mode2SustainedPresented:0, mode2SustainedCorrect:0, mode2SustainedWrong:0, mode2SustainedMissed:0,
  mode2SustainedCorrectRTs:[], mode2SustainedRollMeanLog:[], mode2PendingPriorMiss:null, mode2FinalTrialsPresented:0,
  mode2FinalCorrect:0, mode2FinalWrong:0, mode2FinalRTs:[],
- // V699rev139: state.speedometerMode2Metric removed — the CPI/CPA toggle was
+ // V699rev140: state.speedometerMode2Metric removed — the CPI/CPA toggle was
  // eliminated in rev137; Mode 2 now always shows both needles. The field is
  // confirmed dead (no readers remain) and has been deleted to prevent future
  // confusion.
@@ -6941,7 +6941,7 @@ function drawSpeedometer(canvas, scoreValue, success, scoreLabel="CPI", tipLabel
  }
 
  // Explicit score label(s) — kept low on the dial so the needle does not obscure
- // them. V699rev139: when a secondary needle is present (Mode 2 dual-needle
+ // them. V699rev140: when a secondary needle is present (Mode 2 dual-needle
  // layout) render BOTH labels side by side, each colored to match its needle
  // (CPI = dark/primary, CPA = blue/secondary). Modes 1/3/4 never pass a
  // secondary needle, so they continue to show a single centered "CPI" label.
@@ -6987,11 +6987,14 @@ function drawSpeedometer(canvas, scoreValue, success, scoreLabel="CPI", tipLabel
  ctx.stroke();
  ctx.restore();
 
- // optional secondary needle (used for Mode 2 CPA/CPI dual-needle display).
- // Rendered as a HOLLOW outlined spear — thinner and visibly unfilled — so it
- // is distinguishable from the primary (solid filled) needle by SHAPE alone,
- // not just color. This satisfies the accessibility requirement that the two
- // needles remain distinct for colorblind viewers and in grayscale printouts.
+ // Optional secondary needle (used for Mode 2 CPA/CPI dual-needle display).
+ // V699rev140: The CPA needle is now rendered as a BOLDER filled-and-outlined
+ // spear — same category (outlined) as before, but substantially more visible.
+ // Shape distinction from the primary (solid CPI) is preserved via: a thinner
+ // silhouette, a distinct two-tone fill (semi-transparent body + solid border),
+ // a tip that stops short of the primary's tip, and a filled tip disc. This
+ // keeps the two needles readable for colorblind viewers and in grayscale
+ // printouts while significantly improving CPA visibility on the dial.
  const secondaryNeedle = opts && opts.secondaryNeedle && Number.isFinite(Number(opts.secondaryNeedle.value))
   ? {
      value: Math.max(0, Math.min(100, Number(opts.secondaryNeedle.value))),
@@ -7004,36 +7007,47 @@ function drawSpeedometer(canvas, scoreValue, success, scoreLabel="CPI", tipLabel
   ctx.save();
   ctx.translate(cx,cy);
   ctx.rotate(sa);
-  // Thinner spear silhouette, drawn as OUTLINE only (no fill) to contrast with
-  // the solid primary needle. Tip reaches R*0.76 (slightly inboard of primary's
-  // R*0.84) so both tips remain readable when needles overlap near the same
-  // value.
+  // Spear silhouette. Half-widths tuned to land between "reads as delicate"
+  // (rev138 = 0.012) and "reads identical to primary" (primary = 0.028).
+  // Tip reaches R*0.80 (vs primary R*0.84) so both tips stay distinct.
   ctx.beginPath();
-  ctx.moveTo(R*0.018, 0);
-  ctx.lineTo(R*0.09, -R*0.012);
-  ctx.lineTo(R*(0.52*secondaryNeedle.widthScale), -R*0.007);
-  ctx.lineTo(R*0.76, 0);
-  ctx.lineTo(R*(0.52*secondaryNeedle.widthScale), R*0.007);
-  ctx.lineTo(R*0.09, R*0.012);
+  ctx.moveTo(R*0.020, 0);
+  ctx.lineTo(R*0.10,  -R*0.018);
+  ctx.lineTo(R*(0.54*secondaryNeedle.widthScale), -R*0.011);
+  ctx.lineTo(R*0.80, 0);
+  ctx.lineTo(R*(0.54*secondaryNeedle.widthScale), R*0.011);
+  ctx.lineTo(R*0.10,  R*0.018);
   ctx.closePath();
-  // White halo first, then colored stroke on top — makes the outline legible
-  // over both the dial face and any color band it crosses.
+  // Pass 1: semi-transparent colored FILL — makes the body pop without
+  // masking the dial numerals underneath when the needle crosses them.
+  ctx.fillStyle = secondaryNeedle.color + "55"; // ~33% alpha (55 hex)
+  ctx.fill();
+  // Pass 2: white halo stroke for legibility over both the cream dial
+  // face and any colored band it crosses.
   ctx.lineJoin = "round";
-  ctx.strokeStyle = "rgba(255,255,255,0.85)";
-  ctx.lineWidth = R*0.016;
+  ctx.strokeStyle = "rgba(255,255,255,0.88)";
+  ctx.lineWidth = R*0.020;
   ctx.stroke();
+  // Pass 3: solid colored border on top — the decisive silhouette.
   ctx.strokeStyle = secondaryNeedle.color;
-  ctx.lineWidth = R*0.008;
+  ctx.lineWidth = R*0.012;
   ctx.stroke();
-  // Small hollow ring near the tip — matches the hollow aesthetic of the needle
+  // Tip disc: FILLED (not hollow) and slightly larger than rev138, to
+  // read as a confident pointer. White halo behind for contrast.
   ctx.beginPath();
-  ctx.arc(R*0.72, 0, R*0.022, 0, Math.PI*2);
-  ctx.strokeStyle = "rgba(255,255,255,0.85)";
-  ctx.lineWidth = R*0.010;
-  ctx.stroke();
-  ctx.strokeStyle = secondaryNeedle.color;
-  ctx.lineWidth = R*0.006;
-  ctx.stroke();
+  ctx.arc(R*0.76, 0, R*0.032, 0, Math.PI*2);
+  ctx.fillStyle = "rgba(255,255,255,0.95)";
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(R*0.76, 0, R*0.028, 0, Math.PI*2);
+  ctx.fillStyle = secondaryNeedle.color;
+  ctx.fill();
+  // A small white dot in the center of the tip disc — mirrors the hub
+  // aesthetic and reinforces that this is a pointer, not a dot.
+  ctx.beginPath();
+  ctx.arc(R*0.76, 0, R*0.010, 0, Math.PI*2);
+  ctx.fillStyle = "rgba(255,255,255,0.70)";
+  ctx.fill();
   ctx.restore();
  }
 
@@ -9633,7 +9647,7 @@ function getMode2SpeedometerMetric(result, success){
  return {
   // The dial is driven by CPI (primary needle). CPA is shown as the secondary
   // needle. Disposition text lives in the single box below the dial.
-  // V699rev139: cpiValue and cpaValue are nulled on failure so callers that
+  // V699rev140: cpiValue and cpaValue are nulled on failure so callers that
   // read them (e.g. the secondary-needle value lookup) never draw a stale
   // needle on a failed test.
   score: failed ? 0 : (Number.isFinite(cpi)?Math.max(0,Math.min(100,cpi)):0),
@@ -9702,7 +9716,7 @@ function renderSpeedometerOutcome(result, sessionIndex){
   // CPI (solid filled spear, dark), secondary = CPA (hollow outlined spear,
   // blue). The two shapes are distinguishable beyond color alone so the
   // display remains legible for colorblind users and in grayscale output.
-  // (V699rev139 cleanup: removed the unused local `cpiNeedle` — the primary
+  // (V699rev140 cleanup: removed the unused local `cpiNeedle` — the primary
   // needle is driven by `cps` above, not a separate opts entry.)
   const cpaNeedle = Number.isFinite(Number(mode2Metric.cpaValue)) ? Number(mode2Metric.cpaValue) : Number(result && result.cpa);
   speedoOpts = speedoOpts || {};
