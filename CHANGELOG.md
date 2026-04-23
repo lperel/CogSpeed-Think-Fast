@@ -1738,3 +1738,8 @@ It is meant to provide a readable history without overloading inline code commen
 - Unlock state is remembered for the current APP_REV_STAMP and resets automatically on a new revision.
 
 - Rev101 engineering refactor for the Performance over Date and Time graph: replaced index-based x positioning with a true continuous timestamp scale, introduced an explicit chart layout with reserved bottom bands for tick labels / x-axis title / sleep strip / sleep legend, added measured two-line date+time ticks on a dedicated x-axis band, kept overnight gaps visible, and removed the stale "Open blue center = estimated CPI" legend entry so the blue CPI marker is always rendered as a filled dot. Also bumped the cache-busting script tag to `app.js?v=699rev101`, bumped `sw.js` RELEASE to `699rev101`, and advanced `APP_REV_STAMP` to `V699rev101`.
+
+
+## V699 Rev 105
+- Personal Baseline now always uses the full qualifying session history for the subject, regardless of which Speedometer session is selected.
+- Personal Baseline overlay wording updated to reflect current full-history baseline view.

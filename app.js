@@ -368,7 +368,7 @@ let settings=loadSettings();
 // profile record (profile is no longer the source of truth for test type),
 // and persist both. This fires once per fresh rev deployment per device;
 // after that, the stamp matches and nothing is touched on subsequent loads.
-const APP_REV_STAMP = "V699rev102";
+const APP_REV_STAMP = "V699rev106";
 (function migrateToCurrentRev(){
  let stored = "";
  try{ stored = localStorage.getItem(`${STORAGE_PREFIX}_rev_stamp`) || ""; }catch(e){ stored = ""; }
@@ -4284,8 +4284,10 @@ function computePersonalBaseline(results, subjectId, cutoffTime=null){
 }
 function getPersonalBaselineForResult(result){
  const sid = String(result?.subjectId||"").trim();
- const cutoffTime = result?.time || null;
- return computePersonalBaseline(state.history, sid, cutoffTime);
+ // Personal Baseline displays must always reflect the full qualifying history
+ // for the registered subject, independent of which session is selected in
+ // the Speedometer. Do not clip the baseline to the selected session time.
+ return computePersonalBaseline(state.history, sid, null);
 }
 function renderSpeedometerBaseline(result){
  const el = $("speedometerBaselineText");
@@ -4355,7 +4357,7 @@ function openPersonalBaselinePage(sessionIndex){
  if(statusEl) statusEl.textContent = statusText;
  if(metaEl){
   const sessionTime = result.time ? new Date(result.time).toLocaleString() : "—";
-  metaEl.innerHTML = `<div><strong>Subject:</strong> ${escapeHtml(String(result.subjectId||"—"))}</div><div><strong>Baseline as of session:</strong> ${escapeHtml(sessionTime)}</div><div><strong>Qualifying sessions available:</strong> ${baseline.qualifyingCount}</div><div style="margin-top:6px">All qualifying sessions are shown below. The rolling baseline value itself uses the most recent 5 qualifying non-Guest Mode 1 / Mode 2 adaptive-phase MBS scores with MBS &le; ${getPersonalBaselineMaxMbs()} ms, S-PFS 5–7, and no failed sessions.</div>`;
+  metaEl.innerHTML = `<div><strong>Subject:</strong> ${escapeHtml(String(result.subjectId||"—"))}</div><div><strong>Current baseline view:</strong> ${escapeHtml(sessionTime)}</div><div><strong>Qualifying sessions available:</strong> ${baseline.qualifyingCount}</div><div style="margin-top:6px">All qualifying sessions are shown below. The rolling baseline value itself uses the most recent 5 qualifying non-Guest Mode 1 / Mode 2 adaptive-phase MBS scores with MBS &le; ${getPersonalBaselineMaxMbs()} ms, S-PFS 5–7, and no failed sessions.</div>`;
  }
  if(graphEl) graphEl.innerHTML = buildPersonalBaselineSvg(rows, baseline.established ? baseline.averageMbs : null);
  if(tbody){
@@ -9569,7 +9571,7 @@ function renderSpeedometerOutcome(result, sessionIndex){
  stopSpeedometer();
  setTimeout(()=>animateSpeedometer(canvas, cps, success, scoreLabel, metricLabel, metricValueText), 80);
  renderSpfGaugeForResult(result);
- const ovt=$("outcomeVerificationText"); if(ovt) ovt.textContent = getVerificationStatusLabel(result);
+ const ovt=$("outcomeVerificationText"); if(ovt){ ovt.textContent = ""; ovt.style.display = "none"; }
  renderSpeedometerSleepMetrics(result);
  renderSpeedometerBaseline(result);
  setTestingQuiet(false);
@@ -9658,7 +9660,7 @@ const _ssp=$("speedStartPageBtn"); if(_ssp) _ssp.onclick=()=>{ hideAllOverlays()
 
 /* ===== Performance vs Time graph ===== */
 const perfGraphState = {
-  preset: "all",
+  preset: "7d",
   fromDate: "",
   toDate: ""
 };
@@ -9746,8 +9748,18 @@ function perfSessionIsoDate(r){
 
 function filterSessionsForPerfGraph(hist){
   const base = (hist||[]).slice().sort((a,b)=>perfSessionUtcMs(a)-perfSessionUtcMs(b));
+  if(!base.length) return base;
+  const lastMs = perfSessionUtcMs(base[base.length-1]);
   if(perfGraphState.preset === "all") return base;
-  if(perfGraphState.preset === "last14") return base.slice(-14);
+  if(perfGraphState.preset === "30sessions") return base.slice(-30);
+  if(perfGraphState.preset === "24h"){
+    const startMs = lastMs - (24 * 60 * 60 * 1000);
+    return base.filter(r=> perfSessionUtcMs(r) >= startMs);
+  }
+  if(perfGraphState.preset === "7d"){
+    const startMs = lastMs - (7 * 24 * 60 * 60 * 1000);
+    return base.filter(r=> perfSessionUtcMs(r) >= startMs);
+  }
   const from = perfGraphState.fromDate || "";
   const to = perfGraphState.toDate || "";
   return base.filter(r=>{
@@ -9787,6 +9799,8 @@ function syncPerfGraphControls(hist){
   toEl.disabled = !custom;
   fromEl.style.opacity = custom ? "1" : "0.55";
   toEl.style.opacity = custom ? "1" : "0.55";
+  if(fromEl.parentElement) fromEl.parentElement.style.display = custom ? "grid" : "none";
+  if(toEl.parentElement) toEl.parentElement.style.display = custom ? "grid" : "none";
 
   const filtered = filterSessionsForPerfGraph(base);
   if(info){
@@ -9794,8 +9808,12 @@ function syncPerfGraphControls(hist){
       info.textContent = "No saved sessions yet.";
     }else if(custom){
       info.textContent = `Showing ${filtered.length} session${filtered.length===1?"":"s"} from ${perfGraphState.fromDate||firstDate} to ${perfGraphState.toDate||lastDate}.`;
-    }else if(perfGraphState.preset === "last14"){
-      info.textContent = `Showing the last ${filtered.length} saved session${filtered.length===1?"":"s"}.`;
+    }else if(perfGraphState.preset === "24h"){
+      info.textContent = `Showing sessions from the last 24 hours.`;
+    }else if(perfGraphState.preset === "7d"){
+      info.textContent = `Showing sessions from the last 7 days.`;
+    }else if(perfGraphState.preset === "30sessions"){
+      info.textContent = `Showing the last ${filtered.length} saved session${filtered.length===1?"":"s"} (up to 30).`;
     }else{
       info.textContent = `Showing all ${base.length} saved sessions from ${firstDate} to ${lastDate}.`;
     }
@@ -9838,26 +9856,29 @@ function wirePerfGraphControls(){
 
 function drawPerformanceOverTimeChart(canvas,hist){
   if(!canvas) return;
-  const dpr = window.devicePixelRatio || 1;
-  const fullHist = hist||[];
-  const filteredForWidth = filterSessionsForPerfGraph(fullHist);
-  const nForWidth = Math.max(1, filteredForWidth.length);
+  const fullHist = hist || [];
   const scroller = canvas.parentElement;
   const viewportW = Math.max(320, Math.round((scroller && scroller.clientWidth) || canvas.clientWidth || canvas.offsetWidth || 900));
-  const dynamicW = Math.max(viewportW, 980, 220 + nForWidth * 68);
-  canvas.style.width = dynamicW + "px";
-  canvas.style.minWidth = dynamicW + "px";
-  canvas.style.height = "min(68vh,700px)";
-  const cssW = dynamicW;
-  const cssH = Math.max(560, Math.round(canvas.clientHeight || 680));
-  canvas.width = Math.round(cssW * dpr);
-  canvas.height = Math.round(cssH * dpr);
-  const ctx = canvas.getContext("2d");
-  ctx.setTransform(dpr,0,0,dpr,0,0);
+  const viewportH = Math.max(620, Math.round((scroller && scroller.clientHeight) || canvas.clientHeight || canvas.offsetHeight || 700));
 
-  const W = cssW, H = cssH;
+  function setupCanvas(cssW, cssH){
+    const dpr = window.devicePixelRatio || 1;
+    canvas.style.width = cssW + "px";
+    canvas.style.minWidth = cssW + "px";
+    canvas.style.height = cssH + "px";
+    canvas.width = Math.round(cssW * dpr);
+    canvas.height = Math.round(cssH * dpr);
+    const ctx = canvas.getContext("2d");
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+    return ctx;
+  }
+
+  let cssW = Math.max(viewportW, 920);
+  let cssH = Math.max(620, Math.min(760, viewportH));
+  let ctx = setupCanvas(cssW, cssH);
+  let W = cssW, H = cssH;
   ctx.clearRect(0,0,W,H);
-  ctx.fillStyle="#081321";
+  ctx.fillStyle = "#081321";
   ctx.fillRect(0,0,W,H);
 
   if(!fullHist.length){
@@ -9892,6 +9913,15 @@ function drawPerformanceOverTimeChart(canvas,hist){
     ctx.fillText("No valid session timestamps yet", W/2, H/2);
     return;
   }
+
+  function sleepQualityColor(r){
+    const q = String(r?.sleepLog?.qualityLabel || "").trim().toLowerCase();
+    if(q==="poor") return "#ff4d4f";
+    if(q==="restless") return "#ffd84d";
+    if(q==="good") return "#46d36a";
+    return null;
+  }
+
   const sleepSpans = slice.map(r=>{
     const bed = r?.sleepLog?.bedDateTimeIso ? new Date(r.sleepLog.bedDateTimeIso).getTime() : null;
     const wake = (r?.sleepLog?.wakeDateTimeIso || r?.sleepLog?.lastWakeDateTimeIso) ? new Date(r.sleepLog.wakeDateTimeIso || r.sleepLog.lastWakeDateTimeIso).getTime() : null;
@@ -9908,6 +9938,28 @@ function drawPerformanceOverTimeChart(canvas,hist){
     maxTime += 30 * 60 * 1000;
   }
   const timeSpan = Math.max(1, maxTime - minTime);
+
+  const hourMs = 60 * 60 * 1000;
+  const sortedValidTimes = validTimes.slice().sort((a,b)=>a-b);
+  const minMarkerSepPx = perfGraphState.preset === "24h" ? 30 : perfGraphState.preset === "7d" ? 24 : perfGraphState.preset === "30sessions" ? 22 : 18;
+  let widthForDensity = 0;
+  for(let i=1;i<sortedValidTimes.length;i++){
+    const gap = sortedValidTimes[i] - sortedValidTimes[i-1];
+    if(gap > 0){
+      widthForDensity = Math.max(widthForDensity, Math.round((minMarkerSepPx * timeSpan) / gap));
+    }
+  }
+  const pxPerHour = perfGraphState.preset === "24h" ? 40 : perfGraphState.preset === "7d" ? 12 : perfGraphState.preset === "30sessions" ? 10 : 6;
+  const widthForTime = Math.round(380 + (timeSpan / hourMs) * pxPerHour);
+  const widthForSessions = Math.round(380 + Math.max(0, n - 1) * (minMarkerSepPx + 6));
+  cssW = Math.max(viewportW, 920, widthForTime, widthForDensity || 0, widthForSessions);
+  cssH = Math.max(640, Math.min(780, viewportH));
+  ctx = setupCanvas(cssW, cssH);
+  W = cssW;
+  H = cssH;
+  ctx.clearRect(0,0,W,H);
+  ctx.fillStyle="#081321";
+  ctx.fillRect(0,0,W,H);
 
   const setKeys = new Set(slice.map(r=>getResultSymbolSet(r)));
   const homogeneousSet = setKeys.size === 1 ? [...setKeys][0] : null;
@@ -9941,7 +9993,7 @@ function drawPerformanceOverTimeChart(canvas,hist){
   const tickBandH = tickLine1H + tickLine2H + 10;
   const axisTitleBandH = 18;
   const sleepLegendBandH = 18;
-  const reservedBottom = tickBandH + gaps.betweenTickAndTitle + axisTitleBandH + gaps.betweenTitleAndSleep + sleepBarH + gaps.betweenSleepAndLegend + sleepLegendBandH + 18;
+  const reservedBottom = tickBandH + gaps.betweenTickAndTitle + axisTitleBandH + gaps.betweenTitleAndSleep + sleepBarH + gaps.betweenSleepAndLegend + sleepLegendBandH + 22;
   const cW = Math.max(260, W - PAD.left - PAD.right);
   const cH = Math.max(180, H - PAD.top - reservedBottom);
   const plotBottom = PAD.top + cH;
@@ -9950,11 +10002,56 @@ function drawPerformanceOverTimeChart(canvas,hist){
   const sleepBarY = axisTitleY + gaps.betweenTitleAndSleep;
   const legendY = sleepBarY + sleepBarH + gaps.betweenSleepAndLegend;
 
-  function xOfIndex(i){
-    const t = sessionTimes[i];
-    if(t==null) return PAD.left + cW/2;
-    const frac = (t - minTime) / timeSpan;
+  function rawXForTime(ts){
+    const frac = (ts - minTime) / timeSpan;
     return PAD.left + Math.max(0, Math.min(1, frac)) * cW;
+  }
+  const rawXPositions = sessionTimes.map(t => t==null ? null : rawXForTime(t));
+
+  function buildDisplayXPositions(rawXs, minSep, minX, maxX){
+    const adjusted = rawXs.slice();
+    const pts = rawXs.map((x,i)=> x==null ? null : {x, i}).filter(Boolean).sort((a,b)=>a.x-b.x);
+    if(!pts.length) return adjusted;
+    const groups = [];
+    let current = [pts[0]];
+    for(let i=1;i<pts.length;i++){
+      if((pts[i].x - pts[i-1].x) <= minSep){
+        current.push(pts[i]);
+      }else{
+        groups.push(current);
+        current = [pts[i]];
+      }
+    }
+    groups.push(current);
+    groups.forEach(group=>{
+      if(group.length < 2) return;
+      const anchor = group.reduce((sum,p)=>sum+p.x,0) / group.length;
+      const spacing = Math.min(10, Math.max(6, minSep * 0.72));
+      const start = anchor - (spacing * (group.length - 1)) / 2;
+      group.forEach((p, idx)=>{
+        adjusted[p.i] = Math.max(minX + 2, Math.min(maxX - 2, start + idx * spacing));
+      });
+    });
+    return adjusted;
+  }
+
+  const displayXPositions = buildDisplayXPositions(rawXPositions, minMarkerSepPx, PAD.left, PAD.left + cW);
+  const validRawXs = rawXPositions.filter(v=>v!=null).sort((a,b)=>a-b);
+  let minRawGapPx = Infinity;
+  for(let i=1;i<validRawXs.length;i++) minRawGapPx = Math.min(minRawGapPx, validRawXs[i] - validRawXs[i-1]);
+  const denseCluster = Number.isFinite(minRawGapPx) && minRawGapPx < 10;
+  const perfOuterRadius = denseCluster ? 5.0 : 5.8;
+  const perfInnerRadius = denseCluster ? 2.4 : 2.8;
+  const perfMarkerSize = denseCluster ? 3.4 : 3.7;
+  const spfMarkerSize = denseCluster ? 3.7 : 4.2;
+
+  function xOfIndex(i){
+    const x = displayXPositions[i];
+    return x==null ? PAD.left + cW/2 : x;
+  }
+  function rawXOfIndex(i){
+    const x = rawXPositions[i];
+    return x==null ? PAD.left + cW/2 : x;
   }
   function yLeftFromScore(v){ return PAD.top + cH - ((v-0)/100)*cH; }
   function yRightFromSpf(v){ return PAD.top + cH - (((v-1)/6))*cH; }
@@ -9984,8 +10081,8 @@ function drawPerformanceOverTimeChart(canvas,hist){
     return Math.floor(ts / step) * step;
   }
   function buildTimeTicks(minTs, maxTs, plotWidth){
-    const approxLabelW = 72;
-    const maxTicks = Math.max(3, Math.min(8, Math.floor(plotWidth / approxLabelW)));
+    const approxLabelW = 112;
+    const maxTicks = Math.max(3, Math.min(6, Math.floor(plotWidth / approxLabelW)));
     const step = chooseTickStep(maxTs - minTs, maxTicks);
     const ticks = [];
     let t = alignStart(minTs, step);
@@ -10005,8 +10102,7 @@ function drawPerformanceOverTimeChart(canvas,hist){
   });
   ctx.strokeStyle="rgba(127,215,255,0.18)";
   timeTicks.forEach(ts=>{
-    const frac = (ts - minTime) / timeSpan;
-    const x = PAD.left + Math.max(0, Math.min(1, frac)) * cW;
+    const x = rawXForTime(ts);
     ctx.beginPath(); ctx.moveTo(x, PAD.top); ctx.lineTo(x, plotBottom); ctx.stroke();
   });
 
@@ -10046,7 +10142,10 @@ function drawPerformanceOverTimeChart(canvas,hist){
   const subjectCount = new Set(slice.map(r => (r.subjectId||"—"))).size;
   const rangeLabel = perfGraphState.preset === "custom"
     ? `    Range: ${perfGraphState.fromDate||"start"} → ${perfGraphState.toDate||"end"}`
-    : (perfGraphState.preset === "last14" ? "    Range: Last 14 sessions" : "");
+    : (perfGraphState.preset === "24h" ? "    Range: Last 24 hours"
+      : perfGraphState.preset === "7d" ? "    Range: Last 7 days"
+      : perfGraphState.preset === "30sessions" ? "    Range: Last 30 sessions"
+      : "    Range: All history");
   ctx.fillText(`All sessions in continuous device-local time    Subjects: ${subjectCount}    Sessions: ${n}${rangeLabel}`, PAD.left, 46);
 
   ctx.save();
@@ -10074,8 +10173,7 @@ function drawPerformanceOverTimeChart(canvas,hist){
   ctx.font=fontTick;
   ctx.textAlign="center";
   timeTicks.forEach(ts=>{
-    const frac = (ts - minTime) / timeSpan;
-    const x = PAD.left + Math.max(0, Math.min(1, frac)) * cW;
+    const x = rawXForTime(ts);
     ctx.strokeStyle="rgba(215,231,248,0.9)";
     ctx.lineWidth=1.5;
     ctx.beginPath();
@@ -10091,6 +10189,18 @@ function drawPerformanceOverTimeChart(canvas,hist){
   ctx.fillStyle="#b7d9ef";
   ctx.textAlign="center";
   ctx.fillText("Date and Time (continuous device-local time)", PAD.left + cW/2, axisTitleY);
+
+  function drawAnchorGuide(i, y){
+    const rawX = rawXOfIndex(i);
+    const dispX = xOfIndex(i);
+    if(Math.abs(dispX - rawX) < 0.75) return;
+    ctx.strokeStyle = "rgba(215,231,248,0.42)";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(rawX, y);
+    ctx.lineTo(dispX, y);
+    ctx.stroke();
+  }
 
   function drawLine(vals, yFunc, color, style, opts={}){
     const markerDx = Number(opts.markerDx)||0;
@@ -10110,6 +10220,7 @@ function drawPerformanceOverTimeChart(canvas,hist){
     vals.forEach((v,i)=>{
       if(v==null || sessionTimes[i]==null) return;
       const x=xOfIndex(i)+markerDx, y=yFunc(v,i);
+      drawAnchorGuide(i, y);
       ctx.fillStyle=color;
       if(style==="diamond"){
         ctx.save(); ctx.translate(x,y); ctx.rotate(Math.PI/4); ctx.fillRect(-markerSize,-markerSize,markerSize*2,markerSize*2); ctx.restore();
@@ -10144,9 +10255,10 @@ function drawPerformanceOverTimeChart(canvas,hist){
       if(score==null || metric==null || sessionTimes[i]==null) return;
       const x = xOfIndex(i);
       const y = yLeftFromScore(score);
-      ctx.beginPath(); ctx.arc(x,y,5.8,0,Math.PI*2);
+      drawAnchorGuide(i, y);
+      ctx.beginPath(); ctx.arc(x,y,perfOuterRadius,0,Math.PI*2);
       ctx.strokeStyle="#ffb357"; ctx.lineWidth=2.2; ctx.stroke();
-      ctx.beginPath(); ctx.arc(x,y,2.8,0,Math.PI*2);
+      ctx.beginPath(); ctx.arc(x,y,perfInnerRadius,0,Math.PI*2);
       ctx.fillStyle="#7fd7ff";
       ctx.fill();
     });
@@ -10156,13 +10268,6 @@ function drawPerformanceOverTimeChart(canvas,hist){
   const metricVals = slice.map(r=>perfSessionMs(r));
   const cpaVals = slice.map(r=>r && r.testMode==="mode2" && r.mode2Triggered && Number.isFinite(Number(r.cpa)) ? Number(r.cpa) : null);
   const spfVals = slice.map(r=>r && r.samnPerelli && r.samnPerelli.score!=null ? Number(r.samnPerelli.score) : null);
-  function sleepQualityColor(r){
-    const q = String(r?.sleepLog?.qualityLabel || "").trim().toLowerCase();
-    if(q==="poor") return "#ff4d4f";
-    if(q==="restless") return "#ffd84d";
-    if(q==="good") return "#46d36a";
-    return null;
-  }
 
   const hasAnyMetric = scoreVals.some(v=>v!=null) || metricVals.some(v=>v!=null) || cpaVals.some(v=>v!=null) || spfVals.some(v=>v!=null) || sleepSpans.some(v=>v!=null);
   if(!hasAnyMetric){
@@ -10173,16 +10278,14 @@ function drawPerformanceOverTimeChart(canvas,hist){
     return;
   }
 
-  drawLine(spfVals, v=>yRightFromSpf(v), "#88ff88", "diamond");
+  drawLine(spfVals, v=>yRightFromSpf(v), "#88ff88", "diamond", {markerSize: spfMarkerSize});
   drawCombinedPerfMarkers(scoreVals, metricVals);
-  drawLine(cpaVals, v=>yLeftFromScore(v), "#d6a7ff", "square", {markerDx:8, markerSize:3.7, strokeMarker:true});
+  drawLine(cpaVals, v=>yLeftFromScore(v), "#d6a7ff", "square", {markerDx:8, markerSize:perfMarkerSize, strokeMarker:true});
 
   sleepSpans.forEach(span=>{
     if(!span) return;
-    const startFrac = (span.start - minTime) / timeSpan;
-    const endFrac = (span.end - minTime) / timeSpan;
-    const x1 = PAD.left + Math.max(0, Math.min(1, startFrac)) * cW;
-    const x2 = PAD.left + Math.max(0, Math.min(1, endFrac)) * cW;
+    const x1 = rawXForTime(span.start);
+    const x2 = rawXForTime(span.end);
     const barW = Math.max(2, x2 - x1);
     ctx.fillStyle = span.color;
     ctx.fillRect(x1, sleepBarY, barW, sleepBarH);
@@ -10194,13 +10297,13 @@ function drawPerformanceOverTimeChart(canvas,hist){
   ctx.textAlign="left";
   ctx.font=fontLegend;
   ctx.beginPath();
-  ctx.arc(PAD.left+7, PAD.top-18, 2.8, 0, Math.PI*2);
+  ctx.arc(PAD.left+7, PAD.top-18, perfInnerRadius, 0, Math.PI*2);
   ctx.fillStyle="#7fd7ff";
   ctx.fill();
   ctx.fillStyle="#7fd7ff";
   ctx.fillText("Blue dot = CPI", PAD.left+18, PAD.top-14);
   ctx.beginPath();
-  ctx.arc(PAD.left+188, PAD.top-18, 5.6, 0, Math.PI*2);
+  ctx.arc(PAD.left+188, PAD.top-18, perfOuterRadius, 0, Math.PI*2);
   ctx.strokeStyle="#ffb357";
   ctx.lineWidth=2.2;
   ctx.stroke();

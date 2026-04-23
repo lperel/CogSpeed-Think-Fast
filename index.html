@@ -1125,9 +1125,10 @@
         <div style="display:grid;gap:4px">
           <label for="perfRangePreset" style="font-size:13px;color:var(--muted);font-weight:700">Range</label>
           <select id="perfRangePreset" style="width:100%;padding:10px 12px;border-radius:10px;border:1px solid var(--edge);background:#081321;color:var(--text);font-size:14px">
-            <option value="last14">Last 14 sessions</option>
-            <option value="all">All saved sessions</option>
-            <option value="custom">Custom dates</option>
+            <option value="24h">24h</option>
+            <option value="7d">7d</option>
+            <option value="30sessions">Last 30 sessions</option>
+            <option value="all">All history</option>
           </select>
         </div>
         <div style="display:grid;gap:4px">
@@ -1253,6 +1254,6 @@
   <div class="resp-grid" id="respGrid"></div>
 </div>
 
-<script src="app.js?v=699rev102" defer></script>
+<script src="app.js?v=699rev106" defer></script>
 </body>
 </html>
