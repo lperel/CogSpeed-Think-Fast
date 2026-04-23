@@ -368,7 +368,7 @@ let settings=loadSettings();
 // profile record (profile is no longer the source of truth for test type),
 // and persist both. This fires once per fresh rev deployment per device;
 // after that, the stamp matches and nothing is touched on subsequent loads.
-const APP_REV_STAMP = "V699rev133";
+const APP_REV_STAMP = "V699rev135";
 // Version policy: APP_VERSION preserves base storage/schema continuity; DISPLAY_VERSION is what users see.
 const DISPLAY_VERSION = APP_REV_STAMP || APP_VERSION;
 (function migrateToCurrentRev(){
@@ -6813,8 +6813,8 @@ ${getResultsMetricExplanationText(result)}`);
 // ──────────────────────────────────────────────────────────────
 let _speedoRaf = null;
 
-function drawSpeedometer(canvas, scoreValue, success, scoreLabel="CPI", tipLabel="MBS", tipValue=null, opts=null){
- opts = opts || {};
+
+function drawSpeedometer(canvas, scoreValue, success, scoreLabel="CPI", tipLabel="MBS", tipValue=null, opts={}){
  const dpr = window.devicePixelRatio||1;
  const W = canvas.offsetWidth||380;
  const H = W;
@@ -6824,24 +6824,18 @@ function drawSpeedometer(canvas, scoreValue, success, scoreLabel="CPI", tipLabel
  ctx.setTransform(dpr,0,0,dpr,0,0);
  ctx.clearRect(0,0,W,H);
 
- const clampScore = (v)=>Math.max(0,Math.min(100,Number(v)||0));
- const primaryScore = clampScore(scoreValue);
- const secondaryNeedleValue = Number.isFinite(Number(opts.secondaryNeedleValue)) ? clampScore(opts.secondaryNeedleValue) : null;
- const lowerWindows = Array.isArray(opts.lowerWindows) ? opts.lowerWindows.filter(Boolean).slice(0,2) : [];
- const spfsCode = Number.isFinite(Number(opts.spfsCode)) ? Math.max(1, Math.min(7, Math.round(Number(opts.spfsCode)))) : null;
-
  const cx = W/2, cy = H/2;
- const R = W*0.34;
+ const R = W*0.38;
  const A_START = 150*Math.PI/180;
  const A_SWEEP = 240*Math.PI/180;
- function toAngle(v){ return A_START + clampScore(v)/100*A_SWEEP; }
- const na = toAngle(primaryScore);
+ function clamp100(v){ return Math.max(0,Math.min(100,Number(v)||0)); }
+ function toAngle(v){ return A_START + (clamp100(v)/100)*A_SWEEP; }
+ const primaryAngle = toAngle(scoreValue);
  const bandOut = R*1.12;
  const bandIn  = R*0.95;
  const tickOuter = R*0.89;
  const faceTone = "#efe2c2";
  const dark = "#17130f";
- const secondaryColor = "#1a5cff";
 
  // outer bezel / chrome
  ctx.beginPath(); ctx.arc(cx,cy,R*1.22,0,Math.PI*2);
@@ -6869,13 +6863,13 @@ function drawSpeedometer(canvas, scoreValue, success, scoreLabel="CPI", tipLabel
  ctx.strokeStyle = "rgba(255,255,255,0.38)"; ctx.lineWidth = R*0.012; ctx.stroke();
 
  const arcBands = [
-  {s:0,    e:5.5,  c:"#650000", spfs:1},
-  {s:5.5,  e:18,   c:"#cf2020", spfs:2},
-  {s:18,   e:37.5, c:"#f28c18", spfs:3},
-  {s:37.5, e:62.5, c:"#e4cf2f", spfs:4},
-  {s:62.5, e:77.5, c:"#9ddc6b", spfs:5},
-  {s:77.5, e:90,   c:"#43a94e", spfs:6},
-  {s:90,   e:100,  c:"#0a5d1c", spfs:7}
+  {s:0,    e:5.5,  c:"#650000"},
+  {s:5.5,  e:18,   c:"#cf2020"},
+  {s:18,   e:37.5, c:"#f28c18"},
+  {s:37.5, e:62.5, c:"#e4cf2f"},
+  {s:62.5, e:77.5, c:"#9ddc6b"},
+  {s:77.5, e:90,   c:"#43a94e"},
+  {s:90,   e:100,  c:"#0a5d1c"}
  ];
  for(const b of arcBands){
   const a1 = toAngle(b.s), a2 = toAngle(b.e);
@@ -6887,31 +6881,6 @@ function drawSpeedometer(canvas, scoreValue, success, scoreLabel="CPI", tipLabel
   ctx.fill();
  }
 
- // current S-PFS marker on the disposition band
- if(spfsCode != null){
-  const band = arcBands.find(b=>b.spfs===spfsCode);
-  if(band){
-   const mid = (band.s + band.e) / 2;
-   const a = toAngle(mid);
-   const rr = (bandOut + bandIn) / 2;
-   const x = cx + rr*Math.cos(a);
-   const y = cy + rr*Math.sin(a);
-   ctx.beginPath();
-   ctx.arc(x, y, R*0.07, 0, Math.PI*2);
-   ctx.fillStyle = "rgba(255,255,255,0.94)";
-   ctx.fill();
-   ctx.strokeStyle = dark;
-   ctx.lineWidth = R*0.01;
-   ctx.stroke();
-   ctx.fillStyle = dark;
-   ctx.textAlign = "center";
-   ctx.textBaseline = "middle";
-   ctx.font = `700 ${(R*0.10).toFixed(1)}px Arial,sans-serif`;
-   ctx.fillText(String(spfsCode), x, y+R*0.003);
-  }
- }
-
- // outer fine hash marks
  ctx.strokeStyle = dark;
  ctx.lineCap = "butt";
  for(let v=0;v<=100;v++){
@@ -6944,7 +6913,6 @@ function drawSpeedometer(canvas, scoreValue, success, scoreLabel="CPI", tipLabel
   ctx.restore();
  });
 
- // numerals
  ctx.fillStyle = dark;
  ctx.textAlign = "center";
  ctx.textBaseline = "middle";
@@ -6959,20 +6927,10 @@ function drawSpeedometer(canvas, scoreValue, success, scoreLabel="CPI", tipLabel
   ctx.fillText(String(v), x, y);
  }
 
- // explicit score label — keep it low on the dial so the needle does not obscure it
- ctx.font = `700 ${(R*0.104).toFixed(1)}px Arial,sans-serif`;
+ const centerLabel = opts && opts.secondaryScore!=null ? "CPI / CPA" : String(scoreLabel||"CPI");
+ ctx.font = `700 ${(R*0.09).toFixed(1)}px Arial,sans-serif`;
  ctx.fillStyle = dark;
- ctx.fillText(String(scoreLabel||"CPI"), cx, cy + R*0.18);
-
- if(secondaryNeedleValue != null){
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-  ctx.font = `700 ${(R*0.065).toFixed(1)}px Arial,sans-serif`;
-  ctx.fillStyle = dark;
-  ctx.fillText("CPI", cx - R*0.24, cy + R*0.30);
-  ctx.fillStyle = secondaryColor;
-  ctx.fillText("CPA", cx + R*0.24, cy + R*0.30);
- }
+ ctx.fillText(centerLabel, cx, cy + R*0.22);
 
  function drawPrimaryNeedle(angle, color){
   ctx.save();
@@ -6996,71 +6954,39 @@ function drawSpeedometer(canvas, scoreValue, success, scoreLabel="CPI", tipLabel
   ctx.stroke();
   ctx.restore();
  }
- 
- function drawSecondaryNeedle(angle, color){
+ function drawSecondaryNeedle(angle){
   ctx.save();
   ctx.translate(cx,cy);
   ctx.rotate(angle);
   ctx.beginPath();
-  ctx.moveTo(R*0.02, 0);
-  ctx.lineTo(R*0.10, -R*0.018);
-  ctx.lineTo(R*0.56, -R*0.008);
+  ctx.moveTo(R*0.05, 0);
+  ctx.lineTo(R*0.14, -R*0.018);
+  ctx.lineTo(R*0.68, -R*0.010);
   ctx.lineTo(R*0.78, 0);
-  ctx.lineTo(R*0.56, R*0.008);
-  ctx.lineTo(R*0.10, R*0.018);
+  ctx.lineTo(R*0.68, R*0.010);
+  ctx.lineTo(R*0.14, R*0.018);
   ctx.closePath();
-  ctx.fillStyle = color;
+  ctx.fillStyle = "#355c7d";
   ctx.fill();
-  ctx.strokeStyle = "rgba(255,255,255,0.35)";
-  ctx.lineWidth = R*0.004;
+  ctx.lineWidth = R*0.006;
+  ctx.strokeStyle = "#ffffff";
   ctx.stroke();
   ctx.beginPath();
-  ctx.arc(R*0.82, 0, R*0.025, 0, Math.PI*2);
+  ctx.arc(R*0.82, 0, R*0.03, 0, Math.PI*2);
   ctx.fillStyle = "#ffffff";
   ctx.fill();
-  ctx.strokeStyle = color;
   ctx.lineWidth = R*0.008;
+  ctx.strokeStyle = "#355c7d";
   ctx.stroke();
-  ctx.beginPath();
-  ctx.arc(R*0.82, 0, R*0.010, 0, Math.PI*2);
-  ctx.fillStyle = color;
-  ctx.fill();
   ctx.restore();
  }
- 
- if(secondaryNeedleValue != null) drawSecondaryNeedle(toAngle(secondaryNeedleValue), secondaryColor);
- drawPrimaryNeedle(na, success ? dark : "#b10000");
 
- if(lowerWindows.length >= 1){
-  const bh = R*0.18;
-  const gap = R*0.08;
-  const count = Math.min(2, lowerWindows.length);
-  const bw = count === 1 ? R*1.04 : R*0.48;
-  const totalW = count === 1 ? bw : (bw*2 + gap);
-  const bx1 = cx - totalW/2;
-  const bx2 = bx1 + bw + gap;
-  const by = cy + R*0.47;
-  const boxes = count === 1 ? [bx1] : [bx1, bx2];
-  boxes.forEach((bx, i)=>{
-   const item = lowerWindows[i] || {label:"—", value:"—"};
-   ctx.beginPath();
-   if(ctx.roundRect) ctx.roundRect(bx, by, bw, bh, R*0.012); else ctx.rect(bx, by, bw, bh);
-   ctx.fillStyle = "#d9df4c";
-   ctx.fill();
-   ctx.strokeStyle = "rgba(0,0,0,0.45)";
-   ctx.lineWidth = R*0.008;
-   ctx.stroke();
-   ctx.fillStyle = dark;
-   ctx.textAlign = "center";
-   ctx.textBaseline = "middle";
-   ctx.font = `700 ${(R*0.050).toFixed(1)}px Arial,sans-serif`;
-   ctx.fillText(String(item.value||"—"), bx + bw/2, by + bh*0.56);
-   ctx.font = `700 ${(R*0.082).toFixed(1)}px Arial,sans-serif`;
-   ctx.fillText(String(item.label||"—"), bx + bw/2, by - R*0.06);
-  });
- } else if(success && tipValue){
+ drawPrimaryNeedle(primaryAngle, success ? dark : "#b10000");
+ if(opts && opts.secondaryScore!=null){ drawSecondaryNeedle(toAngle(opts.secondaryScore)); }
+
+ if(success && tipValue){
   const bw = R*0.72, bh = R*0.18;
-  const bx = cx - bw/2, by = cy + R*0.47;
+  const bx = cx - bw/2, by = cy + R*0.37;
   ctx.beginPath();
   if(ctx.roundRect) ctx.roundRect(bx, by, bw, bh, R*0.012); else ctx.rect(bx, by, bw, bh);
   ctx.fillStyle = "#d9df4c";
@@ -7077,6 +7003,35 @@ function drawSpeedometer(canvas, scoreValue, success, scoreLabel="CPI", tipLabel
   ctx.fillText(String(tipLabel||"MBS"), cx, by - R*0.07);
  }
 
+ if(opts && opts.spfsValue!=null){
+  const bandIndex = Math.max(1, Math.min(7, Number(opts.spfsValue)||0)) - 1;
+  const b = arcBands[bandIndex] || arcBands[0];
+  const a = toAngle((b.s + b.e)/2);
+  const rr = (bandIn + bandOut) / 2;
+  const x = cx + rr*Math.cos(a);
+  const y = cy + rr*Math.sin(a);
+  ctx.save();
+  ctx.translate(x,y);
+  ctx.rotate(a + Math.PI/2);
+  const label = `S-PFS ${opts.spfsValue}`;
+  ctx.font = `800 ${(R*0.058).toFixed(1)}px Arial,sans-serif`;
+  const padX = R*0.03, padY = R*0.016;
+  const tw = ctx.measureText(label).width;
+  const bw = tw + padX*2, bh = R*0.095;
+  ctx.beginPath();
+  if(ctx.roundRect) ctx.roundRect(-bw/2, -bh/2, bw, bh, R*0.02); else ctx.rect(-bw/2, -bh/2, bw, bh);
+  ctx.fillStyle = "rgba(255,255,255,0.90)";
+  ctx.fill();
+  ctx.lineWidth = R*0.006;
+  ctx.strokeStyle = dark;
+  ctx.stroke();
+  ctx.fillStyle = dark;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText(label, 0, 0);
+  ctx.restore();
+ }
+
  const hub = ctx.createRadialGradient(cx-R*0.02, cy-R*0.02, 0, cx, cy, R*0.09);
  hub.addColorStop(0, "#6a6a6a");
  hub.addColorStop(0.55, "#272727");
@@ -7085,28 +7040,30 @@ function drawSpeedometer(canvas, scoreValue, success, scoreLabel="CPI", tipLabel
  ctx.beginPath(); ctx.arc(cx,cy,R*0.03,0,Math.PI*2); ctx.fillStyle = "#4f4f4f"; ctx.fill();
 }
 
-// Sweep needle 0→CPI in 1.4s ease-in-out, then dither ±0.8 CPI
-function animateSpeedometer(canvas, targetScore, success, scoreLabel="CPI", tipLabel="MBS", tipValue=null, opts=null){
+function animateSpeedometer(canvas, targetScore, success, scoreLabel="CPI", tipLabel="MBS", tipValue=null, opts={}){
  stopSpeedometer();
  const finalCPI = success ? targetScore : 0;
+ const finalCPA = success && opts && opts.secondaryScore!=null ? clamp100(opts.secondaryScore) : null;
  const SWEEP_DUR = 1400;
  let startTime=null, phase="sweep", ditherStart=null;
-
  function frame(ts){
   if(!startTime) startTime=ts;
   const elapsed=ts-startTime;
-  let cps;
+  let cps, cpaNow=finalCPA;
   if(phase==="sweep"){
    const t=Math.min(elapsed/SWEEP_DUR,1);
-   // Cubic ease-in-out
    const e=t<0.5?4*t*t*t:1-Math.pow(-2*t+2,3)/2;
    cps=finalCPI*e;
+   if(finalCPA!=null) cpaNow = finalCPA*e;
    if(t>=1){ phase="dither"; ditherStart=ts; }
   } else {
    const dt=ts-ditherStart;
    cps=finalCPI+Math.sin(dt*0.0044)*0.54+Math.sin(dt*0.0071)*0.26;
+   if(finalCPA!=null) cpaNow = finalCPA+Math.sin(dt*0.0051)*0.34+Math.sin(dt*0.0083)*0.18;
   }
-  drawSpeedometer(canvas, cps, success, scoreLabel, tipLabel, tipValue, opts);
+  const drawOpts = Object.assign({}, opts || {});
+  if(finalCPA!=null) drawOpts.secondaryScore = cpaNow;
+  drawSpeedometer(canvas, cps, success, scoreLabel, tipLabel, tipValue, drawOpts);
   _speedoRaf=requestAnimationFrame(frame);
  }
  _speedoRaf=requestAnimationFrame(frame);
@@ -9490,9 +9447,10 @@ function drawSpfGauge(canvas, spf){
 }
 
 function renderSpfGaugeForResult(result){
- const canvas = $("spfGaugeCanvas");
- if(canvas) canvas.style.display = "none";
+ const wrap = $("spfGaugeWrap");
+ if(wrap) wrap.style.display = "none";
 }
+
 
 function getSleepQualityBadge(result){
  const label = String(result?.sleepLog?.qualityLabel || "").trim();
@@ -9578,16 +9536,30 @@ function getMode2DispositionWindowText(result){
 }
 
 
+
 function getMode2SpeedometerMetric(result, success){
  const mbs = Number(result && (result.mode2AdaptiveMbsMs!=null ? result.mode2AdaptiveMbsMs : result.averageLast2BlockingScoresMs));
  const cpi = Number.isFinite(mbs) ? computeCPI(mbs) : (Number.isFinite(Number(result && result.cognitivePerformanceIndex)) ? Number(result.cognitivePerformanceIndex) : null);
+ const cpa = Number(result && result.cpa);
  const failed = success === false;
-  const mbsText = failed ? "—" : (Number.isFinite(mbs)?`${Number(mbs).toFixed(1)} ms`:"—");
  return {
-  score: failed ? 0 : (Number.isFinite(cpi)?Math.max(0,Math.min(100,cpi)):0),
-  scoreLabel: "CPI",
-  mbsText,
+  primaryScore: failed ? 0 : (Number.isFinite(cpi)?Math.max(0,Math.min(100,cpi)):0),
+  secondaryScore: failed ? null : (Number.isFinite(cpa)?Math.max(0,Math.min(100,cpa)):null),
+  mbsText: failed ? null : (Number.isFinite(mbs)?`${Number(mbs).toFixed(1)} ms`:null),
+  spfsValue: failed ? null : (result && result.samnPerelli && result.samnPerelli.score!=null ? Number(result.samnPerelli.score) : null),
+  dispositionText: failed ? "—" : getMode2DispositionWindowText(result)
  };
+}
+
+function renderMode2SpeedometerBoxes(metric){
+ const wrap = $("speedometerMode2Metrics");
+ if(!wrap) return;
+ const text = metric && metric.dispositionText ? String(metric.dispositionText) : "";
+ if(!text){ wrap.innerHTML=""; wrap.classList.add("hidden"); return; }
+ wrap.classList.remove("hidden");
+ wrap.style.display = "grid";
+ wrap.style.gridTemplateColumns = "1fr";
+ wrap.innerHTML = `<div class="summary-card"><div class="summary-card-label">Disposition</div><div class="summary-card-val" style="font-size:20px">${text}</div></div>`;
 }
 
 function renderSpeedometerOutcome(result, sessionIndex){
@@ -9607,14 +9579,13 @@ function renderSpeedometerOutcome(result, sessionIndex){
  let scoreLabel = "CPI";
  let metricLabel = "MBS";
  let metricValueText = null;
- let speedoOptions = null;
+ let mode2Metric = null;
  const isMode2Speedometer = !!(result && result.testMode==="mode2");
- if(result && (result.dispositionCode==null || result.dispositionLabel==null || result.dispositionSpfs==null || /^(GREEN|YELLOW|ORANGE|RED)$/i.test(String(result.dispositionCode||"")))) Object.assign(result, computeDisposition(result));
  if(isMode2Speedometer){
   if(result && result.mode2Triggered && result.cpa==null) Object.assign(result, computeMode2CPA(result));
-  const mode2Metric = getMode2SpeedometerMetric(result, success);
-  const cpiNeedle = Number.isFinite(Number(result && result.cognitivePerformanceIndex)) ? Math.max(0, Math.min(100, Number(result.cognitivePerformanceIndex))) : mode2Metric.score;
-  cps = success ? cpiNeedle : 0;
+  if(result && (result.dispositionCode==null || result.dispositionLabel==null || /^(GREEN|YELLOW|ORANGE|RED)$/i.test(String(result.dispositionCode||"")))) Object.assign(result, computeDisposition(result));
+  mode2Metric = getMode2SpeedometerMetric(result, success);
+  cps = success ? mode2Metric.primaryScore : 0;
   if(success){
    mbs = Number(result && (result.mode2AdaptiveMbsMs!=null ? result.mode2AdaptiveMbsMs : result.averageLast2BlockingScoresMs));
    metricLabel = "MBS";
@@ -9626,20 +9597,6 @@ function renderSpeedometerOutcome(result, sessionIndex){
    metricValueText = null;
   }
   scoreLabel = "CPI";
-  const cpaNeedle = success && result && result.mode2Triggered && Number.isFinite(Number(result.cpa))
-   ? Math.max(0, Math.min(100, Number(result.cpa)))
-   : null;
-  speedoOptions = {
-   secondaryNeedleValue: cpaNeedle,
-   lowerWindows: [
-    {label:"Disposition", value: getMode2DispositionWindowText(result)}
-   ],
-   spfsCode: Number.isFinite(Number(result && result.samnPerelli && result.samnPerelli.score)) ? Number(result.samnPerelli.score) : null
-  };
- } else {
-  speedoOptions = {
-   spfsCode: success ? Number(result && (result.dispositionSpfs!=null ? result.dispositionSpfs : result.dispositionCode)) : null
-  };
  }
  const wrap = $("speedometerWrap");
  if(wrap) canvas.style.width = wrap.offsetWidth + "px";
@@ -9651,8 +9608,16 @@ function renderSpeedometerOutcome(result, sessionIndex){
       : (latestIdx!=null ? latestIdx : 0));
  setActiveResultContext(result, idx>=0?idx:null, idx>=0?"rendered from history":"rendered current result");
  if(idx>=0){ syncSpeedometerSessionSelect(idx); }
- stopSpeedometer();
- setTimeout(()=>animateSpeedometer(canvas, cps, success, scoreLabel, metricLabel, metricValueText, speedoOptions), 80);
+
+const mode2Toggle=$("speedometerMode2ToggleBtn");
+if(mode2Toggle) mode2Toggle.classList.add("hidden");
+renderMode2SpeedometerBoxes(isMode2Speedometer ? mode2Metric : null);
+const controlsRow = $("speedometerMode2ControlsRow");
+if(controlsRow) controlsRow.style.gridTemplateColumns = "1fr";
+stopSpeedometer();
+const speedoOpts = isMode2Speedometer ? {secondaryScore: mode2Metric ? mode2Metric.secondaryScore : null, spfsValue: mode2Metric ? mode2Metric.spfsValue : null} : {};
+setTimeout(()=>animateSpeedometer(canvas, cps, success, scoreLabel, metricLabel, metricValueText, speedoOpts), 80);
+renderSpfGaugeForResult(result);
  const ovt=$("outcomeVerificationText"); if(ovt){ ovt.textContent = ""; ovt.style.display = "none"; }
  renderSpeedometerSleepMetrics(result);
  renderSpeedometerBaseline(result);
@@ -9848,19 +9813,15 @@ function filterSessionsForPerfGraph(hist){
   const base = getPerfGraphBaseSessions(hist);
   if(!base.length) return base;
   const lastMs = perfSessionUtcMs(base[base.length-1]);
-  let filtered = base;
-  if(perfGraphState.preset === "all") filtered = base;
-  else if(perfGraphState.preset === "30sessions") filtered = base.slice(-30);
-  else if(perfGraphState.preset === "24h"){
+  if(perfGraphState.preset === "all") return base;
+  if(perfGraphState.preset === "30sessions") return base.slice(-30);
+  if(perfGraphState.preset === "24h"){
     const startMs = lastMs - (24 * 60 * 60 * 1000);
-    filtered = base.filter(r=> perfSessionUtcMs(r) >= startMs);
-  } else if(perfGraphState.preset === "7d"){
-    const startMs = lastMs - (7 * 24 * 60 * 60 * 1000);
-    filtered = base.filter(r=> perfSessionUtcMs(r) >= startMs);
+    return base.filter(r=> perfSessionUtcMs(r) >= startMs);
   }
-  if(filtered.length) return filtered;
-  if(perfGraphState.preset === "24h" || perfGraphState.preset === "7d"){
-    return base.slice(-Math.min(30, base.length));
+  if(perfGraphState.preset === "7d"){
+    const startMs = lastMs - (7 * 24 * 60 * 60 * 1000);
+    return base.filter(r=> perfSessionUtcMs(r) >= startMs);
   }
   return base;
 }
@@ -9880,12 +9841,6 @@ function syncPerfGraphControls(hist){
   if(info){
     if(!base.length){
       info.textContent = "No saved sessions yet.";
-    }else if((perfGraphState.preset === "24h" || perfGraphState.preset === "7d") && !base.filter(r=>{
-      const lastMs = perfSessionUtcMs(base[base.length-1]);
-      const startMs = perfGraphState.preset === "24h" ? (lastMs - (24 * 60 * 60 * 1000)) : (lastMs - (7 * 24 * 60 * 60 * 1000));
-      return perfSessionUtcMs(r) >= startMs;
-    }).length){
-      info.textContent = `No sessions were found in the selected ${perfGraphState.preset === "24h" ? "24-hour" : "7-day"} window. Showing the most recent ${filtered.length} session${filtered.length===1?"":"s"} instead.`;
     }else if(perfGraphState.preset === "24h"){
       info.textContent = `Showing sessions from the last 24 hours.`;
     }else if(perfGraphState.preset === "7d"){
@@ -9916,7 +9871,6 @@ function wirePerfGraphControls(){
 
 function drawPerformanceOverTimeChart(canvas,hist){
   if(!canvas) return;
-  try{
   const fullHist = hist || [];
   const scroller = canvas.parentElement;
   const viewportW = Math.max(320, Math.round((scroller && scroller.clientWidth) || canvas.clientWidth || canvas.offsetWidth || 900));
@@ -10388,28 +10342,6 @@ function drawPerformanceOverTimeChart(canvas,hist){
   ctx.fillStyle = "#d7e7f8"; ctx.fillText("Restless", PAD.left+126, legendY);
   ctx.fillStyle = "#46d36a"; ctx.fillRect(PAD.left+198, legendY-8, 12, 8);
   ctx.fillStyle = "#d7e7f8"; ctx.fillText("Good", PAD.left+216, legendY);
-  }catch(err){
-    const dpr = window.devicePixelRatio || 1;
-    const cssW = Math.max(900, Math.round(canvas.clientWidth || canvas.offsetWidth || 900));
-    const cssH = Math.max(620, Math.round(canvas.clientHeight || canvas.offsetHeight || 620));
-    canvas.style.width = cssW + "px";
-    canvas.style.minWidth = cssW + "px";
-    canvas.style.height = cssH + "px";
-    canvas.width = Math.round(cssW * dpr);
-    canvas.height = Math.round(cssH * dpr);
-    const ctx = canvas.getContext("2d");
-    ctx.setTransform(dpr,0,0,dpr,0,0);
-    ctx.clearRect(0,0,cssW,cssH);
-    ctx.fillStyle = "#081321";
-    ctx.fillRect(0,0,cssW,cssH);
-    ctx.fillStyle = "#d7e7f8";
-    ctx.font = "bold 16px sans-serif";
-    ctx.textAlign = "center";
-    ctx.fillText("Performance graph unavailable for this view", cssW/2, cssH/2 - 10);
-    ctx.font = "12px sans-serif";
-    ctx.fillText("Switch range or reopen the graph.", cssW/2, cssH/2 + 18);
-    try{ console.error("Performance-over-time graph render failed", err); }catch(_e){}
-  }
 }
 
 function getLastGraphableResult(){
