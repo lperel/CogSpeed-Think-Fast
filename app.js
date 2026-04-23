@@ -368,7 +368,7 @@ let settings=loadSettings();
 // profile record (profile is no longer the source of truth for test type),
 // and persist both. This fires once per fresh rev deployment per device;
 // after that, the stamp matches and nothing is touched on subsequent loads.
-const APP_REV_STAMP = "V699rev98";
+const APP_REV_STAMP = "V699rev99";
 (function migrateToCurrentRev(){
  let stored = "";
  try{ stored = localStorage.getItem(`${STORAGE_PREFIX}_rev_stamp`) || ""; }catch(e){ stored = ""; }
@@ -9909,7 +9909,7 @@ function drawPerformanceOverTimeChart(canvas,hist){
     worstMs = Number(settings.cpiWorstMs)||DEFAULTS.cpiWorstMs;
   }
   const setLabelForAxis = homogeneousSet === "memory" ? "Memory" : homogeneousSet === "survival" ? "Survival" : "Standard";
-  const PAD = {top:72,right:118,bottom:138,left:126};
+  const PAD = {top:72,right:118,bottom:170,left:126};
   const cW = W - PAD.left - PAD.right;
   const cH = H - PAD.top - PAD.bottom;
 
@@ -9994,8 +9994,8 @@ function drawPerformanceOverTimeChart(canvas,hist){
   ctx.fillStyle="#88ff88"; ctx.textAlign="center"; ctx.font="bold 12px sans-serif";
   ctx.fillText("S-PFS 1–7 (up is better)", 0, 0); ctx.restore();
 
-  ctx.strokeStyle="rgba(79,111,153,0.55)";
-  ctx.lineWidth = 1.2;
+  ctx.strokeStyle="#d7e7f8";
+  ctx.lineWidth = 2.2;
   ctx.beginPath(); ctx.moveTo(PAD.left, PAD.top+cH); ctx.lineTo(PAD.left+cW, PAD.top+cH); ctx.stroke();
 
   function choosePerfTickStep(spanMs){
@@ -10023,22 +10023,24 @@ function drawPerformanceOverTimeChart(canvas,hist){
     return d.toLocaleTimeString("en-US", {hour:"numeric", minute:"2-digit"});
   }
 
-  ctx.font="11px sans-serif";
-  ctx.fillStyle="#b9cee2";
+  ctx.font="bold 13px sans-serif";
+  ctx.fillStyle="#e9f3ff";
   ctx.textAlign="center";
 
-  const axisLabelY = PAD.top + cH + 58;
-  const axisTitleY = H - 12;
+  const axisDateY = PAD.top + cH + 26;
+  const axisTimeY = PAD.top + cH + 46;
+  const axisTitleY = PAD.top + cH + 74;
   const spanMs = (Number.isFinite(minTime) && Number.isFinite(maxTime)) ? Math.max(0, maxTime - minTime) : 0;
 
   if(n===1 || !Number.isFinite(minTime) || !Number.isFinite(maxTime) || maxTime<=minTime){
     const onlyMs = Number.isFinite(timeVals[0]) ? timeVals[0] : Date.now();
     const x = xOf(0);
-    ctx.strokeStyle = "rgba(185,206,226,0.55)";
-    ctx.beginPath(); ctx.moveTo(x, PAD.top+cH); ctx.lineTo(x, PAD.top+cH+8); ctx.stroke();
-    ctx.fillText(formatPerfTickDate(onlyMs, 0), x, axisLabelY-14);
+    ctx.strokeStyle = "#d7e7f8";
+    ctx.lineWidth = 1.6;
+    ctx.beginPath(); ctx.moveTo(x, PAD.top+cH); ctx.lineTo(x, PAD.top+cH+12); ctx.stroke();
+    ctx.fillText(formatPerfTickDate(onlyMs, 0), x, axisDateY);
     const t = formatPerfTickTime(onlyMs, 0);
-    if(t) ctx.fillText(t, x, axisLabelY+2);
+    if(t) ctx.fillText(t, x, axisTimeY);
   }else{
     const stepMs = choosePerfTickStep(spanMs);
     const tickStart = Math.ceil(minTime / stepMs) * stepMs;
@@ -10057,16 +10059,17 @@ function drawPerformanceOverTimeChart(canvas,hist){
 
     deduped.forEach((t, idx)=>{
       const x = PAD.left + ((t-minTime)/(maxTime-minTime))*cW;
-      ctx.strokeStyle = idx===0 || idx===deduped.length-1 ? "rgba(185,206,226,0.55)" : "rgba(127,215,255,0.20)";
-      ctx.beginPath(); ctx.moveTo(x, PAD.top); ctx.lineTo(x, PAD.top+cH+8); ctx.stroke();
-      ctx.fillText(formatPerfTickDate(t, stepMs), x, axisLabelY-14);
+      ctx.strokeStyle = idx===0 || idx===deduped.length-1 ? "#d7e7f8" : "rgba(127,215,255,0.28)";
+      ctx.lineWidth = idx===0 || idx===deduped.length-1 ? 1.6 : 1.1;
+      ctx.beginPath(); ctx.moveTo(x, PAD.top); ctx.lineTo(x, PAD.top+cH+12); ctx.stroke();
+      ctx.fillText(formatPerfTickDate(t, stepMs), x, axisDateY);
       const timeLine = formatPerfTickTime(t, stepMs);
-      if(timeLine) ctx.fillText(timeLine, x, axisLabelY+2);
+      if(timeLine) ctx.fillText(timeLine, x, axisTimeY);
     });
   }
 
   ctx.fillStyle="#d7e7f8";
-  ctx.font="bold 11px sans-serif";
+  ctx.font="bold 12px sans-serif";
   ctx.fillText("Date / Time (continuous, device local)", PAD.left + cW/2, axisTitleY);
 
   function drawLine(vals, yFunc, color, style, opts={}){
