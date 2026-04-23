@@ -1,3 +1,7 @@
+## Rev 115
+- Restored the **Technical Methods** button to the main Profile page.
+- Kept the separate **Data Upload for Research** page for research-upload controls and explanatory text only.
+
 - Rev111 strict stale-code cleanup only:
   - Removed `fromDate` / `toDate` and the hidden custom-range wiring from the Performance over Date and Time graph so only the live range options remain (`24h`, `7d`, `Last 30 sessions`, `All history`).
   - Scrubbed the remaining stale `SPC` / `SPCMP` comment reference from `app.js`.
@@ -1751,3 +1755,11 @@ It is meant to provide a readable history without overloading inline code commen
 ## V699 Rev 105
 - Personal Baseline now always uses the full qualifying session history for the subject, regardless of which Speedometer session is selected.
 - Personal Baseline overlay wording updated to reflect current full-history baseline view.
+
+## Rev 116
+- Stale-code/wording cleanup only.
+- Added an explicit version-display policy in app.js: `APP_VERSION` remains the base compatibility/storage version, while `DISPLAY_VERSION`/`APP_REV_STAMP` is shown to users.
+- Updated user-facing version strings (backup filename, results/report text, email subject) to use the visible rev stamp.
+- Fixed the stale top comment in `sw.js` so it points to the rev/display version rather than `APP_VERSION`.
+- Reduced verification wording in user-visible labels to a minimal set: `Local only`, `Restored locally`, `Upload pending`, `Upload recorded`, and `Review needed`.
+- Softened the separate Research page explanatory text so it clearly states the upload path is being prepared for future use and does not imply a live workflow.

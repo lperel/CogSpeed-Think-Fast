@@ -368,7 +368,9 @@ let settings=loadSettings();
 // profile record (profile is no longer the source of truth for test type),
 // and persist both. This fires once per fresh rev deployment per device;
 // after that, the stamp matches and nothing is touched on subsequent loads.
-const APP_REV_STAMP = "V699rev113";
+const APP_REV_STAMP = "V699rev116";
+// Version policy: APP_VERSION preserves base storage/schema continuity; DISPLAY_VERSION is what users see.
+const DISPLAY_VERSION = APP_REV_STAMP || APP_VERSION;
 (function migrateToCurrentRev(){
  let stored = "";
  try{ stored = localStorage.getItem(`${STORAGE_PREFIX}_rev_stamp`) || ""; }catch(e){ stored = ""; }
@@ -448,13 +450,17 @@ const stimGrid=$("stimGrid"), probeCell=$("probeCell"), probeInner=$("probeInner
    phaseLabel=$("phaseLabel"), modeLabel=$("modeLabel");
 
 function syncReleaseUI(){
- const visibleVersion = APP_REV_STAMP || APP_VERSION;
+ const visibleVersion = DISPLAY_VERSION;
  document.title = `CogSpeed ${visibleVersion}`;
  const badge = $("versionBadge");
  if(badge) badge.textContent = visibleVersion;
  if(statusLine) statusLine.textContent = `CogSpeed ${visibleVersion}`;
 }
 syncReleaseUI();
+
+$("openResearchUploadPageBtn")?.addEventListener("click", ()=>$("researchUploadPage")?.classList.remove("hidden"));
+$("closeResearchUploadPageBtn")?.addEventListener("click", ()=>$("researchUploadPage")?.classList.add("hidden"));
+$("researchUploadPage")?.addEventListener("click", e=>{ if(e.target === $("researchUploadPage")) $("researchUploadPage").classList.add("hidden"); });
 
 function getPhaseBackgroundColor(){
  const phase=String(state.phase||"");
@@ -4833,16 +4839,16 @@ function currentResearchModelVersions(){
   dispositionModelVersion: 'disp-v1'
  };
 }
-// Verification wording remains available for Results - Complete and exported records only.
-// Speedometer and Results Summary intentionally suppress this text.
+// Verification wording is intentionally minimal. Show it only where operationally needed
+// (for example Results - Complete and exported records), not on the Speedometer or Results Summary.
 function getVerificationStatusLabel(result){
  const code = String(result?.verificationStatus||'local_only').toLowerCase();
  if(code==='verified') return 'Verified';
- if(code==='uploaded') return 'Uploaded — awaiting receipt';
- if(code==='queued') return 'Queued for upload';
- if(code==='rejected') return 'Rejected / needs review';
- if(code==='restored_unverified') return 'Restored — unverified';
- return 'Local provisional — unverified';
+ if(code==='uploaded') return 'Upload recorded';
+ if(code==='queued') return 'Upload pending';
+ if(code==='rejected') return 'Review needed';
+ if(code==='restored_unverified') return 'Restored locally';
+ return 'Local only';
 }
 function buildScoringSnapshot(){
  const mode2 = {
@@ -5971,7 +5977,7 @@ async function downloadCogSpeedLocalDataBackup(){
  const blob = new Blob([JSON.stringify(backup, null, 2)], {type:'application/json'});
  const a=document.createElement('a');
  a.href=URL.createObjectURL(blob);
- a.download=`cogspeed-backup-${APP_VERSION}-${stamp}.json`;
+ a.download=`cogspeed-backup-${DISPLAY_VERSION}-${stamp}.json`;
  document.body.appendChild(a);
  a.click();
  setTimeout(()=>{ try{ URL.revokeObjectURL(a.href); }catch(e){} try{ a.remove(); }catch(e){} }, 250);
@@ -6308,7 +6314,7 @@ function buildRankedSummary(result){
  const hr="─────────────────────────";
  const modeName = formatModeTag(result.testMode);
  el.textContent =
-`CogSpeed ${APP_VERSION} — ${modeName}
+`CogSpeed ${DISPLAY_VERSION} — ${modeName}
 ${hr}
 RANKED TARGET / POSITION AVERAGES — POOLED SAME-MODE SESSIONS
 ${formatModePooledRankSection(result.testMode)}`;
@@ -6488,7 +6494,7 @@ function buildResultsSummaryCompact(result){
    : '—';
  const wrongBreakdownLine = result.testMode==="mode2" ? `Wrong breakdown: Cal ${mode2WrongBreakdown.calibration} · Adaptive ${mode2WrongBreakdown.adaptive} · Recovery ${mode2WrongBreakdown.recovery} · Sustained ${mode2WrongBreakdown.sustained} · Final SP ${mode2WrongBreakdown.finalSelfPaced} · Total ${mode2WrongBreakdown.total}` : null;
  el.textContent=
-moveEndReasonNearSession(`CogSpeed version: ${APP_VERSION}
+moveEndReasonNearSession(`CogSpeed version: ${DISPLAY_VERSION}
 Mode: ${modeName}
 Session: ${result.sessionNumber!=null?result.sessionNumber:"—"}
 Subject ID: ${result.subjectId||"—"}
@@ -6546,7 +6552,7 @@ function buildSummary(result){
  const modeName = formatModeTag(result.testMode);
  if(result.testMode==="mode3"){
   el.textContent=
-moveEndReasonNearSession(`CogSpeed ${APP_VERSION} — ${modeName}
+moveEndReasonNearSession(`CogSpeed ${DISPLAY_VERSION} — ${modeName}
 ${hr}
 Test Mode:  ${formatModeTag(result.testMode)}
 Session:    ${result.sessionNumber!=null?result.sessionNumber:"—"}
@@ -6586,7 +6592,7 @@ ${getResultsMetricExplanationText(result)}`);
  }
  if(result.testMode==="mode4"){
   el.textContent=
-moveEndReasonNearSession(`CogSpeed ${APP_VERSION} — ${modeName}
+moveEndReasonNearSession(`CogSpeed ${DISPLAY_VERSION} — ${modeName}
 ${hr}
 Test Mode:  ${formatModeTag(result.testMode)}
 Session:    ${result.sessionNumber!=null?result.sessionNumber:"—"}
@@ -6652,7 +6658,7 @@ ${getResultsMetricExplanationText(result)}`);
   const adaptiveCounts=computeMode2AdaptiveCounts(result);
   const wrongBreakdown=computeMode2WrongBreakdown(result);
   el.textContent=
-moveEndReasonNearSession(`CogSpeed ${APP_VERSION} — ${modeName}
+moveEndReasonNearSession(`CogSpeed ${DISPLAY_VERSION} — ${modeName}
 ${hr}
 Test Mode:  ${formatModeTag(result.testMode)}
 Session:    ${result.sessionNumber!=null?result.sessionNumber:"—"}
@@ -6759,7 +6765,7 @@ ${getResultsMetricExplanationText(result)}`);
  const cps=result.cognitivePerformanceIndex;
  const sd=result.pacedResponseSdMs;
  el.textContent=
-moveEndReasonNearSession(`CogSpeed ${APP_VERSION} — ${modeName}
+moveEndReasonNearSession(`CogSpeed ${DISPLAY_VERSION} — ${modeName}
 ${hr}
 Test Mode:  ${formatModeTag(result.testMode)}
 Session:    ${result.sessionNumber!=null?result.sessionNumber:"—"}
@@ -10642,7 +10648,7 @@ function openSelectedEmailDraft(){
     return;
   }
   const body = buildEmailBodyFromSelection().replace(/\n/g,"\r\n");
-  const subject = `CogSpeed® ${APP_VERSION} Results`;
+  const subject = `CogSpeed® ${DISPLAY_VERSION} Results`;
   window.location.href = `mailto:${encodeURIComponent(to)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
 }
 
