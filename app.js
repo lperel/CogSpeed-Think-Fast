@@ -6814,7 +6814,7 @@ ${getResultsMetricExplanationText(result)}`);
 // ──────────────────────────────────────────────────────────────
 let _speedoRaf = null;
 
-function drawSpeedometer(canvas, scoreValue, success, scoreLabel="CPI", tipLabel="MBS", tipValue=null, secondaryNeedleValue=null){
+function drawSpeedometer(canvas, scoreValue, success, scoreLabel="CPI", tipLabel="MBS", tipValue=null, opts=null){
  const dpr = window.devicePixelRatio||1;
  const W = canvas.offsetWidth||380;
  const H = W;
@@ -6965,30 +6965,52 @@ function drawSpeedometer(canvas, scoreValue, success, scoreLabel="CPI", tipLabel
  ctx.stroke();
  ctx.restore();
 
- if(success && Number.isFinite(Number(secondaryNeedleValue))){
-  const sa = toAngle(Number(secondaryNeedleValue));
+ // optional secondary needle (used for Mode 2 CPA/CPI dual-needle display).
+ // Rendered as a HOLLOW outlined spear — thinner and visibly unfilled — so it
+ // is distinguishable from the primary (solid filled) needle by SHAPE alone,
+ // not just color. This satisfies the accessibility requirement that the two
+ // needles remain distinct for colorblind viewers and in grayscale printouts.
+ const secondaryNeedle = opts && opts.secondaryNeedle && Number.isFinite(Number(opts.secondaryNeedle.value))
+  ? {
+     value: Math.max(0, Math.min(100, Number(opts.secondaryNeedle.value))),
+     color: String(opts.secondaryNeedle.color || "#2d6cdf"),
+     widthScale: Number.isFinite(Number(opts.secondaryNeedle.widthScale)) ? Number(opts.secondaryNeedle.widthScale) : 0.62
+    }
+  : null;
+ if(secondaryNeedle){
+  const sa = toAngle(secondaryNeedle.value);
   ctx.save();
   ctx.translate(cx,cy);
   ctx.rotate(sa);
+  // Thinner spear silhouette, drawn as OUTLINE only (no fill) to contrast with
+  // the solid primary needle. Tip reaches R*0.76 (slightly inboard of primary's
+  // R*0.84) so both tips remain readable when needles overlap near the same
+  // value.
   ctx.beginPath();
-  ctx.moveTo(R*0.03, 0);
-  ctx.lineTo(R*0.12, -R*0.016);
-  ctx.lineTo(R*0.56, -R*0.010);
-  ctx.lineTo(R*0.82, 0);
-  ctx.lineTo(R*0.56, R*0.010);
-  ctx.lineTo(R*0.12, R*0.016);
+  ctx.moveTo(R*0.018, 0);
+  ctx.lineTo(R*0.09, -R*0.012);
+  ctx.lineTo(R*(0.52*secondaryNeedle.widthScale), -R*0.007);
+  ctx.lineTo(R*0.76, 0);
+  ctx.lineTo(R*(0.52*secondaryNeedle.widthScale), R*0.007);
+  ctx.lineTo(R*0.09, R*0.012);
   ctx.closePath();
-  ctx.fillStyle = "#2d6cdf";
-  ctx.fill();
+  // White halo first, then colored stroke on top — makes the outline legible
+  // over both the dial face and any color band it crosses.
+  ctx.lineJoin = "round";
+  ctx.strokeStyle = "rgba(255,255,255,0.85)";
+  ctx.lineWidth = R*0.016;
+  ctx.stroke();
+  ctx.strokeStyle = secondaryNeedle.color;
+  ctx.lineWidth = R*0.008;
+  ctx.stroke();
+  // Small hollow ring near the tip — matches the hollow aesthetic of the needle
   ctx.beginPath();
-  ctx.arc(R*0.80, 0, R*0.018, 0, Math.PI*2);
-  ctx.fillStyle = "#2d6cdf";
-  ctx.fill();
-  ctx.beginPath();
-  ctx.moveTo(R*0.10, -R*0.003);
-  ctx.lineTo(R*0.68, -R*0.0015);
-  ctx.strokeStyle = "rgba(255,255,255,0.28)";
-  ctx.lineWidth = R*0.0035;
+  ctx.arc(R*0.72, 0, R*0.022, 0, Math.PI*2);
+  ctx.strokeStyle = "rgba(255,255,255,0.85)";
+  ctx.lineWidth = R*0.010;
+  ctx.stroke();
+  ctx.strokeStyle = secondaryNeedle.color;
+  ctx.lineWidth = R*0.006;
   ctx.stroke();
   ctx.restore();
  }
@@ -7013,6 +7035,53 @@ function drawSpeedometer(canvas, scoreValue, success, scoreLabel="CPI", tipLabel
   ctx.fillText(String(tipLabel||"MBS"), cx, by - R*0.07);
  }
 
+ // Outer-ring S-PFS band label (Mode 2 only). Positioned at the angular
+ // midpoint of the colored band corresponding to the self-reported pre-test
+ // S-PFS value (1–7), rendered in that band's color on a white pill so it
+ // stays readable regardless of where the needles happen to point.
+ //
+ // Band center CPI values (computed once from arcBands edges above):
+ //   S-PFS 1 → 2.75   (deep red band)
+ //   S-PFS 2 → 11.75  (red band)
+ //   S-PFS 3 → 27.75  (orange band)
+ //   S-PFS 4 → 50.0   (yellow band)
+ //   S-PFS 5 → 70.0   (light green band)
+ //   S-PFS 6 → 83.75  (green band)
+ //   S-PFS 7 → 95.0   (deep green band)
+ const spfsLabel = opts && opts.spfsOuterLabel;
+ if(spfsLabel && Number.isFinite(Number(spfsLabel.spfs))){
+  const n = Math.max(1, Math.min(7, Math.round(Number(spfsLabel.spfs))));
+  const bandCenters = [2.75, 11.75, 27.75, 50.0, 70.0, 83.75, 95.0];
+  const bandColorsForText = [
+   "#650000","#cf2020","#f28c18","#b58a00","#3d8a2c","#2c7a2f","#0a5d1c"
+  ];
+  const a = toAngle(bandCenters[n-1]);
+  const labelR = R*1.04;
+  const lx = cx + labelR*Math.cos(a);
+  const ly = cy + labelR*Math.sin(a);
+  const text = `S-PFS ${n}`;
+  ctx.save();
+  ctx.font = `800 ${(R*0.082).toFixed(1)}px Arial,sans-serif`;
+  const metrics = ctx.measureText(text);
+  const pillW = metrics.width + R*0.12;
+  const pillH = R*0.15;
+  ctx.translate(lx, ly);
+  // Keep the pill upright regardless of its angular position on the ring.
+  ctx.beginPath();
+  if(ctx.roundRect) ctx.roundRect(-pillW/2, -pillH/2, pillW, pillH, pillH*0.45);
+  else ctx.rect(-pillW/2, -pillH/2, pillW, pillH);
+  ctx.fillStyle = "rgba(255,255,255,0.96)";
+  ctx.fill();
+  ctx.strokeStyle = bandColorsForText[n-1];
+  ctx.lineWidth = R*0.010;
+  ctx.stroke();
+  ctx.fillStyle = bandColorsForText[n-1];
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText(text, 0, R*0.004);
+  ctx.restore();
+ }
+
  const hub = ctx.createRadialGradient(cx-R*0.02, cy-R*0.02, 0, cx, cy, R*0.09);
  hub.addColorStop(0, "#6a6a6a");
  hub.addColorStop(0.55, "#272727");
@@ -7022,7 +7091,7 @@ function drawSpeedometer(canvas, scoreValue, success, scoreLabel="CPI", tipLabel
 }
 
 // Sweep needle 0→CPI in 1.4s ease-in-out, then dither ±0.8 CPI
-function animateSpeedometer(canvas, targetScore, success, scoreLabel="CPI", tipLabel="MBS", tipValue=null, secondaryNeedleValue=null){
+function animateSpeedometer(canvas, targetScore, success, scoreLabel="CPI", tipLabel="MBS", tipValue=null, opts=null){
  stopSpeedometer();
  const finalCPI = success ? targetScore : 0;
  const SWEEP_DUR = 1400;
@@ -7042,7 +7111,10 @@ function animateSpeedometer(canvas, targetScore, success, scoreLabel="CPI", tipL
    const dt=ts-ditherStart;
    cps=finalCPI+Math.sin(dt*0.0044)*0.54+Math.sin(dt*0.0071)*0.26;
   }
-  drawSpeedometer(canvas, cps, success, scoreLabel, tipLabel, tipValue, secondaryNeedleValue);
+  const drawOpts = opts && opts.secondaryNeedle && Number.isFinite(Number(opts.secondaryNeedle.value))
+   ? Object.assign({}, opts, { secondaryNeedle: Object.assign({}, opts.secondaryNeedle, { value: (phase==="sweep" ? Number(opts.secondaryNeedle.value)*((elapsed/SWEEP_DUR)<0.5?4*Math.pow(Math.min(elapsed/SWEEP_DUR,1),3):1-Math.pow(-2*Math.min(elapsed/SWEEP_DUR,1)+2,3)/2) : Number(opts.secondaryNeedle.value)) }) })
+   : opts;
+  drawSpeedometer(canvas, cps, success, scoreLabel, tipLabel, tipValue, drawOpts);
   _speedoRaf=requestAnimationFrame(frame);
  }
  _speedoRaf=requestAnimationFrame(frame);
@@ -9237,7 +9309,8 @@ const _spsel=$("speedometerSessionSelect"); if(_spsel) _spsel.onchange=()=>openS
 // (higher selectedIndex) and Next moves to a newer session (lower selectedIndex).
 const _spprev=$("speedometerPrevBtn"); if(_spprev) _spprev.onclick=()=>{ const s=$("speedometerSessionSelect"); if(!s||!s.options.length) return; s.selectedIndex=Math.min(s.options.length-1, s.selectedIndex+1); if(s.onchange) s.onchange(); };
 const _spnext=$("speedometerNextBtn"); if(_spnext) _spnext.onclick=()=>{ const s=$("speedometerSessionSelect"); if(!s||!s.options.length) return; s.selectedIndex=Math.max(0, s.selectedIndex-1); if(s.onchange) s.onchange(); };
-const _spm4=$("speedometerMode2ToggleBtn"); if(_spm4) _spm4.onclick=()=>{ state.speedometerMode2Metric = String(state.speedometerMode2Metric||"cpi").toLowerCase()==="cpi" ? "cpa" : "cpi"; openSpeedometerSession(getSpeedometerSelectedIndex()); };
+// V699rev137: CPI/CPA toggle button removed — Mode 2 now shows both needles
+// simultaneously. The old _spm4 handler has been deleted.
 const _sactsel=$("speedometerActionSelect"); if(_sactsel) _sactsel.onchange=()=>openSpeedometerMenuSelection();
 const _sadmin=$("speedAdminBtn"); if(_sadmin) _sadmin.onclick=()=>openAdminFromOverlay("outcomeOverlay");
 $("summaryAdminBtn").onclick=()=>openAdminFromOverlay("summaryOverlay");
@@ -9518,40 +9591,34 @@ function getMode2DispositionWindowText(result){
 
 
 function getMode2SpeedometerMetric(result, success){
- const pref = String(state.speedometerMode2Metric||"cpi").toLowerCase()==="cpi" ? "cpi" : "cpa";
+ // V699rev137: Mode 2 Speedometer is now a fixed dual-needle layout — no
+ // CPI/CPA toggle and no separate MBS window in the metric-boxes row.
+ //   • Primary needle   = CPI (solid filled spear, dark)
+ //   • Secondary needle = CPA (hollow outlined spear, blue)
+ //   • On-dial window   = MBS (unchanged from Modes 1/3/4)
+ //   • Outer ring       = self-reported pre-test S-PFS label in band color
+ //   • Boxes row        = Disposition only
+ // Modes 1/3/4 never call this path.
  const mbs = Number(result && (result.mode2AdaptiveMbsMs!=null ? result.mode2AdaptiveMbsMs : result.averageLast2BlockingScoresMs));
  const cpi = Number.isFinite(mbs) ? computeCPI(mbs) : (Number.isFinite(Number(result && result.cognitivePerformanceIndex)) ? Number(result.cognitivePerformanceIndex) : null);
  const cpa = Number(result && result.cpa);
- // On a failed test the dial needle animates to 0 and the outcome text reads
- // "Test Failed" / "Dead" — the CPI/CPA/MBS boxes must not contradict that by
- // continuing to show the last-computed value. Force the displayed text values
- // to the zero-equivalent when success===false.
+ // On a failed test the dial needles animate to 0 and the outcome text reads
+ // "Test Failed" / "Dead" — the Disposition box must not contradict that by
+ // continuing to show the last-computed value. Force displayed text to "—".
  const failed = success === false;
- // Mode 2 Speedometer metric panel:
- // - CPA view shows CPA + Disposition
- // - CPI view shows CPI + MBS
- // - Disposition is never shown for Modes 1, 3, or 4
- const dispositionScore = Number.isFinite(cpa) ? cpa : cpi;
-  const dispositionText = failed ? "—" : getMode2DispositionWindowText(result);
+ const dispositionText = failed ? "—" : getMode2DispositionWindowText(result);
  const mbsText = failed ? "—" : (Number.isFinite(mbs)?`${Number(mbs).toFixed(1)} ms`:"—");
- const cpiText = failed ? "0.0 / 100" : (Number.isFinite(cpi)?`${Number(cpi).toFixed(1)} / 100`:"—");
- const cpaText = failed ? "0.0 / 100" : (Number.isFinite(cpa)?`${Number(cpa).toFixed(1)} / 100`:"—");
  return {
-  score: failed ? 0
-   : (pref!=="cpi" ? (Number.isFinite(cpa)?Math.max(0,Math.min(100,cpa)):0) : (Number.isFinite(cpi)?Math.max(0,Math.min(100,cpi)):0)),
-  scoreLabel:pref!=="cpi" ? "CPA" : "CPI",
+  // The dial is driven by CPI (primary needle). CPA is shown as the secondary
+  // needle. Disposition text lives in the single box below the dial.
+  score: failed ? 0 : (Number.isFinite(cpi)?Math.max(0,Math.min(100,cpi)):0),
+  scoreLabel: "CPI",
   mbsText,
-  boxes: pref!=="cpi"
-   ? [
-      // Mode 2 only: show Disposition beside CPA.
-      {label:"CPA", value:cpaText},
-      {label:"Disposition", value:dispositionText}
-     ]
-   : [
-      // CPI view shows performance metrics only; no Disposition window.
-      {label:"CPI", value:cpiText},
-      {label:"MBS", value:mbsText}
-     ]
+  cpiValue: Number.isFinite(cpi) ? cpi : null,
+  cpaValue: Number.isFinite(cpa) ? cpa : null,
+  boxes: [
+   {label:"Disposition", value:dispositionText}
+  ]
  };
 }
 
@@ -9562,6 +9629,10 @@ function renderMode2SpeedometerBoxes(metric){
  if(!boxes.length){ wrap.innerHTML=""; wrap.classList.add("hidden"); return; }
  wrap.classList.remove("hidden");
  wrap.style.display = "grid";
+ // V699rev137: Mode 2 now emits a single "Disposition" box. Collapse the grid
+ // to one column in that case so the card stretches the full width and no
+ // empty phantom column appears beside it.
+ wrap.style.gridTemplateColumns = boxes.length === 1 ? "1fr" : "1fr 1fr";
  wrap.innerHTML = boxes.map(b=>`<div class="summary-card"><div class="summary-card-label">${b.label}</div><div class="summary-card-val" style="font-size:20px">${b.value}</div></div>`).join("");
 }
 
@@ -9583,7 +9654,7 @@ function renderSpeedometerOutcome(result, sessionIndex){
  let metricLabel = "MBS";
  let metricValueText = null;
  let mode2MetricBoxes = null;
- let secondaryNeedleValue = null;
+ let speedoOpts = null;
  const isMode2Speedometer = !!(result && result.testMode==="mode2");
  if(isMode2Speedometer){
   if(result && result.mode2Triggered && result.cpa==null) Object.assign(result, computeMode2CPA(result));
@@ -9602,7 +9673,23 @@ function renderSpeedometerOutcome(result, sessionIndex){
   }
   scoreLabel = mode2Metric.scoreLabel;
   mode2MetricBoxes = mode2Metric.boxes || null;
-  if(String(state.speedometerMode2Metric||"cpi").toLowerCase()==="cpi" && Number.isFinite(Number(result && result.cpa))) secondaryNeedleValue = Math.max(0, Math.min(100, Number(result.cpa)));
+  // V699rev137: Mode 2 now renders a fixed dual-needle layout — primary =
+  // CPI (solid filled spear, dark), secondary = CPA (hollow outlined spear,
+  // blue). The two shapes are distinguishable beyond color alone so the
+  // display remains legible for colorblind users and in grayscale output.
+  const cpiNeedle = Number.isFinite(Number(mode2Metric.cpiValue)) ? Number(mode2Metric.cpiValue) : Number(result && result.cognitivePerformanceIndex);
+  const cpaNeedle = Number.isFinite(Number(mode2Metric.cpaValue)) ? Number(mode2Metric.cpaValue) : Number(result && result.cpa);
+  speedoOpts = speedoOpts || {};
+  if(success && Number.isFinite(cpaNeedle)){
+   speedoOpts.secondaryNeedle = { value: cpaNeedle, color: "#2d6cdf" };
+  }
+  // Outer-ring S-PFS band label — self-reported pre-test S-PFS (1–7), NOT
+  // the computed disposition tier. Rendered in the band color matching the
+  // value so the color and number reinforce each other.
+  const spfsSelf = Number(result && result.samnPerelli && result.samnPerelli.score);
+  if(Number.isFinite(spfsSelf) && spfsSelf>=1 && spfsSelf<=7){
+   speedoOpts.spfsOuterLabel = { spfs: Math.round(spfsSelf) };
+  }
  }
  const wrap = $("speedometerWrap");
  if(wrap) canvas.style.width = wrap.offsetWidth + "px";
@@ -9614,18 +9701,12 @@ function renderSpeedometerOutcome(result, sessionIndex){
       : (latestIdx!=null ? latestIdx : 0));
  setActiveResultContext(result, idx>=0?idx:null, idx>=0?"rendered from history":"rendered current result");
  if(idx>=0){ syncSpeedometerSessionSelect(idx); }
- const mode2Toggle=$("speedometerMode2ToggleBtn");
- if(mode2Toggle){
-  if(isMode2Speedometer){
-   mode2Toggle.classList.remove("hidden");
-   mode2Toggle.textContent = String(state.speedometerMode2Metric||"cpi").toLowerCase()==="cpi" ? "Show CPA / Disposition" : "Show CPI / MBS";
-  }else{
-   mode2Toggle.classList.add("hidden");
-  }
- }
+ // V699rev137: The CPI/CPA toggle button has been removed from the DOM; Mode 2
+ // now always renders both needles simultaneously. Any legacy references to
+ // #speedometerMode2ToggleBtn are harmlessly ignored because $() returns null.
  renderMode2SpeedometerBoxes(isMode2Speedometer ? {boxes:mode2MetricBoxes||[]} : null);
  stopSpeedometer();
- setTimeout(()=>animateSpeedometer(canvas, cps, success, scoreLabel, metricLabel, metricValueText, secondaryNeedleValue), 80);
+ setTimeout(()=>animateSpeedometer(canvas, cps, success, scoreLabel, metricLabel, metricValueText, speedoOpts), 80);
  renderSpfGaugeForResult(result);
  const ovt=$("outcomeVerificationText"); if(ovt){ ovt.textContent = ""; ovt.style.display = "none"; }
  renderSpeedometerSleepMetrics(result);
