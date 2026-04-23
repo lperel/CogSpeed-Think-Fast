@@ -368,7 +368,7 @@ let settings=loadSettings();
 // profile record (profile is no longer the source of truth for test type),
 // and persist both. This fires once per fresh rev deployment per device;
 // after that, the stamp matches and nothing is touched on subsequent loads.
-const APP_REV_STAMP = "V699rev99";
+const APP_REV_STAMP = "V699rev101";
 (function migrateToCurrentRev(){
  let stored = "";
  try{ stored = localStorage.getItem(`${STORAGE_PREFIX}_rev_stamp`) || ""; }catch(e){ stored = ""; }
@@ -4344,8 +4344,7 @@ function openPersonalBaselinePage(sessionIndex){
  const ctx = resolveResultContext(null, sessionIndex, "personal baseline");
  const result = ctx.result;
  if(!result){ setStatus("No session available for Personal Baseline"); return; }
- const sid = String(result?.subjectId||"").trim();
- const baseline = computePersonalBaseline(state.history, sid, null);
+ const baseline = getPersonalBaselineForResult(result);
  const rows = baseline.allQualifying || baseline.lastFive || [];
  const statusText = baseline.established ? `Baseline: ${baseline.averageMbs} ms` : "Baseline not yet established, Test again.";
  const statusEl = $("personalBaselineStatus");
@@ -4356,7 +4355,7 @@ function openPersonalBaselinePage(sessionIndex){
  if(statusEl) statusEl.textContent = statusText;
  if(metaEl){
   const sessionTime = result.time ? new Date(result.time).toLocaleString() : "—";
-  metaEl.innerHTML = `<div><strong>Subject:</strong> ${escapeHtml(String(result.subjectId||"—"))}</div><div><strong>Selected session:</strong> ${escapeHtml(sessionTime)}</div><div><strong>Qualifying sessions available:</strong> ${baseline.qualifyingCount}</div><div style="margin-top:6px">All qualifying sessions are shown below across the subject's full saved history. The rolling baseline value itself uses the most recent 5 qualifying non-Guest Mode 1 / Mode 2 adaptive-phase MBS scores with MBS &le; ${getPersonalBaselineMaxMbs()} ms, S-PFS 5–7, and no failed sessions.</div>`;
+  metaEl.innerHTML = `<div><strong>Subject:</strong> ${escapeHtml(String(result.subjectId||"—"))}</div><div><strong>Baseline as of session:</strong> ${escapeHtml(sessionTime)}</div><div><strong>Qualifying sessions available:</strong> ${baseline.qualifyingCount}</div><div style="margin-top:6px">All qualifying sessions are shown below. The rolling baseline value itself uses the most recent 5 qualifying non-Guest Mode 1 / Mode 2 adaptive-phase MBS scores with MBS &le; ${getPersonalBaselineMaxMbs()} ms, S-PFS 5–7, and no failed sessions.</div>`;
  }
  if(graphEl) graphEl.innerHTML = buildPersonalBaselineSvg(rows, baseline.established ? baseline.averageMbs : null);
  if(tbody){
@@ -6513,7 +6512,9 @@ ${cpaLine}
 Disposition: ${dispositionLine}
 END Reason: ${result.endReason||"Run complete"}
 ${hr}
-${buildResultsSummaryCompactFooter()}${buildResultsSummaryCompactFooter()?`\n${hr}\n`:""}RESULTS METRICS EXPLANATIONS:
+${buildVerificationSummaryLines(result)}
+${hr}
+RESULTS METRICS EXPLANATIONS:
 ${getResultsMetricExplanationText(result)}`);
 }
 
@@ -6525,10 +6526,6 @@ Payload hash: ${result && result.payloadHash ? result.payloadHash : "—"}
 Trial-log hash: ${result && result.trialLogHash ? result.trialLogHash : "—"}
 Settings hash: ${result && result.settingsHash ? result.settingsHash : "—"}
 Model versions: CPA ${models.cpaModelVersion||"—"}; Baseline ${models.baselineModelVersion||"—"}`;
-}
-
-function buildResultsSummaryCompactFooter(){
- return "";
 }
 
 function buildSummary(result){
@@ -9847,14 +9844,12 @@ function drawPerformanceOverTimeChart(canvas,hist){
   const nForWidth = Math.max(1, filteredForWidth.length);
   const scroller = canvas.parentElement;
   const viewportW = Math.max(320, Math.round((scroller && scroller.clientWidth) || canvas.clientWidth || canvas.offsetWidth || 900));
-  const filteredMs = filteredForWidth.map(r=>perfSessionUtcMs(r)).filter(Number.isFinite);
-  const spanMsForWidth = filteredMs.length>1 ? Math.max(1, filteredMs[filteredMs.length-1] - filteredMs[0]) : 0;
-  const spanHoursForWidth = spanMsForWidth / 3600000;
-  const dynamicW = Math.max(viewportW, 960, 180 + nForWidth * 64, 180 + Math.round(spanHoursForWidth * 18));
+  const dynamicW = Math.max(viewportW, 980, 220 + nForWidth * 68);
   canvas.style.width = dynamicW + "px";
   canvas.style.minWidth = dynamicW + "px";
+  canvas.style.height = "min(68vh,700px)";
   const cssW = dynamicW;
-  const cssH = Math.max(320, Math.round(canvas.clientHeight || 520));
+  const cssH = Math.max(560, Math.round(canvas.clientHeight || 680));
   canvas.width = Math.round(cssW * dpr);
   canvas.height = Math.round(cssH * dpr);
   const ctx = canvas.getContext("2d");
@@ -9885,15 +9880,26 @@ function drawPerformanceOverTimeChart(canvas,hist){
     return;
   }
 
-  // MBS-ms left-axis labels are anchor-dependent: Standard uses 800/2800,
-  // Memory uses 1400/5000, Survival uses 1500/5200. When the filtered range
-  // is homogeneous in Challenge Set we use the corresponding anchors. When
-  // the range MIXES challenge sets, ms labels would be ambiguous (a single
-  // y-axis cannot simultaneously label three different ms scales), so we
-  // suppress the ms tick numbers and show only the CPI 0-100 scale plus a
-  // note in the legend. CPI dots remain plotted at the correct y-position
-  // because each session's CPI was already pre-normalized against its own
-  // anchors at session-finish time.
+  const sessionTimes = slice.map(r=>{
+    const t = new Date(r.time).getTime();
+    return Number.isFinite(t) ? t : null;
+  });
+  const validTimes = sessionTimes.filter(t=>t!=null);
+  if(!validTimes.length){
+    ctx.fillStyle="#d7e7f8";
+    ctx.font="bold 16px sans-serif";
+    ctx.textAlign="center";
+    ctx.fillText("No valid session timestamps yet", W/2, H/2);
+    return;
+  }
+  let minTime = Math.min(...validTimes);
+  let maxTime = Math.max(...validTimes);
+  if(!(maxTime > minTime)){
+    minTime -= 30 * 60 * 1000;
+    maxTime += 30 * 60 * 1000;
+  }
+  const timeSpan = Math.max(1, maxTime - minTime);
+
   const setKeys = new Set(slice.map(r=>getResultSymbolSet(r)));
   const homogeneousSet = setKeys.size === 1 ? [...setKeys][0] : null;
   const showMsAxis = !!homogeneousSet;
@@ -9909,30 +9915,78 @@ function drawPerformanceOverTimeChart(canvas,hist){
     worstMs = Number(settings.cpiWorstMs)||DEFAULTS.cpiWorstMs;
   }
   const setLabelForAxis = homogeneousSet === "memory" ? "Memory" : homogeneousSet === "survival" ? "Survival" : "Standard";
-  const PAD = {top:72,right:118,bottom:170,left:126};
-  const cW = W - PAD.left - PAD.right;
-  const cH = H - PAD.top - PAD.bottom;
 
-  // Performance-over-time graph always plots CPI as the blue dot.
-  // The orange MBS ring is drawn around the same CPI position by design.
-  const leftMetricLabel = showMsAxis ? `MBS ms (${setLabelForAxis})` : "MBS ms (mixed sets — hidden)";
-  const leftScoreLabel = "CPI / CPA";
-  const dotLegend = "Blue dot = CPI";
-  const ringLegend = "Orange circle = MBS";
-  const cpaLegend = "Purple square = CPA";
+  const fontTitle = "bold 16px sans-serif";
+  const fontSub = "12px sans-serif";
+  const fontAxis = "bold 11px sans-serif";
+  const fontTick = "11px sans-serif";
+  const fontLegend = "bold 11px sans-serif";
+  const fontSleepLegend = "12px sans-serif";
+  const fontXAxisTitle = "bold 12px sans-serif";
 
-  const timeVals = slice.map(r=>perfSessionUtcMs(r));
-  const validTimeVals = timeVals.filter(Number.isFinite);
-  const minTime = validTimeVals.length ? validTimeVals[0] : NaN;
-  const maxTime = validTimeVals.length ? validTimeVals[validTimeVals.length-1] : NaN;
-  function xOf(i){
-    if(n<=1 || !Number.isFinite(minTime) || !Number.isFinite(maxTime) || maxTime<=minTime) return PAD.left + cW/2;
-    const t = timeVals[i];
-    if(!Number.isFinite(t)) return PAD.left + cW/2;
-    return PAD.left + ((t-minTime)/(maxTime-minTime))*cW;
+  const PAD = {top:72,right:118,left:126};
+  const gaps = {afterPlot: 10, betweenTickAndTitle: 12, betweenTitleAndSleep: 14, betweenSleepAndLegend: 14};
+  const sleepBarH = 12;
+  const tickLine1H = 14;
+  const tickLine2H = 14;
+  const tickBandH = tickLine1H + tickLine2H + 10;
+  const axisTitleBandH = 18;
+  const sleepLegendBandH = 18;
+  const reservedBottom = tickBandH + gaps.betweenTickAndTitle + axisTitleBandH + gaps.betweenTitleAndSleep + sleepBarH + gaps.betweenSleepAndLegend + sleepLegendBandH + 18;
+  const cW = Math.max(260, W - PAD.left - PAD.right);
+  const cH = Math.max(180, H - PAD.top - reservedBottom);
+  const plotBottom = PAD.top + cH;
+  const tickLabelTop = plotBottom + gaps.afterPlot + 12;
+  const axisTitleY = plotBottom + gaps.afterPlot + tickBandH + gaps.betweenTickAndTitle;
+  const sleepBarY = axisTitleY + gaps.betweenTitleAndSleep;
+  const legendY = sleepBarY + sleepBarH + gaps.betweenSleepAndLegend;
+
+  function xOfIndex(i){
+    const t = sessionTimes[i];
+    if(t==null) return PAD.left + cW/2;
+    const frac = (t - minTime) / timeSpan;
+    return PAD.left + Math.max(0, Math.min(1, frac)) * cW;
   }
   function yLeftFromScore(v){ return PAD.top + cH - ((v-0)/100)*cH; }
   function yRightFromSpf(v){ return PAD.top + cH - (((v-1)/6))*cH; }
+
+  function formatTickDate(ts){
+    const d = new Date(ts);
+    return d.toLocaleDateString("en-US", {month:"numeric", day:"numeric", year:"2-digit"});
+  }
+  function formatTickTime(ts){
+    const d = new Date(ts);
+    return d.toLocaleTimeString("en-US", {hour:"numeric", minute:"2-digit"});
+  }
+  function chooseTickStep(spanMs, maxTicks){
+    const minute = 60*1000;
+    const hour = 60*minute;
+    const day = 24*hour;
+    const candidates = [
+      15*minute, 30*minute,
+      1*hour, 2*hour, 3*hour, 4*hour, 6*hour, 8*hour, 12*hour,
+      1*day, 2*day, 3*day, 7*day, 14*day, 30*day
+    ];
+    const target = spanMs / Math.max(2, maxTicks-1);
+    for(const step of candidates){ if(step >= target) return step; }
+    return candidates[candidates.length-1];
+  }
+  function alignStart(ts, step){
+    return Math.floor(ts / step) * step;
+  }
+  function buildTimeTicks(minTs, maxTs, plotWidth){
+    const approxLabelW = 72;
+    const maxTicks = Math.max(3, Math.min(8, Math.floor(plotWidth / approxLabelW)));
+    const step = chooseTickStep(maxTs - minTs, maxTicks);
+    const ticks = [];
+    let t = alignStart(minTs, step);
+    if(t < minTs) t += step;
+    for(let i=0; i<200 && t<=maxTs; i++, t+=step) ticks.push(t);
+    if(!ticks.length || ticks[0] > minTs) ticks.unshift(minTs);
+    if(ticks[ticks.length-1] < maxTs) ticks.push(maxTs);
+    return ticks.filter((t, i, arr)=> i===0 || t > arr[i-1]);
+  }
+  const timeTicks = buildTimeTicks(minTime, maxTime, cW);
 
   ctx.strokeStyle="rgba(127,215,255,0.16)";
   ctx.lineWidth=1;
@@ -9940,10 +9994,16 @@ function drawPerformanceOverTimeChart(canvas,hist){
     const y=yLeftFromScore(v);
     ctx.beginPath(); ctx.moveTo(PAD.left,y); ctx.lineTo(PAD.left+cW,y); ctx.stroke();
   });
+  ctx.strokeStyle="rgba(127,215,255,0.18)";
+  timeTicks.forEach(ts=>{
+    const frac = (ts - minTime) / timeSpan;
+    const x = PAD.left + Math.max(0, Math.min(1, frac)) * cW;
+    ctx.beginPath(); ctx.moveTo(x, PAD.top); ctx.lineTo(x, plotBottom); ctx.stroke();
+  });
 
   const scoreTicks = [100,75,50,25,0];
   const metricTicks = showMsAxis ? scoreTicks.map(score => Math.round(bestMs + ((100-score)/100)*(worstMs-bestMs))) : null;
-  ctx.font="11px sans-serif";
+  ctx.font=fontTick;
   ctx.textAlign="right";
   scoreTicks.forEach((score, i)=>{
     const y = yLeftFromScore(score);
@@ -9958,6 +10018,7 @@ function drawPerformanceOverTimeChart(canvas,hist){
   });
 
   ctx.textAlign="left";
+  ctx.font=fontTick;
   ctx.fillStyle="#88ff88";
   [7,6,5,4,3,2,1].forEach(v=>{
     const y=yRightFromSpf(v);
@@ -9968,109 +10029,59 @@ function drawPerformanceOverTimeChart(canvas,hist){
 
   ctx.fillStyle="#b7d9ef";
   ctx.textAlign="left";
-  ctx.font="bold 16px sans-serif";
+  ctx.font=fontTitle;
   ctx.fillText("Performance Over Date and Time Graph", PAD.left, 24);
 
-  ctx.font="12px sans-serif";
+  ctx.font=fontSub;
   ctx.fillStyle="#d7e7f8";
   const subjectCount = new Set(slice.map(r => (r.subjectId||"—"))).size;
   const rangeLabel = perfGraphState.preset === "custom"
     ? `    Range: ${perfGraphState.fromDate||"start"} → ${perfGraphState.toDate||"end"}`
     : (perfGraphState.preset === "last14" ? "    Range: Last 14 sessions" : "");
-  ctx.fillText(`Continuous date/time axis    Subjects: ${subjectCount}    Sessions: ${n}    Chronology: Device Local Time${rangeLabel}`, PAD.left, 46);
+  ctx.fillText(`All sessions in continuous device-local time    Subjects: ${subjectCount}    Sessions: ${n}${rangeLabel}`, PAD.left, 46);
 
   ctx.save();
   ctx.translate(18, PAD.top + cH/2); ctx.rotate(-Math.PI/2);
-  ctx.fillStyle="#ffb357"; ctx.textAlign="center"; ctx.font="bold 11px sans-serif";
-  ctx.fillText(leftMetricLabel, 0, 0); ctx.restore();
+  ctx.fillStyle="#ffb357"; ctx.textAlign="center"; ctx.font=fontAxis;
+  ctx.fillText(showMsAxis ? `MBS ms (${setLabelForAxis})` : "MBS ms (mixed sets — hidden)", 0, 0); ctx.restore();
 
   ctx.save();
   ctx.translate(42, PAD.top + cH/2); ctx.rotate(-Math.PI/2);
-  ctx.fillStyle="#7fd7ff"; ctx.textAlign="center"; ctx.font="bold 11px sans-serif";
-  ctx.fillText(leftScoreLabel, 0, 0); ctx.restore();
+  ctx.fillStyle="#7fd7ff"; ctx.textAlign="center"; ctx.font=fontAxis;
+  ctx.fillText("CPI / CPA", 0, 0); ctx.restore();
 
   ctx.save();
   ctx.translate(W-8, PAD.top + cH/2); ctx.rotate(Math.PI/2);
-  ctx.fillStyle="#88ff88"; ctx.textAlign="center"; ctx.font="bold 12px sans-serif";
+  ctx.fillStyle="#88ff88"; ctx.textAlign="center"; ctx.font=fontXAxisTitle;
   ctx.fillText("S-PFS 1–7 (up is better)", 0, 0); ctx.restore();
 
-  ctx.strokeStyle="#d7e7f8";
-  ctx.lineWidth = 2.2;
-  ctx.beginPath(); ctx.moveTo(PAD.left, PAD.top+cH); ctx.lineTo(PAD.left+cW, PAD.top+cH); ctx.stroke();
+  ctx.strokeStyle="rgba(215,231,248,0.82)";
+  ctx.lineWidth=2;
+  ctx.beginPath();
+  ctx.moveTo(PAD.left, plotBottom);
+  ctx.lineTo(PAD.left+cW, plotBottom);
+  ctx.stroke();
 
-  function choosePerfTickStep(spanMs){
-    const H = 60*60*1000;
-    const D = 24*H;
-    const steps = [
-      1*H, 2*H, 3*H, 4*H, 6*H, 8*H, 12*H,
-      1*D, 2*D, 3*D, 7*D, 14*D, 30*D, 60*D
-    ];
-    for(const step of steps){
-      if(spanMs / step <= 7) return step;
-    }
-    return 90*D;
-  }
-  function formatPerfTickDate(ms, stepMs){
-    const d = new Date(ms);
-    if(stepMs >= 24*60*60*1000){
-      return d.toLocaleDateString("en-US", {month:"numeric", day:"numeric", year:"2-digit"});
-    }
-    return d.toLocaleDateString("en-US", {month:"numeric", day:"numeric"});
-  }
-  function formatPerfTickTime(ms, stepMs){
-    const d = new Date(ms);
-    if(stepMs >= 24*60*60*1000) return "";
-    return d.toLocaleTimeString("en-US", {hour:"numeric", minute:"2-digit"});
-  }
-
-  ctx.font="bold 13px sans-serif";
-  ctx.fillStyle="#e9f3ff";
+  ctx.font=fontTick;
   ctx.textAlign="center";
+  timeTicks.forEach(ts=>{
+    const frac = (ts - minTime) / timeSpan;
+    const x = PAD.left + Math.max(0, Math.min(1, frac)) * cW;
+    ctx.strokeStyle="rgba(215,231,248,0.9)";
+    ctx.lineWidth=1.5;
+    ctx.beginPath();
+    ctx.moveTo(x, plotBottom);
+    ctx.lineTo(x, plotBottom + 8);
+    ctx.stroke();
+    ctx.fillStyle="#d7e7f8";
+    ctx.fillText(formatTickDate(ts), x, tickLabelTop);
+    ctx.fillText(formatTickTime(ts), x, tickLabelTop + 14);
+  });
 
-  const axisDateY = PAD.top + cH + 26;
-  const axisTimeY = PAD.top + cH + 46;
-  const axisTitleY = PAD.top + cH + 74;
-  const spanMs = (Number.isFinite(minTime) && Number.isFinite(maxTime)) ? Math.max(0, maxTime - minTime) : 0;
-
-  if(n===1 || !Number.isFinite(minTime) || !Number.isFinite(maxTime) || maxTime<=minTime){
-    const onlyMs = Number.isFinite(timeVals[0]) ? timeVals[0] : Date.now();
-    const x = xOf(0);
-    ctx.strokeStyle = "#d7e7f8";
-    ctx.lineWidth = 1.6;
-    ctx.beginPath(); ctx.moveTo(x, PAD.top+cH); ctx.lineTo(x, PAD.top+cH+12); ctx.stroke();
-    ctx.fillText(formatPerfTickDate(onlyMs, 0), x, axisDateY);
-    const t = formatPerfTickTime(onlyMs, 0);
-    if(t) ctx.fillText(t, x, axisTimeY);
-  }else{
-    const stepMs = choosePerfTickStep(spanMs);
-    const tickStart = Math.ceil(minTime / stepMs) * stepMs;
-    const tickVals = [];
-    for(let t=tickStart; t<=maxTime+1; t+=stepMs){
-      tickVals.push(t);
-      if(tickVals.length > 12) break;
-    }
-    if(!tickVals.length || tickVals[0] !== minTime) tickVals.unshift(minTime);
-    if(tickVals[tickVals.length-1] !== maxTime) tickVals.push(maxTime);
-
-    const deduped = [];
-    tickVals.forEach(t=>{
-      if(!deduped.length || Math.abs(deduped[deduped.length-1]-t) > stepMs*0.25) deduped.push(t);
-    });
-
-    deduped.forEach((t, idx)=>{
-      const x = PAD.left + ((t-minTime)/(maxTime-minTime))*cW;
-      ctx.strokeStyle = idx===0 || idx===deduped.length-1 ? "#d7e7f8" : "rgba(127,215,255,0.28)";
-      ctx.lineWidth = idx===0 || idx===deduped.length-1 ? 1.6 : 1.1;
-      ctx.beginPath(); ctx.moveTo(x, PAD.top); ctx.lineTo(x, PAD.top+cH+12); ctx.stroke();
-      ctx.fillText(formatPerfTickDate(t, stepMs), x, axisDateY);
-      const timeLine = formatPerfTickTime(t, stepMs);
-      if(timeLine) ctx.fillText(timeLine, x, axisTimeY);
-    });
-  }
-
-  ctx.fillStyle="#d7e7f8";
-  ctx.font="bold 12px sans-serif";
-  ctx.fillText("Date / Time (continuous, device local)", PAD.left + cW/2, axisTitleY);
+  ctx.font=fontXAxisTitle;
+  ctx.fillStyle="#b7d9ef";
+  ctx.textAlign="center";
+  ctx.fillText("Date and Time (continuous device-local time)", PAD.left + cW/2, axisTitleY);
 
   function drawLine(vals, yFunc, color, style, opts={}){
     const markerDx = Number(opts.markerDx)||0;
@@ -10081,15 +10092,15 @@ function drawPerformanceOverTimeChart(canvas,hist){
     ctx.beginPath();
     let started=false;
     vals.forEach((v,i)=>{
-      if(v==null){ started=false; return; }
-      const x=xOf(i), y=yFunc(v,i);
+      if(v==null || sessionTimes[i]==null){ started=false; return; }
+      const x=xOfIndex(i), y=yFunc(v,i);
       if(!started){ ctx.moveTo(x,y); started=true; } else { ctx.lineTo(x,y); }
     });
-    if(vals.filter(v=>v!=null).length>1) ctx.stroke();
+    if(vals.filter((v,i)=>v!=null && sessionTimes[i]!=null).length>1) ctx.stroke();
 
     vals.forEach((v,i)=>{
-      if(v==null) return;
-      const x=xOf(i)+markerDx, y=yFunc(v,i);
+      if(v==null || sessionTimes[i]==null) return;
+      const x=xOfIndex(i)+markerDx, y=yFunc(v,i);
       ctx.fillStyle=color;
       if(style==="diamond"){
         ctx.save(); ctx.translate(x,y); ctx.rotate(Math.PI/4); ctx.fillRect(-markerSize,-markerSize,markerSize*2,markerSize*2); ctx.restore();
@@ -10113,16 +10124,16 @@ function drawPerformanceOverTimeChart(canvas,hist){
     let started=false;
     scoreVals.forEach((score,i)=>{
       const metric = metricVals[i];
-      if(score==null || metric==null){ started=false; return; }
-      const x = xOf(i), y = yLeftFromScore(score);
+      if(score==null || metric==null || sessionTimes[i]==null){ started=false; return; }
+      const x = xOfIndex(i), y = yLeftFromScore(score);
       if(!started){ ctx.moveTo(x,y); started=true; } else { ctx.lineTo(x,y); }
     });
-    if(scoreVals.filter((score,i)=>score!=null && metricVals[i]!=null).length>1) ctx.stroke();
+    if(scoreVals.filter((score,i)=>score!=null && metricVals[i]!=null && sessionTimes[i]!=null).length>1) ctx.stroke();
 
     scoreVals.forEach((score,i)=>{
       const metric = metricVals[i];
-      if(score==null || metric==null) return;
-      const x = xOf(i);
+      if(score==null || metric==null || sessionTimes[i]==null) return;
+      const x = xOfIndex(i);
       const y = yLeftFromScore(score);
       ctx.beginPath(); ctx.arc(x,y,5.8,0,Math.PI*2);
       ctx.strokeStyle="#ffb357"; ctx.lineWidth=2.2; ctx.stroke();
@@ -10134,7 +10145,6 @@ function drawPerformanceOverTimeChart(canvas,hist){
 
   const scoreVals = slice.map(r=>perfSessionCpi(r));
   const metricVals = slice.map(r=>perfSessionMs(r));
-  const estimatedScoreFlags = [];
   const cpaVals = slice.map(r=>r && r.testMode==="mode2" && r.mode2Triggered && Number.isFinite(Number(r.cpa)) ? Number(r.cpa) : null);
   const spfVals = slice.map(r=>r && r.samnPerelli && r.samnPerelli.score!=null ? Number(r.samnPerelli.score) : null);
   function sleepQualityColor(r){
@@ -10159,12 +10169,20 @@ function drawPerformanceOverTimeChart(canvas,hist){
   drawCombinedPerfMarkers(scoreVals, metricVals);
   drawLine(cpaVals, v=>yLeftFromScore(v), "#d6a7ff", "square", {markerDx:8, markerSize:3.7, strokeMarker:true});
 
-  const sleepBarY = PAD.top + cH + 18;
-  const sleepBarH = 10;
-  const sleepW = n<=1 ? Math.min(28, cW*0.18) : Math.max(8, Math.min(18, cW/Math.max(n,14)));
+  let sleepW = 18;
+  if(n > 1){
+    let minGap = Infinity;
+    for(let i=1;i<n;i++){
+      if(sessionTimes[i]==null || sessionTimes[i-1]==null) continue;
+      minGap = Math.min(minGap, Math.abs(xOfIndex(i) - xOfIndex(i-1)));
+    }
+    if(Number.isFinite(minGap)) sleepW = Math.max(8, Math.min(20, minGap * 0.55));
+  } else {
+    sleepW = Math.min(28, cW * 0.18);
+  }
   sleepColors.forEach((color,i)=>{
-    if(!color) return;
-    const x = xOf(i) - sleepW/2;
+    if(!color || sessionTimes[i]==null) return;
+    const x = xOfIndex(i) - sleepW/2;
     ctx.fillStyle = color;
     ctx.fillRect(x, sleepBarY, sleepW, sleepBarH);
     ctx.strokeStyle = "rgba(215,231,248,0.35)";
@@ -10173,23 +10191,23 @@ function drawPerformanceOverTimeChart(canvas,hist){
   });
 
   ctx.textAlign="left";
-  ctx.font="bold 11px sans-serif";
+  ctx.font=fontLegend;
   ctx.beginPath();
   ctx.arc(PAD.left+7, PAD.top-18, 2.8, 0, Math.PI*2);
   ctx.fillStyle="#7fd7ff";
   ctx.fill();
   ctx.fillStyle="#7fd7ff";
-  ctx.fillText(dotLegend, PAD.left+18, PAD.top-14);
+  ctx.fillText("Blue dot = CPI", PAD.left+18, PAD.top-14);
   ctx.beginPath();
-  ctx.arc(PAD.left+210, PAD.top-18, 5.6, 0, Math.PI*2);
+  ctx.arc(PAD.left+188, PAD.top-18, 5.6, 0, Math.PI*2);
   ctx.strokeStyle="#ffb357";
   ctx.lineWidth=2.2;
   ctx.stroke();
   ctx.fillStyle="#ffb357";
-  ctx.fillText(ringLegend, PAD.left+222, PAD.top-14);
+  ctx.fillText("Orange circle = MBS", PAD.left+200, PAD.top-14);
   ctx.fillStyle="#d6a7ff";
-  ctx.fillRect(PAD.left+352, PAD.top-22, 8, 8);
-  ctx.fillText(cpaLegend, PAD.left+368, PAD.top-14);
+  ctx.fillRect(PAD.left+360, PAD.top-22, 8, 8);
+  ctx.fillText("Purple square = CPA", PAD.left+376, PAD.top-14);
   const spLegendY = PAD.top + 4;
   ctx.fillStyle="#88ff88";
   ctx.save();
@@ -10199,13 +10217,13 @@ function drawPerformanceOverTimeChart(canvas,hist){
   ctx.restore();
   ctx.fillText("Green diamond = S-PFS", PAD.left+18, spLegendY+8);
 
-  const legendY = PAD.top + cH + 38;
-  ctx.fillStyle = "#ff4d4f"; ctx.fillRect(PAD.left, legendY, 12, 8);
-  ctx.fillStyle = "#d7e7f8"; ctx.fillText("Sleep: Poor", PAD.left+18, legendY+8);
-  ctx.fillStyle = "#ffd84d"; ctx.fillRect(PAD.left+92, legendY, 12, 8);
-  ctx.fillStyle = "#d7e7f8"; ctx.fillText("Restless", PAD.left+110, legendY+8);
-  ctx.fillStyle = "#46d36a"; ctx.fillRect(PAD.left+156, legendY, 12, 8);
-  ctx.fillStyle = "#d7e7f8"; ctx.fillText("Good", PAD.left+174, legendY+8);
+  ctx.font=fontSleepLegend;
+  ctx.fillStyle = "#ff4d4f"; ctx.fillRect(PAD.left, legendY-8, 12, 8);
+  ctx.fillStyle = "#d7e7f8"; ctx.fillText("Sleep: Poor", PAD.left+18, legendY);
+  ctx.fillStyle = "#ffd84d"; ctx.fillRect(PAD.left+108, legendY-8, 12, 8);
+  ctx.fillStyle = "#d7e7f8"; ctx.fillText("Restless", PAD.left+126, legendY);
+  ctx.fillStyle = "#46d36a"; ctx.fillRect(PAD.left+198, legendY-8, 12, 8);
+  ctx.fillStyle = "#d7e7f8"; ctx.fillText("Good", PAD.left+216, legendY);
 }
 
 function getLastGraphableResult(){
