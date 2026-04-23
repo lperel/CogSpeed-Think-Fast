@@ -368,7 +368,7 @@ let settings=loadSettings();
 // profile record (profile is no longer the source of truth for test type),
 // and persist both. This fires once per fresh rev deployment per device;
 // after that, the stamp matches and nothing is touched on subsequent loads.
-const APP_REV_STAMP = "V699rev106";
+const APP_REV_STAMP = "V699rev107";
 (function migrateToCurrentRev(){
  let stored = "";
  try{ stored = localStorage.getItem(`${STORAGE_PREFIX}_rev_stamp`) || ""; }catch(e){ stored = ""; }
@@ -9938,6 +9938,7 @@ function drawPerformanceOverTimeChart(canvas,hist){
     maxTime += 30 * 60 * 1000;
   }
   const timeSpan = Math.max(1, maxTime - minTime);
+  const n = slice.length;
 
   const hourMs = 60 * 60 * 1000;
   const sortedValidTimes = validTimes.slice().sort((a,b)=>a-b);
