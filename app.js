@@ -368,7 +368,7 @@ let settings=loadSettings();
 // profile record (profile is no longer the source of truth for test type),
 // and persist both. This fires once per fresh rev deployment per device;
 // after that, the stamp matches and nothing is touched on subsequent loads.
-const APP_REV_STAMP = "V699rev121";
+const APP_REV_STAMP = "V699rev124";
 // Version policy: APP_VERSION preserves base storage/schema continuity; DISPLAY_VERSION is what users see.
 const DISPLAY_VERSION = APP_REV_STAMP || APP_VERSION;
 (function migrateToCurrentRev(){
@@ -6814,7 +6814,8 @@ ${getResultsMetricExplanationText(result)}`);
 // ──────────────────────────────────────────────────────────────
 let _speedoRaf = null;
 
-function drawSpeedometer(canvas, scoreValue, success, scoreLabel="CPI", tipLabel="MBS", tipValue=null){
+function drawSpeedometer(canvas, scoreValue, success, scoreLabel="CPI", tipLabel="MBS", tipValue=null, opts=null){
+ opts = opts || {};
  const dpr = window.devicePixelRatio||1;
  const W = canvas.offsetWidth||380;
  const H = W;
@@ -6824,17 +6825,24 @@ function drawSpeedometer(canvas, scoreValue, success, scoreLabel="CPI", tipLabel
  ctx.setTransform(dpr,0,0,dpr,0,0);
  ctx.clearRect(0,0,W,H);
 
+ const clampScore = (v)=>Math.max(0,Math.min(100,Number(v)||0));
+ const primaryScore = clampScore(scoreValue);
+ const secondaryNeedleValue = Number.isFinite(Number(opts.secondaryNeedleValue)) ? clampScore(opts.secondaryNeedleValue) : null;
+ const lowerWindows = Array.isArray(opts.lowerWindows) ? opts.lowerWindows.filter(Boolean).slice(0,2) : [];
+ const spfsCode = Number.isFinite(Number(opts.spfsCode)) ? Math.max(1, Math.min(7, Math.round(Number(opts.spfsCode)))) : null;
+
  const cx = W/2, cy = H/2;
- const R = W*0.38;
+ const R = W*0.34;
  const A_START = 150*Math.PI/180;
  const A_SWEEP = 240*Math.PI/180;
- function toAngle(v){ return A_START + (Math.max(0,Math.min(100,v))/100)*A_SWEEP; }
- const na = toAngle(scoreValue);
+ function toAngle(v){ return A_START + clampScore(v)/100*A_SWEEP; }
+ const na = toAngle(primaryScore);
  const bandOut = R*1.12;
  const bandIn  = R*0.95;
  const tickOuter = R*0.89;
  const faceTone = "#efe2c2";
  const dark = "#17130f";
+ const secondaryColor = "#1a5cff";
 
  // outer bezel / chrome
  ctx.beginPath(); ctx.arc(cx,cy,R*1.22,0,Math.PI*2);
@@ -6861,23 +6869,14 @@ function drawSpeedometer(canvas, scoreValue, success, scoreLabel="CPI", tipLabel
  ctx.beginPath(); ctx.arc(cx,cy,R*1.02,0,Math.PI*2);
  ctx.strokeStyle = "rgba(255,255,255,0.38)"; ctx.lineWidth = R*0.012; ctx.stroke();
 
- // Disposition-based outer arc using canonical S-PFS 7-tier midpoint edges.
- // Band edges (5.5, 18, 37.5, 62.5, 77.5, 90) are the midpoints between the
- // canonical CPI anchors (100, 80, 75, 50, 25, 11, 0) — the same edges used
- // by computeDisposition() and the Cognitive Performance table captions.
- // Colors grouped per the speedometer disposition window:
- //   RED     = S-PFS 1 (<5.5), S-PFS 2 (5.5–<18)   → "Remove from Hazardous Duty"
- //   ORANGE  = S-PFS 3 (18–<37.5)                  → "Human review required"
- //   YELLOW  = S-PFS 4 (37.5–<62.5)                → "Monitor / human review recommended"
- //   GREEN   = S-PFS 5 (62.5–<77.5), 6 (77.5–<90), 7 (≥90) → "Clear for duty"
  const arcBands = [
-  {s:0,    e:5.5,  c:"#650000"},
-  {s:5.5,  e:18,   c:"#cf2020"},
-  {s:18,   e:37.5, c:"#f28c18"},
-  {s:37.5, e:62.5, c:"#e4cf2f"},
-  {s:62.5, e:77.5, c:"#9ddc6b"},
-  {s:77.5, e:90,   c:"#43a94e"},
-  {s:90,   e:100,  c:"#0a5d1c"}
+  {s:0,    e:5.5,  c:"#650000", spfs:1},
+  {s:5.5,  e:18,   c:"#cf2020", spfs:2},
+  {s:18,   e:37.5, c:"#f28c18", spfs:3},
+  {s:37.5, e:62.5, c:"#e4cf2f", spfs:4},
+  {s:62.5, e:77.5, c:"#9ddc6b", spfs:5},
+  {s:77.5, e:90,   c:"#43a94e", spfs:6},
+  {s:90,   e:100,  c:"#0a5d1c", spfs:7}
  ];
  for(const b of arcBands){
   const a1 = toAngle(b.s), a2 = toAngle(b.e);
@@ -6887,6 +6886,30 @@ function drawSpeedometer(canvas, scoreValue, success, scoreLabel="CPI", tipLabel
   ctx.closePath();
   ctx.fillStyle = b.c;
   ctx.fill();
+ }
+
+ // current S-PFS marker on the disposition band
+ if(spfsCode != null){
+  const band = arcBands.find(b=>b.spfs===spfsCode);
+  if(band){
+   const mid = (band.s + band.e) / 2;
+   const a = toAngle(mid);
+   const rr = (bandOut + bandIn) / 2;
+   const x = cx + rr*Math.cos(a);
+   const y = cy + rr*Math.sin(a);
+   ctx.beginPath();
+   ctx.arc(x, y, R*0.07, 0, Math.PI*2);
+   ctx.fillStyle = "rgba(255,255,255,0.94)";
+   ctx.fill();
+   ctx.strokeStyle = dark;
+   ctx.lineWidth = R*0.01;
+   ctx.stroke();
+   ctx.fillStyle = dark;
+   ctx.textAlign = "center";
+   ctx.textBaseline = "middle";
+   ctx.font = `700 ${(R*0.10).toFixed(1)}px Arial,sans-serif`;
+   ctx.fillText(String(spfsCode), x, y+R*0.003);
+  }
  }
 
  // outer fine hash marks
@@ -6940,35 +6963,72 @@ function drawSpeedometer(canvas, scoreValue, success, scoreLabel="CPI", tipLabel
  // explicit score label — keep it low on the dial so the needle does not obscure it
  ctx.font = `700 ${(R*0.104).toFixed(1)}px Arial,sans-serif`;
  ctx.fillStyle = dark;
- ctx.fillText(String(scoreLabel||"CPI"), cx, cy + R*0.22);
+ ctx.fillText(String(scoreLabel||"CPI"), cx, cy + R*0.18);
 
- // vintage-style spear needle without a rear tail
- ctx.save();
- ctx.translate(cx,cy);
- ctx.rotate(na);
- const needleColor = success ? dark : "#b10000";
- ctx.beginPath();
- ctx.moveTo(R*0.02, 0);
- ctx.lineTo(R*0.12, -R*0.028);
- ctx.lineTo(R*0.54, -R*0.016);
- ctx.lineTo(R*0.84, 0);
- ctx.lineTo(R*0.54, R*0.016);
- ctx.lineTo(R*0.12, R*0.028);
- ctx.closePath();
- ctx.fillStyle = needleColor;
- ctx.fill();
- ctx.beginPath();
- ctx.moveTo(R*0.08, -R*0.004);
- ctx.lineTo(R*0.72, -R*0.002);
- ctx.strokeStyle = "rgba(255,255,255,0.22)";
- ctx.lineWidth = R*0.005;
- ctx.stroke();
- ctx.restore();
+ if(secondaryNeedleValue != null){
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.font = `700 ${(R*0.065).toFixed(1)}px Arial,sans-serif`;
+  ctx.fillStyle = dark;
+  ctx.fillText("CPI", cx - R*0.24, cy + R*0.30);
+  ctx.fillStyle = secondaryColor;
+  ctx.fillText("CPA", cx + R*0.24, cy + R*0.30);
+ }
 
- // MBS window and label
- if(success && tipValue){
+ function drawNeedle(angle, color, widthScale){
+  ctx.save();
+  ctx.translate(cx,cy);
+  ctx.rotate(angle);
+  ctx.beginPath();
+  ctx.moveTo(R*0.02, 0);
+  ctx.lineTo(R*0.12, -R*0.028*widthScale);
+  ctx.lineTo(R*0.54, -R*0.016*widthScale);
+  ctx.lineTo(R*0.84, 0);
+  ctx.lineTo(R*0.54, R*0.016*widthScale);
+  ctx.lineTo(R*0.12, R*0.028*widthScale);
+  ctx.closePath();
+  ctx.fillStyle = color;
+  ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(R*0.08, -R*0.004*widthScale);
+  ctx.lineTo(R*0.72, -R*0.002*widthScale);
+  ctx.strokeStyle = "rgba(255,255,255,0.22)";
+  ctx.lineWidth = R*0.005*widthScale;
+  ctx.stroke();
+  ctx.restore();
+ }
+
+ if(secondaryNeedleValue != null) drawNeedle(toAngle(secondaryNeedleValue), secondaryColor, 0.72);
+ drawNeedle(na, success ? dark : "#b10000", 1);
+
+ if(lowerWindows.length >= 2){
+  const bh = R*0.18;
+  const gap = R*0.08;
+  const bw = R*0.48;
+  const totalW = bw*2 + gap;
+  const bx1 = cx - totalW/2;
+  const bx2 = bx1 + bw + gap;
+  const by = cy + R*0.47;
+  [bx1, bx2].forEach((bx, i)=>{
+   const item = lowerWindows[i] || {label:"—", value:"—"};
+   ctx.beginPath();
+   if(ctx.roundRect) ctx.roundRect(bx, by, bw, bh, R*0.012); else ctx.rect(bx, by, bw, bh);
+   ctx.fillStyle = "#d9df4c";
+   ctx.fill();
+   ctx.strokeStyle = "rgba(0,0,0,0.45)";
+   ctx.lineWidth = R*0.008;
+   ctx.stroke();
+   ctx.fillStyle = dark;
+   ctx.textAlign = "center";
+   ctx.textBaseline = "middle";
+   ctx.font = `700 ${(R*0.050).toFixed(1)}px Arial,sans-serif`;
+   ctx.fillText(String(item.value||"—"), bx + bw/2, by + bh*0.56);
+   ctx.font = `700 ${(R*0.082).toFixed(1)}px Arial,sans-serif`;
+   ctx.fillText(String(item.label||"—"), bx + bw/2, by - R*0.06);
+  });
+ } else if(success && tipValue){
   const bw = R*0.72, bh = R*0.18;
-  const bx = cx - bw/2, by = cy + R*0.37;
+  const bx = cx - bw/2, by = cy + R*0.47;
   ctx.beginPath();
   if(ctx.roundRect) ctx.roundRect(bx, by, bw, bh, R*0.012); else ctx.rect(bx, by, bw, bh);
   ctx.fillStyle = "#d9df4c";
@@ -6994,7 +7054,7 @@ function drawSpeedometer(canvas, scoreValue, success, scoreLabel="CPI", tipLabel
 }
 
 // Sweep needle 0→CPI in 1.4s ease-in-out, then dither ±0.8 CPI
-function animateSpeedometer(canvas, targetScore, success, scoreLabel="CPI", tipLabel="MBS", tipValue=null){
+function animateSpeedometer(canvas, targetScore, success, scoreLabel="CPI", tipLabel="MBS", tipValue=null, opts=null){
  stopSpeedometer();
  const finalCPI = success ? targetScore : 0;
  const SWEEP_DUR = 1400;
@@ -9209,7 +9269,6 @@ const _spsel=$("speedometerSessionSelect"); if(_spsel) _spsel.onchange=()=>openS
 // (higher selectedIndex) and Next moves to a newer session (lower selectedIndex).
 const _spprev=$("speedometerPrevBtn"); if(_spprev) _spprev.onclick=()=>{ const s=$("speedometerSessionSelect"); if(!s||!s.options.length) return; s.selectedIndex=Math.min(s.options.length-1, s.selectedIndex+1); if(s.onchange) s.onchange(); };
 const _spnext=$("speedometerNextBtn"); if(_spnext) _spnext.onclick=()=>{ const s=$("speedometerSessionSelect"); if(!s||!s.options.length) return; s.selectedIndex=Math.max(0, s.selectedIndex-1); if(s.onchange) s.onchange(); };
-const _spm4=$("speedometerMode2ToggleBtn"); if(_spm4) _spm4.onclick=()=>{ state.speedometerMode2Metric = String(state.speedometerMode2Metric||"cpi").toLowerCase()==="cpi" ? "cpa" : "cpi"; openSpeedometerSession(getSpeedometerSelectedIndex()); };
 const _sactsel=$("speedometerActionSelect"); if(_sactsel) _sactsel.onchange=()=>openSpeedometerMenuSelection();
 const _sadmin=$("speedAdminBtn"); if(_sadmin) _sadmin.onclick=()=>openAdminFromOverlay("outcomeOverlay");
 $("summaryAdminBtn").onclick=()=>openAdminFromOverlay("summaryOverlay");
@@ -9490,51 +9549,20 @@ function getMode2DispositionWindowText(result){
 
 
 function getMode2SpeedometerMetric(result, success){
- const pref = String(state.speedometerMode2Metric||"cpi").toLowerCase()==="cpi" ? "cpi" : "cpa";
  const mbs = Number(result && (result.mode2AdaptiveMbsMs!=null ? result.mode2AdaptiveMbsMs : result.averageLast2BlockingScoresMs));
  const cpi = Number.isFinite(mbs) ? computeCPI(mbs) : (Number.isFinite(Number(result && result.cognitivePerformanceIndex)) ? Number(result.cognitivePerformanceIndex) : null);
  const cpa = Number(result && result.cpa);
- // On a failed test the dial needle animates to 0 and the outcome text reads
- // "Test Failed" / "Dead" — the CPI/CPA/MBS boxes must not contradict that by
- // continuing to show the last-computed value. Force the displayed text values
- // to the zero-equivalent when success===false.
  const failed = success === false;
- // Mode 2 Speedometer metric panel:
- // - CPA view shows CPA + Disposition
- // - CPI view shows CPI + MBS
- // - Disposition is never shown for Modes 1, 3, or 4
- const dispositionScore = Number.isFinite(cpa) ? cpa : cpi;
-  const dispositionText = failed ? "—" : getMode2DispositionWindowText(result);
+ const dispositionText = failed ? "—" : getMode2DispositionWindowText(result);
  const mbsText = failed ? "—" : (Number.isFinite(mbs)?`${Number(mbs).toFixed(1)} ms`:"—");
- const cpiText = failed ? "0.0 / 100" : (Number.isFinite(cpi)?`${Number(cpi).toFixed(1)} / 100`:"—");
- const cpaText = failed ? "0.0 / 100" : (Number.isFinite(cpa)?`${Number(cpa).toFixed(1)} / 100`:"—");
  return {
-  score: failed ? 0
-   : (pref!=="cpi" ? (Number.isFinite(cpa)?Math.max(0,Math.min(100,cpa)):0) : (Number.isFinite(cpi)?Math.max(0,Math.min(100,cpi)):0)),
-  scoreLabel:pref!=="cpi" ? "CPA" : "CPI",
+  score: failed ? 0 : (Number.isFinite(cpi)?Math.max(0,Math.min(100,cpi)):0),
+  scoreLabel: "CPI / CPA",
   mbsText,
-  boxes: pref!=="cpi"
-   ? [
-      // Mode 2 only: show Disposition beside CPA.
-      {label:"CPA", value:cpaText},
-      {label:"Disposition", value:dispositionText}
-     ]
-   : [
-      // CPI view shows performance metrics only; no Disposition window.
-      {label:"CPI", value:cpiText},
-      {label:"MBS", value:mbsText}
-     ]
+  boxes: [
+    {label:"Disposition", value:dispositionText}
+  ]
  };
-}
-
-function renderMode2SpeedometerBoxes(metric){
- const wrap = $("speedometerMode2Metrics");
- if(!wrap) return;
- const boxes = metric && Array.isArray(metric.boxes) ? metric.boxes : [];
- if(!boxes.length){ wrap.innerHTML=""; wrap.classList.add("hidden"); return; }
- wrap.classList.remove("hidden");
- wrap.style.display = "grid";
- wrap.innerHTML = boxes.map(b=>`<div class="summary-card"><div class="summary-card-label">${b.label}</div><div class="summary-card-val" style="font-size:20px">${b.value}</div></div>`).join("");
 }
 
 function renderSpeedometerOutcome(result, sessionIndex){
@@ -9554,13 +9582,15 @@ function renderSpeedometerOutcome(result, sessionIndex){
  let scoreLabel = "CPI";
  let metricLabel = "MBS";
  let metricValueText = null;
- let mode2MetricBoxes = null;
+ let speedoOptions = null;
  const isMode2Speedometer = !!(result && result.testMode==="mode2");
+ if(result && (result.dispositionCode==null || result.dispositionLabel==null || result.dispositionSpfs==null || /^(GREEN|YELLOW|ORANGE|RED)$/i.test(String(result.dispositionCode||"")))) Object.assign(result, computeDisposition(result));
  if(isMode2Speedometer){
   if(result && result.mode2Triggered && result.cpa==null) Object.assign(result, computeMode2CPA(result));
-  if(result && (result.dispositionCode==null || result.dispositionLabel==null || /^(GREEN|YELLOW|ORANGE|RED)$/i.test(String(result.dispositionCode||"")))) Object.assign(result, computeDisposition(result));
   const mode2Metric = getMode2SpeedometerMetric(result, success);
-  cps = success ? mode2Metric.score : 0;
+  const cpiNeedle = Number.isFinite(Number(result && result.cognitivePerformanceIndex)) ? Math.max(0, Math.min(100, Number(result.cognitivePerformanceIndex))) : mode2Metric.score;
+  const cpaNeedle = Number.isFinite(Number(result && result.cpa)) ? Math.max(0, Math.min(100, Number(result.cpa))) : null;
+  cps = success ? cpiNeedle : 0;
   if(success){
    mbs = Number(result && (result.mode2AdaptiveMbsMs!=null ? result.mode2AdaptiveMbsMs : result.averageLast2BlockingScoresMs));
    metricLabel = "MBS";
@@ -9571,8 +9601,18 @@ function renderSpeedometerOutcome(result, sessionIndex){
    metricLabel = "MBS";
    metricValueText = null;
   }
-  scoreLabel = mode2Metric.scoreLabel;
-  mode2MetricBoxes = mode2Metric.boxes || null;
+  scoreLabel = "CPI / CPA";
+  speedoOptions = {
+   secondaryNeedleValue: success ? cpaNeedle : null,
+   lowerWindows: [
+    {label:"Disposition", value: success ? getMode2DispositionWindowText(result) : "—"}
+   ],
+   spfsCode: success ? Number(result && (result.dispositionSpfs!=null ? result.dispositionSpfs : result.dispositionCode)) : null
+  };
+ } else {
+  speedoOptions = {
+   spfsCode: success ? Number(result && (result.dispositionSpfs!=null ? result.dispositionSpfs : result.dispositionCode)) : null
+  };
  }
  const wrap = $("speedometerWrap");
  if(wrap) canvas.style.width = wrap.offsetWidth + "px";
@@ -9584,18 +9624,8 @@ function renderSpeedometerOutcome(result, sessionIndex){
       : (latestIdx!=null ? latestIdx : 0));
  setActiveResultContext(result, idx>=0?idx:null, idx>=0?"rendered from history":"rendered current result");
  if(idx>=0){ syncSpeedometerSessionSelect(idx); }
- const mode2Toggle=$("speedometerMode2ToggleBtn");
- if(mode2Toggle){
-  if(isMode2Speedometer){
-   mode2Toggle.classList.remove("hidden");
-   mode2Toggle.textContent = String(state.speedometerMode2Metric||"cpi").toLowerCase()==="cpi" ? "Show CPA / Disposition" : "Show CPI / MBS";
-  }else{
-   mode2Toggle.classList.add("hidden");
-  }
- }
- renderMode2SpeedometerBoxes(isMode2Speedometer ? {boxes:mode2MetricBoxes||[]} : null);
  stopSpeedometer();
- setTimeout(()=>animateSpeedometer(canvas, cps, success, scoreLabel, metricLabel, metricValueText), 80);
+ setTimeout(()=>animateSpeedometer(canvas, cps, success, scoreLabel, metricLabel, metricValueText, speedoOptions), 80);
  renderSpfGaugeForResult(result);
  const ovt=$("outcomeVerificationText"); if(ovt){ ovt.textContent = ""; ovt.style.display = "none"; }
  renderSpeedometerSleepMetrics(result);

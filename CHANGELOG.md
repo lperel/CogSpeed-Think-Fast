@@ -1,3 +1,4 @@
+- Rev123 speedometer cleanup: removed the unused Mode 2 CPA toggle button, kept dual CPI/CPA needles for Mode 2 only, restored MBS to the dial-only display, and reduced the lower window area to Disposition only.
 - Moved **Data Upload for Research** below the Mode 2 Scheduler ON/OFF buttons and the "No Mode 2 reminders scheduled." text on Profile.
 ## Rev 115
 - Restored the **Technical Methods** button to the main Profile page.
