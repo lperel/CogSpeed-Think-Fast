@@ -8,8 +8,10 @@ function shouldPersistSessionForLocalHistory(result){
 // ═══════════════════════════════════════════════════
 // CogSpeed source
 // ═══════════════════════════════════════════════════
-// Current visible build version used in UI and email subject lines.
-const APP_VERSION = "V699";
+// Current visible build version used in UI and exports.
+// Keep BASE_STORAGE_VERSION fixed unless intentionally migrating stored data.
+const BASE_STORAGE_VERSION = "V699";
+const APP_VERSION = "V699rev112";
 
 // ═══════════════════════════════════════════════════
 // Current behavior summary (historical details live in CHANGELOG.md)
@@ -25,7 +27,8 @@ const APP_VERSION = "V699";
 // ═══════════════════════════════════════════════════
 
 const RELEASE = APP_VERSION.replace(/^V/i, "");
-const STORAGE_PREFIX = `cogspeed_v${RELEASE}`;
+const STORAGE_RELEASE = BASE_STORAGE_VERSION.replace(/^V/i, "");
+const STORAGE_PREFIX = `cogspeed_v${STORAGE_RELEASE}`;
 
 // ─── Version guard ───
 (function(){
@@ -368,7 +371,7 @@ let settings=loadSettings();
 // profile record (profile is no longer the source of truth for test type),
 // and persist both. This fires once per fresh rev deployment per device;
 // after that, the stamp matches and nothing is touched on subsequent loads.
-const APP_REV_STAMP = "V699rev107";
+const APP_REV_STAMP = "V699rev112";
 (function migrateToCurrentRev(){
  let stored = "";
  try{ stored = localStorage.getItem(`${STORAGE_PREFIX}_rev_stamp`) || ""; }catch(e){ stored = ""; }
@@ -448,10 +451,11 @@ const stimGrid=$("stimGrid"), probeCell=$("probeCell"), probeInner=$("probeInner
    phaseLabel=$("phaseLabel"), modeLabel=$("modeLabel");
 
 function syncReleaseUI(){
- document.title = `CogSpeed ${APP_VERSION}`;
+ const visibleVersion = APP_REV_STAMP || APP_VERSION;
+ document.title = `CogSpeed ${visibleVersion}`;
  const badge = $("versionBadge");
- if(badge) badge.textContent = APP_VERSION;
- if(statusLine) statusLine.textContent = `CogSpeed ${APP_VERSION}`;
+ if(badge) badge.textContent = visibleVersion;
+ if(statusLine) statusLine.textContent = `CogSpeed ${visibleVersion}`;
 }
 syncReleaseUI();
 
@@ -692,7 +696,7 @@ function computeTotalTrialPresentations(result){
  return selfPaced + Math.max(Number(result&&result.totalTrials)||0,pacedDerived);
 }
 // Mode helpers centralize mode checks so start / finish / summary logic
-// can switch cleanly between CogSpeed, SPC, and SPCMP behavior.
+// can switch cleanly between current CogSpeed behavior profiles.
 function isMode1(){ return (settings.testMode||DEFAULTS.testMode)==="mode1"; }
 function isMode2(){ return (settings.testMode||DEFAULTS.testMode)==="mode2"; }
 function isMode3(){ return (settings.testMode||DEFAULTS.testMode)==="mode3"; }
@@ -4357,7 +4361,7 @@ function openPersonalBaselinePage(sessionIndex){
  if(statusEl) statusEl.textContent = statusText;
  if(metaEl){
   const sessionTime = result.time ? new Date(result.time).toLocaleString() : "—";
-  metaEl.innerHTML = `<div><strong>Subject:</strong> ${escapeHtml(String(result.subjectId||"—"))}</div><div><strong>Current baseline view:</strong> ${escapeHtml(sessionTime)}</div><div><strong>Qualifying sessions available:</strong> ${baseline.qualifyingCount}</div><div style="margin-top:6px">All qualifying sessions are shown below. The rolling baseline value itself uses the most recent 5 qualifying non-Guest Mode 1 / Mode 2 adaptive-phase MBS scores with MBS &le; ${getPersonalBaselineMaxMbs()} ms, S-PFS 5–7, and no failed sessions.</div>`;
+  metaEl.innerHTML = `<div><strong>Subject:</strong> ${escapeHtml(String(result.subjectId||"—"))}</div><div><strong>History scope:</strong> Full qualifying saved history</div><div><strong>Selected session:</strong> ${escapeHtml(sessionTime)}</div><div><strong>Qualifying sessions available:</strong> ${baseline.qualifyingCount}</div><div style="margin-top:6px">All qualifying sessions are shown below. The rolling baseline value itself uses the most recent 5 qualifying non-Guest Mode 1 / Mode 2 adaptive-phase MBS scores with MBS &le; ${getPersonalBaselineMaxMbs()} ms, S-PFS 5–7, and no failed sessions.</div>`;
  }
  if(graphEl) graphEl.innerHTML = buildPersonalBaselineSvg(rows, baseline.established ? baseline.averageMbs : null);
  if(tbody){
@@ -4832,6 +4836,8 @@ function currentResearchModelVersions(){
   dispositionModelVersion: 'disp-v1'
  };
 }
+// Verification wording remains available for Results - Complete and exported records only.
+// Speedometer and Results Summary intentionally suppress this text.
 function getVerificationStatusLabel(result){
  const code = String(result?.verificationStatus||'local_only').toLowerCase();
  if(code==='verified') return 'Verified';
@@ -9660,16 +9666,14 @@ const _ssp=$("speedStartPageBtn"); if(_ssp) _ssp.onclick=()=>{ hideAllOverlays()
 
 /* ===== Performance vs Time graph ===== */
 const perfGraphState = {
-  preset: "7d",
-  fromDate: "",
-  toDate: ""
+  preset: "7d"
 };
 
 function isPerfFailureSession(r){
   if(!r) return false;
   const endReason = String(r.endReason || "");
   const lower = endReason.toLowerCase();
-  if(/^failed/i.test(endReason) || lower.includes("retest") || lower.includes("practice")) return true;
+  if(/^failed\b/i.test(endReason) || lower.includes("retest") || lower.includes("practice")) return true;
   // Anti-spoof and sustained-stop endings for Mode 2 are failed / invalid sessions.
   if(r.testMode === "mode2" && (
     lower.includes("rolling mean below threshold in sustained phase") ||
@@ -9746,8 +9750,15 @@ function perfSessionIsoDate(r){
   return new Date(ms).toISOString().slice(0,10);
 }
 
+function getPerfGraphBaseSessions(hist){
+  return (hist||[])
+    .slice()
+    .filter(r=>Number.isFinite(perfSessionUtcMs(r)))
+    .sort((a,b)=>perfSessionUtcMs(a)-perfSessionUtcMs(b));
+}
+
 function filterSessionsForPerfGraph(hist){
-  const base = (hist||[]).slice().sort((a,b)=>perfSessionUtcMs(a)-perfSessionUtcMs(b));
+  const base = getPerfGraphBaseSessions(hist);
   if(!base.length) return base;
   const lastMs = perfSessionUtcMs(base[base.length-1]);
   if(perfGraphState.preset === "all") return base;
@@ -9760,54 +9771,24 @@ function filterSessionsForPerfGraph(hist){
     const startMs = lastMs - (7 * 24 * 60 * 60 * 1000);
     return base.filter(r=> perfSessionUtcMs(r) >= startMs);
   }
-  const from = perfGraphState.fromDate || "";
-  const to = perfGraphState.toDate || "";
-  return base.filter(r=>{
-    const d = perfSessionIsoDate(r);
-    if(!d) return false;
-    if(from && d < from) return false;
-    if(to && d > to) return false;
-    return true;
-  });
+  return base;
 }
 
 function syncPerfGraphControls(hist){
   const preset = $("perfRangePreset");
-  const fromEl = $("perfDateFrom");
-  const toEl = $("perfDateTo");
   const info = $("perfRangeInfo");
-  if(!preset || !fromEl || !toEl) return;
+  if(!preset) return;
 
-  const base = (hist||[]).slice().sort((a,b)=>perfSessionUtcMs(a)-perfSessionUtcMs(b));
+  const base = getPerfGraphBaseSessions(hist);
   const firstDate = base.length ? perfSessionIsoDate(base[0]) : "";
   const lastDate = base.length ? perfSessionIsoDate(base[base.length-1]) : "";
 
-  fromEl.min = firstDate || "";
-  fromEl.max = lastDate || "";
-  toEl.min = firstDate || "";
-  toEl.max = lastDate || "";
-
-  if(!perfGraphState.fromDate && firstDate) perfGraphState.fromDate = firstDate;
-  if(!perfGraphState.toDate && lastDate) perfGraphState.toDate = lastDate;
-
   preset.value = perfGraphState.preset;
-  fromEl.value = perfGraphState.fromDate || "";
-  toEl.value = perfGraphState.toDate || "";
-
-  const custom = perfGraphState.preset === "custom";
-  fromEl.disabled = !custom;
-  toEl.disabled = !custom;
-  fromEl.style.opacity = custom ? "1" : "0.55";
-  toEl.style.opacity = custom ? "1" : "0.55";
-  if(fromEl.parentElement) fromEl.parentElement.style.display = custom ? "grid" : "none";
-  if(toEl.parentElement) toEl.parentElement.style.display = custom ? "grid" : "none";
 
   const filtered = filterSessionsForPerfGraph(base);
   if(info){
     if(!base.length){
       info.textContent = "No saved sessions yet.";
-    }else if(custom){
-      info.textContent = `Showing ${filtered.length} session${filtered.length===1?"":"s"} from ${perfGraphState.fromDate||firstDate} to ${perfGraphState.toDate||lastDate}.`;
     }else if(perfGraphState.preset === "24h"){
       info.textContent = `Showing sessions from the last 24 hours.`;
     }else if(perfGraphState.preset === "7d"){
@@ -9822,9 +9803,7 @@ function syncPerfGraphControls(hist){
 
 function wirePerfGraphControls(){
   const preset = $("perfRangePreset");
-  const fromEl = $("perfDateFrom");
-  const toEl = $("perfDateTo");
-  if(!preset || !fromEl || !toEl || preset.dataset.wired==="1") return;
+  if(!preset || preset.dataset.wired==="1") return;
   preset.dataset.wired="1";
 
   const rerender = ()=>{
@@ -9834,22 +9813,6 @@ function wirePerfGraphControls(){
 
   preset.onchange = ()=>{
     perfGraphState.preset = preset.value || "all";
-    rerender();
-  };
-  fromEl.onchange = ()=>{
-    perfGraphState.fromDate = fromEl.value || "";
-    if(perfGraphState.toDate && perfGraphState.fromDate && perfGraphState.toDate < perfGraphState.fromDate){
-      perfGraphState.toDate = perfGraphState.fromDate;
-      toEl.value = perfGraphState.toDate;
-    }
-    rerender();
-  };
-  toEl.onchange = ()=>{
-    perfGraphState.toDate = toEl.value || "";
-    if(perfGraphState.fromDate && perfGraphState.toDate && perfGraphState.toDate < perfGraphState.fromDate){
-      perfGraphState.fromDate = perfGraphState.toDate;
-      fromEl.value = perfGraphState.fromDate;
-    }
     rerender();
   };
 }
@@ -9902,7 +9865,7 @@ function drawPerformanceOverTimeChart(canvas,hist){
   }
 
   const sessionTimes = slice.map(r=>{
-    const t = new Date(r.time).getTime();
+    const t = perfSessionUtcMs(r);
     return Number.isFinite(t) ? t : null;
   });
   const validTimes = sessionTimes.filter(t=>t!=null);
@@ -9938,7 +9901,6 @@ function drawPerformanceOverTimeChart(canvas,hist){
     maxTime += 30 * 60 * 1000;
   }
   const timeSpan = Math.max(1, maxTime - minTime);
-  const n = slice.length;
 
   const hourMs = 60 * 60 * 1000;
   const sortedValidTimes = validTimes.slice().sort((a,b)=>a-b);
@@ -10141,12 +10103,10 @@ function drawPerformanceOverTimeChart(canvas,hist){
   ctx.font=fontSub;
   ctx.fillStyle="#d7e7f8";
   const subjectCount = new Set(slice.map(r => (r.subjectId||"—"))).size;
-  const rangeLabel = perfGraphState.preset === "custom"
-    ? `    Range: ${perfGraphState.fromDate||"start"} → ${perfGraphState.toDate||"end"}`
-    : (perfGraphState.preset === "24h" ? "    Range: Last 24 hours"
+  const rangeLabel = perfGraphState.preset === "24h" ? "    Range: Last 24 hours"
       : perfGraphState.preset === "7d" ? "    Range: Last 7 days"
       : perfGraphState.preset === "30sessions" ? "    Range: Last 30 sessions"
-      : "    Range: All history");
+      : "    Range: All history";
   ctx.fillText(`All sessions in continuous device-local time    Subjects: ${subjectCount}    Sessions: ${n}${rangeLabel}`, PAD.left, 46);
 
   ctx.save();
@@ -10244,21 +10204,22 @@ function drawPerformanceOverTimeChart(canvas,hist){
     ctx.beginPath();
     let started=false;
     scoreVals.forEach((score,i)=>{
-      const metric = metricVals[i];
-      if(score==null || metric==null || sessionTimes[i]==null){ started=false; return; }
+      if(score==null || sessionTimes[i]==null){ started=false; return; }
       const x = xOfIndex(i), y = yLeftFromScore(score);
       if(!started){ ctx.moveTo(x,y); started=true; } else { ctx.lineTo(x,y); }
     });
-    if(scoreVals.filter((score,i)=>score!=null && metricVals[i]!=null && sessionTimes[i]!=null).length>1) ctx.stroke();
+    if(scoreVals.filter((score,i)=>score!=null && sessionTimes[i]!=null).length>1) ctx.stroke();
 
     scoreVals.forEach((score,i)=>{
+      if(score==null || sessionTimes[i]==null) return;
       const metric = metricVals[i];
-      if(score==null || metric==null || sessionTimes[i]==null) return;
       const x = xOfIndex(i);
       const y = yLeftFromScore(score);
       drawAnchorGuide(i, y);
-      ctx.beginPath(); ctx.arc(x,y,perfOuterRadius,0,Math.PI*2);
-      ctx.strokeStyle="#ffb357"; ctx.lineWidth=2.2; ctx.stroke();
+      if(metric!=null){
+        ctx.beginPath(); ctx.arc(x,y,perfOuterRadius,0,Math.PI*2);
+        ctx.strokeStyle="#ffb357"; ctx.lineWidth=2.2; ctx.stroke();
+      }
       ctx.beginPath(); ctx.arc(x,y,perfInnerRadius,0,Math.PI*2);
       ctx.fillStyle="#7fd7ff";
       ctx.fill();

@@ -1,3 +1,17 @@
+- Rev112 version-alignment rebuild:
+  - Aligned surfaced package version markers to `V699rev112` across `index.html`, `manifest.json`, `sw.js`, and `APP_REV_STAMP`.
+  - Updated `APP_VERSION` to `V699rev112` for visible/exported version reporting.
+  - Introduced `BASE_STORAGE_VERSION = "V699"` so the storage prefix stays on the existing `cogspeed_v699` namespace and does not orphan prior subject data.
+  - Bumped the cache-busting script tag to `app.js?v=699rev112` and `sw.js` RELEASE to `699rev112`.
+
+- Rev111 strict stale-code cleanup only:
+  - Removed `fromDate` / `toDate` and the hidden custom-range wiring from the Performance over Date and Time graph so only the live range options remain (`24h`, `7d`, `Last 30 sessions`, `All history`).
+  - Scrubbed the remaining stale `SPC` / `SPCMP` comment reference from `app.js`.
+  - Updated the Personal Baseline overlay wording to match the full-history behavior while still showing the selected session context separately.
+  - Clarified the verification-text policy in code comments: verification wording remains available for Results - Complete / exports, while Speedometer and Results Summary suppress it.
+  - Reconciled technical-methods filename references to `technical-overview-v92.html`.
+  - Bumped the cache-busting script tag to `app.js?v=699rev111`, bumped `sw.js` RELEASE to `699rev111`, and advanced `APP_REV_STAMP` to `V699rev111`. `APP_VERSION` remains `V699` because this is a stale-code cleanup only.
+
 ## Rev 94
 - Moved verification/provenance block to the bottom of both Results summaries.
 - Fixed Performance over Date and Time graph layout by making the chart canvas dynamically wider inside a horizontal scroller and shrinking CPA square markers.
@@ -60,18 +74,18 @@
 
 ## Rev 79
 - Removed stale technical-route cleanup code and legacy technical-route references from the live app package.
-- Kept a single bundled technical document page only: `technical-overview-v91.html`.
+- Kept a single bundled technical document page only: `technical-overview-v92.html`.
 - Updated About, Results, Profile, Admin, and service-worker shell references to the single current technical page.
 - Bumped app/service-worker revision to `699rev79` for a clean refresh path.
 
 ## Rev 78
-- Performed the strictest technical-overview cleanup: removed all legacy technical overview files from the package and kept only `technical-overview-v91.html` as the single bundled technical document.
+- Performed the strictest technical-overview cleanup: removed all legacy technical overview files from the package and kept only `technical-overview-v92.html` as the single bundled technical document.
 - Added service-worker interception for stale legacy technical routes (`technical-overview.html`, `technical-overview-v73.html`, `technical-overview-v75.html`, `technical-overview-v76.html`, and `technical-overview.pdf`) so any old cached request is forced to the canonical in-app HTML page instead of opening stale content or a PDF viewer.
 - Updated service-worker cache release and app revision stamp to `699rev78` / `V699rev78`.
 
 ## V699 Rev 77
 - Hard cleanup for technical overview routing and stale-phone cache behavior.
-- Set a single canonical in-app technical page: `technical-overview-v91.html`.
+- Set a single canonical in-app technical page: `technical-overview-v92.html`.
 - Updated About, Results, Profile placeholder, and Admin overlay links to the same canonical page.
 - Added redirect stubs for legacy technical overview routes (`technical-overview.html`, `technical-overview-v73.html`, `technical-overview-v75.html`, `technical-overview-v76.html`) so stale cached links forward to the current in-app page.
 - Updated service-worker cache manifest and release stamp to `699rev77`.
@@ -124,7 +138,7 @@
 
 ## V699 — 2026-04-19
 - Rev68 terminology scrub: replaced every remaining old fatigue-scale abbreviation occurrence with S-PFS across the entire package, including CHANGELOG.md.
-- Rev67 terminology update: replaced S-PFS with S-PFS everywhere in the program text, code comments, results text, and graph-related labels.
+- Rev67 terminology update: standardized S-PFS terminology everywhere in the program text, code comments, results text, and graph-related labels.
 - Rev66 profile placeholder: added a dummy future-research opt-in button on the Profile page asking whether the user would allow anonymous data download for research uses such as building population norms. No download behavior is active in this build.
 - Rev65 UI cleanup: kept rev64 behavior, cleaned the Profile email-toggle HTML markup, and bumped version markers again to invalidate stale cached shell markup.
 - Rev64 merge: incorporated the louder-explosions survival sound tuning into the latest email-toggle fix build.
