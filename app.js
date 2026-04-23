@@ -368,7 +368,7 @@ let settings=loadSettings();
 // profile record (profile is no longer the source of truth for test type),
 // and persist both. This fires once per fresh rev deployment per device;
 // after that, the stamp matches and nothing is touched on subsequent loads.
-const APP_REV_STAMP = "V699rev136";
+const APP_REV_STAMP = "V699rev137";
 // Version policy: APP_VERSION preserves base storage/schema continuity; DISPLAY_VERSION is what users see.
 const DISPLAY_VERSION = APP_REV_STAMP || APP_VERSION;
 (function migrateToCurrentRev(){
@@ -6814,7 +6814,7 @@ ${getResultsMetricExplanationText(result)}`);
 // ──────────────────────────────────────────────────────────────
 let _speedoRaf = null;
 
-function drawSpeedometer(canvas, scoreValue, success, scoreLabel="CPI", tipLabel="MBS", tipValue=null, opts=null){
+function drawSpeedometer(canvas, scoreValue, success, scoreLabel="CPI", tipLabel="MBS", tipValue=null, secondaryNeedleValue=null){
  const dpr = window.devicePixelRatio||1;
  const W = canvas.offsetWidth||380;
  const H = W;
@@ -6965,37 +6965,31 @@ function drawSpeedometer(canvas, scoreValue, success, scoreLabel="CPI", tipLabel
  ctx.stroke();
  ctx.restore();
 
- // optional secondary needle (used for Mode 2 CPA/CPI dual-needle display)
- const secondaryNeedle = opts && opts.secondaryNeedle && Number.isFinite(Number(opts.secondaryNeedle.value))
-  ? {
-     value: Math.max(0, Math.min(100, Number(opts.secondaryNeedle.value))),
-     color: String(opts.secondaryNeedle.color || "#2d6cdf"),
-     widthScale: Number.isFinite(Number(opts.secondaryNeedle.widthScale)) ? Number(opts.secondaryNeedle.widthScale) : 0.62
-    }
-  : null;
- if(secondaryNeedle){
-  const sa = toAngle(secondaryNeedle.value);
+ if(success && Number.isFinite(Number(secondaryNeedleValue))){
+  const sa = toAngle(Number(secondaryNeedleValue));
   ctx.save();
   ctx.translate(cx,cy);
   ctx.rotate(sa);
   ctx.beginPath();
-  ctx.moveTo(R*0.018, 0);
-  ctx.lineTo(R*0.09, -R*0.016);
-  ctx.lineTo(R*(0.54*secondaryNeedle.widthScale), -R*0.010);
-  ctx.lineTo(R*0.78, 0);
-  ctx.lineTo(R*(0.54*secondaryNeedle.widthScale), R*0.010);
-  ctx.lineTo(R*0.09, R*0.016);
+  ctx.moveTo(R*0.03, 0);
+  ctx.lineTo(R*0.12, -R*0.016);
+  ctx.lineTo(R*0.56, -R*0.010);
+  ctx.lineTo(R*0.82, 0);
+  ctx.lineTo(R*0.56, R*0.010);
+  ctx.lineTo(R*0.12, R*0.016);
   ctx.closePath();
-  ctx.fillStyle = secondaryNeedle.color;
+  ctx.fillStyle = "#2d6cdf";
   ctx.fill();
   ctx.beginPath();
-  ctx.arc(R*0.80,0,R*0.016,0,Math.PI*2);
-  ctx.fillStyle = secondaryNeedle.color;
+  ctx.arc(R*0.80, 0, R*0.018, 0, Math.PI*2);
+  ctx.fillStyle = "#2d6cdf";
   ctx.fill();
   ctx.beginPath();
-  ctx.arc(R*0.80,0,R*0.008,0,Math.PI*2);
-  ctx.fillStyle = "rgba(255,255,255,0.45)";
-  ctx.fill();
+  ctx.moveTo(R*0.10, -R*0.003);
+  ctx.lineTo(R*0.68, -R*0.0015);
+  ctx.strokeStyle = "rgba(255,255,255,0.28)";
+  ctx.lineWidth = R*0.0035;
+  ctx.stroke();
   ctx.restore();
  }
 
@@ -7028,7 +7022,7 @@ function drawSpeedometer(canvas, scoreValue, success, scoreLabel="CPI", tipLabel
 }
 
 // Sweep needle 0→CPI in 1.4s ease-in-out, then dither ±0.8 CPI
-function animateSpeedometer(canvas, targetScore, success, scoreLabel="CPI", tipLabel="MBS", tipValue=null, opts=null){
+function animateSpeedometer(canvas, targetScore, success, scoreLabel="CPI", tipLabel="MBS", tipValue=null, secondaryNeedleValue=null){
  stopSpeedometer();
  const finalCPI = success ? targetScore : 0;
  const SWEEP_DUR = 1400;
@@ -7048,10 +7042,7 @@ function animateSpeedometer(canvas, targetScore, success, scoreLabel="CPI", tipL
    const dt=ts-ditherStart;
    cps=finalCPI+Math.sin(dt*0.0044)*0.54+Math.sin(dt*0.0071)*0.26;
   }
-  const drawOpts = opts && opts.secondaryNeedle && Number.isFinite(Number(opts.secondaryNeedle.value))
-   ? Object.assign({}, opts, { secondaryNeedle: Object.assign({}, opts.secondaryNeedle, { value: (phase==="sweep" ? Number(opts.secondaryNeedle.value)*((elapsed/SWEEP_DUR)<0.5?4*Math.pow(Math.min(elapsed/SWEEP_DUR,1),3):1-Math.pow(-2*Math.min(elapsed/SWEEP_DUR,1)+2,3)/2) : Number(opts.secondaryNeedle.value)) }) })
-   : opts;
-  drawSpeedometer(canvas, cps, success, scoreLabel, tipLabel, tipValue, drawOpts);
+  drawSpeedometer(canvas, cps, success, scoreLabel, tipLabel, tipValue, secondaryNeedleValue);
   _speedoRaf=requestAnimationFrame(frame);
  }
  _speedoRaf=requestAnimationFrame(frame);
@@ -9592,7 +9583,7 @@ function renderSpeedometerOutcome(result, sessionIndex){
  let metricLabel = "MBS";
  let metricValueText = null;
  let mode2MetricBoxes = null;
- let speedoOpts = null;
+ let secondaryNeedleValue = null;
  const isMode2Speedometer = !!(result && result.testMode==="mode2");
  if(isMode2Speedometer){
   if(result && result.mode2Triggered && result.cpa==null) Object.assign(result, computeMode2CPA(result));
@@ -9611,12 +9602,7 @@ function renderSpeedometerOutcome(result, sessionIndex){
   }
   scoreLabel = mode2Metric.scoreLabel;
   mode2MetricBoxes = mode2Metric.boxes || null;
-  const cpiNeedle = Number(result && result.cognitivePerformanceIndex);
-  const cpaNeedle = Number(result && result.cpa);
-  if(success && Number.isFinite(cpiNeedle) && Number.isFinite(cpaNeedle)){
-   const primaryIsCPA = String(state.speedometerMode2Metric||"cpi").toLowerCase() !== "cpi";
-   speedoOpts = { secondaryNeedle: { value: primaryIsCPA ? cpiNeedle : cpaNeedle, color: primaryIsCPA ? "#17130f" : "#2d6cdf" } };
-  }
+  if(String(state.speedometerMode2Metric||"cpi").toLowerCase()==="cpi" && Number.isFinite(Number(result && result.cpa))) secondaryNeedleValue = Math.max(0, Math.min(100, Number(result.cpa)));
  }
  const wrap = $("speedometerWrap");
  if(wrap) canvas.style.width = wrap.offsetWidth + "px";
@@ -9639,7 +9625,7 @@ function renderSpeedometerOutcome(result, sessionIndex){
  }
  renderMode2SpeedometerBoxes(isMode2Speedometer ? {boxes:mode2MetricBoxes||[]} : null);
  stopSpeedometer();
- setTimeout(()=>animateSpeedometer(canvas, cps, success, scoreLabel, metricLabel, metricValueText, speedoOpts), 80);
+ setTimeout(()=>animateSpeedometer(canvas, cps, success, scoreLabel, metricLabel, metricValueText, secondaryNeedleValue), 80);
  renderSpfGaugeForResult(result);
  const ovt=$("outcomeVerificationText"); if(ovt){ ovt.textContent = ""; ovt.style.display = "none"; }
  renderSpeedometerSleepMetrics(result);
