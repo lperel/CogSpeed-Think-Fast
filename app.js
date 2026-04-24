@@ -136,16 +136,41 @@ const DEFAULTS={
  mode2NormExpectedMissRate:"0-20:0.15;20.01-40:0.16;40.01-60:0.19;60.01-80:0.23;80.01-100:0.29",
  mode2NormExpectedDriftPct:"0-20:4;20.01-40:5;40.01-60:7;60.01-80:9;80.01-100:12",
  mode2NormExpectedCvPct:"0-20:12;20.01-40:13;40.01-60:15;60.01-80:18;80.01-100:22",
- mode2NormToleranceCorrectRate:0.12,
- mode2NormToleranceWrongRate:0.08,
- mode2NormToleranceMissRate:0.10,
+ // V699rev151: new accuracy-composite profile, consolidating the previously
+ // collinear correct/wrong/miss rates into a single metric
+ //   accComposite = correctRate - wrongRate - 0.5 * missRate
+ // Expected values are derived from the old expected profile:
+ //   0-20:    0.82 - 0.03 - 0.5*0.15 = 0.715
+ //   20-40:   0.80 - 0.04 - 0.5*0.16 = 0.680
+ //   40-60:   0.76 - 0.05 - 0.5*0.19 = 0.615
+ //   60-80:   0.70 - 0.07 - 0.5*0.23 = 0.515
+ //   80-100:  0.62 - 0.09 - 0.5*0.29 = 0.385
+ mode2NormExpectedAccuracyComposite:"0-20:0.715;20.01-40:0.680;40.01-60:0.615;60.01-80:0.515;80.01-100:0.385",
+ mode2NormToleranceCorrectRate:0.12,   // Deprecated in V699rev151 — retained for storage continuity only.
+ mode2NormToleranceWrongRate:0.08,     // Deprecated in V699rev151 — retained for storage continuity only.
+ mode2NormToleranceMissRate:0.10,      // Deprecated in V699rev151 — retained for storage continuity only.
  mode2NormToleranceDriftPct:8,
  mode2NormToleranceCvPct:10,
- mode2NormWeightCorrect:3.0,
- mode2NormWeightWrong:2.5,
- mode2NormWeightMiss:3.5,
- mode2NormWeightDrift:1.5,
- mode2NormWeightCv:1.5,
+ // V699rev151: tolerance for the new accuracy composite. Sized so that a
+ // one-tolerance deviation is roughly comparable in magnitude to the prior
+ // summed tolerance of the three collinear features it replaces.
+ mode2NormToleranceAccuracyComposite:0.15,
+ mode2NormWeightCorrect:0,   // V699rev151: RETIRED. Was 3.0. Consolidated into mode2NormWeightAccuracy.
+ mode2NormWeightWrong:0,     // V699rev151: RETIRED. Was 2.5. Consolidated into mode2NormWeightAccuracy.
+ mode2NormWeightMiss:0,      // V699rev151: RETIRED. Was 3.5. Consolidated into mode2NormWeightAccuracy.
+ // V699rev151: upgraded drift and CV weights, since drift is now measured by
+ // the stronger OLS-slope estimator and the composite has headroom after the
+ // accuracy-feature consolidation.
+ mode2NormWeightDrift:6.0,   // V699rev151: was 1.5; now drives OLS-slope residual
+ mode2NormWeightCv:6.0,      // V699rev151: was 1.5
+ // V699rev151: new consolidated-accuracy weight. Replaces the previous 9.0
+ // combined weight (3.0+2.5+3.5) of the three collinear accuracy features.
+ mode2NormWeightAccuracy:9.0,
+ // V699rev151: total max absolute weighted residual is
+ //   9 (accuracy) + 6 (drift) + 6 (CV) = 21
+ // The cap is kept at 20 so the cap can actually engage under sufficiently
+ // poor sustained-phase performance, while leaving 1 point of weight headroom
+ // so no single feature alone saturates the cap.
  mode2NormMaxDelta:20,
  researchModeLocked:0,
  researchUploadEndpoint:'',
@@ -242,21 +267,21 @@ const ADMIN_FIELDS=[
 
  // 65-79. Mode 2 normative CPA defaults
  ["mode2NormExpectedCorrectRate","65. Mode 2 expected sustained correct rate by CPI bucket (min-max:value; ...)","text"],
- ["mode2NormExpectedWrongRate","66. Mode 2 expected sustained wrong rate by CPI bucket (min-max:value; ...)","text"],
- ["mode2NormExpectedMissRate","67. Mode 2 expected sustained miss rate by CPI bucket (min-max:value; ...)","text"],
- ["mode2NormExpectedDriftPct","68. Mode 2 expected sustained drift % by CPI bucket (min-max:value; ...)","text"],
+ ["mode2NormExpectedWrongRate","66. Mode 2 expected sustained wrong rate by CPI bucket (min-max:value; ...) — Deprecated V699rev151 (retained for storage continuity)","text"],
+ ["mode2NormExpectedMissRate","67. Mode 2 expected sustained miss rate by CPI bucket (min-max:value; ...) — Deprecated V699rev151 (retained for storage continuity)","text"],
+ ["mode2NormExpectedDriftPct","68. Mode 2 expected sustained drift % by CPI bucket (min-max:value; ...) — V699rev151 now compared against OLS-slope drift","text"],
  ["mode2NormExpectedCvPct","69. Mode 2 expected sustained CV% by CPI bucket (min-max:value; ...)","text"],
- ["mode2NormToleranceCorrectRate","70. Mode 2 correct-rate tolerance around expected profile (default 0.12)","number"],
- ["mode2NormToleranceWrongRate","71. Mode 2 wrong-rate tolerance around expected profile (default 0.08)","number"],
- ["mode2NormToleranceMissRate","72. Mode 2 miss-rate tolerance around expected profile (default 0.10)","number"],
+ ["mode2NormToleranceCorrectRate","70. Mode 2 correct-rate tolerance — Deprecated V699rev151 (retained for storage continuity)","number"],
+ ["mode2NormToleranceWrongRate","71. Mode 2 wrong-rate tolerance — Deprecated V699rev151 (retained for storage continuity)","number"],
+ ["mode2NormToleranceMissRate","72. Mode 2 miss-rate tolerance — Deprecated V699rev151 (retained for storage continuity)","number"],
  ["mode2NormToleranceDriftPct","73. Mode 2 drift tolerance % around expected profile (default 8)","number"],
  ["mode2NormToleranceCvPct","74. Mode 2 CV tolerance % around expected profile (default 10)","number"],
- ["mode2NormWeightCorrect","75. Mode 2 CPA weight for correct-rate deviation (default 3.0)","number"],
- ["mode2NormWeightWrong","76. Mode 2 CPA weight for wrong-rate deviation (default 2.5)","number"],
- ["mode2NormWeightMiss","77. Mode 2 CPA weight for miss-rate deviation (default 3.5)","number"],
- ["mode2NormWeightDrift","78. Mode 2 CPA weight for drift deviation (default 1.5)","number"],
- ["mode2NormWeightCv","79. Mode 2 CPA weight for CV deviation (default 1.5)","number"],
- ["mode2NormMaxDelta","80. Mode 2 CPA max total divergence from CPI (points, default 20)","number"],
+ ["mode2NormWeightCorrect","75. Mode 2 CPA weight for correct-rate — RETIRED V699rev151 (default 0). Consolidated into weight 87.","number"],
+ ["mode2NormWeightWrong","76. Mode 2 CPA weight for wrong-rate — RETIRED V699rev151 (default 0). Consolidated into weight 87.","number"],
+ ["mode2NormWeightMiss","77. Mode 2 CPA weight for miss-rate — RETIRED V699rev151 (default 0). Consolidated into weight 87.","number"],
+ ["mode2NormWeightDrift","78. Mode 2 CPA weight for OLS-drift deviation (default 6.0, V699rev151 — was 1.5)","number"],
+ ["mode2NormWeightCv","79. Mode 2 CPA weight for CV deviation (default 6.0, V699rev151 — was 1.5)","number"],
+ ["mode2NormMaxDelta","80. Mode 2 CPA max total divergence from CPI (points, default 20). Max pre-cap residual is 21 so the cap can engage.","number"],
 
  // 81. Diagnostics
  ["deviceBenchmarkEnabled","81. Device benchmark (0=off, 1=on)","number"],
@@ -264,7 +289,12 @@ const ADMIN_FIELDS=[
  ["researchUploadEndpoint","83. Research upload endpoint URL (leave blank to disable uploads)","text"],
  ["researchIncludeLearningSessions","84. Research upload include learning/pre-baseline sessions (0=off, 1=on)","number"],
  ["researchAutoUpload","85. Research upload automatically when online (0=off, 1=on)","number"],
- ["researchRetainRawAfterVerify","86. Keep raw research payload on device after verification (0=off, 1=on)","number"]
+ ["researchRetainRawAfterVerify","86. Keep raw research payload on device after verification (0=off, 1=on)","number"],
+ // V699rev151: new Mode 2 CPA accuracy-composite settings (replace the
+ // previously collinear correct/wrong/miss triad).
+ ["mode2NormExpectedAccuracyComposite","87. Mode 2 expected sustained accuracy composite by CPI bucket (min-max:value; ...). Composite = correctRate − wrongRate − 0.5·missRate","text"],
+ ["mode2NormToleranceAccuracyComposite","88. Mode 2 accuracy-composite tolerance around expected profile (default 0.15)","number"],
+ ["mode2NormWeightAccuracy","89. Mode 2 CPA weight for accuracy-composite deviation (default 9.0, V699rev151). Replaces the old sum of weights 75+76+77.","number"]
 ];
 
 // ─── Patterns ───
@@ -368,7 +398,7 @@ let settings=loadSettings();
 // profile record (profile is no longer the source of truth for test type),
 // and persist both. This fires once per fresh rev deployment per device;
 // after that, the stamp matches and nothing is touched on subsequent loads.
-const APP_REV_STAMP = "V699rev149";
+const APP_REV_STAMP = "V699rev151";
 // Version policy: APP_VERSION preserves base storage/schema continuity; DISPLAY_VERSION is what users see.
 const DISPLAY_VERSION = APP_REV_STAMP || APP_VERSION;
 
@@ -400,6 +430,72 @@ const DISPLAY_VERSION = APP_REV_STAMP || APP_VERSION;
   try{ saveSettings(); }catch(e){}
  }
  try{ localStorage.setItem(`${STORAGE_PREFIX}_rev145_safe_admin_migration`, APP_REV_STAMP); }catch(e){}
+})();
+
+
+// V699rev151 one-time per-revision migration:
+// Safely bring Admin defaults to the new CPA architecture (accuracy composite
+// consolidation + upgraded drift/CV weights + new accuracy-composite expected
+// profile and tolerance). Only replace when the stored value still equals the
+// old default, preserving any user-edited Admin values.
+//
+// Migration table:
+//   #75 mode2NormWeightCorrect          3.0 -> 0      (RETIRED, consolidated into #89)
+//   #76 mode2NormWeightWrong            2.5 -> 0      (RETIRED, consolidated into #89)
+//   #77 mode2NormWeightMiss             3.5 -> 0      (RETIRED, consolidated into #89)
+//   #78 mode2NormWeightDrift            1.5 -> 6.0    (now drives OLS-slope drift)
+//   #79 mode2NormWeightCv               1.5 -> 6.0
+//   #87 mode2NormExpectedAccuracyComposite  "" -> default bucket string  (new key)
+//   #88 mode2NormToleranceAccuracyComposite "" -> 0.15                    (new key)
+//   #89 mode2NormWeightAccuracy             "" -> 9.0                     (new key)
+//
+// Total max weighted residual after migration:
+//    |acc|·9 + |drift|·6 + |cv|·6 = 21   (with each |residual| ≤ 1)
+// so the cap of 20 CAN engage at the extremes without any one feature on its
+// own saturating it. This is the structural fix called out by the Rev 150
+// audit: previously the sum of weights (12) was below the cap (20), making
+// the cap vestigial. The new default satisfies that review point.
+(function migrateRev151CpaArchitectureSafely(){
+ let stored = "";
+ try{ stored = localStorage.getItem(`${STORAGE_PREFIX}_rev151_safe_cpa_migration`) || ""; }catch(e){ stored = ""; }
+ if(stored === APP_REV_STAMP) return;
+
+ let changed = false;
+ const maybeReplaceNum = (key, oldVals, nextVal)=>{
+  const cur = Number(settings[key]);
+  if(!Number.isFinite(cur) || oldVals.includes(cur)){
+   settings[key] = nextVal;
+   changed = true;
+  }
+ };
+ const maybeReplaceText = (key, oldVals, nextVal)=>{
+  const cur = settings[key];
+  if(cur == null || cur === "" || oldVals.includes(String(cur))){
+   settings[key] = nextVal;
+   changed = true;
+  }
+ };
+
+ maybeReplaceNum("mode2NormWeightCorrect", [3.0, 3], 0);   // #75 RETIRED
+ maybeReplaceNum("mode2NormWeightWrong",   [2.5],    0);   // #76 RETIRED
+ maybeReplaceNum("mode2NormWeightMiss",    [3.5],    0);   // #77 RETIRED
+ maybeReplaceNum("mode2NormWeightDrift",   [1.5],    6.0); // #78
+ maybeReplaceNum("mode2NormWeightCv",      [1.5],    6.0); // #79
+
+ maybeReplaceText("mode2NormExpectedAccuracyComposite",
+  [],
+  DEFAULTS.mode2NormExpectedAccuracyComposite);            // #87
+ maybeReplaceNum("mode2NormToleranceAccuracyComposite",
+  [],
+  DEFAULTS.mode2NormToleranceAccuracyComposite);           // #88
+ maybeReplaceNum("mode2NormWeightAccuracy",
+  [],
+  DEFAULTS.mode2NormWeightAccuracy);                       // #89
+
+ if(changed){
+  try{ saveSettings(); }catch(e){}
+ }
+ try{ localStorage.setItem(`${STORAGE_PREFIX}_rev151_safe_cpa_migration`, APP_REV_STAMP); }catch(e){}
 })();
 
 
@@ -3697,7 +3793,7 @@ function exportCSV(){
   "sleepSinceLastTest","sleepBedtime","sleepWakeTime","sleepWakeDateTimeIso","sleepDurationMinutes","sleepQualityLabel","sleepQualityScore",
   "pacedCorrect","pacedWrong","spRestartWrong","meanPacedRtMs","pacedRtSd",
   "avgFrameOvershootMs","maxFrameOvershootMs","avgRafIntervalMs","maxRafIntervalMs",
-  "cpa","cpaBaseCpi","cpaCorrectWeighting","cpaWrongWeighting","cpaMissedWeighting","cpaSdWeighting","cpaDriftWeighting","cpaRecoveryWeighting","cpaLapseWeighting","cpaEfficiencyWeighting","cpaSustainedResponseSdMs","cpaSustainedCvPct","cpaEarlyMedianRtMs","cpaLateMedianRtMs","cpaSustainedDriftRatio","cpaRecoveryCalibRatio","cpaLapseRatePct","cpaTrialsPerBlock","dispositionCode","dispositionLabel","dispositionSpfs",
+  "cpa","cpaBaseCpi","cpaCorrectWeighting","cpaWrongWeighting","cpaMissedWeighting","cpaSdWeighting","cpaDriftWeighting","cpaRecoveryWeighting","cpaLapseWeighting","cpaEfficiencyWeighting","cpaAccuracyWeighting","cpaAccuracyResidual","cpaObservedAccuracyComposite","cpaExpectedAccuracyComposite","cpaObservedDriftSlopeMsPerTrial","cpaObservedDriftPctOls","cpaSustainedResponseSdMs","cpaSustainedCvPct","cpaEarlyMedianRtMs","cpaLateMedianRtMs","cpaSustainedDriftRatio","cpaRecoveryCalibRatio","cpaLapseRatePct","cpaTrialsPerBlock","dispositionCode","dispositionLabel","dispositionSpfs",
   "testDurationMs","endReason","location","sessionUuid","payloadHash","trialLogHash","settingsHash","verificationStatus","verificationReceiptId","cpaModelVersion","baselineModelVersion"];
  const rows=h.map((raw,i)=>{ const r=normalizeLegacyResultRow(raw); return [
   i+1,
@@ -3744,6 +3840,12 @@ function exportCSV(){
   r.cpaRecoveryWeighting!=null?r.cpaRecoveryWeighting.toFixed(1):"",
   r.cpaLapseWeighting!=null?r.cpaLapseWeighting.toFixed(1):"",
   r.cpaEfficiencyWeighting!=null?r.cpaEfficiencyWeighting.toFixed(1):"",
+  r.cpaAccuracyWeighting!=null?r.cpaAccuracyWeighting.toFixed(1):"",
+  r.cpaAccuracyResidual!=null?r.cpaAccuracyResidual.toFixed(2):"",
+  r.cpaObservedAccuracyComposite!=null?r.cpaObservedAccuracyComposite.toFixed(3):"",
+  r.cpaExpectedAccuracyComposite!=null?r.cpaExpectedAccuracyComposite.toFixed(3):"",
+  r.cpaObservedDriftSlopeMsPerTrial!=null?r.cpaObservedDriftSlopeMsPerTrial.toFixed(3):"",
+  r.cpaObservedDriftPctOls!=null?r.cpaObservedDriftPctOls.toFixed(1):"",
   r.cpaSustainedResponseSdMs!=null?r.cpaSustainedResponseSdMs.toFixed(1):"",
   r.cpaSustainedCvPct!=null?r.cpaSustainedCvPct.toFixed(1):"",
   r.cpaEarlyMedianRtMs!=null?r.cpaEarlyMedianRtMs.toFixed(1):"",
@@ -4897,8 +4999,18 @@ function ensureResearchAnonymousId(){
  return rid;
 }
 function currentResearchModelVersions(){
+ // V699rev151: CPA model bumped from v1 → v2. v2 features:
+ //   • Accuracy composite (correct − wrong − 0.5·miss) replaces three
+ //     collinear per-rate residuals.
+ //   • OLS-slope drift replaces median-of-halves drift (signed; rewards
+ //     within-phase speed-up instead of flooring to zero).
+ //   • Piecewise-linear expected-profile interpolation replaces step buckets.
+ //   • Weights retuned to 9/6/6 so the mode2NormMaxDelta cap (20) can
+ //     actually engage at the extreme of underperformance.
+ // A server-side verifier will need to implement v2 semantics before it
+ // can issue receipts for CPA values computed under this model version.
  return {
-  cpaModelVersion: 'mode2-cpa-norm-v1',
+  cpaModelVersion: 'mode2-cpa-norm-v2',
   baselineModelVersion: 'baseline-v1',
   cpiModelVersion: 'cpi-v1',
   dispositionModelVersion: 'disp-v1'
@@ -6399,16 +6511,13 @@ RESULTS METRIC EXPLANATIONS
  SBLP (Sustained Blocking Limit Performance) = average RT of correct sustained responses during Mode 2 sustained segment, but defined as 0 when CSR = 0.${usesMode2Metrics?"":" Not used in this mode."}
  SBLP P90 = 90th-percentile correct sustained RT; conservative ceiling estimate.${usesMode2Metrics?"":" Not used in this mode."}
  SPI (Sustained Processing Index) = normalized 0 - 100 index based on CSR.${usesMode2Metrics?"":" Not used in this mode."}
- CPA (Cognitive Performance Ability) = Mode 2 combined end-state score (0–100). CPA starts with CPI and then applies sustained-phase performance factors. These factors may increase CPA, leave it unchanged, or decrease it. Computed for Mode 2 only.${usesMode2Metrics?"":" Not used in this mode."}
- CPA factor 1 — Sustained Correct-Response Factor = more sustained correct responses can increase CPA.${usesMode2Metrics?"":" Not used in this mode."}
- CPA factor 2 — Sustained Wrong-Response Factor = based on sustained wrong-response count. Zero wrong responses can increase CPA, moderate wrong counts may have little or no effect, and higher wrong counts reduce CPA.${usesMode2Metrics?"":" Not used in this mode."}
- CPA factor 3 — Sustained Missed-Response Factor = based on sustained missed-response count. Zero or very low missed counts can increase CPA, moderate missed counts may have little or no effect, and higher missed counts reduce CPA.${usesMode2Metrics?"":" Not used in this mode."}
- CPA factor 4 — Sustained RT Variability Factor = based on coefficient of variation of correct sustained RTs: CV = (SD ÷ mean RT) × 100. More stable sustained response times can support CPA, while higher variability can reduce it.${usesMode2Metrics?"":" Not used in this mode."}
- CPA factor 5 — Drift Factor = based on positive slowing from early median sustained RT to late median sustained RT. Greater slowing across the sustained phase can reduce CPA. Negative drift is forced to 0 before weighting.${usesMode2Metrics?"":" Not used in this mode."}
- CPA factor 6 — Recovery÷Calibration RT Factor = based on mean recovery-trial RT divided by calibration average RT. Less favorable recovery relative to calibration can reduce CPA.${usesMode2Metrics?"":" Not used in this mode."}
- CPA factor 7 — Lapse-Rate Factor = based on the percent of correct sustained responses that are slower than 2× the median correct sustained RT. More lapse-like sustained responses can reduce CPA.${usesMode2Metrics?"":" Not used in this mode."}
- CPA factor 8 — Block-Efficiency Factor = based on adaptive paced trials divided by block count. Better block efficiency can support CPA, while poorer efficiency can reduce it. 10–30 trials per block is the typical range.${usesMode2Metrics?"":" Not used in this mode."}
- CPA max total reduction cap = the total of all negative CPA adjustments is limited by the Admin max reduction factor × CPI. This prevents multiple mild penalties from driving CPA implausibly low in one session.${usesMode2Metrics?"":" Not used in this mode."}
+ CPA (Cognitive Performance Ability) = Mode 2 combined end-state score (0–100). CPA starts with CPI (the speed anchor from adaptive MBS) and then applies a bounded normative-profile adjustment derived from sustained-phase performance. The adjustment can increase CPA, leave it unchanged, or decrease it. Computed for Mode 2 only. Revised V699rev151 to use a 3-feature architecture (accuracy composite, OLS drift, CV).${usesMode2Metrics?"":" Not used in this mode."}
+ CPA factor 1 — Sustained Accuracy-Composite Factor = the composite metric (correct_rate − wrong_rate − 0.5 × miss_rate) measured against a CPI-matched expected profile. Weight 9.0. Replaces the three separate correct/wrong/miss factors used before V699rev151 because those three rates live on a simplex (they sum to ~1) and were collinear — summing them triple-counted accuracy. Higher composite is better.${usesMode2Metrics?"":" Not used in this mode."}
+ CPA factor 2 — OLS-Drift Factor = ordinary-least-squares slope of correct sustained RT versus 1-indexed trial position, expressed as percent change in RT from trial 1 to trial N, measured against a CPI-matched expected drift profile. Weight 6.0. Replaces the median-of-halves estimator used before V699rev151, which was a weak low-power statistic at typical sustained-phase trial counts. Signed: a negative slope (speeding up across the phase) earns a positive residual — the old estimator floored this to zero and discarded that information.${usesMode2Metrics?"":" Not used in this mode."}
+ CPA factor 3 — Sustained RT Variability (CV) Factor = 100 × SD(correct sustained RTs) ÷ mean(correct sustained RTs), measured against a CPI-matched expected CV profile. Weight 6.0 (raised from 1.5 in V699rev151). Lower CV is better. Captures intra-individual RT instability, a well-established vigilance / fatigue marker.${usesMode2Metrics?"":" Not used in this mode."}
+ Each feature produces a residual in [−1, +1] via tolerance-normalized deviation from the expected profile. Max absolute weighted residual is 9+6+6 = 21. CPA = clamp(CPI + clampSigned(Σ weighted_residual, ±20), 0, 100). The ±20 cap can engage under extreme sustained-phase underperformance but is dormant under typical operation.${usesMode2Metrics?"":" Not used in this mode."}
+ Expected-profile lookup uses piecewise-linear interpolation between CPI-bucket centers (10, 30, 50, 70, 90), not step lookup, so adjacent CPI values produce smoothly adjacent expected profiles.${usesMode2Metrics?"":" Not used in this mode."}
+ CPA-retired features (V699rev151) — Recovery÷Calibration RT Factor, Lapse-Rate Factor, and Block-Efficiency Factor were previously described as CPA factors 6–8. These values are still computed and reported as secondary diagnostics but no longer drive the CPA adjustment.${usesMode2Metrics?"":" Not used in this mode."}
  Disposition = operational recommendation aligned to the seven-point Samn-Perelli Fatigue Scale (S-PFS). For Mode 2 the CPA score drives the disposition; for Modes 1, 3, and 4 the CPI score is used (same 0–100 scale, same band edges). Bands use the midpoints between the canonical CPI anchors and map to the same captions as the Cognitive Performance table: ≥ 90 = S-PFS 7, Functioning exceptionally well. 77.5 to <90 = S-PFS 6, Functioning very well. 62.5 to <77.5 = S-PFS 5, Functioning normally. 37.5 to <62.5 = S-PFS 4, Functioning slightly less than normal. 18 to <37.5 = S-PFS 3, Functioning starting to slow. 5.5 to <18 = S-PFS 2, Difficult to function / becoming unsafe. <5.5 = S-PFS 1, Unable to function / definitely unsafe. The Speedometer dial groups these seven tiers into four operational colors: GREEN — Clear for duty (S-PFS 5, 6, 7). YELLOW — Monitor / human review recommended (S-PFS 4). ORANGE — Human review required (S-PFS 3). RED — Remove from Hazardous Duty (S-PFS 1, 2). The Speedometer Disposition window shows both halves together, e.g. "GREEN — Clear for duty (S-PFS 6)". CogSpeed disposition is a structured recommendation requiring human review — not a standalone fitness determination.`;
 }
 
@@ -6789,14 +6898,18 @@ CPA — COGNITIVE PERFORMANCE ABILITY
  CPA: ${result.cpa!=null?result.cpa.toFixed(1)+" / 100":"—"}
  Disposition: ${(result.dispositionCode && result.dispositionLabel) ? `S-PFS ${result.dispositionCode} — ${result.dispositionLabel}` : `${result.dispositionCode||"—"} ${result.dispositionLabel||"—"}`.trim()}
  Base CPI: ${result.cpaBaseCpi!=null?result.cpaBaseCpi.toFixed(1):"—"}
- Sustained correct-response factor: ${result.cpaCorrectWeighting!=null?(result.cpaCorrectWeighting>=0?"+":"")+result.cpaCorrectWeighting.toFixed(1):"—"}
- Sustained wrong-response factor: ${result.cpaWrongWeighting!=null?(result.cpaWrongWeighting>=0?"+":"")+result.cpaWrongWeighting.toFixed(1):"—"}
- Sustained missed-response factor: ${result.cpaMissedWeighting!=null?(result.cpaMissedWeighting>=0?"+":"")+result.cpaMissedWeighting.toFixed(1):"—"}
- Sustained RT variability factor: ${result.cpaSdWeighting!=null?(result.cpaSdWeighting>=0?"+":"")+result.cpaSdWeighting.toFixed(1):"—"}
- Drift factor: ${result.cpaDriftWeighting!=null?(result.cpaDriftWeighting>=0?"+":"")+result.cpaDriftWeighting.toFixed(1):"—"}
- Recovery / calibration RT factor: ${result.cpaRecoveryWeighting!=null?(result.cpaRecoveryWeighting>=0?"+":"")+result.cpaRecoveryWeighting.toFixed(1):"—"}
- Lapse-rate factor: ${result.cpaLapseWeighting!=null?(result.cpaLapseWeighting>=0?"+":"")+result.cpaLapseWeighting.toFixed(1):"—"}
- Block-efficiency factor: ${result.cpaEfficiencyWeighting!=null?(result.cpaEfficiencyWeighting>=0?"+":"")+result.cpaEfficiencyWeighting.toFixed(1):"—"}
+ Sustained accuracy-composite factor: ${result.cpaAccuracyWeighting!=null?(result.cpaAccuracyWeighting>=0?"+":"")+result.cpaAccuracyWeighting.toFixed(1):(result.cpaCorrectWeighting!=null?(result.cpaCorrectWeighting>=0?"+":"")+result.cpaCorrectWeighting.toFixed(1):"—")}
+ [Legacy correct-response factor: ${result.cpaCorrectWeighting!=null?(result.cpaCorrectWeighting>=0?"+":"")+result.cpaCorrectWeighting.toFixed(1):"—"}]
+ [Legacy wrong-response factor: ${result.cpaWrongWeighting!=null?(result.cpaWrongWeighting>=0?"+":"")+result.cpaWrongWeighting.toFixed(1):"— (retired V699rev151)"}]
+ [Legacy missed-response factor: ${result.cpaMissedWeighting!=null?(result.cpaMissedWeighting>=0?"+":"")+result.cpaMissedWeighting.toFixed(1):"— (retired V699rev151)"}]
+ Sustained RT variability (CV) factor: ${result.cpaSdWeighting!=null?(result.cpaSdWeighting>=0?"+":"")+result.cpaSdWeighting.toFixed(1):"—"}
+ Drift (OLS slope) factor: ${result.cpaDriftWeighting!=null?(result.cpaDriftWeighting>=0?"+":"")+result.cpaDriftWeighting.toFixed(1):"—"}
+ Accuracy composite (observed / expected): ${result.cpaObservedAccuracyComposite!=null?result.cpaObservedAccuracyComposite.toFixed(3):"—"} / ${result.cpaExpectedAccuracyComposite!=null?result.cpaExpectedAccuracyComposite.toFixed(3):"—"}
+ Drift OLS slope: ${result.cpaObservedDriftSlopeMsPerTrial!=null?result.cpaObservedDriftSlopeMsPerTrial.toFixed(2)+" ms/trial":"—"}
+ Drift OLS full-phase: ${result.cpaObservedDriftPctOls!=null?(result.cpaObservedDriftPctOls>=0?"+":"")+result.cpaObservedDriftPctOls.toFixed(1)+"%":"—"}
+ Recovery / calibration RT factor: ${result.cpaRecoveryWeighting!=null?(result.cpaRecoveryWeighting>=0?"+":"")+result.cpaRecoveryWeighting.toFixed(1):"— (retired V699rev151)"}
+ Lapse-rate factor: ${result.cpaLapseWeighting!=null?(result.cpaLapseWeighting>=0?"+":"")+result.cpaLapseWeighting.toFixed(1):"— (retired V699rev151)"}
+ Block-efficiency factor: ${result.cpaEfficiencyWeighting!=null?(result.cpaEfficiencyWeighting>=0?"+":"")+result.cpaEfficiencyWeighting.toFixed(1):"— (retired V699rev151)"}
  Sustained response RT SD: ${result.cpaSustainedResponseSdMs!=null?result.cpaSustainedResponseSdMs.toFixed(1)+" ms":"—"}
  Sustained RT CV%: ${result.cpaSustainedCvPct!=null?result.cpaSustainedCvPct.toFixed(1)+"%":"—"}
  Early median sustained RT: ${result.cpaEarlyMedianRtMs!=null?result.cpaEarlyMedianRtMs.toFixed(1)+" ms":"—"}
@@ -7121,6 +7234,12 @@ function drawSpeedometer(canvas, scoreValue, success, scoreLabel="CPI", tipLabel
  }
 
  // MBS window and label
+ // V699rev150: auto-shrink the tip label + value so long Mode 3/4 labels
+ // ("Average Self-paced RT", "Average Machine-Paced RT") and long Mode 4
+ // value strings ("450.0 ms • Rate 550.0 ms") fit inside the yellow box
+ // without overflowing the speedometer arc. Base font sizes are preserved;
+ // we only shrink when the measured text width exceeds the allowed inner
+ // width (box width minus horizontal padding).
  if(success && tipValue){
   const bw = R*0.72, bh = R*0.18;
   const bx = cx - bw/2, by = cy + R*0.37;
@@ -7134,9 +7253,29 @@ function drawSpeedometer(canvas, scoreValue, success, scoreLabel="CPI", tipLabel
   ctx.fillStyle = dark;
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
-  ctx.font = `700 ${(R*0.068).toFixed(1)}px Arial,sans-serif`;
+  // Horizontal padding inside the box. Label is drawn ABOVE the box so it
+  // has a slightly larger usable width than the value line, but we keep
+  // the allowed width conservative to avoid crowding neighboring dial art.
+  const labelMaxW = bw - R*0.04;
+  const valueMaxW = bw - R*0.08;
+  // Floor the font so extreme strings still remain legible rather than
+  // collapsing to illegible microtype.
+  function fitFont(text, basePx, maxW, floorPx){
+   let px = basePx;
+   ctx.font = `700 ${px.toFixed(1)}px Arial,sans-serif`;
+   let w = ctx.measureText(String(text)).width;
+   if(w <= maxW) return px;
+   px = Math.max(floorPx, basePx * (maxW / w));
+   ctx.font = `700 ${px.toFixed(1)}px Arial,sans-serif`;
+   return px;
+  }
+  const valueBasePx = R*0.068;
+  const labelBasePx = R*0.108;
+  const valueFloorPx = R*0.050;
+  const labelFloorPx = R*0.070;
+  fitFont(tipValue, valueBasePx, valueMaxW, valueFloorPx);
   ctx.fillText(String(tipValue), cx, by + bh*0.54);
-  ctx.font = `700 ${(R*0.108).toFixed(1)}px Arial,sans-serif`;
+  fitFont(tipLabel||"MBS", labelBasePx, labelMaxW, labelFloorPx);
   ctx.fillText(String(tipLabel||"MBS"), cx, by - R*0.07);
  }
 
@@ -7354,6 +7493,50 @@ function getBucketValue(value, buckets, fallback=0){
  return fallback;
 }
 
+// V699rev151: linear interpolation between bucket CENTERS.
+//
+// The original getBucketValue is a step function across [lo, hi] ranges. It
+// produces a discontinuity at each bucket boundary — two subjects whose CPI
+// values are 60.00 and 60.02 get materially different expected values despite
+// being behaviorally identical. This rewards hysteresis hunting and introduces
+// cliff-edge behavior in CPA whenever a subject's CPI lands near a boundary.
+//
+// This helper replaces the step lookup with piecewise-linear interpolation
+// between bucket centers ((lo+hi)/2, value). Flat extrapolation is applied
+// below the leftmost center and above the rightmost center so values outside
+// the defined range stay anchored to the nearest expected level.
+//
+// Does not modify getBucketValue. Used by getMode2ExpectedProfileForCpi for
+// all Mode 2 CPA expected-profile lookups.
+function getInterpolatedBucketValue(value, buckets, fallback=0){
+ const raw = Number(value);
+ if(!Number.isFinite(raw) || !Array.isArray(buckets) || !buckets.length) return fallback;
+ // Build sorted list of (center, value) anchor points.
+ const points = buckets
+  .filter(b=>Array.isArray(b) && b.length>=3 && Number.isFinite(Number(b[0])) && Number.isFinite(Number(b[1])) && Number.isFinite(Number(b[2])))
+  .map(([lo, hi, v])=>{
+   const a = Number(lo), b = Number(hi);
+   const c = Number.isFinite(b) ? (a+b)/2 : a;
+   return [c, Number(v)];
+  })
+  .sort((a,b)=>a[0]-b[0]);
+ if(!points.length) return fallback;
+ if(points.length === 1) return points[0][1];
+ const x = raw;
+ if(x <= points[0][0]) return points[0][1];
+ if(x >= points[points.length-1][0]) return points[points.length-1][1];
+ for(let i=1;i<points.length;i++){
+  const [x0, y0] = points[i-1];
+  const [x1, y1] = points[i];
+  if(x >= x0 && x <= x1){
+   if(x1 === x0) return y0;
+   const t = (x - x0) / (x1 - x0);
+   return y0 + t * (y1 - y0);
+  }
+ }
+ return fallback;
+}
+
 function clampSigned(value, limit){
  const v = Number(value);
  const lim = Math.max(0, Number(limit)||0);
@@ -7369,7 +7552,7 @@ function normalizeResidual(observed, expected, tolerance, beneficialHigher=true)
 }
 
 function getMode2NormativeModelVersion(){
- return "Mode 2 normative CPA scaffold v1 — field validation required";
+ return "Mode 2 normative CPA scaffold v2 (V699rev151) — accuracy-composite + OLS-drift + CV, with interpolated buckets. Field validation required.";
 }
 
 function computeMode2SustainedReliefContext(mbsMs){
@@ -7386,6 +7569,27 @@ function computeMode2SustainedReliefContext(mbsMs){
  return { reliefMs, startMs, challengeRatio };
 }
 
+// V699rev151 — expected-profile generator for the Mode 2 CPA composite.
+//
+// Semantics of each expected value:
+//   expectedAccuracyComposite : target for (correctRate - wrongRate - 0.5·missRate)
+//                               — consolidates three previously collinear
+//                               accuracy features into a single metric.
+//   expectedDriftPct          : target full-phase RT slowing percentage, now
+//                               derived from the OLS slope of correct RTs
+//                               across the sustained phase rather than a
+//                               median-of-halves split (weak estimator).
+//   expectedCvPct             : target coefficient of variation across
+//                               correct sustained RTs.
+//
+// The three legacy expected rates (expectedCorrectRate, expectedWrongRate,
+// expectedMissRate) remain populated so legacy CSV rows and verifier receipts
+// retain the same column layout, but they are no longer consumed by
+// computeMode2CPA. See computeMode2CPA for the active adjustment path.
+//
+// Bucket lookups use getInterpolatedBucketValue (linear interpolation between
+// bucket centers) so there are no discontinuities at CPI = 20/40/60/80. This
+// addresses the Rev 150 audit point (b).
 function getMode2ExpectedProfileForCpi(cpi){
  const correctBuckets = parseBucketSpec(settings.mode2NormExpectedCorrectRate,
   [[0,20,0.82],[20.01,40,0.80],[40.01,60,0.76],[60.01,80,0.70],[80.01,100,0.62]]);
@@ -7397,12 +7601,15 @@ function getMode2ExpectedProfileForCpi(cpi){
   [[0,20,4],[20.01,40,5],[40.01,60,7],[60.01,80,9],[80.01,100,12]]);
  const cvBuckets = parseBucketSpec(settings.mode2NormExpectedCvPct,
   [[0,20,12],[20.01,40,13],[40.01,60,15],[60.01,80,18],[80.01,100,22]]);
+ const accCompositeBuckets = parseBucketSpec(settings.mode2NormExpectedAccuracyComposite,
+  [[0,20,0.715],[20.01,40,0.680],[40.01,60,0.615],[60.01,80,0.515],[80.01,100,0.385]]);
  return {
-  expectedCorrectRate: getBucketValue(cpi, correctBuckets, 0.7),
-  expectedWrongRate: getBucketValue(cpi, wrongBuckets, 0.06),
-  expectedMissRate: getBucketValue(cpi, missBuckets, 0.2),
-  expectedDriftPct: getBucketValue(cpi, driftBuckets, 8),
-  expectedCvPct: getBucketValue(cpi, cvBuckets, 16)
+  expectedCorrectRate: getInterpolatedBucketValue(cpi, correctBuckets, 0.7),
+  expectedWrongRate:   getInterpolatedBucketValue(cpi, wrongBuckets,   0.06),
+  expectedMissRate:    getInterpolatedBucketValue(cpi, missBuckets,    0.2),
+  expectedDriftPct:    getInterpolatedBucketValue(cpi, driftBuckets,   8),
+  expectedCvPct:       getInterpolatedBucketValue(cpi, cvBuckets,      16),
+  expectedAccuracyComposite: getInterpolatedBucketValue(cpi, accCompositeBuckets, 0.6)
  };
 }
 
@@ -7447,6 +7654,89 @@ function parseBucketSpec(spec, fallback){
   return fallback.map(([min,max,mult])=>[min,max,mult]);
  }
 }
+// ═══════════════════════════════════════════════════════════════════════════
+// computeMode2CPA — V699rev151 Mode 2 Cognitive Performance Ability composite
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// WHAT CPA IS
+// -----------
+// CPA is CPI adjusted by a bounded, normative-profile-based residual score
+// computed from the sustained phase of a Mode 2 run. CPI (derived from the
+// adaptive MBS) provides the SPEED anchor: how fast the subject can still
+// process near their ceiling. The residual score provides the SUSTAIN anchor:
+// how well that speed holds up under a near-ceiling fixed-rate load.
+//
+// CPA = clamp( CPI + clampSigned(Σᵢ wᵢ · residualᵢ, ±maxDelta), 0, 100 )
+//
+// FEATURE SET (V699rev151)
+// ------------------------
+// Three features drive the residual:
+//
+//   1. Accuracy composite   (weight 9.0, tol 0.15)
+//        observed = correctRate - wrongRate - 0.5 · missRate
+//        Higher is better. Consolidates the previously collinear correct,
+//        wrong, and miss rate features into a single scalar. The three raw
+//        rates are still computed and reported for transparency, but they
+//        are no longer independent inputs to the residual score. This is
+//        the Rev 150 audit fix (a).
+//
+//   2. OLS drift slope      (weight 6.0, tol 8 %)
+//        observed = 100 · slope · (N-1) / meanRT
+//        where slope is the OLS slope of correctRT vs. 1-indexed sustained
+//        trial number. The product expresses "percent change in RT from
+//        trial 1 to trial N", which has the same interpretation as the old
+//        median-of-halves drift % but uses every correct trial. Signed —
+//        negative values (speeding up) are NOT clamped to zero; they earn
+//        a positive residual since speeding up within a sustained phase is
+//        beneficial, not harmful. This is the Rev 150 audit fix (c).
+//
+//   3. Coefficient of variation (weight 6.0, tol 10 %)
+//        observed = 100 · sd(correctRT) / mean(correctRT)
+//        Lower is better. Captures response-time stability as a fatigue /
+//        vigilance marker. Unchanged in concept from Rev 150; weight
+//        upgraded from 1.5 to 6.0 to match drift and exploit the headroom
+//        opened by the accuracy-feature consolidation.
+//
+// WEIGHT / CAP DESIGN
+// -------------------
+// Each normalized residual is in [-1, +1] (symmetric clamping around zero
+// tolerance units). Max absolute weighted residual is:
+//     9.0 (accuracy) + 6.0 (drift) + 6.0 (cv) = 21.0
+// mode2NormMaxDelta is set to 20, so the cap CAN engage in the extreme case
+// (all three features at full negative saturation simultaneously — roughly
+// "accuracy one tol below expected AND drifting one tol+ above expected AND
+// variability one tol+ above expected"). Under typical operating regimes the
+// cap is dormant and the composite is driven by the weighted residual sum.
+// This is the Rev 150 audit fix (d).
+//
+// EXPECTED PROFILE
+// ----------------
+// Expected values for each feature are looked up against the subject's
+// current CPI using piecewise-linear interpolation between CPI-bucket
+// centers (10, 30, 50, 70, 90). This eliminates the step-function
+// discontinuities at CPI = 20 / 40 / 60 / 80 that caused adjacent CPI
+// values to produce materially different expected profiles. This is the
+// Rev 150 audit fix (b).
+//
+// BACKWARD COMPATIBILITY
+// ----------------------
+// All legacy output fields (cpaObservedCorrectRate, cpaObservedWrongRate,
+// cpaObservedMissRate, cpaCorrectWeighting, cpaWrongWeighting, ...) remain
+// in the result object so CSV exports and verification receipts retain the
+// same column layout. Legacy residual / weighting fields that correspond
+// to retired features are populated as null. Legacy "correct" weighting is
+// aliased to the new accuracy-composite weighting so the existing results
+// summary display ("Sustained correct-response factor: ...") still reads
+// the headline accuracy adjustment instead of going blank.
+//
+// NEW OUTPUT FIELDS (V699rev151)
+// ------------------------------
+//   cpaObservedAccuracyComposite / cpaExpectedAccuracyComposite
+//   cpaAccuracyResidual / cpaAccuracyWeighting
+//   cpaObservedDriftSlopeMsPerTrial         (raw OLS slope)
+//   cpaObservedDriftPctOls                  (full-phase % slowing, OLS-derived)
+//
+// ═══════════════════════════════════════════════════════════════════════════
 function computeMode2CPA(result){
  const blank = {
   cpa:null, cpaBaseCpi:null,
@@ -7454,12 +7744,18 @@ function computeMode2CPA(result){
   cpaNormativeModelVersion:getMode2NormativeModelVersion(),
   cpaExpectedCorrectRate:null, cpaExpectedWrongRate:null, cpaExpectedMissRate:null,
   cpaExpectedDriftPct:null, cpaExpectedCvPct:null,
+  cpaExpectedAccuracyComposite:null,
   cpaObservedCorrectRate:null, cpaObservedWrongRate:null, cpaObservedMissRate:null,
   cpaObservedDriftPct:null, cpaObservedCvPct:null,
+  cpaObservedAccuracyComposite:null,
+  cpaObservedDriftSlopeMsPerTrial:null,
+  cpaObservedDriftPctOls:null,
   cpaCorrectWeighting:null, cpaWrongWeighting:null,
   cpaMissedWeighting:null, cpaSdWeighting:null, cpaDriftWeighting:null,
+  cpaAccuracyWeighting:null,
   cpaCorrectResidual:null, cpaWrongResidual:null, cpaMissedResidual:null,
   cpaCvResidual:null, cpaDriftResidual:null,
+  cpaAccuracyResidual:null,
   cpaSustainedResponseSdMs:null,
   cpaSustainedCvPct:null,
   cpaSustainedDriftRatio:null,
@@ -7483,6 +7779,21 @@ function computeMode2CPA(result){
  const wrongRate = wrong / presented;
  const missRate = missed / presented;
 
+ // V699rev151: the accuracy composite consolidates correct, wrong, and miss
+ // rates into a single scalar. Weighting coefficients in the formula reflect
+ // the intuition that wrong answers and misses are the harmful-direction
+ // signals (hence negative contribution), and that missed trials — while
+ // informative about lapses — should not dominate a pure accuracy composite
+ // since miss rate also depends strongly on pacing. The 0.5 multiplier on
+ // missRate is a deliberate down-weighting within the composite.
+ //
+ //   accComposite = correctRate - wrongRate - 0.5 · missRate
+ //
+ // Range under normal operation: roughly 0.3 (high CPI, near ceiling) to
+ // 0.8 (low CPI, comfortable pacing). Tolerance 0.15 is sized so a
+ // one-tolerance deviation reflects a meaningful but recoverable deviation.
+ const accComposite = correctRate - wrongRate - 0.5 * missRate;
+
  const log = Array.isArray(result.rtLog) ? result.rtLog : [];
 
  // Correct sustained RT descriptors remain useful as secondary diagnostics.
@@ -7494,7 +7805,22 @@ function computeMode2CPA(result){
  const responseCvPct = (responseSd!=null && responseMean!=null && responseMean>0)
   ? (responseSd/responseMean)*100 : null;
 
- // Early-vs-late drift remains a positive-only slowing percentage.
+ // V699rev151 drift estimator:
+ //
+ //   Preserves the two legacy descriptors (earlyMedian, lateMedian,
+ //   driftRatio) for retained diagnostic fields, but the value that FEEDS
+ //   the residual score is now OLS slope based.
+ //
+ //   Slope = OLS( y = rt, x = 1..N )   across correct sustained RTs only.
+ //   Drift % = 100 · slope · (N-1) / meanRT
+ //            — "percent change in RT from first to last trial if the
+ //               subject were exactly on the regression line"
+ //
+ //   Signed: negative slope (subject speeds up across the phase) yields a
+ //   negative driftPctOls, which under beneficialHigher=false (lower is
+ //   better) maps to a POSITIVE residual — a reward for holding or
+ //   improving speed under sustained load. The old estimator floored this
+ //   to zero, discarding that information.
  let earlyMedian=null, lateMedian=null, driftRatio=null;
  if(sustainedCorrectRTs.length>=2){
   const half=Math.floor(sustainedCorrectRTs.length/2);
@@ -7505,10 +7831,37 @@ function computeMode2CPA(result){
     driftRatio=Math.max(0,(lateMedian-earlyMedian)/earlyMedian);
   }
  }
- const driftPct = driftRatio!=null ? driftRatio*100 : null;
+ const driftPctLegacy = driftRatio!=null ? driftRatio*100 : null; // legacy, unsigned
 
- // Recovery / lapse / efficiency are still logged because future field work
- // may prove them useful, but Rev 84 no longer makes them direct CPA drivers.
+ // OLS slope over correct sustained RTs (Rev 151). Requires ≥3 points for
+ // a minimally meaningful regression; fewer falls back to the legacy drift
+ // estimate so low-trial-count sessions still produce a residual.
+ let driftSlopeMsPerTrial = null;
+ let driftPctOls = null;
+ if(sustainedCorrectRTs.length >= 3 && responseMean!=null && responseMean>0){
+  const n = sustainedCorrectRTs.length;
+  // x = 1..n so mean(x) = (n+1)/2 and Σ(x - xMean)² = n(n²-1)/12.
+  const xMean = (n+1)/2;
+  let num = 0;
+  let denom = 0;
+  for(let i=0;i<n;i++){
+   const x = i+1;
+   const dx = x - xMean;
+   num   += dx * (sustainedCorrectRTs[i] - responseMean);
+   denom += dx * dx;
+  }
+  if(denom > 0){
+   driftSlopeMsPerTrial = num / denom;
+   driftPctOls = 100 * driftSlopeMsPerTrial * (n-1) / responseMean;
+  }
+ }
+ // Observed drift % reported downstream is the OLS value when available;
+ // fall back to the legacy median-of-halves only when too few trials.
+ const driftPctObserved = driftPctOls!=null ? driftPctOls
+  : (driftPctLegacy!=null ? driftPctLegacy : null);
+
+ // Recovery / lapse / efficiency diagnostics (unchanged — retained as
+ // secondary metrics for future analysis; not CPA inputs).
  const recoveryRTs = log
   .filter(e=>e && e.phase==="recovery" && Number.isFinite(Number(e.rt)))
   .map(e=>Number(e.rt));
@@ -7529,25 +7882,64 @@ function computeMode2CPA(result){
  const trialsPerBlock = (blockCount>0 && adaptiveTrials>0)
   ? adaptiveTrials/blockCount : null;
 
+ // ── Expected profile via piecewise-linear interpolation ──────────────
  const expected = getMode2ExpectedProfileForCpi(cpi);
- const tolCorrect = Number(settings.mode2NormToleranceCorrectRate)||DEFAULTS.mode2NormToleranceCorrectRate;
- const tolWrong = Number(settings.mode2NormToleranceWrongRate)||DEFAULTS.mode2NormToleranceWrongRate;
- const tolMiss = Number(settings.mode2NormToleranceMissRate)||DEFAULTS.mode2NormToleranceMissRate;
- const tolDrift = Number(settings.mode2NormToleranceDriftPct)||DEFAULTS.mode2NormToleranceDriftPct;
- const tolCv = Number(settings.mode2NormToleranceCvPct)||DEFAULTS.mode2NormToleranceCvPct;
+ // Retained tolerance fallbacks (drift, cv) and the new accuracy-composite
+ // tolerance. The retired per-rate tolerances are intentionally not read
+ // here; they remain in DEFAULTS only for storage continuity.
+ const tolAccuracy = Number(settings.mode2NormToleranceAccuracyComposite) || DEFAULTS.mode2NormToleranceAccuracyComposite;
+ const tolDrift    = Number(settings.mode2NormToleranceDriftPct)          || DEFAULTS.mode2NormToleranceDriftPct;
+ const tolCv       = Number(settings.mode2NormToleranceCvPct)             || DEFAULTS.mode2NormToleranceCvPct;
 
- const correctResidual = normalizeResidual(correctRate, expected.expectedCorrectRate, tolCorrect, true);
- const wrongResidual = normalizeResidual(wrongRate, expected.expectedWrongRate, tolWrong, false);
- const missResidual = normalizeResidual(missRate, expected.expectedMissRate, tolMiss, false);
- const driftResidual = normalizeResidual(driftPct!=null ? driftPct : expected.expectedDriftPct, expected.expectedDriftPct, tolDrift, false);
- const cvResidual = normalizeResidual(responseCvPct!=null ? responseCvPct : expected.expectedCvPct, expected.expectedCvPct, tolCv, false);
+ // ── Residuals in [-1, +1] ─────────────────────────────────────────────
+ // Accuracy composite: beneficialHigher = true (above profile is good).
+ const accuracyResidual = normalizeResidual(accComposite,
+  expected.expectedAccuracyComposite, tolAccuracy, true);
+ // OLS drift: beneficialHigher = false (below expected slowing is good;
+ // a negative observed drift is BETTER than a positive expected drift, so
+ // this yields a positive residual).
+ const driftResidual = normalizeResidual(
+  driftPctObserved!=null ? driftPctObserved : expected.expectedDriftPct,
+  expected.expectedDriftPct, tolDrift, false);
+ // CV: beneficialHigher = false (below expected variability is good).
+ const cvResidual = normalizeResidual(
+  responseCvPct!=null ? responseCvPct : expected.expectedCvPct,
+  expected.expectedCvPct, tolCv, false);
 
- const correctAdj = correctResidual * (Number(settings.mode2NormWeightCorrect)||DEFAULTS.mode2NormWeightCorrect);
- const wrongAdj = wrongResidual * (Number(settings.mode2NormWeightWrong)||DEFAULTS.mode2NormWeightWrong);
- const missedAdj = missResidual * (Number(settings.mode2NormWeightMiss)||DEFAULTS.mode2NormWeightMiss);
- const driftAdj = driftResidual * (Number(settings.mode2NormWeightDrift)||DEFAULTS.mode2NormWeightDrift);
- const cvAdj = cvResidual * (Number(settings.mode2NormWeightCv)||DEFAULTS.mode2NormWeightCv);
- const rawAdj = correctAdj + wrongAdj + missedAdj + driftAdj + cvAdj;
+ // ── Weighted adjustment ───────────────────────────────────────────────
+ const wAccuracy = Number(settings.mode2NormWeightAccuracy) || DEFAULTS.mode2NormWeightAccuracy;
+ const wDrift    = Number(settings.mode2NormWeightDrift)    || DEFAULTS.mode2NormWeightDrift;
+ const wCv       = Number(settings.mode2NormWeightCv)       || DEFAULTS.mode2NormWeightCv;
+
+ const accuracyAdj = accuracyResidual * wAccuracy;
+ const driftAdj    = driftResidual    * wDrift;
+ const cvAdj       = cvResidual       * wCv;
+
+ // NOTE: the three retired weights (correct / wrong / miss) are now
+ // defaulted to 0, but we still read them through the settings fallback
+ // so a user who has hand-edited them in Admin gets the expected behavior.
+ // Under default settings their contribution is zero.
+ const wCorrectLegacy = Number(settings.mode2NormWeightCorrect);
+ const wWrongLegacy   = Number(settings.mode2NormWeightWrong);
+ const wMissLegacy    = Number(settings.mode2NormWeightMiss);
+ const legacyAccuracyAdj = (Number.isFinite(wCorrectLegacy) && wCorrectLegacy>0)
+   ? normalizeResidual(correctRate, expected.expectedCorrectRate,
+      Number(settings.mode2NormToleranceCorrectRate)||DEFAULTS.mode2NormToleranceCorrectRate,
+      true) * wCorrectLegacy
+   : 0;
+ const legacyWrongAdj = (Number.isFinite(wWrongLegacy) && wWrongLegacy>0)
+   ? normalizeResidual(wrongRate, expected.expectedWrongRate,
+      Number(settings.mode2NormToleranceWrongRate)||DEFAULTS.mode2NormToleranceWrongRate,
+      false) * wWrongLegacy
+   : 0;
+ const legacyMissAdj = (Number.isFinite(wMissLegacy) && wMissLegacy>0)
+   ? normalizeResidual(missRate, expected.expectedMissRate,
+      Number(settings.mode2NormToleranceMissRate)||DEFAULTS.mode2NormToleranceMissRate,
+      false) * wMissLegacy
+   : 0;
+
+ const rawAdj = accuracyAdj + driftAdj + cvAdj
+  + legacyAccuracyAdj + legacyWrongAdj + legacyMissAdj;
  const maxDelta = Math.max(0, Number(settings.mode2NormMaxDelta)||DEFAULTS.mode2NormMaxDelta);
  const cappedAdj = clampSigned(rawAdj, maxDelta);
  const cpa = Math.max(0, Math.min(100, cpi + cappedAdj));
@@ -7560,31 +7952,57 @@ function computeMode2CPA(result){
  const r2 = v=>v!=null&&Number.isFinite(Number(v))?Number(Number(v).toFixed(2)):null;
  const r3 = v=>v!=null&&Number.isFinite(Number(v))?Number(Number(v).toFixed(3)):null;
 
+ // Backward-compat note on legacy field population:
+ //   cpaCorrectWeighting   ← accuracy-composite adjustment (so the existing
+ //                           Results summary line reads the headline accuracy
+ //                           signal; the line is relabeled in Rev 151 to
+ //                           "Sustained accuracy factor").
+ //   cpaCorrectResidual    ← accuracy-composite residual (same alias rationale)
+ //   cpaWrongWeighting / cpaMissedWeighting / cpaWrongResidual / cpaMissedResidual
+ //                         ← null when the corresponding weight is 0 (default)
+ //                           so CSV columns stay but show empty for retired
+ //                           features. When a user has opted back in via
+ //                           admin overrides, the legacy values are reported.
+ const legacyCorrectVal  = (legacyAccuracyAdj!==0) ? legacyAccuracyAdj : null;
+ const legacyWrongVal    = (legacyWrongAdj!==0)   ? legacyWrongAdj    : null;
+ const legacyMissVal     = (legacyMissAdj!==0)    ? legacyMissAdj     : null;
+
  return {
   cpa: r1(cpa),
   cpaBaseCpi: r1(cpi),
   cpaAdjustmentApplied: r1(cappedAdj),
   cpaNormativeModelVersion: getMode2NormativeModelVersion(),
+  // Expected profile (legacy fields + new composite)
   cpaExpectedCorrectRate: r3(expected.expectedCorrectRate),
   cpaExpectedWrongRate: r3(expected.expectedWrongRate),
   cpaExpectedMissRate: r3(expected.expectedMissRate),
   cpaExpectedDriftPct: r1(expected.expectedDriftPct),
   cpaExpectedCvPct: r1(expected.expectedCvPct),
+  cpaExpectedAccuracyComposite: r3(expected.expectedAccuracyComposite),
+  // Observed values (legacy fields + new composite + OLS drift)
   cpaObservedCorrectRate: r3(correctRate),
   cpaObservedWrongRate: r3(wrongRate),
   cpaObservedMissRate: r3(missRate),
-  cpaObservedDriftPct: r1(driftPct),
+  cpaObservedDriftPct: r1(driftPctObserved),
   cpaObservedCvPct: r1(responseCvPct),
-  cpaCorrectWeighting: r1(correctAdj),
-  cpaWrongWeighting: r1(wrongAdj),
-  cpaMissedWeighting: r1(missedAdj),
+  cpaObservedAccuracyComposite: r3(accComposite),
+  cpaObservedDriftSlopeMsPerTrial: r3(driftSlopeMsPerTrial),
+  cpaObservedDriftPctOls: r1(driftPctOls),
+  // Weighted adjustments (canonical + legacy aliases)
+  cpaAccuracyWeighting: r1(accuracyAdj),
+  cpaCorrectWeighting: r1(legacyCorrectVal!=null ? legacyCorrectVal : accuracyAdj),
+  cpaWrongWeighting: r1(legacyWrongVal),
+  cpaMissedWeighting: r1(legacyMissVal),
   cpaSdWeighting: r1(cvAdj),
   cpaDriftWeighting: r1(driftAdj),
-  cpaCorrectResidual: r2(correctResidual),
-  cpaWrongResidual: r2(wrongResidual),
-  cpaMissedResidual: r2(missResidual),
+  // Residuals (canonical + legacy aliases)
+  cpaAccuracyResidual: r2(accuracyResidual),
+  cpaCorrectResidual: r2(accuracyResidual),
+  cpaWrongResidual: legacyWrongVal!=null ? r2(legacyWrongVal / (wWrongLegacy||1)) : null,
+  cpaMissedResidual: legacyMissVal!=null ? r2(legacyMissVal / (wMissLegacy||1)) : null,
   cpaCvResidual: r2(cvResidual),
   cpaDriftResidual: r2(driftResidual),
+  // Retained diagnostics
   cpaSustainedResponseSdMs: r1(responseSd),
   cpaSustainedCvPct: r1(responseCvPct),
   cpaSustainedDriftRatio: sustainedCorrectRTs.length>=2 ? r3(driftRatio) : null,
