@@ -368,7 +368,7 @@ let settings=loadSettings();
 // profile record (profile is no longer the source of truth for test type),
 // and persist both. This fires once per fresh rev deployment per device;
 // after that, the stamp matches and nothing is touched on subsequent loads.
-const APP_REV_STAMP = "V699rev147";
+const APP_REV_STAMP = "V699rev148d";
 // Version policy: APP_VERSION preserves base storage/schema continuity; DISPLAY_VERSION is what users see.
 const DISPLAY_VERSION = APP_REV_STAMP || APP_VERSION;
 
@@ -9802,6 +9802,27 @@ function renderSpeedometerOutcome(result, sessionIndex){
    speedoOpts.spfsOuterLabel = { spfs: Math.round(spfsSelf) };
   }
  }
+
+ if(result && result.testMode==="mode3"){
+  scoreLabel = "CPI";
+  metricLabel = "Average Self-paced RT";
+  metricValueText = result && result.selfPacedResponseMeanMs!=null
+   ? `${Number(result.selfPacedResponseMeanMs).toFixed(1)} ms`
+   : null;
+  mbs = result && result.selfPacedResponseMeanMs!=null ? Number(result.selfPacedResponseMeanMs) : null;
+ }
+
+ if(result && result.testMode==="mode4"){
+  scoreLabel = "CPI";
+  const avgRt = result && result.pacedResponseMeanMs!=null ? Number(result.pacedResponseMeanMs) : null;
+  const pacedRate = result && result.fixedPacedBaselineMs!=null ? Number(result.fixedPacedBaselineMs) : null;
+  metricLabel = "Average Machine-Paced RT";
+  metricValueText = avgRt!=null
+   ? `${avgRt.toFixed(1)} ms${pacedRate!=null ? ` • Rate ${pacedRate.toFixed(1)} ms` : ""}`
+   : (pacedRate!=null ? `Rate ${pacedRate.toFixed(1)} ms` : null);
+  mbs = avgRt!=null ? avgRt : pacedRate;
+ }
+
  const wrap = $("speedometerWrap");
  if(wrap) canvas.style.width = wrap.offsetWidth + "px";
  const latestIdx = getLatestHistoryIndex();
