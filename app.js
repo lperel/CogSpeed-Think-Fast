@@ -368,7 +368,7 @@ let settings=loadSettings();
 // profile record (profile is no longer the source of truth for test type),
 // and persist both. This fires once per fresh rev deployment per device;
 // after that, the stamp matches and nothing is touched on subsequent loads.
-const APP_REV_STAMP = "V699rev146";
+const APP_REV_STAMP = "V699rev147";
 // Version policy: APP_VERSION preserves base storage/schema continuity; DISPLAY_VERSION is what users see.
 const DISPLAY_VERSION = APP_REV_STAMP || APP_VERSION;
 
@@ -9919,7 +9919,8 @@ const _ssp=$("speedStartPageBtn"); if(_ssp) _ssp.onclick=()=>{ hideAllOverlays()
 
 /* ===== Performance vs Time graph ===== */
 const perfGraphState = {
-  preset: "all"
+  preset: "all",
+  zoom: 1
 };
 
 function isPerfFailureSession(r){
@@ -10071,35 +10072,64 @@ function syncPerfGraphControls(hist){
   preset.value = perfGraphState.preset;
 
   const filtered = filterSessionsForPerfGraph(base);
+  const zoomPct = Math.round((perfGraphState.zoom || 1) * 100);
   if(info){
     if(!base.length){
       info.textContent = "No saved sessions yet.";
     }else if(perfGraphState.preset === "24h"){
-      info.textContent = `Showing sessions from the last 24 hours.`;
+      info.textContent = `Showing sessions from the last 24 hours. Zoom ${zoomPct}%.`;
     }else if(perfGraphState.preset === "7d"){
-      info.textContent = `Showing sessions from the last 7 days.`;
+      info.textContent = `Showing sessions from the last 7 days. Zoom ${zoomPct}%.`;
     }else if(perfGraphState.preset === "30sessions"){
-      info.textContent = `Showing the last ${filtered.length} saved session${filtered.length===1?"":"s"} (up to 30).`;
+      info.textContent = `Showing the last ${filtered.length} saved session${filtered.length===1?"":"s"} (up to 30). Zoom ${zoomPct}%.`;
     }else{
-      info.textContent = `Showing all ${base.length} saved sessions from ${firstDate} to ${lastDate}.`;
+      info.textContent = `Showing all ${base.length} saved sessions from ${firstDate} to ${lastDate}. Zoom ${zoomPct}%.`;
     }
   }
 }
 
 function wirePerfGraphControls(){
   const preset = $("perfRangePreset");
-  if(!preset || preset.dataset.wired==="1") return;
-  preset.dataset.wired="1";
+  const zoomInBtn = $("perfZoomInBtn");
+  const zoomOutBtn = $("perfZoomOutBtn");
+  const zoomResetBtn = $("perfZoomResetBtn");
 
   const rerender = ()=>{
     syncPerfGraphControls(state.history||[]);
     drawPerformanceOverTimeChart($("perfTimeGraph"), state.history||[]);
   };
 
-  preset.onchange = ()=>{
-    perfGraphState.preset = preset.value || "all";
-    rerender();
-  };
+  if(preset && preset.dataset.wired!=="1"){
+    preset.dataset.wired="1";
+    preset.onchange = ()=>{
+      perfGraphState.preset = preset.value || "all";
+      rerender();
+    };
+  }
+
+  if(zoomInBtn && zoomInBtn.dataset.wired!=="1"){
+    zoomInBtn.dataset.wired = "1";
+    zoomInBtn.onclick = ()=>{
+      perfGraphState.zoom = Math.min(4, Number((perfGraphState.zoom * 1.35).toFixed(3)));
+      rerender();
+    };
+  }
+
+  if(zoomOutBtn && zoomOutBtn.dataset.wired!=="1"){
+    zoomOutBtn.dataset.wired = "1";
+    zoomOutBtn.onclick = ()=>{
+      perfGraphState.zoom = Math.max(0.5, Number((perfGraphState.zoom / 1.35).toFixed(3)));
+      rerender();
+    };
+  }
+
+  if(zoomResetBtn && zoomResetBtn.dataset.wired!=="1"){
+    zoomResetBtn.dataset.wired = "1";
+    zoomResetBtn.onclick = ()=>{
+      perfGraphState.zoom = 1;
+      rerender();
+    };
+  }
 }
 
 function drawPerformanceOverTimeChart(canvas,hist){
@@ -10203,15 +10233,18 @@ function drawPerformanceOverTimeChart(canvas,hist){
     }
   }
   // Compress the time axis so typical history ranges stay readable on-screen
-  // without forcing an over-wide scroll canvas by default.
-  const pxPerHour = perfGraphState.preset === "24h" ? 22
+  // without forcing an over-wide scroll canvas by default. User zoom can then
+  // expand or contract the time scale for closer examination.
+  const zoom = Math.max(0.5, Math.min(4, Number(perfGraphState.zoom || 1)));
+  const pxPerHourBase = perfGraphState.preset === "24h" ? 22
     : perfGraphState.preset === "7d" ? 4
     : perfGraphState.preset === "30sessions" ? 7
     : 1.2;
+  const pxPerHour = pxPerHourBase * zoom;
   const widthForTime = Math.round(340 + (timeSpan / hourMs) * pxPerHour);
-  const widthForSessions = Math.round(340 + Math.max(0, n - 1) * (minMarkerSepPx + 2));
-  const maxAutoWidth = Math.max(viewportW, Math.round(viewportW * 1.35));
-  cssW = Math.max(viewportW, Math.min(maxAutoWidth, Math.max(920, widthForTime, widthForDensity || 0, widthForSessions)));
+  const widthForSessions = Math.round(340 + Math.max(0, n - 1) * ((minMarkerSepPx * zoom) + 2));
+  const maxAutoWidth = Math.max(viewportW, Math.round(viewportW * Math.max(1.35, zoom * 1.6)));
+  cssW = Math.max(viewportW, Math.min(maxAutoWidth, Math.max(920, widthForTime, (widthForDensity ? Math.round(widthForDensity * zoom) : 0), widthForSessions)));
   cssH = Math.max(640, Math.min(780, viewportH));
   ctx = setupCanvas(cssW, cssH);
   W = cssW;
