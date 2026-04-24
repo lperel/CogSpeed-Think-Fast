@@ -368,9 +368,71 @@ let settings=loadSettings();
 // profile record (profile is no longer the source of truth for test type),
 // and persist both. This fires once per fresh rev deployment per device;
 // after that, the stamp matches and nothing is touched on subsequent loads.
-const APP_REV_STAMP = "V699rev142";
+const APP_REV_STAMP = "V699rev145";
 // Version policy: APP_VERSION preserves base storage/schema continuity; DISPLAY_VERSION is what users see.
 const DISPLAY_VERSION = APP_REV_STAMP || APP_VERSION;
+
+// Rev 145 one-time per-revision migration:
+// Safely update requested Admin defaults when devices still carry the old
+// default-era values. This includes #48 (Mode 4 baseline factor 1.3 -> 1.1).
+(function migrateRev145AdminDefaultsSafely(){
+ let stored = "";
+ try{ stored = localStorage.getItem(`${STORAGE_PREFIX}_rev145_safe_admin_migration`) || ""; }catch(e){ stored = ""; }
+ if(stored === APP_REV_STAMP) return;
+
+ let changed = false;
+ const maybeReplace = (key, oldVals, nextVal)=>{
+  const cur = Number(settings[key]);
+  if(!Number.isFinite(cur) || oldVals.includes(cur)){
+   settings[key] = nextVal;
+   changed = true;
+  }
+ };
+
+ maybeReplace("mode3MaxDurationMs", [120000], 90000);          // #46
+ maybeReplace("mode4BaselineFactor", [1.3], 1.1);              // #48
+ maybeReplace("mode4MaxDurationMs", [120000], 90000);          // #50
+ maybeReplace("mode2NormMaxDelta", [12], 20);                  // #80
+ maybeReplace("mode2SustainedReliefMinMs", [120], 0);          // #36
+ maybeReplace("mode2SustainedReliefPct", [0.1, 0.10], -0.1);   // #37
+
+ if(changed){
+  try{ saveSettings(); }catch(e){}
+ }
+ try{ localStorage.setItem(`${STORAGE_PREFIX}_rev145_safe_admin_migration`, APP_REV_STAMP); }catch(e){}
+})();
+
+
+// Rev 144 one-time per-revision migration:
+// Update the five requested Admin values only when they are still at the old
+// default values (or missing/invalid). This preserves genuine user-edited
+// local Admin settings while still advancing stale default-era devices.
+(function migrateRev144AdminDefaultsSafely(){
+ let stored = "";
+ try{ stored = localStorage.getItem(`${STORAGE_PREFIX}_rev144_safe_admin_migration`) || ""; }catch(e){ stored = ""; }
+ if(stored === APP_REV_STAMP) return;
+
+ let changed = false;
+ const maybeReplace = (key, oldVals, nextVal)=>{
+  const cur = Number(settings[key]);
+  if(!Number.isFinite(cur) || oldVals.includes(cur)){
+   settings[key] = nextVal;
+   changed = true;
+  }
+ };
+
+ maybeReplace("mode3MaxDurationMs", [120000], 90000);          // #46
+ maybeReplace("mode4MaxDurationMs", [120000], 90000);          // #50
+ maybeReplace("mode2NormMaxDelta", [12], 20);                  // #80
+ maybeReplace("mode2SustainedReliefMinMs", [120], 0);          // #36
+ maybeReplace("mode2SustainedReliefPct", [0.1, 0.10], -0.1);   // #37
+
+ if(changed){
+  try{ saveSettings(); }catch(e){}
+ }
+ try{ localStorage.setItem(`${STORAGE_PREFIX}_rev144_safe_admin_migration`, APP_REV_STAMP); }catch(e){}
+})();
+
 (function migrateToCurrentRev(){
  let stored = "";
  try{ stored = localStorage.getItem(`${STORAGE_PREFIX}_rev_stamp`) || ""; }catch(e){ stored = ""; }
@@ -9919,15 +9981,40 @@ function perfSessionCpiEstimated(r){
 
 function getSessionUtcMs(r){
   if(!r) return NaN;
-  const candidates = [
+
+  const directCandidates = [
     r.time,
+    r.date_iso,
+    r.dateIso,
+    r.timestamp,
+    r.createdAt,
+    r.created_at,
+    r.clockTime,
+    r.startTime,
+    r.endTime,
+    r?.geo?.date_iso,
     r?.geo?.gmt_time,
-    r?.geo?.local_time
+    r?.geo?.local_time,
+    Array.isArray(r.rtLog) && r.rtLog.length ? r.rtLog[0]?.clockTime : null,
+    Array.isArray(r.rtLog) && r.rtLog.length ? r.rtLog[r.rtLog.length-1]?.clockTime : null
   ];
-  for(const v of candidates){
-    const ms = Date.parse(v);
+
+  for(const v of directCandidates){
+    if(v == null || v === "") continue;
+    if(typeof v === "number" && Number.isFinite(v)) return v;
+    const ms = Date.parse(String(v));
     if(Number.isFinite(ms)) return ms;
   }
+
+  // Older rows may carry only a local date/time pair or a human-readable geo blob.
+  const datePart = r.date || r.localDate || r.testDate || r?.geo?.date || "";
+  const timePart = r.localTime || r.testTime || "";
+  if(datePart || timePart){
+    const combined = `${String(datePart).trim()} ${String(timePart).trim()}`.trim();
+    const ms = Date.parse(combined);
+    if(Number.isFinite(ms)) return ms;
+  }
+
   return NaN;
 }
 
@@ -9944,8 +10031,15 @@ function perfSessionIsoDate(r){
 function getPerfGraphBaseSessions(hist){
   return (hist||[])
     .slice()
-    .filter(r=>Number.isFinite(perfSessionUtcMs(r)))
-    .sort((a,b)=>perfSessionUtcMs(a)-perfSessionUtcMs(b));
+    .map((r, idx)=>({r, idx, ms: perfSessionUtcMs(r)}))
+    .filter(x=>Number.isFinite(x.ms) || x.r)
+    .sort((a,b)=>{
+      if(Number.isFinite(a.ms) && Number.isFinite(b.ms)) return a.ms - b.ms;
+      if(Number.isFinite(a.ms)) return -1;
+      if(Number.isFinite(b.ms)) return 1;
+      return a.idx - b.idx;
+    })
+    .map(x=>x.r);
 }
 
 function filterSessionsForPerfGraph(hist){
@@ -10055,17 +10149,17 @@ function drawPerformanceOverTimeChart(canvas,hist){
     return;
   }
 
-  const sessionTimes = slice.map(r=>{
+  let sessionTimes = slice.map(r=>{
     const t = perfSessionUtcMs(r);
     return Number.isFinite(t) ? t : null;
   });
-  const validTimes = sessionTimes.filter(t=>t!=null);
+  let validTimes = sessionTimes.filter(t=>t!=null);
   if(!validTimes.length){
-    ctx.fillStyle="#d7e7f8";
-    ctx.font="bold 16px sans-serif";
-    ctx.textAlign="center";
-    ctx.fillText("No valid session timestamps yet", W/2, H/2);
-    return;
+    // Last-resort fallback for older legacy rows: preserve graph usability by
+    // spacing sessions sequentially in time order instead of leaving the graph blank.
+    const now = Date.now();
+    sessionTimes = slice.map((_, i)=> now + (i * 60 * 1000));
+    validTimes = sessionTimes.filter(t=>t!=null);
   }
 
   function sleepQualityColor(r){

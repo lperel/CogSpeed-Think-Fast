@@ -1,3 +1,5 @@
+- Rev145 fixes: (1) safe migration now also corrects #48 Mode 4 MP baseline factor from legacy 1.3 to 1.1, and (2) Performance over Date and Time graph uses broader timestamp extraction plus a non-blank legacy fallback so older saved sessions still plot.
+- Rev144 safe migration: update #46, #50, #80, #36, and #37 only when they still equal the old default values, preserving genuine user-edited Admin settings.
 - Moved **Data Upload for Research** below the Mode 2 Scheduler ON/OFF buttons and the "No Mode 2 reminders scheduled." text on Profile.
 ## Rev 115
 - Restored the **Technical Methods** button to the main Profile page.
