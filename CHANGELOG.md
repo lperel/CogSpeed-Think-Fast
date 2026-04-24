@@ -1,3 +1,4 @@
+- Rev146 graph usability fix: Performance over Date and Time now defaults to "All history", auto-falls back to all history when a shorter range has no sessions yet, and uses a more compressed time scale so the graph fits the screen more readably.
 - Rev145 fixes: (1) safe migration now also corrects #48 Mode 4 MP baseline factor from legacy 1.3 to 1.1, and (2) Performance over Date and Time graph uses broader timestamp extraction plus a non-blank legacy fallback so older saved sessions still plot.
 - Rev144 safe migration: update #46, #50, #80, #36, and #37 only when they still equal the old default values, preserving genuine user-edited Admin settings.
 - Moved **Data Upload for Research** below the Mode 2 Scheduler ON/OFF buttons and the "No Mode 2 reminders scheduled." text on Profile.

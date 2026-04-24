@@ -368,7 +368,7 @@ let settings=loadSettings();
 // profile record (profile is no longer the source of truth for test type),
 // and persist both. This fires once per fresh rev deployment per device;
 // after that, the stamp matches and nothing is touched on subsequent loads.
-const APP_REV_STAMP = "V699rev145";
+const APP_REV_STAMP = "V699rev146";
 // Version policy: APP_VERSION preserves base storage/schema continuity; DISPLAY_VERSION is what users see.
 const DISPLAY_VERSION = APP_REV_STAMP || APP_VERSION;
 
@@ -9919,7 +9919,7 @@ const _ssp=$("speedStartPageBtn"); if(_ssp) _ssp.onclick=()=>{ hideAllOverlays()
 
 /* ===== Performance vs Time graph ===== */
 const perfGraphState = {
-  preset: "7d"
+  preset: "all"
 };
 
 function isPerfFailureSession(r){
@@ -10142,6 +10142,11 @@ function drawPerformanceOverTimeChart(canvas,hist){
   const n = slice.length;
 
   if(!n){
+    if(perfGraphState.preset !== "all"){
+      perfGraphState.preset = "all";
+      syncPerfGraphControls(fullHist);
+      return drawPerformanceOverTimeChart(canvas, fullHist);
+    }
     ctx.fillStyle="#d7e7f8";
     ctx.font="bold 16px sans-serif";
     ctx.textAlign="center";
@@ -10197,10 +10202,16 @@ function drawPerformanceOverTimeChart(canvas,hist){
       widthForDensity = Math.max(widthForDensity, Math.round((minMarkerSepPx * timeSpan) / gap));
     }
   }
-  const pxPerHour = perfGraphState.preset === "24h" ? 40 : perfGraphState.preset === "7d" ? 12 : perfGraphState.preset === "30sessions" ? 10 : 6;
-  const widthForTime = Math.round(380 + (timeSpan / hourMs) * pxPerHour);
-  const widthForSessions = Math.round(380 + Math.max(0, n - 1) * (minMarkerSepPx + 6));
-  cssW = Math.max(viewportW, 920, widthForTime, widthForDensity || 0, widthForSessions);
+  // Compress the time axis so typical history ranges stay readable on-screen
+  // without forcing an over-wide scroll canvas by default.
+  const pxPerHour = perfGraphState.preset === "24h" ? 22
+    : perfGraphState.preset === "7d" ? 4
+    : perfGraphState.preset === "30sessions" ? 7
+    : 1.2;
+  const widthForTime = Math.round(340 + (timeSpan / hourMs) * pxPerHour);
+  const widthForSessions = Math.round(340 + Math.max(0, n - 1) * (minMarkerSepPx + 2));
+  const maxAutoWidth = Math.max(viewportW, Math.round(viewportW * 1.35));
+  cssW = Math.max(viewportW, Math.min(maxAutoWidth, Math.max(920, widthForTime, widthForDensity || 0, widthForSessions)));
   cssH = Math.max(640, Math.min(780, viewportH));
   ctx = setupCanvas(cssW, cssH);
   W = cssW;
