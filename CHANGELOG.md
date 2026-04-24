@@ -1,3 +1,4 @@
+- Rev149 Mode 4 summary fix: the SELF-PACED CALIBRATION section now reports only self-paced/calibration wrong responses for "Total wrong," not the overall wrong count from later machine-paced trials.
 - Rev148d speedometer text: surgical renderSpeedometerOutcome update only — Mode 3 now shows Average Self-paced RT and Mode 4 shows Average Machine-Paced RT plus Machine-paced rate, without changing Mode 1 or Mode 2 dial logic.
 - Rev147 graph zoom: added Zoom In / Zoom Out / Reset controls for the Performance over Date and Time graph time axis, with zoom-aware width scaling and info text.
 - Rev146 graph usability fix: Performance over Date and Time now defaults to "All history", auto-falls back to all history when a shorter range has no sessions yet, and uses a more compressed time scale so the graph fits the screen more readably.
