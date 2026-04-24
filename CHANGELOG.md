@@ -136,6 +136,7 @@
 - Bumped the cache-busting script tag to `app.js?v=699rev69`, bumped `sw.js` RELEASE to `699rev69`, and advanced `APP_REV_STAMP` to `V699rev69`.
 
 ## V699 — 2026-04-19
+- Rev142 admin/defaults update: changed #46 to 90000ms, #50 to 90000ms, #80 to 20, #36 to 0, and #37 to -0.10, and updated the associated program fallbacks/relief logic to match those defaults.
 - Rev68 terminology scrub: replaced every remaining old fatigue-scale abbreviation occurrence with S-PFS across the entire package, including CHANGELOG.md.
 - Rev67 terminology update: standardized S-PFS terminology everywhere in the program text, code comments, results text, and graph-related labels.
 - Rev66 profile placeholder: added a dummy future-research opt-in button on the Profile page asking whether the user would allow anonymous data download for research uses such as building population norms. No download behavior is active in this build.

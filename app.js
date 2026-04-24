@@ -64,13 +64,13 @@ const DEFAULTS={
  defaultTestMode:"mode2",
  testMode:"mode2",
  mode3TrialLimit:150,
- mode3MaxDurationMs:120000,
+ mode3MaxDurationMs:90000,
  mode4CalibrationTrials:10,
  mode4PacedTrialLimit:140,
- mode4MaxDurationMs:120000,
+ mode4MaxDurationMs:90000,
  mode4BaselineFactor:1.1,
- mode2SustainedReliefMinMs:120,
- mode2SustainedReliefPct:0.10,
+ mode2SustainedReliefMinMs:0,
+ mode2SustainedReliefPct:-0.1,
  mode2SustainedReliefMaxMs:220,
  mode2SustainedTrialCount:20,
  mode2SustainedWrongFailPercent:50,
@@ -146,7 +146,7 @@ const DEFAULTS={
  mode2NormWeightMiss:3.5,
  mode2NormWeightDrift:1.5,
  mode2NormWeightCv:1.5,
- mode2NormMaxDelta:12,
+ mode2NormMaxDelta:20,
  researchModeLocked:0,
  researchUploadEndpoint:'',
  researchIncludeLearningSessions:0,
@@ -202,8 +202,8 @@ const ADMIN_FIELDS=[
  ["personalBaselineMaxMbs","35. Personal Baseline maximum qualifying MBS (ms, default 1900)","number"],
 
  // 36-42. Mode 2 runtime flow settings, in program-use order
- ["mode2SustainedReliefMinMs","36. Mode 2 sustained relief minimum (ms, default 120)","number"],
- ["mode2SustainedReliefPct","37. Mode 2 sustained relief % of adaptive MBS (default 0.10 = 10%)","number"],
+ ["mode2SustainedReliefMinMs","36. Mode 2 sustained relief minimum (ms, default 0)","number"],
+ ["mode2SustainedReliefPct","37. Mode 2 sustained relief % of adaptive MBS (default -0.10 = -10%)","number"],
  ["mode2SustainedReliefMaxMs","38. Mode 2 sustained relief cap (ms, default 220)","number"],
  ["mode2SustainedTrialCount","39. Mode 2 sustained trials at adaptive MBS + relief (default 20)","number"],
  ["mode2SustainedWrongFailPercent","40. Mode 2 wrong-fail threshold for sustained phase (default 50% of sustained trials)","number"],
@@ -214,13 +214,13 @@ const ADMIN_FIELDS=[
 
  // 45-46. Mode 3 Self-paced, in program-use order
  ["mode3TrialLimit","45. Mode 3 self-paced trial limit (default 150)","number"],
- ["mode3MaxDurationMs","46. Mode 3 total duration ms (default 120000)","number"],
+ ["mode3MaxDurationMs","46. Mode 3 total duration ms (default 90000)","number"],
 
  // 47-50. Mode 4 Machine-paced, in program-use order
  ["mode4CalibrationTrials","47. Mode 4 self-paced calibration trials (default 10)","number"],
  ["mode4BaselineFactor","48. Mode 4 MP baseline factor from cal avg (default 1.1)","number"],
  ["mode4PacedTrialLimit","49. Mode 4 fixed machine-paced trial limit (default 140)","number"],
- ["mode4MaxDurationMs","50. Mode 4 total duration ms (default 120000)","number"],
+ ["mode4MaxDurationMs","50. Mode 4 total duration ms (default 90000)","number"],
 
  // 51-57. Memory Challenge defaults
  ["memoryNoResponseTimeoutMs","51. Memory Challenge no-response timeout (ms, default 15000)","number"],
@@ -256,7 +256,7 @@ const ADMIN_FIELDS=[
  ["mode2NormWeightMiss","77. Mode 2 CPA weight for miss-rate deviation (default 3.5)","number"],
  ["mode2NormWeightDrift","78. Mode 2 CPA weight for drift deviation (default 1.5)","number"],
  ["mode2NormWeightCv","79. Mode 2 CPA weight for CV deviation (default 1.5)","number"],
- ["mode2NormMaxDelta","80. Mode 2 CPA max total divergence from CPI (points, default 12)","number"],
+ ["mode2NormMaxDelta","80. Mode 2 CPA max total divergence from CPI (points, default 20)","number"],
 
  // 81. Diagnostics
  ["deviceBenchmarkEnabled","81. Device benchmark (0=off, 1=on)","number"],
@@ -368,7 +368,7 @@ let settings=loadSettings();
 // profile record (profile is no longer the source of truth for test type),
 // and persist both. This fires once per fresh rev deployment per device;
 // after that, the stamp matches and nothing is touched on subsequent loads.
-const APP_REV_STAMP = "V699rev141";
+const APP_REV_STAMP = "V699rev142";
 // Version policy: APP_VERSION preserves base storage/schema continuity; DISPLAY_VERSION is what users see.
 const DISPLAY_VERSION = APP_REV_STAMP || APP_VERSION;
 (function migrateToCurrentRev(){
@@ -710,8 +710,8 @@ function isMode4(){ return (settings.testMode||DEFAULTS.testMode)==="mode4"; }
 function currentModeLabel(){ return isMode1() ? "Mode 1 CogSpeed Adapted" : isMode2() ? "Mode 2 CogSpeed Sustained" : isMode3() ? "Mode 3 Self-paced" : "Mode 4 Machine-paced"; }
 function getEffectiveTimeFormat(){ return String(settings.timeFormat||"12") === "24" ? "24" : "12"; }
 function getSessionMaxDurationMs(){
- if(isMode3()) return Number(settings.mode3MaxDurationMs)||120000;
- if(isMode4()) return Number(settings.mode4MaxDurationMs)||120000;
+ if(isMode3()) return Number(settings.mode3MaxDurationMs)||90000;
+ if(isMode4()) return Number(settings.mode4MaxDurationMs)||90000;
  // Mode 1 / Mode 2 icon challenges get their own larger budgets.
  if(isMemoryChallengeActive()) return Number(settings.memoryMaxTestDurationMs)||240000;
  if(isSurvivalChallengeActive()) return Number(settings.survivalMaxTestDurationMs)||200000;
@@ -4855,10 +4855,10 @@ function getVerificationStatusLabel(result){
 }
 function buildScoringSnapshot(){
  const mode2 = {
-  sustainedReliefMinMs: Number(settings.mode2SustainedReliefMinMs ?? settings.mode2ReliefMinMs ?? 120),
-  sustainedReliefPct: Number(settings.mode2SustainedReliefPct ?? 0.10),
+  sustainedReliefMinMs: Number(settings.mode2SustainedReliefMinMs ?? settings.mode2ReliefMinMs ?? 0),
+  sustainedReliefPct: Number(settings.mode2SustainedReliefPct ?? -0.1),
   sustainedReliefMaxMs: Number(settings.mode2SustainedReliefMaxMs ?? 220),
-  normMaxDelta: Number(settings.mode2NormMaxDelta ?? 12),
+  normMaxDelta: Number(settings.mode2NormMaxDelta ?? 20),
   qualifyingBlockGapMs: Number(settings.qualifyingBlockGapMs ?? 250),
   sustainedTrialCount: Number(settings.mode2SustainedTrialCount ?? 20),
   finalTrialCount: Number(settings.mode2FinalTrialCount ?? 2)
@@ -7313,10 +7313,12 @@ function getMode2NormativeModelVersion(){
 function computeMode2SustainedReliefContext(mbsMs){
  const mbs = Number(mbsMs);
  if(!Number.isFinite(mbs) || mbs<=0) return { reliefMs:null, startMs:null, challengeRatio:null };
- const minMs = Math.max(0, Number(settings.mode2SustainedReliefMinMs)||DEFAULTS.mode2SustainedReliefMinMs);
- const pct = Math.max(0, Number(settings.mode2SustainedReliefPct)||DEFAULTS.mode2SustainedReliefPct);
+ const minMs = Math.max(0, Number(settings.mode2SustainedReliefMinMs) ?? DEFAULTS.mode2SustainedReliefMinMs);
+ const rawPct = Number(settings.mode2SustainedReliefPct);
+ const pct = Number.isFinite(rawPct) ? rawPct : DEFAULTS.mode2SustainedReliefPct;
  const maxMs = Math.max(minMs, Number(settings.mode2SustainedReliefMaxMs)||DEFAULTS.mode2SustainedReliefMaxMs);
- const reliefMs = Math.min(maxMs, Math.max(minMs, Math.round(mbs * pct)));
+ const rawReliefMs = Math.round(mbs * pct);
+ const reliefMs = Math.min(maxMs, Math.max(minMs, rawReliefMs));
  const startMs = Math.round(mbs + reliefMs);
  const challengeRatio = startMs>0 ? startMs/mbs : null;
  return { reliefMs, startMs, challengeRatio };
