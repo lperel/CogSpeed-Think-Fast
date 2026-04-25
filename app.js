@@ -9845,7 +9845,8 @@ const _ssp=$("speedStartPageBtn"); if(_ssp) _ssp.onclick=()=>{ hideAllOverlays()
 
 /* ===== Performance vs Time graph ===== */
 const perfGraphState = {
-  preset: "7d"
+  preset: "7d",
+  zoomed: false
 };
 
 function isPerfFailureSession(r){
@@ -9956,7 +9957,9 @@ function filterSessionsForPerfGraph(hist){
 function syncPerfGraphControls(hist){
   const preset = $("perfRangePreset");
   const info = $("perfRangeInfo");
+  const zoomBtn = $("perfTimeZoomBtn");
   if(!preset) return;
+  if(zoomBtn) zoomBtn.textContent = perfGraphState.zoomed ? "NORMAL" : "ZOOM +";
 
   const base = getPerfGraphBaseSessions(hist);
   const firstDate = base.length ? perfSessionIsoDate(base[0]) : "";
@@ -9989,6 +9992,15 @@ function wirePerfGraphControls(){
     syncPerfGraphControls(state.history||[]);
     drawPerformanceOverTimeChart($("perfTimeGraph"), state.history||[]);
   };
+
+  const zoomBtn = $("perfTimeZoomBtn");
+  if(zoomBtn && zoomBtn.dataset.wired!=="1"){
+    zoomBtn.dataset.wired = "1";
+    zoomBtn.onclick = ()=>{
+      perfGraphState.zoomed = !perfGraphState.zoomed;
+      rerender();
+    };
+  }
 
   preset.onchange = ()=>{
     perfGraphState.preset = preset.value || "all";
@@ -10096,6 +10108,10 @@ function drawPerformanceOverTimeChart(canvas,hist){
   const widthForSessions = Math.round(380 + Math.max(0, n - 1) * (minMarkerSepPx + 6));
   cssW = Math.max(viewportW, 920, widthForTime, widthForDensity || 0, widthForSessions);
   cssH = Math.max(640, Math.min(780, viewportH));
+  if(perfGraphState.zoomed){
+    cssW = Math.max(Math.round(cssW * 1.8), viewportW + 480);
+    cssH = Math.max(760, Math.min(980, Math.round(cssH * 1.22)));
+  }
   ctx = setupCanvas(cssW, cssH);
   W = cssW;
   H = cssH;
