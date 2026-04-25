@@ -368,7 +368,7 @@ let settings=loadSettings();
 // profile record (profile is no longer the source of truth for test type),
 // and persist both. This fires once per fresh rev deployment per device;
 // after that, the stamp matches and nothing is touched on subsequent loads.
-const APP_REV_STAMP = "V699rev160";
+const APP_REV_STAMP = "V699rev161";
 // Version policy: APP_VERSION preserves base storage/schema continuity; DISPLAY_VERSION is what users see.
 const DISPLAY_VERSION = APP_REV_STAMP || APP_VERSION;
 (function migrateToCurrentRev(){
@@ -428,7 +428,7 @@ const state={
  mode2SustainedPresented:0, mode2SustainedCorrect:0, mode2SustainedWrong:0, mode2SustainedMissed:0,
  mode2SustainedCorrectRTs:[], mode2SustainedRollMeanLog:[], mode2PendingPriorMiss:null, mode2FinalTrialsPresented:0,
  mode2FinalCorrect:0, mode2FinalWrong:0, mode2FinalRTs:[],
- // V699rev160: state.speedometerMode2Metric removed — the CPI/CPA toggle was
+ // V699rev161: state.speedometerMode2Metric removed — the CPI/CPA toggle was
  // eliminated in rev137; Mode 2 now always shows both needles. The field is
  // confirmed dead (no readers remain) and has been deleted to prevent future
  // confusion.
@@ -6939,7 +6939,7 @@ function drawSpeedometer(canvas, scoreValue, success, scoreLabel="CPI", tipLabel
  }
 
  // Explicit score label(s) — kept low on the dial so the needle does not obscure
- // them. V699rev160: when a secondary needle is present (Mode 2 dual-needle
+ // them. V699rev161: when a secondary needle is present (Mode 2 dual-needle
  // layout) render BOTH labels side by side, each colored to match its needle
  // (CPI = dark/primary, CPA = blue/secondary). Modes 1/3/4 never pass a
  // secondary needle, so they continue to show a single centered "CPI" label.
@@ -6986,7 +6986,7 @@ function drawSpeedometer(canvas, scoreValue, success, scoreLabel="CPI", tipLabel
  ctx.restore();
 
  // Optional secondary needle (used for Mode 2 CPA/CPI dual-needle display).
- // V699rev160: The CPA needle is now rendered as a BOLDER filled-and-outlined
+ // V699rev161: The CPA needle is now rendered as a BOLDER filled-and-outlined
  // spear — same category (outlined) as before, but substantially more visible.
  // Shape distinction from the primary (solid CPI) is preserved via: a thinner
  // silhouette, a distinct two-tone fill (semi-transparent body + solid border),
@@ -8415,25 +8415,17 @@ const TUT_STEPS = [
    <div style="position:relative;z-index:1;display:flex;flex-direction:column;height:100%;padding:14px 14px 10px 14px;text-align:left">
     <div style="font-size:13px;letter-spacing:.1em;color:rgba(127,215,255,0.8);text-transform:uppercase;margin-bottom:8px;text-align:center;text-shadow:0 0 12px rgba(127,215,255,0.5)">Before You Begin</div>
     <div style="background:rgba(10,20,40,0.92);backdrop-filter:blur(4px);border-radius:16px;padding:12px 14px;max-width:100%;border:1px solid rgba(127,215,255,0.22);overflow:auto">
-     <div style="font-size:18px;font-weight:800;color:#f5fbff;margin-bottom:8px;text-align:center">Hints, test hygiene, and preparation</div>
-     <ol style="margin:0;padding-left:18px;font-size:13.5px;line-height:1.36;color:rgba(255,255,255,0.86)">
-      <li>Make sure your phone or tablet has enough battery to finish the test.</li>
-      <li>Use Wi-Fi if possible, especially if you want syncing, downloads, or e-mail features.</li>
-      <li>Silence calls, alerts, and pop-up notifications if you can.</li>
-      <li>Take the test in a safe place where you can focus fully.</li>
-      <li>Do not take the test while driving, walking in traffic, or doing anything hazardous.</li>
-      <li>Hold the device in a comfortable, stable position.</li>
-      <li>Make sure the screen is clean, easy to see, and bright enough.</li>
-      <li>If you use reading glasses or other vision correction, wear them.</li>
-      <li>Use your usual hand and normal tapping posture.</li>
-      <li>Avoid talking or multitasking during the test.</li>
-      <li>Try to minimize distractions from people, TV, music, or other devices.</li>
-      <li>Take the test only when you can give it your full attention for a few minutes.</li>
-      <li>Try to tap as quickly as you can without guessing wildly.</li>
-      <li>Establish your personal baseline.</li>
-      <li>For best comparisons over time, take the test under roughly similar conditions when possible.</li>
-      <li>If you feel unusually impaired, unsafe, or unable to focus, treat that result seriously.</li>
-      <li>Don’t get discouraged if you can’t keep up — CogSpeed is faster than you are!</li>
+     <div style="font-size:18px;font-weight:800;color:#f5fbff;margin-bottom:8px;text-align:center">Hints and Preparation</div>
+     <ol style="margin:0;padding-left:18px;font-size:13.5px;line-height:1.36;color:rgba(255,255,255,0.9)">
+      <li style="margin-bottom:8px">CogSpeed is not an IQ test. Just do your best.</li>
+      <li style="margin-bottom:8px">Respond as quickly as you can without guessing wildly.<div style="margin-top:4px;margin-left:0.4em;color:rgba(255,255,255,0.82)">→ There are no “Right” or “Wrong” scores.</div></li>
+      <li style="margin-bottom:8px">Don’t get discouraged because you can’t keep up.<div style="margin-top:4px;margin-left:0.4em;color:rgba(255,255,255,0.82)">→ Skip a frame if needed.</div><div style="margin-top:2px;margin-left:1.5em;font-weight:800;color:#f5fbff">→ CogSpeed is always faster than you are!</div></li>
+      <li style="margin-bottom:8px">It takes practice… Establish your personal baseline.</li>
+      <li style="margin-bottom:8px">Do not take the test in a hazardous place.<div style="margin-top:4px;margin-left:0.4em;color:rgba(255,255,255,0.82)">→ Devote your full attention to it.</div><div style="margin-top:2px;margin-left:0.4em;color:rgba(255,255,255,0.82)">→ Avoid talking or multitasking.</div><div style="margin-top:2px;margin-left:0.4em;font-weight:800;color:#f5fbff">→ Stay safe.</div></li>
+      <li style="margin-bottom:8px">Silence calls, alerts, and pop-up notifications.</li>
+      <li style="margin-bottom:8px">Make sure you have enough battery to finish the test.</li>
+      <li style="margin-bottom:8px">Use glasses or contacts if needed.</li>
+      <li><span style="font-weight:900">MOST IMPORTANT!</span><div style="margin-top:4px;margin-left:0.4em;color:rgba(255,255,255,0.82)">→ If you ever feel impaired, unsafe, or unable to focus,</div><div style="margin-top:2px;margin-left:1.5em;font-weight:900;color:#f5fbff">→ STOP AND REST!</div><div style="margin-top:2px;margin-left:2.6em;color:rgba(255,255,255,0.82)">→ regardless of your score.</div></li>
      </ol>
     </div>
    </div>`;
@@ -9652,7 +9644,7 @@ function getMode2SpeedometerMetric(result, success){
  return {
   // The dial is driven by CPI (primary needle). CPA is shown as the secondary
   // needle. Disposition text lives in the single box below the dial.
-  // V699rev160: cpiValue and cpaValue are nulled on failure so callers that
+  // V699rev161: cpiValue and cpaValue are nulled on failure so callers that
   // read them (e.g. the secondary-needle value lookup) never draw a stale
   // needle on a failed test.
   score: failed ? 0 : (Number.isFinite(cpi)?Math.max(0,Math.min(100,cpi)):0),
@@ -9721,7 +9713,7 @@ function renderSpeedometerOutcome(result, sessionIndex){
   // CPI (solid filled spear, dark), secondary = CPA (hollow outlined spear,
   // blue). The two shapes are distinguishable beyond color alone so the
   // display remains legible for colorblind users and in grayscale output.
-  // (V699rev160 cleanup: removed the unused local `cpiNeedle` — the primary
+  // (V699rev161 cleanup: removed the unused local `cpiNeedle` — the primary
   // needle is driven by `cps` above, not a separate opts entry.)
   const cpaNeedle = Number.isFinite(Number(mode2Metric.cpaValue)) ? Number(mode2Metric.cpaValue) : Number(result && result.cpa);
   speedoOpts = speedoOpts || {};
