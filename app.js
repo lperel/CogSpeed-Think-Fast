@@ -368,7 +368,7 @@ let settings=loadSettings();
 // profile record (profile is no longer the source of truth for test type),
 // and persist both. This fires once per fresh rev deployment per device;
 // after that, the stamp matches and nothing is touched on subsequent loads.
-const APP_REV_STAMP = "V699rev161";
+const APP_REV_STAMP = "V699rev166";
 // Version policy: APP_VERSION preserves base storage/schema continuity; DISPLAY_VERSION is what users see.
 const DISPLAY_VERSION = APP_REV_STAMP || APP_VERSION;
 (function migrateToCurrentRev(){
@@ -428,7 +428,7 @@ const state={
  mode2SustainedPresented:0, mode2SustainedCorrect:0, mode2SustainedWrong:0, mode2SustainedMissed:0,
  mode2SustainedCorrectRTs:[], mode2SustainedRollMeanLog:[], mode2PendingPriorMiss:null, mode2FinalTrialsPresented:0,
  mode2FinalCorrect:0, mode2FinalWrong:0, mode2FinalRTs:[],
- // V699rev161: state.speedometerMode2Metric removed — the CPI/CPA toggle was
+ // V699rev166: state.speedometerMode2Metric removed — the CPI/CPA toggle was
  // eliminated in rev137; Mode 2 now always shows both needles. The field is
  // confirmed dead (no readers remain) and has been deleted to prevent future
  // confusion.
@@ -6939,7 +6939,7 @@ function drawSpeedometer(canvas, scoreValue, success, scoreLabel="CPI", tipLabel
  }
 
  // Explicit score label(s) — kept low on the dial so the needle does not obscure
- // them. V699rev161: when a secondary needle is present (Mode 2 dual-needle
+ // them. V699rev166: when a secondary needle is present (Mode 2 dual-needle
  // layout) render BOTH labels side by side, each colored to match its needle
  // (CPI = dark/primary, CPA = blue/secondary). Modes 1/3/4 never pass a
  // secondary needle, so they continue to show a single centered "CPI" label.
@@ -6986,7 +6986,7 @@ function drawSpeedometer(canvas, scoreValue, success, scoreLabel="CPI", tipLabel
  ctx.restore();
 
  // Optional secondary needle (used for Mode 2 CPA/CPI dual-needle display).
- // V699rev161: The CPA needle is now rendered as a BOLDER filled-and-outlined
+ // V699rev166: The CPA needle is now rendered as a BOLDER filled-and-outlined
  // spear — same category (outlined) as before, but substantially more visible.
  // Shape distinction from the primary (solid CPI) is preserved via: a thinner
  // silhouette, a distinct two-tone fill (semi-transparent body + solid border),
@@ -9644,7 +9644,7 @@ function getMode2SpeedometerMetric(result, success){
  return {
   // The dial is driven by CPI (primary needle). CPA is shown as the secondary
   // needle. Disposition text lives in the single box below the dial.
-  // V699rev161: cpiValue and cpaValue are nulled on failure so callers that
+  // V699rev166: cpiValue and cpaValue are nulled on failure so callers that
   // read them (e.g. the secondary-needle value lookup) never draw a stale
   // needle on a failed test.
   score: failed ? 0 : (Number.isFinite(cpi)?Math.max(0,Math.min(100,cpi)):0),
@@ -9713,7 +9713,7 @@ function renderSpeedometerOutcome(result, sessionIndex){
   // CPI (solid filled spear, dark), secondary = CPA (hollow outlined spear,
   // blue). The two shapes are distinguishable beyond color alone so the
   // display remains legible for colorblind users and in grayscale output.
-  // (V699rev161 cleanup: removed the unused local `cpiNeedle` — the primary
+  // (V699rev166 cleanup: removed the unused local `cpiNeedle` — the primary
   // needle is driven by `cps` above, not a separate opts entry.)
   const cpaNeedle = Number.isFinite(Number(mode2Metric.cpaValue)) ? Number(mode2Metric.cpaValue) : Number(result && result.cpa);
   speedoOpts = speedoOpts || {};
