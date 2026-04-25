@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
   <meta name="theme-color" content="#0b1830"/>
   <link rel="manifest" href="manifest.json"/>
-  <title>CogSpeed® V699rev166</title>
+  <title>CogSpeed® V699rev167</title>
     <style>
 
     :root{--bg:#091426;--bg2:#132746;--panel:#0d1b33;--panel2:#10213e;--text:#f5fbff;--muted:#d7e7f8;--edge:#4f6f99;--accent:#7fd7ff;--probe:#00f0ff}
@@ -371,6 +371,29 @@
       z-index:1;
     }
 
+    /* V699rev155: iOS silent-switch notice visibility. Shown only when BOTH
+       gates hold: the document has class is-ios (app.js sets this at script
+       load when it detects iPhone/iPad, including iPadOS 13+ which reports
+       as Mac), AND the notice itself has class show-for-survival (toggled by
+       a change listener on the test-type selector). Using !important to win
+       over the element's inline display:none fallback when JS has turned
+       both gates on. */
+    html.is-ios #iosSilentSwitchNotice.show-for-survival{
+      display:block !important;
+    }
+
+    /* V699rev157: Mobile-browser scheduler background-limitation notice.
+       Shown on every iPhone, iPad, and Android device regardless of
+       scheduler state, because the limitation (timers throttled or
+       suspended when the tab is backgrounded, no execution at all when
+       the browser is closed) applies to every mobile browser and every
+       schedule. CSS gate: html.is-mobile (set at script load by the
+       mobile-detection IIFE in app.js). !important wins over the
+       element's inline display:none fallback. */
+    html.is-mobile #mobileSchedulerBackgroundNotice{
+      display:block !important;
+    }
+
 </style>
 
   
@@ -395,7 +418,7 @@
       <img src="CogSpeed.jpeg" alt="CogSpeed logo" style="width:min(78vw,420px);max-width:100%;height:auto;display:block;object-fit:contain;border:1px solid #2f5fb8;box-shadow:0 2px 16px rgba(0,0,0,.25)"/>
     </div>
     <div style="flex:1;display:flex;flex-direction:column;justify-content:flex-start;align-items:center;gap:clamp(6px,1.2dvh,14px);padding-top:10px">
-      <div style="text-align:center"><span class="badge" style="font-size:11px;padding:2px 10px" id="versionBadge">V699rev166</span></div>
+      <div style="text-align:center"><span class="badge" style="font-size:11px;padding:2px 10px" id="versionBadge">V699rev167</span></div>
       <div style="text-align:center">
         <span style="font-size:clamp(20px,3.6dvh,34px);font-weight:900;font-style:italic;letter-spacing:.12em;color:var(--accent);text-transform:uppercase;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;text-shadow:0 0 12px rgba(127,215,255,0.6)">Think Fast!</span>
       </div>
@@ -511,6 +534,17 @@
         <option value="mode4">Mode 4 Machine-paced</option>
 </select>
       <div class="field-hint" style="margin-top:6px">Memory and Survival are Mode 2 challenge variants that use icon-pair matching with their own timing defaults and matching Tutorial / Pattern Refresher icons.</div>
+      <!-- V699rev155: iOS silent-switch notice. Shown only when the device is iOS
+           (class "is-ios" added to <html> by app.js at script load) AND the
+           user has selected the Survival test type (class "show-for-survival"
+           toggled by a change listener on #profileTestType). Reason for the
+           notice: iOS Safari/Chrome routes WebAudio output through an audio
+           session that obeys the hardware silent switch, even when other apps
+           play audio normally and the ringer volume is up. Users hit this
+           wall constantly; the notice saves the support round-trip. -->
+      <div id="iosSilentSwitchNotice" class="field-hint" style="display:none;margin-top:8px;padding:10px 12px;border:1px solid #d99a2c;border-radius:10px;background:rgba(217,154,44,0.12);color:#ffd28a;font-size:14px;line-height:1.4">
+        <strong style="color:#ffcf7a">iPhone / iPad note:</strong> for the Survival Challenge sound effects, the hardware silent switch on the side of your device must be OFF (no orange showing). iOS mutes all web-page audio when this switch is on, even when media and phone sounds are working normally.
+      </div>
     </div>
 
 
@@ -521,6 +555,19 @@
     <!-- MODE 2 Scheduler -->
     <div id="profileSchedulerPanel" style="margin-bottom:16px;padding:14px;background:rgba(127,215,255,0.06);border:1px solid rgba(127,215,255,0.15);border-radius:12px">
       <div style="font-size:18px;font-weight:800;color:var(--text);margin-bottom:6px">MODE 2 SCHEDULER</div>
+      <!-- V699rev157: mobile-browser scheduler notice (replaces the Rev 156
+           iOS-only variant). Both iOS and Android web pages suspend or
+           throttle setTimeout-driven reminders once the tab is backgrounded;
+           iOS does so immediately and hard, Android throttles to ~1/min and
+           eventually pauses. Neither platform delivers alerts from a closed
+           browser without server-side Web Push, which CogSpeed does not yet
+           implement. A unified "Mobile browser note" sets honest
+           expectations on both platforms and routes users to the Clock-app
+           backup the same way. CSS visibility gate: html.is-mobile (set by
+           the Rev 157 mobile-detection block in app.js). -->
+      <div id="mobileSchedulerBackgroundNotice" class="field-hint" style="display:none;margin-bottom:10px;padding:10px 12px;border:1px solid #d99a2c;border-radius:10px;background:rgba(217,154,44,0.12);color:#ffd28a;font-size:14px;line-height:1.4">
+        <strong style="color:#ffcf7a">Mobile browser note:</strong> scheduled reminders are most reliable when this browser tab is open and on-screen. If the tab is backgrounded for more than a minute, or the browser is closed, iPhone and Android operating systems may throttle or suspend the reminder timer, in which case the alert will be late or will not play at all. For a reminder that works when CogSpeed is closed, also set an alarm in the Clock app for the same time.
+      </div>
       <div id="schedulerGuestBlockedNote" class="field-hint hidden" style="margin-bottom:10px;color:#ff9aa8">Registered user required. Guest cannot use Scheduler.</div>
       <div id="schedulerSubjectInfo" class="field-hint" style="margin-bottom:10px">Registered user only. This Scheduler works on this device only.</div>
 
@@ -1005,7 +1052,7 @@
   <div id="speedometerWrap" class="speedometer-brain-bg" style="width:min(88vw,42vh,460px);aspect-ratio:1/1;flex-shrink:0;margin-top:4px">
     <canvas id="speedometerCanvas" style="width:100%;height:100%;display:block"></canvas>
   </div>
-  <!-- V699rev166: below-dial S-PFS gauge canvas removed. The outer-ring "S-PFS N"
+  <!-- V699rev141: below-dial S-PFS gauge canvas removed. The outer-ring "S-PFS N"
        pill on the speedometer itself (Mode 2) is sufficient; Modes 1/3/4 did not
        rely on the below-dial bar for any action. renderSpfGaugeForResult() still
        guards with `if(!canvas) return;` so existing call sites no-op cleanly. -->
@@ -1139,7 +1186,7 @@
     <div style="text-align:center;margin-bottom:10px"><span class="badge">Performance over Date and Time</span></div>
     
     <div style="display:grid;gap:8px;margin:8px 0 10px 0">
-      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;align-items:end">
+      <div style="display:grid;gap:8px">
         <div style="display:grid;gap:4px">
           <label for="perfRangePreset" style="font-size:13px;color:var(--muted);font-weight:700">Range</label>
           <select id="perfRangePreset" style="width:100%;padding:10px 12px;border-radius:10px;border:1px solid var(--edge);background:#081321;color:var(--text);font-size:14px">
@@ -1149,6 +1196,11 @@
             <option value="all">All history</option>
           </select>
         </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;align-items:end">
+          <button type="button" id="perfZoomOutBtn" class="ctrl-btn" style="padding:8px 12px;font-size:14px;min-width:44px">Zoom Out</button>
+          <button type="button" id="perfZoomResetBtn" class="ctrl-btn" style="padding:8px 12px;font-size:14px;min-width:44px">Reset</button>
+          <button type="button" id="perfZoomInBtn" class="ctrl-btn" style="padding:8px 12px;font-size:14px;min-width:44px">Zoom In</button>
+        </div>
       </div>
       <div id="perfRangeInfo" style="font-size:12px;color:var(--muted);text-align:center"></div>
     </div>
@@ -1156,7 +1208,6 @@
     <div id="perfTimeGraphScroller" style="overflow-x:auto;overflow-y:hidden;border-radius:12px"><canvas id="perfTimeGraph" width="1100" height="620" style="display:block;width:1100px;min-width:1100px;height:min(62vh,620px);border-radius:12px;border:1px solid var(--edge);background:#081321"></canvas></div>
     <div class="controls" style="margin-top:12px">
       <button class="ctrl-btn" id="perfTimeBackBtn" style="flex:1">Speedometer</button>
-      <button class="ctrl-btn" id="perfTimeZoomBtn" style="flex:0 0 auto;min-width:120px">ZOOM +</button>
       <button id="perfTimeAdminBtn" style="background:none;border:none;color:rgba(127,215,255,0.38);font-size:12px;padding:6px 10px;cursor:pointer;font-family:inherit;letter-spacing:.05em">Admin</button>
     </div>
   </div>
@@ -1237,7 +1288,7 @@
     <span id="fatigueOut">—</span>
     <span id="modeLabel">Subject mode</span>
     <span id="phaseLabel">Ready</span>
-    <span id="statusLine">CogSpeed V699rev166</span>
+    <span id="statusLine">CogSpeed V699rev167</span>
     <span id="rateOut">—</span>
     <span id="blocksOut">0</span>
     <span id="recoveryOut">0</span>
@@ -1265,6 +1316,6 @@
   <div class="resp-grid" id="respGrid"></div>
 </div>
 
-<script src="app.js?v=699rev166" defer></script>
+<script src="app.js?v=699rev167" defer></script>
 </body>
 </html>
