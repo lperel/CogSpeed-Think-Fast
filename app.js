@@ -398,7 +398,7 @@ let settings=loadSettings();
 // profile record (profile is no longer the source of truth for test type),
 // and persist both. This fires once per fresh rev deployment per device;
 // after that, the stamp matches and nothing is touched on subsequent loads.
-const APP_REV_STAMP = "V699rev167";
+const APP_REV_STAMP = "V699rev168";
 // Version policy: APP_VERSION preserves base storage/schema continuity; DISPLAY_VERSION is what users see.
 const DISPLAY_VERSION = APP_REV_STAMP || APP_VERSION;
 
@@ -3782,7 +3782,11 @@ function getResponseGraphPhaseLegendText(result){
  return "Includes phases: paced family only.";
 }
 
-function formatModeTag(mode){
+// V699rev168: function renamed from formatModeTag (which was misleading —
+// it returned the FULL mode label, not a short tag). Use formatCompactResultModeLabel
+// for the short tag form (e.g., "M2 Sustained"). All call sites updated to
+// the new name.
+function getFullModeLabel(mode){
  const labels={mode1:"Mode 1 CogSpeed Adapted",mode2:"Mode 2 CogSpeed Sustained",mode3:"Mode 3 Self-paced",mode4:"Mode 4 Machine-paced"};
  return labels[mode||"mode1"] || (mode||"mode1").replace("mode","Test Mode ");
 }
@@ -3926,7 +3930,7 @@ function formatModePooledRankSection(mode){
  const rs = computeRankAveragesForMode(mode);
  const cs = computeCombinationRankAveragesForMode(mode);
  const {sessions, pooledLogs} = getModePooledSessionRecords(mode);
- const header = `Combined sessions for ${formatModeTag(mode)}\nSessions pooled: ${sessions.length}\nTotal counted pooled trials: ${pooledLogs.length}`;
+ const header = `Combined sessions for ${getFullModeLabel(mode)}\nSessions pooled: ${sessions.length}\nTotal counted pooled trials: ${pooledLogs.length}`;
  return `${header}\n\nCorrect responses:\nDots:\n${formatRankRows(rs.correct.dotRows)}\nLines:\n${formatRankRows(rs.correct.lineRows)}\nPositions:\n${formatRankRows(rs.correct.posRows)}\nCombinations (correct):\n${formatRankRows(cs.correct)}\n\nWrong responses:\nDots:\n${formatRankRows(rs.wrong.dotRows)}\nLines:\n${formatRankRows(rs.wrong.lineRows)}\nPositions:\n${formatRankRows(rs.wrong.posRows)}\nCombinations (wrong):\n${formatRankRows(cs.wrong)}\n\nAll responses combined:\nCombinations (all):\n${formatRankRows(cs.all)}`;
 }
 // ─── Export / Email ───
@@ -4307,7 +4311,7 @@ function renderSchedulerStatusFields(s){
  $("schedulerStatusType") && ($("schedulerStatusType").textContent = schedulerStatusTypeLabel(s.type));
  $("schedulerStatusNextTest") && ($("schedulerStatusNextTest").textContent = formatSchedulerDateTime(s.nextTestAt));
  $("schedulerStatusReason") && ($("schedulerStatusReason").textContent = s.nextReason || "No active reminder");
- $("schedulerStatusLastCompleted") && ($("schedulerStatusLastCompleted").textContent = getLatestCompletedMode2Label() || "—");
+ $("schedulerStatusLastCompleted") && ($("schedulerStatusLastCompleted").textContent = getLatestCompletedMode2Timestamp() || "—");
  $("schedulerStatusLastReminderResult") && ($("schedulerStatusLastReminderResult").textContent = s.lastReminderResult || "Not yet used");
 }
 function renderSchedulerDeviceFields(dt){
@@ -4496,7 +4500,10 @@ function getLatestCompletedMode2Result(ignoreIncomplete=true){
  }
  return null;
 }
-function getLatestCompletedMode2Label(){
+// V699rev168: renamed from getLatestCompletedMode2Label. The old name was
+// misleading — it returned a localized timestamp string, not a label. The
+// only consumer (the scheduler status panel) is updated below.
+function getLatestCompletedMode2Timestamp(){
  const r = getLatestCompletedMode2Result(false);
  return r && r.time ? new Date(r.time).toLocaleString() : "";
 }
@@ -4564,7 +4571,7 @@ function mapBaselineRow(result, sourceIndex){
   sessionNumber: result.sessionNumber!=null ? result.sessionNumber : null,
   time: result.time || null,
   testMode: result.testMode,
-  modeLabel: formatModeTag(result.testMode),
+  modeLabel: getFullModeLabel(result.testMode),
   mbs: getAdaptivePhaseMbs(result),
   spfs: Number(result?.samnPerelli?.score)
  };
@@ -4691,7 +4698,7 @@ function openPersonalBaselinePage(sessionIndex){
  }
  if(graphEl) graphEl.innerHTML = buildPersonalBaselineSvg(rows, baseline.established ? baseline.averageMbs : null);
  if(tbody){
-  const bodyRows = rows.map((row,idx)=>`<tr><td style="padding:8px;border-bottom:1px solid var(--edge)">${idx+1}</td><td style="padding:8px;border-bottom:1px solid var(--edge)">${escapeHtml(row.time ? new Date(row.time).toLocaleString() : "—")}</td><td style="padding:8px;border-bottom:1px solid var(--edge)">${escapeHtml(row.modeLabel||formatModeTag(row.testMode))}</td><td style="padding:8px;border-bottom:1px solid var(--edge);text-align:right">${Number(row.mbs).toFixed(1)}</td><td style="padding:8px;border-bottom:1px solid var(--edge);text-align:right">${row.spfs}</td><td style="padding:8px;border-bottom:1px solid var(--edge);text-align:center">${row.usedInCurrentBaseline ? "Yes" : ""}</td></tr>`).join('');
+  const bodyRows = rows.map((row,idx)=>`<tr><td style="padding:8px;border-bottom:1px solid var(--edge)">${idx+1}</td><td style="padding:8px;border-bottom:1px solid var(--edge)">${escapeHtml(row.time ? new Date(row.time).toLocaleString() : "—")}</td><td style="padding:8px;border-bottom:1px solid var(--edge)">${escapeHtml(row.modeLabel||getFullModeLabel(row.testMode))}</td><td style="padding:8px;border-bottom:1px solid var(--edge);text-align:right">${Number(row.mbs).toFixed(1)}</td><td style="padding:8px;border-bottom:1px solid var(--edge);text-align:right">${row.spfs}</td><td style="padding:8px;border-bottom:1px solid var(--edge);text-align:center">${row.usedInCurrentBaseline ? "Yes" : ""}</td></tr>`).join('');
   const avgRow = baseline.established ? `<tr><td style="padding:8px"></td><td style="padding:8px"><strong>Current rolling baseline average</strong></td><td style="padding:8px"></td><td style="padding:8px;text-align:right"><strong>${baseline.averageMbs}</strong></td><td style="padding:8px"></td><td style="padding:8px;text-align:center"><strong>Last 5</strong></td></tr>` : "";
   tbody.innerHTML = bodyRows || '<tr><td colspan="6" style="padding:10px">No qualifying baseline sessions yet.</td></tr>';
   if(avgRow) tbody.insertAdjacentHTML("beforeend", avgRow);
@@ -6645,7 +6652,7 @@ function getCognitivePerformanceTableText(result){
 function buildRankedSummary(result){
  const el=$("rankedText"); if(!el) return;
  const hr="─────────────────────────";
- const modeName = formatModeTag(result.testMode);
+ const modeName = getFullModeLabel(result.testMode);
  el.textContent =
 `CogSpeed ${DISPLAY_VERSION} — ${modeName}
 ${hr}
@@ -6784,7 +6791,7 @@ function buildResultsSummaryCompact(result){
    ?(result.geo.address||`${result.geo.latitude.toFixed(5)}, ${result.geo.longitude.toFixed(5)}`)+` (±${Math.round(result.geo.accuracy_m)}m)`
    :result.geo.status;
  }
- const modeName = formatModeTag(result.testMode);
+ const modeName = getFullModeLabel(result.testMode);
  const totalPresentations = computeTotalTrialPresentations(result);
  const totalDuration = formatDuration(result.testDurationMs);
  const sleepLine = formatSleepLine(result);
@@ -6879,12 +6886,12 @@ function buildSummary(result){
    ?(result.geo.address||`${result.geo.latitude.toFixed(5)}, ${result.geo.longitude.toFixed(5)}`)+` (±${Math.round(result.geo.accuracy_m)}m)`
    :result.geo.status;
  }
- const modeName = formatModeTag(result.testMode);
+ const modeName = getFullModeLabel(result.testMode);
  if(result.testMode==="mode3"){
   el.textContent=
 moveEndReasonNearSession(`CogSpeed ${DISPLAY_VERSION} — ${modeName}
 ${hr}
-Test Mode:  ${formatModeTag(result.testMode)}
+Test Mode:  ${getFullModeLabel(result.testMode)}
 Session:    ${result.sessionNumber!=null?result.sessionNumber:"—"}
 Subject ID:  ${result.subjectId}
 Date / Time:  ${new Date(result.time).toLocaleString()}
@@ -6924,7 +6931,7 @@ ${getResultsMetricExplanationText(result)}`);
   el.textContent=
 moveEndReasonNearSession(`CogSpeed ${DISPLAY_VERSION} — ${modeName}
 ${hr}
-Test Mode:  ${formatModeTag(result.testMode)}
+Test Mode:  ${getFullModeLabel(result.testMode)}
 Session:    ${result.sessionNumber!=null?result.sessionNumber:"—"}
 Subject ID:  ${result.subjectId}
 Date / Time:  ${new Date(result.time).toLocaleString()}
@@ -6990,7 +6997,7 @@ ${getResultsMetricExplanationText(result)}`);
   el.textContent=
 moveEndReasonNearSession(`CogSpeed ${DISPLAY_VERSION} — ${modeName}
 ${hr}
-Test Mode:  ${formatModeTag(result.testMode)}
+Test Mode:  ${getFullModeLabel(result.testMode)}
 Session:    ${result.sessionNumber!=null?result.sessionNumber:"—"}
 Subject ID:  ${result.subjectId}
 Date / Time:  ${new Date(result.time).toLocaleString()}
@@ -7094,7 +7101,7 @@ ${getResultsMetricExplanationText(result)}`);
  el.textContent=
 moveEndReasonNearSession(`CogSpeed ${DISPLAY_VERSION} — ${modeName}
 ${hr}
-Test Mode:  ${formatModeTag(result.testMode)}
+Test Mode:  ${getFullModeLabel(result.testMode)}
 Session:    ${result.sessionNumber!=null?result.sessionNumber:"—"}
 Subject ID:  ${result.subjectId}
 Date / Time:  ${new Date(result.time).toLocaleString()}
@@ -7574,6 +7581,86 @@ function formatCompactResultModeLabel(result){
  return '—';
 }
 
+// V699rev168: canonical session-label formatter shared by every "session
+// select" dropdown and info bar. Replaces three previously divergent inline
+// label formats that gave the same session four different appearances
+// across the Summary page, Research view, Trial-log overlay, and Rate-RT
+// chart selector.
+//
+// Composition (left to right, with a · separator):
+//   "Sess N"                  — 1-based history index (stable per device).
+//                               Always present so the label is unambiguous
+//                               even if all other parts collide.
+//   "{compactMode}"           — short mode tag from formatCompactResultModeLabel,
+//                               e.g. "M2 Sustained", "M1 Adapted".
+//   "(no CPA)"                — appended when testMode==="mode2" but
+//                               mode2Triggered===false, so users can tell
+//                               at a glance which Mode 2 sessions actually
+//                               produced a CPA score.
+//   "{subjectHint}"           — short subject identifier, only when opts.showSubject
+//                               is true (Trial Log, Rate-RT chart). Guest sessions
+//                               render as "Guest"; registered subjects render as
+//                               the first 14 characters of subjectId so a long
+//                               email address doesn't crowd the option text.
+//   "{date} {time}"           — toLocaleDateString plus toLocaleTimeString
+//                               truncated to "HH:MM" in 24h or "h:MM AM/PM" in
+//                               12h depending on the user locale. Always
+//                               include time so two sessions on the same day
+//                               are visually distinct.
+//   "⚠ FAILED"                — appended when isTestSuccess(result) is false.
+//                               Failed sessions are still shown in dropdowns
+//                               (history is push-only) but should be visually
+//                               flagged so a user reviewing past data does
+//                               not pick one expecting a complete result.
+//
+// Options:
+//   opts.showSubject  : include the subjectHint segment (default: false).
+//                       Selectors with one subject visible per page (Summary,
+//                       Research) leave it false; selectors that span subjects
+//                       on multi-user devices (Trial Log, Rate-RT) set it true.
+//   opts.shortDateOnly: omit the time segment (default: false). Reserved for
+//                       legacy behavior; not used by any current caller.
+function formatSessionListLabel(result, idx, opts){
+ const o = opts || {};
+ const dt = result && result.time ? new Date(result.time) : null;
+ const dateStr = dt ? dt.toLocaleDateString() : "";
+ const timeStr = (dt && !o.shortDateOnly)
+  ? dt.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })
+  : "";
+ const compactMode = formatCompactResultModeLabel(result);
+ // Mode 2 sessions that never reached the sustained phase have no CPA. Flag
+ // them inline so the user can distinguish "M2 with CPA" from "M2 without CPA"
+ // at a glance.
+ const isMode2NotTriggered = !!(result
+  && result.testMode === "mode2"
+  && !result.mode2Triggered);
+ const triggerSuffix = isMode2NotTriggered ? " (no CPA)" : "";
+ // Subject hint: only when the caller asks for it, and only when subjectId is
+ // present and non-Guest. Trim long emails so option text stays readable.
+ let subjectHint = "";
+ if(o.showSubject && result){
+  const sid = String(result.subjectId || "").trim();
+  if(!sid || sid === "0" || /^guest$/i.test(sid)){
+   subjectHint = "Guest";
+  } else {
+   subjectHint = sid.length > 14 ? (sid.slice(0, 14) + "…") : sid;
+  }
+ }
+ // Failure marker: any session not isTestSuccess gets flagged. Avoid the
+ // mode2_final_self_paced_no_response false-positive (handled inside
+ // isTestSuccess for triggered Mode 2 sessions).
+ const failed = !isTestSuccess(result);
+ const failSuffix = failed ? " ⚠ FAILED" : "";
+ // Compose with · separators. Skip empty segments.
+ const segments = [];
+ segments.push(`Sess ${(idx != null ? idx : 0) + 1}`);
+ segments.push(`${compactMode}${triggerSuffix}`);
+ if(subjectHint) segments.push(subjectHint);
+ const dtSegment = (dateStr && timeStr) ? `${dateStr} ${timeStr}` : (dateStr || timeStr);
+ if(dtSegment) segments.push(dtSegment);
+ return segments.join(" · ") + failSuffix;
+}
+
 function syncSummarySessionSelect(selectedIdx){
  const s=$("summarySessionSelect");
  if(!s) return;
@@ -7581,11 +7668,12 @@ function syncSummarySessionSelect(selectedIdx){
  const existing = Array.from(s.options).map(o=>o.value).join('|');
  const desired = state.history.map((r,idx)=>String(idx)).join('|');
  if(existing !== desired){
+  // V699rev168: use canonical formatSessionListLabel so the Summary dropdown
+  // matches the Trial Log and Rate-RT chart selectors. Subject is omitted
+  // here because the Summary view is per-subject already.
   s.innerHTML = state.history.map((r,idx)=>{
-   const dt = r && r.time ? new Date(r.time) : null;
-   const stamp = dt ? dt.toLocaleDateString() : `Sess ${idx+1}`;
-   const mode = formatCompactResultModeLabel(r);
-   return `<option value="${idx}">Sess ${idx+1} · ${mode} · ${stamp}</option>`;
+   const label = formatSessionListLabel(r, idx, { showSubject: false });
+   return `<option value="${idx}">${label.replace(/&/g,"&amp;").replace(/</g,"&lt;")}</option>`;
   }).join('');
  }
  if(s.options.length){
@@ -8289,11 +8377,11 @@ function syncSpeedometerSessionSelect(selectedIdx){
  const existing = Array.from(s.options).map(o=>o.value).join('|');
  const desired = orderedIdx.map(idx=>String(idx)).join('|');
  if(existing !== desired){
+  // V699rev168: canonical session-label formatter.
   s.innerHTML = orderedIdx.map((idx)=>{
    const r = state.history[idx];
-   const stamp = r && r.time ? new Date(r.time).toLocaleDateString() : `Sess ${idx+1}`;
-   const mode = formatCompactResultModeLabel(r);
-   return `<option value="${idx}">Sess ${idx+1} · ${mode} · ${stamp}</option>`;
+   const label = formatSessionListLabel(r, idx, { showSubject: false });
+   return `<option value="${idx}">${label.replace(/&/g,"&amp;").replace(/</g,"&lt;")}</option>`;
   }).join('');
  }
  if(s.options.length){
@@ -8532,9 +8620,13 @@ function startTest(){
 // ──────────────────────────────────────────────────────────────
 function syncTrialLogSessionSelect(selectedValue){
  const sel=$("trialLogSessionSelect"); if(!sel) return;
+ // V699rev168: canonical formatter; showSubject=true because the Trial Log
+ // overlay can span subjects on multi-user devices and subject identity
+ // matters for picking the right log row.
  const options = [...state.history].reverse().map((r,i)=>{
   const idx=state.history.length-1-i;
-  return `<option value="${idx}">Session ${idx+1} · ${formatModeTag(r.testMode)} · ${r.subjectId} · ${new Date(r.time).toLocaleString()}</option>`;
+  const label = formatSessionListLabel(r, idx, { showSubject: true });
+  return `<option value="${idx}">${label.replace(/&/g,"&amp;").replace(/</g,"&lt;")}</option>`;
  }).join("");
  if(sel.dataset.optionsHtml !== options){ sel.innerHTML = options; sel.dataset.optionsHtml = options; }
  if(selectedValue!=null) sel.value=String(selectedValue);
@@ -8669,7 +8761,7 @@ function drawRateRtChart(canvas, sessions, selectedSessionIndex){
  const allPts = prepared.flatMap(s=>s._preparedLog);
  if(!allPts.length){
   ctx.fillStyle="#d7e7f8"; ctx.font="bold 13px sans-serif"; ctx.textAlign="center";
-  const modeTxt = selectedMode ? formatModeTag(selectedMode) : "selected session";
+  const modeTxt = selectedMode ? getFullModeLabel(selectedMode) : "selected session";
   ctx.fillText(`No response-time graph for ${modeTxt}`, W/2, H/2);
   ctx.font="11px sans-serif";
   ctx.fillStyle="#b7d9ef";
@@ -8700,7 +8792,7 @@ function drawRateRtChart(canvas, sessions, selectedSessionIndex){
 
  ctx.fillStyle="#b7d9ef"; ctx.textAlign="left"; ctx.font="10px sans-serif";
  ctx.fillText("Better performance ↑ (smaller ms)", PAD.left, PAD.top-10);
- const modeLabel = selectedMode ? formatModeTag(selectedMode) : "All Modes";
+ const modeLabel = selectedMode ? getFullModeLabel(selectedMode) : "All Modes";
  ctx.fillText(`${modeLabel} only · all sessions start at trial 1`, PAD.left+180, PAD.top-10);
 
  prepared.forEach((session)=>{
@@ -8761,7 +8853,10 @@ function drawRateRtChart(canvas, sessions, selectedSessionIndex){
   ctx.fillStyle="#ffffff";
   ctx.font="bold 10px sans-serif";
   ctx.textAlign="right";
-  ctx.fillText(`Highlighted: Session ${selectedSessionIndex+1}`, W-PAD.right, PAD.top+12);
+  // V699rev168: include the compact mode tag so the highlight is unambiguous
+  // when the chart overlays multiple sessions of different modes.
+  const highlightMode = formatCompactResultModeLabel(selected);
+  ctx.fillText(`Highlighted: Sess ${selectedSessionIndex+1} · ${highlightMode}`, W-PAD.right, PAD.top+12);
  }
 }
 
@@ -8779,7 +8874,9 @@ function buildRateRtOverlay(sessionIndex){
    const idx=r._actualIndex;
    const opt=document.createElement("option");
    opt.value=String(idx);
-   opt.textContent=`Session ${idx+1} · ${formatModeTag(r.testMode)} · ${r.subjectId} · ${new Date(r.time).toLocaleString()}`;
+   // V699rev168: canonical formatter; showSubject=true since the Rate-RT
+   // overlay can span subjects on multi-user devices.
+   opt.textContent = formatSessionListLabel(r, idx, { showSubject: true });
    sel.appendChild(opt);
   });
   if(preservedValue!=null) sel.value=String(preservedValue);
@@ -8796,8 +8893,10 @@ function buildRateRtOverlay(sessionIndex){
  }
  const info=$("rateRtInfoBar");
  if(info){
+  // V699rev168: info bar uses the same canonical session label, then appends
+  // the same-mode-overlay count.
   info.textContent = result
-   ? `Session ${idx+1} · ${formatModeTag(result.testMode)} · ${result.subjectId} · ${new Date(result.time).toLocaleString()} · ${sessionsForChart.length} same-mode session(s) overlaid from trial 1`
+   ? `${formatSessionListLabel(result, idx, { showSubject: true })} · ${sessionsForChart.length} same-mode session(s) overlaid from trial 1`
    : "No session selected";
  }
  drawRateRtChart($("rateRtChart"), sessionsForChart, idx);
@@ -11283,9 +11382,11 @@ function syncResponseGraphSessionSelect(selectedValue){
  const sel = $("responseGraphSessionSelect");
  if(!sel) return null;
  const graphable = getGraphableResults();
+ // V699rev168: canonical formatter; showSubject=true for parity with the
+ // other graph-session selectors.
  const options = graphable.map(({result,index})=>{
-  const when = result.time ? new Date(result.time).toLocaleString() : `Session ${index+1}`;
-  return `<option value="${index}">Session ${index+1} · ${when}</option>`;
+  const label = formatSessionListLabel(result, index, { showSubject: true });
+  return `<option value="${index}">${label.replace(/&/g,"&amp;").replace(/</g,"&lt;")}</option>`;
  }).join("");
  if(sel.dataset.optionsHtml !== options){
   sel.innerHTML = options;
@@ -11478,7 +11579,11 @@ function formatLastPerfTimeText(){
   const h = state.history || [];
   if(!h.length) return "No performance-over-time history available.";
   const rows = h.map((r,i)=>{
-    const when = r.time ? new Date(r.time).toLocaleString() : `Session ${i+1}`;
+    // V699rev168: prepend canonical session label (with mode, trigger marker,
+    // and failure flag if any) so the exported text is self-describing —
+    // a user pasting it into a spreadsheet can immediately tell Mode 1
+    // from Mode 2 from a Mode 2 with no CPA from a failed session.
+    const sessionLabel = formatSessionListLabel(r, i, { showSubject: false });
     const isMode2Sustained = r.testMode==="mode2";
     const cpi = r.cognitivePerformanceIndex!=null ? Math.round(Number(r.cognitivePerformanceIndex)) : "—";
     const mbs = isMode2Sustained
@@ -11497,7 +11602,7 @@ function formatLastPerfTimeText(){
     const spf = r.samnPerelli && r.samnPerelli.score!=null ? r.samnPerelli.score : "—";
     const sleep = r.sleepLog && r.sleepLog.qualityLabel ? r.sleepLog.qualityLabel : (r.sleepSinceLastTest==="no" ? "No sleep before this test" : "—");
     const cpaStr = cpa ? ` | ${cpa}${disp?" ("+disp+")":""}` : (disp ? ` | Disposition: ${disp}` : "");
-    return `${i+1}. ${when} | CPI ${cpi} | MBS ${mbs}${cpaStr} | S-PFS ${spf} | Sleep ${sleep}`;
+    return `${sessionLabel} | CPI ${cpi} | MBS ${mbs}${cpaStr} | S-PFS ${spf} | Sleep ${sleep}`;
   });
   return "Performance Over Date and Time Graph\n\n" + rows.join("\n");
 }
