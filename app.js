@@ -398,7 +398,7 @@ let settings=loadSettings();
 // profile record (profile is no longer the source of truth for test type),
 // and persist both. This fires once per fresh rev deployment per device;
 // after that, the stamp matches and nothing is touched on subsequent loads.
-const APP_REV_STAMP = "V699rev151";
+const APP_REV_STAMP = "V699rev153";
 // Version policy: APP_VERSION preserves base storage/schema continuity; DISPLAY_VERSION is what users see.
 const DISPLAY_VERSION = APP_REV_STAMP || APP_VERSION;
 
@@ -5038,9 +5038,9 @@ function buildScoringSnapshot(){
   finalTrialCount: Number(settings.mode2FinalTrialCount ?? 2)
  };
  const adminFields = [
-  'mode2NormExpectedCorrectRate','mode2NormExpectedWrongRate','mode2NormExpectedMissRate','mode2NormExpectedDriftPct','mode2NormExpectedCvPct',
-  'mode2NormToleranceCorrectRate','mode2NormToleranceWrongRate','mode2NormToleranceMissRate','mode2NormToleranceDriftPct','mode2NormToleranceCvPct',
-  'mode2NormWeightCorrect','mode2NormWeightWrong','mode2NormWeightMiss','mode2NormWeightDrift','mode2NormWeightCv','mode2NormMaxDelta'
+  'mode2NormExpectedCorrectRate','mode2NormExpectedWrongRate','mode2NormExpectedMissRate','mode2NormExpectedAccuracyComposite','mode2NormExpectedDriftPct','mode2NormExpectedCvPct',
+  'mode2NormToleranceCorrectRate','mode2NormToleranceWrongRate','mode2NormToleranceMissRate','mode2NormToleranceAccuracyComposite','mode2NormToleranceDriftPct','mode2NormToleranceCvPct',
+  'mode2NormWeightCorrect','mode2NormWeightWrong','mode2NormWeightMiss','mode2NormWeightAccuracy','mode2NormWeightDrift','mode2NormWeightCv','mode2NormMaxDelta'
  ];
  const profile = {};
  adminFields.forEach(k=>{ if(settings[k] != null) profile[k] = settings[k]; });
@@ -6898,23 +6898,16 @@ CPA — COGNITIVE PERFORMANCE ABILITY
  CPA: ${result.cpa!=null?result.cpa.toFixed(1)+" / 100":"—"}
  Disposition: ${(result.dispositionCode && result.dispositionLabel) ? `S-PFS ${result.dispositionCode} — ${result.dispositionLabel}` : `${result.dispositionCode||"—"} ${result.dispositionLabel||"—"}`.trim()}
  Base CPI: ${result.cpaBaseCpi!=null?result.cpaBaseCpi.toFixed(1):"—"}
- Sustained accuracy-composite factor: ${result.cpaAccuracyWeighting!=null?(result.cpaAccuracyWeighting>=0?"+":"")+result.cpaAccuracyWeighting.toFixed(1):(result.cpaCorrectWeighting!=null?(result.cpaCorrectWeighting>=0?"+":"")+result.cpaCorrectWeighting.toFixed(1):"—")}
- [Legacy correct-response factor: ${result.cpaCorrectWeighting!=null?(result.cpaCorrectWeighting>=0?"+":"")+result.cpaCorrectWeighting.toFixed(1):"—"}]
- [Legacy wrong-response factor: ${result.cpaWrongWeighting!=null?(result.cpaWrongWeighting>=0?"+":"")+result.cpaWrongWeighting.toFixed(1):"— (retired V699rev151)"}]
- [Legacy missed-response factor: ${result.cpaMissedWeighting!=null?(result.cpaMissedWeighting>=0?"+":"")+result.cpaMissedWeighting.toFixed(1):"— (retired V699rev151)"}]
+ Sustained accuracy-composite factor: ${result.cpaAccuracyWeighting!=null?(result.cpaAccuracyWeighting>=0?"+":"")+result.cpaAccuracyWeighting.toFixed(1):"—"}
  Sustained RT variability (CV) factor: ${result.cpaSdWeighting!=null?(result.cpaSdWeighting>=0?"+":"")+result.cpaSdWeighting.toFixed(1):"—"}
  Drift (OLS slope) factor: ${result.cpaDriftWeighting!=null?(result.cpaDriftWeighting>=0?"+":"")+result.cpaDriftWeighting.toFixed(1):"—"}
  Accuracy composite (observed / expected): ${result.cpaObservedAccuracyComposite!=null?result.cpaObservedAccuracyComposite.toFixed(3):"—"} / ${result.cpaExpectedAccuracyComposite!=null?result.cpaExpectedAccuracyComposite.toFixed(3):"—"}
  Drift OLS slope: ${result.cpaObservedDriftSlopeMsPerTrial!=null?result.cpaObservedDriftSlopeMsPerTrial.toFixed(2)+" ms/trial":"—"}
  Drift OLS full-phase: ${result.cpaObservedDriftPctOls!=null?(result.cpaObservedDriftPctOls>=0?"+":"")+result.cpaObservedDriftPctOls.toFixed(1)+"%":"—"}
- Recovery / calibration RT factor: ${result.cpaRecoveryWeighting!=null?(result.cpaRecoveryWeighting>=0?"+":"")+result.cpaRecoveryWeighting.toFixed(1):"— (retired V699rev151)"}
- Lapse-rate factor: ${result.cpaLapseWeighting!=null?(result.cpaLapseWeighting>=0?"+":"")+result.cpaLapseWeighting.toFixed(1):"— (retired V699rev151)"}
- Block-efficiency factor: ${result.cpaEfficiencyWeighting!=null?(result.cpaEfficiencyWeighting>=0?"+":"")+result.cpaEfficiencyWeighting.toFixed(1):"— (retired V699rev151)"}
  Sustained response RT SD: ${result.cpaSustainedResponseSdMs!=null?result.cpaSustainedResponseSdMs.toFixed(1)+" ms":"—"}
  Sustained RT CV%: ${result.cpaSustainedCvPct!=null?result.cpaSustainedCvPct.toFixed(1)+"%":"—"}
  Early median sustained RT: ${result.cpaEarlyMedianRtMs!=null?result.cpaEarlyMedianRtMs.toFixed(1)+" ms":"—"}
  Late median sustained RT: ${result.cpaLateMedianRtMs!=null?result.cpaLateMedianRtMs.toFixed(1)+" ms":"—"}
- Drift ratio: ${result.cpaSustainedDriftRatio!=null?(result.cpaSustainedDriftRatio*100).toFixed(1)+"%":"—"}
  Recovery÷calib RT ratio: ${result.cpaRecoveryCalibRatio!=null?result.cpaRecoveryCalibRatio.toFixed(2):"—"}
  Sustained-phase lapse rate: ${result.cpaLapseRatePct!=null?result.cpaLapseRatePct.toFixed(1)+"%":"—"}
  Block formation efficiency: ${result.cpaTrialsPerBlock!=null?result.cpaTrialsPerBlock.toFixed(1)+" trials/block":"—"}
