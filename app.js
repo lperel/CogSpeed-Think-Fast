@@ -398,7 +398,7 @@ let settings=loadSettings();
 // profile record (profile is no longer the source of truth for test type),
 // and persist both. This fires once per fresh rev deployment per device;
 // after that, the stamp matches and nothing is touched on subsequent loads.
-const APP_REV_STAMP = "V699rev153";
+const APP_REV_STAMP = "V699rev159";
 // Version policy: APP_VERSION preserves base storage/schema continuity; DISPLAY_VERSION is what users see.
 const DISPLAY_VERSION = APP_REV_STAMP || APP_VERSION;
 
@@ -618,6 +618,143 @@ function syncReleaseUI(){
  if(statusLine) statusLine.textContent = `CogSpeed ${visibleVersion}`;
 }
 syncReleaseUI();
+
+// V699rev154: iOS WebAudio unlock.
+//
+// On iOS Safari — even with the hardware silent switch OFF — a newly created
+// AudioContext can be in state "suspended" or in state "running" but still
+// produce no actual speaker output until the audio session has been primed
+// via user-gesture-originated audio activity. `ctx.resume()` alone is not
+// always sufficient; the system also wants to see actual audio scheduling
+// from the gesture that created or resumed the context.
+//
+// The fix is the standard one-shot primer: on the first user gesture after
+// script load, create/resume the shared survival AudioContext and play a
+// zero-amplitude oscillator burst for ~25ms. This is inaudible but routes
+// nonzero samples through the destination, which is what iOS needs to see
+// before subsequent WebAudio playback actually reaches the speaker.
+//
+// Listeners are in the capture phase so they run before any stopPropagation
+// upstream, and { once: true } auto-removes them so the primer only runs
+// once per page load.
+//
+// Guarded: failures (e.g. older Safari rejecting setValueAtTime or the
+// AudioContext constructor) are swallowed silently so a device that does
+// not need priming is never broken by this code path.
+(function installIosWebAudioUnlock(){
+ let unlocked = false;
+ const unlock = ()=>{
+  if(unlocked) return;
+  unlocked = true;
+  try{
+   const AC = window.AudioContext || window.webkitAudioContext;
+   if(!AC) return;
+   state._survivalAudioCtx = state._survivalAudioCtx || new AC();
+   const ctx = state._survivalAudioCtx;
+   // Synchronous resume attempt within the user gesture. On iOS this is
+   // the most reliable form; the promise fallback covers older engines.
+   const afterResume = ()=>{
+    try{
+     const t0 = ctx.currentTime + 0.005;
+     const osc = ctx.createOscillator();
+     const g = ctx.createGain();
+     g.gain.setValueAtTime(0.00001, t0);                         // inaudible
+     g.gain.linearRampToValueAtTime(0.00001, t0 + 0.025);
+     osc.frequency.setValueAtTime(440, t0);
+     osc.connect(g).connect(ctx.destination);
+     osc.start(t0);
+     osc.stop(t0 + 0.03);
+    }catch(e){ /* primer best-effort */ }
+   };
+   if(ctx.state === "suspended"){
+    try{
+     Promise.resolve(ctx.resume()).then(afterResume).catch(afterResume);
+    }catch(e){ afterResume(); }
+   }else{
+    afterResume();
+   }
+  }catch(e){ /* unlock best-effort */ }
+ };
+ const opts = { capture: true, once: true, passive: true };
+ try{ document.addEventListener("touchstart", unlock, opts); }catch(e){}
+ try{ document.addEventListener("pointerdown", unlock, opts); }catch(e){}
+ try{ document.addEventListener("click",       unlock, opts); }catch(e){}
+ try{ document.addEventListener("keydown",     unlock, opts); }catch(e){}
+})();
+
+// V699rev155: iOS detection + Survival silent-switch notice gate.
+//
+// Why this exists: iOS Safari and Chrome-on-iOS (which is forced to use
+// WebKit under Apple's App Store rules) route WebAudio output through an
+// audio session category that obeys the hardware silent switch on the side
+// of the device. If the switch is ON (orange showing), WebAudio is muted
+// even though other apps play audio normally, the ringer volume is up, and
+// media volume is up. Users universally hit this wall; the notice saves the
+// support round-trip.
+//
+// Detection: the classic userAgent regex + a fallback for iPadOS 13+, which
+// Safari misidentifies as MacIntel but betrays by reporting touch support
+// (navigator.maxTouchPoints > 1 on a Mac basically never happens outside of
+// iPadOS spoofing the Mac UA string).
+//
+// The "is-ios" class is added to the <html> element so CSS can gate
+// iOS-specific affordances without JS branching at render time. The notice
+// is additionally gated by "show-for-survival" on the notice element, which
+// is toggled by a change listener on the test-type selector. The notice
+// therefore appears only for the intersection of (iPhone/iPad) AND
+// (Survival selected).
+// V699rev157: platform detection — sets two classes on the <html> element.
+//
+//   html.is-ios       → device is iPhone, iPad, or iPadOS-13+ spoofing Mac.
+//                       Gates iOS-specific notices (e.g. the Survival
+//                       silent-switch warning, which is a genuine iOS-only
+//                       audio-session quirk).
+//
+//   html.is-mobile    → device is iOS OR Android. Gates mobile-generic
+//                       notices that apply to both platforms (e.g. the
+//                       scheduler background-limitation warning, since both
+//                       iOS and Android throttle or suspend setTimeout in
+//                       backgrounded tabs and neither delivers alerts when
+//                       the browser is closed without server-side Web Push).
+//
+// This IIFE also preserves the Rev 155 behavior of toggling
+// "show-for-survival" on the iOS-only silent-switch notice when the user
+// selects the Survival test type.
+//
+// Detection: userAgent regex for iOS, iPadOS spoof fallback via
+// navigator.maxTouchPoints > 1 on a reported Mac, and a /Android/ substring
+// test for Android. Guarded so detection failures never break boot.
+(function installPlatformNoticesRev157(){
+ try{
+  const ua = String(navigator.userAgent || "");
+  const isIpadOsSpoofingMac = /Macintosh/.test(ua)
+   && typeof navigator.maxTouchPoints === "number"
+   && navigator.maxTouchPoints > 1;
+  const isIos = /iPad|iPhone|iPod/.test(ua) || isIpadOsSpoofingMac;
+  const isAndroid = /Android/.test(ua);
+  const isMobile = isIos || isAndroid;
+  const htmlEl = document.documentElement;
+  if(isIos)    htmlEl.classList.add("is-ios");
+  if(isMobile) htmlEl.classList.add("is-mobile");
+  // The remaining logic is iOS-only — it wires the Survival silent-switch
+  // notice to the test-type selector. On Android there is no silent-switch
+  // gate on WebAudio, so that notice stays hidden.
+  if(!isIos) return;
+  const sel = document.getElementById("profileTestType");
+  const notice = document.getElementById("iosSilentSwitchNotice");
+  if(!sel || !notice) return;
+  const sync = ()=>{
+   if(sel.value === "survival"){
+    notice.classList.add("show-for-survival");
+   } else {
+    notice.classList.remove("show-for-survival");
+   }
+  };
+  sel.addEventListener("change", sync);
+  // Run once at boot so the notice reflects any persisted / default value.
+  sync();
+ }catch(e){ /* detection best-effort */ }
+})();
 
 $("openResearchUploadPageBtn")?.addEventListener("click", ()=>$("researchUploadPage")?.classList.remove("hidden"));
 $("closeResearchUploadPageBtn")?.addEventListener("click", ()=>$("researchUploadPage")?.classList.add("hidden"));
@@ -1717,7 +1854,26 @@ function playSurvivalCorrectSound(iconNum){
    }
   };
   if(ctx.state === "suspended"){
-   Promise.resolve(ctx.resume()).then(()=>setTimeout(emit,0)).catch(()=>setTimeout(emit,0));
+   // V699rev154: attempt synchronous resume within the user gesture first,
+   // since the Promise-then-setTimeout deferral pattern can lose gesture
+   // context on iOS Safari and cause the first tap to be silent. If the
+   // synchronous resume completes in-frame (ctx.state flips to "running"),
+   // we emit immediately. Otherwise fall back to the promise path. Either
+   // way the emit fires — this is a latency optimization for iOS, not a
+   // correctness change.
+   try{
+    const resumePromise = ctx.resume();
+    if(ctx.state === "running"){
+     emit();
+    }else{
+     Promise.resolve(resumePromise).then(()=>{
+      try{ emit(); }catch(e){}
+     }).catch(()=>{ try{ emit(); }catch(e){} });
+    }
+   }catch(e){
+    // Older engines that throw on resume() — schedule on next tick.
+    setTimeout(()=>{ try{ emit(); }catch(e2){} }, 0);
+   }
   }else{
    emit();
   }
@@ -7233,6 +7389,14 @@ function drawSpeedometer(canvas, scoreValue, success, scoreLabel="CPI", tipLabel
  // without overflowing the speedometer arc. Base font sizes are preserved;
  // we only shrink when the measured text width exceeds the allowed inner
  // width (box width minus horizontal padding).
+ //
+ // V699rev158: support an optional second value line. When opts.tipValueSecondary
+ // is provided (currently Mode 4 only, to separate "RT {avgRt} ms" from
+ // "Rate {pacedRate} ms"), the yellow box renders two rows inside the same
+ // box rather than one centered row. A smaller floor is used for the
+ // two-line font so the rows don't collide with the box edges on narrow
+ // canvases. If tipValueSecondary is null/undefined/empty, the original
+ // single-line path runs unchanged.
  if(success && tipValue){
   const bw = R*0.72, bh = R*0.18;
   const bx = cx - bw/2, by = cy + R*0.37;
@@ -7262,12 +7426,24 @@ function drawSpeedometer(canvas, scoreValue, success, scoreLabel="CPI", tipLabel
    ctx.font = `700 ${px.toFixed(1)}px Arial,sans-serif`;
    return px;
   }
-  const valueBasePx = R*0.068;
+  const tipValueSecondary = opts && opts.tipValueSecondary ? String(opts.tipValueSecondary) : null;
   const labelBasePx = R*0.108;
-  const valueFloorPx = R*0.050;
   const labelFloorPx = R*0.070;
-  fitFont(tipValue, valueBasePx, valueMaxW, valueFloorPx);
-  ctx.fillText(String(tipValue), cx, by + bh*0.54);
+  if(tipValueSecondary){
+   // Two-line layout: slightly smaller base font, two rows at 30% / 72% of
+   // box height so they visually separate with a comfortable margin.
+   const valueBasePxTwoLine = R*0.058;
+   const valueFloorPxTwoLine = R*0.042;
+   fitFont(tipValue, valueBasePxTwoLine, valueMaxW, valueFloorPxTwoLine);
+   ctx.fillText(String(tipValue), cx, by + bh*0.30);
+   fitFont(tipValueSecondary, valueBasePxTwoLine, valueMaxW, valueFloorPxTwoLine);
+   ctx.fillText(tipValueSecondary, cx, by + bh*0.72);
+  } else {
+   const valueBasePx = R*0.068;
+   const valueFloorPx = R*0.050;
+   fitFont(tipValue, valueBasePx, valueMaxW, valueFloorPx);
+   ctx.fillText(String(tipValue), cx, by + bh*0.54);
+  }
   fitFont(tipLabel||"MBS", labelBasePx, labelMaxW, labelFloorPx);
   ctx.fillText(String(tipLabel||"MBS"), cx, by - R*0.07);
  }
@@ -10228,9 +10404,25 @@ function renderSpeedometerOutcome(result, sessionIndex){
   const avgRt = result && result.pacedResponseMeanMs!=null ? Number(result.pacedResponseMeanMs) : null;
   const pacedRate = result && result.fixedPacedBaselineMs!=null ? Number(result.fixedPacedBaselineMs) : null;
   metricLabel = "Average Machine-Paced RT";
-  metricValueText = avgRt!=null
-   ? `${avgRt.toFixed(1)} ms${pacedRate!=null ? ` • Rate ${pacedRate.toFixed(1)} ms` : ""}`
-   : (pacedRate!=null ? `Rate ${pacedRate.toFixed(1)} ms` : null);
+  // V699rev158: split the two Mode 4 values onto separate lines inside the
+  // yellow box so "Avg RT" and the fixed machine-pacing "Rate" are visually
+  // distinct. Previously (Rev 150) both values rendered on one line
+  // separated by a bullet, which was hard to parse — especially on narrow
+  // canvases where the small 6.8%-radius font shrank further under the
+  // auto-fit logic. The two-line layout is activated by setting
+  // opts.tipValueSecondary; drawSpeedometer falls back to the single-line
+  // centered layout when it is null/empty.
+  if(avgRt!=null && pacedRate!=null){
+   metricValueText = `RT ${avgRt.toFixed(1)} ms`;
+   speedoOpts = speedoOpts || {};
+   speedoOpts.tipValueSecondary = `Rate ${pacedRate.toFixed(1)} ms`;
+  } else if(avgRt!=null){
+   metricValueText = `RT ${avgRt.toFixed(1)} ms`;
+  } else if(pacedRate!=null){
+   metricValueText = `Rate ${pacedRate.toFixed(1)} ms`;
+  } else {
+   metricValueText = null;
+  }
   mbs = avgRt!=null ? avgRt : pacedRate;
  }
 
