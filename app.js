@@ -105,7 +105,7 @@ const DEFAULTS={
  initialPacedPercent:1.2,
  calibrationStopErrors:4,
  calibrationStopSlowMs:6000,
- cpiBestMs:800,
+ cpiBestMs:700,
  cpiWorstMs:2800,
  personalBaselineMaxMbs:1900,
  // V699rev170: Personal Baseline creation rules (admin-configurable).
@@ -237,7 +237,7 @@ const ADMIN_FIELDS=[
  ["qualifyingBlockGapMs","30. Mode 1 qualifying block max gap (ms, default 250)","number"],
  ["maxTrialCount","31. Mode 1 max paced trials (default 180)","number"],
  ["maxPacedWrong","32. Mode 1 max paced wrong before fail (default 20)","number"],
- ["cpiBestMs","33. Mode 1 CPI best ms anchor (default 800)","number"],
+ ["cpiBestMs","33. Mode 1 CPI best ms anchor (default 700)","number"],
  ["cpiWorstMs","34. Mode 1 CPI worst ms anchor (default 2800)","number"],
  ["personalBaselineMaxMbs","35. Personal Baseline maximum qualifying MBS (ms, default 1900)","number"],
 
@@ -420,7 +420,7 @@ let settings=loadSettings();
 // profile record (profile is no longer the source of truth for test type),
 // and persist both. This fires once per fresh rev deployment per device;
 // after that, the stamp matches and nothing is touched on subsequent loads.
-const APP_REV_STAMP = "V699rev170";
+const APP_REV_STAMP = "V699rev172";
 // Version policy: APP_VERSION preserves base storage/schema continuity; DISPLAY_VERSION is what users see.
 const DISPLAY_VERSION = APP_REV_STAMP || APP_VERSION;
 
@@ -1122,7 +1122,7 @@ function harvestActiveFrameTiming(actualAtMs){
 // ─── CPI ───
 // ─── CPI SCORE CALCULATION ────────────────────────────────────
 // Converts avg last 2 block durations (ms) to 0-100 CPI score.
-// Scale: cpiBestMs=800ms → CPI 100, cpiWorstMs=2800ms → CPI 0.
+// Scale: cpiBestMs=700ms → CPI 100, cpiWorstMs=2800ms → CPI 0.
 // Source: Perelli (2026). Formula: (worst-ms)/(worst-best)*100
 // ──────────────────────────────────────────────────────────────
 function computeCPI(avgMs){
@@ -9484,8 +9484,8 @@ const TUT_STEPS = [
  // V699rev167: rewritten from a 17-item generic device-care checklist into a
  // tighter 9-item, emotionally-aware preparation list. Key changes vs the
  // earlier wording:
- //   • Opens with "CogSpeed is not an IQ test. Just do your best." to defuse
- //     test-anxiety on a first run.
+ //   • Opens with the "not an IQ test" framing to defuse test-anxiety on a
+ //     first run.
  //   • Reframes "go fast" guidance with "There are no Right or Wrong scores"
  //     so users understand the task isn't about correctness in the test-anxiety
  //     sense.
@@ -9496,6 +9496,13 @@ const TUT_STEPS = [
  //     rather than as one bullet among many.
  // Generic device-care items (battery, Wi-Fi, posture, screen brightness) are
  // either consolidated or removed in favor of the higher-impact framing items.
+ //
+ // V699rev172: per Layne's spec, sharpened the opening framing ("Speedometer
+ // for the Brain"), added Mode 3/Mode 4 practice guidance under item 4, and
+ // tightened capitalization (PRACTICE, BASELINE) to emphasize the take-home
+ // points. Item count stays at 9. Visual styling (sub-bullet indentation,
+ // bold "Stay safe", bold "STOP AND REST!", "MOST IMPORTANT!" header)
+ // unchanged so the page renders identically aside from the new copy.
  {
   build:()=>{
    return `
@@ -9504,15 +9511,15 @@ const TUT_STEPS = [
     <div style="background:rgba(10,20,40,0.92);backdrop-filter:blur(4px);border-radius:16px;padding:12px 14px;max-width:100%;border:1px solid rgba(127,215,255,0.22);overflow:auto">
      <div style="font-size:18px;font-weight:800;color:#f5fbff;margin-bottom:8px;text-align:center">Hints and Preparation</div>
      <ol style="margin:0;padding-left:18px;font-size:13.5px;line-height:1.36;color:rgba(255,255,255,0.9)">
-      <li style="margin-bottom:8px">CogSpeed is not an IQ test. Just do your best.</li>
-      <li style="margin-bottom:8px">Respond as quickly as you can without guessing wildly.<div style="margin-top:4px;margin-left:0.4em;color:rgba(255,255,255,0.82)">→ There are no “Right” or “Wrong” scores.</div></li>
+      <li style="margin-bottom:8px">CogSpeed is <span style="font-weight:800">NOT</span> an IQ test. It’s a “Speedometer for the Brain”.</li>
+      <li style="margin-bottom:8px">Just respond as quickly as you can without guessing wildly.<div style="margin-top:4px;margin-left:0.4em;color:rgba(255,255,255,0.82)">→ There are no “Right” or “Wrong” scores.</div></li>
       <li style="margin-bottom:8px">Don’t get discouraged because you can’t keep up.<div style="margin-top:4px;margin-left:0.4em;color:rgba(255,255,255,0.82)">→ Skip a frame if needed.</div><div style="margin-top:2px;margin-left:1.5em;font-weight:800;color:#f5fbff">→ CogSpeed is always faster than you are!</div></li>
-      <li style="margin-bottom:8px">It takes practice… Establish your personal baseline.</li>
+      <li style="margin-bottom:8px">It takes <span style="font-weight:800">PRACTICE</span>. Establish your personal <span style="font-weight:800">BASELINE</span>.<div style="margin-top:4px;margin-left:0.4em;color:rgba(255,255,255,0.82)">→ Use Mode 3 to practice at your own pace.</div><div style="margin-top:2px;margin-left:0.4em;color:rgba(255,255,255,0.82)">→ Use Mode 4 for a more challenging practice.</div></li>
       <li style="margin-bottom:8px">Do not take the test in a hazardous place.<div style="margin-top:4px;margin-left:0.4em;color:rgba(255,255,255,0.82)">→ Devote your full attention to it.</div><div style="margin-top:2px;margin-left:0.4em;color:rgba(255,255,255,0.82)">→ Avoid talking or multitasking.</div><div style="margin-top:2px;margin-left:0.4em;font-weight:800;color:#f5fbff">→ Stay safe.</div></li>
       <li style="margin-bottom:8px">Silence calls, alerts, and pop-up notifications.</li>
       <li style="margin-bottom:8px">Make sure you have enough battery to finish the test.</li>
-      <li style="margin-bottom:8px">Use glasses or contacts if needed.</li>
-      <li><span style="font-weight:900">MOST IMPORTANT!</span><div style="margin-top:4px;margin-left:0.4em;color:rgba(255,255,255,0.82)">→ If you ever feel impaired, unsafe, or unable to focus,</div><div style="margin-top:2px;margin-left:1.5em;font-weight:900;color:#f5fbff">→ STOP AND REST!</div><div style="margin-top:2px;margin-left:2.6em;color:rgba(255,255,255,0.82)">→ regardless of your score.</div></li>
+      <li style="margin-bottom:8px">Use your glasses or contacts if needed.</li>
+      <li><span style="font-weight:900">MOST IMPORTANT!</span><div style="margin-top:4px;margin-left:0.4em;color:rgba(255,255,255,0.82)">→ If you ever feel impaired, unsafe, or unable to focus,</div><div style="margin-top:2px;margin-left:1.5em;font-weight:900;color:#f5fbff">→ STOP AND REST!</div><div style="margin-top:2px;margin-left:2.6em;color:rgba(255,255,255,0.82)">→ Regardless of your score.</div></li>
      </ol>
     </div>
    </div>`;
@@ -10968,9 +10975,27 @@ const _ssp=$("speedStartPageBtn"); if(_ssp) _ssp.onclick=()=>{ hideAllOverlays()
 // Includes links back to Speedometer and Start.
 
 /* ===== Performance vs Time graph ===== */
+// V699rev171: Performance Over Time graph state.
+// - preset: "30sessions" by default so a fresh open always shows recent data
+//   with reasonable density rather than the full multi-month history.
+//   Special value "custom" = user dragged the minimap to a specific time
+//   window (customRangeStart / customRangeEnd hold the window in ms).
+// - zoom: 1 = fit-to-viewport (mobile) or natural width (desktop). >1 forces
+//   horizontal scrolling of the main canvas. Reset returns to 1.
+// - customRangeStart/End: only consulted when preset==="custom".
+// - minimap: drag/resize state for the focus window; transient, not persisted.
 const perfGraphState = {
-  preset: "all",
-  zoom: 1
+  preset: "30sessions",
+  zoom: 1,
+  customRangeStart: null,
+  customRangeEnd: null,
+  minimap: {
+    dragging: false,
+    dragMode: null,        // "move" | "resize-left" | "resize-right" | null
+    pointerStartX: 0,
+    rangeStartAtDrag: 0,
+    rangeEndAtDrag: 0
+  }
 };
 
 function isPerfFailureSession(r){
@@ -11107,6 +11132,19 @@ function filterSessionsForPerfGraph(hist){
     const startMs = lastMs - (7 * 24 * 60 * 60 * 1000);
     return base.filter(r=> perfSessionUtcMs(r) >= startMs);
   }
+  // V699rev171: minimap-driven custom range. Falls back to "all" if the
+  // window is unset or invalid.
+  if(perfGraphState.preset === "custom"){
+    const s = Number(perfGraphState.customRangeStart);
+    const e = Number(perfGraphState.customRangeEnd);
+    if(Number.isFinite(s) && Number.isFinite(e) && e > s){
+      return base.filter(r=>{
+        const t = perfSessionUtcMs(r);
+        return Number.isFinite(t) && t >= s && t <= e;
+      });
+    }
+    return base;
+  }
   return base;
 }
 
@@ -11119,13 +11157,24 @@ function syncPerfGraphControls(hist){
   const firstDate = base.length ? perfSessionIsoDate(base[0]) : "";
   const lastDate = base.length ? perfSessionIsoDate(base[base.length-1]) : "";
 
-  preset.value = perfGraphState.preset;
+  // V699rev171: the "custom" preset is internal (set when the user drags the
+  // minimap window); the dropdown should still reflect the most recent
+  // explicit user choice. We surface "custom" via the info line instead.
+  if(perfGraphState.preset !== "custom"){
+    preset.value = perfGraphState.preset;
+  }
 
   const filtered = filterSessionsForPerfGraph(base);
   const zoomPct = Math.round((perfGraphState.zoom || 1) * 100);
   if(info){
     if(!base.length){
       info.textContent = "No saved sessions yet.";
+    }else if(perfGraphState.preset === "custom"){
+      const s = Number(perfGraphState.customRangeStart);
+      const e = Number(perfGraphState.customRangeEnd);
+      const sStr = Number.isFinite(s) ? new Date(s).toLocaleDateString() : "—";
+      const eStr = Number.isFinite(e) ? new Date(e).toLocaleDateString() : "—";
+      info.textContent = `Custom window via minimap: ${sStr} – ${eStr} (${filtered.length} session${filtered.length===1?"":"s"}). Zoom ${zoomPct}%.`;
     }else if(perfGraphState.preset === "24h"){
       info.textContent = `Showing sessions from the last 24 hours. Zoom ${zoomPct}%.`;
     }else if(perfGraphState.preset === "7d"){
@@ -11147,12 +11196,19 @@ function wirePerfGraphControls(){
   const rerender = ()=>{
     syncPerfGraphControls(state.history||[]);
     drawPerformanceOverTimeChart($("perfTimeGraph"), state.history||[]);
+    // V699rev171: minimap is redrawn alongside the main chart so the focus
+    // window always reflects the active range.
+    drawPerformanceOverTimeMinimap($("perfTimeMinimap"), state.history||[]);
   };
 
   if(preset && preset.dataset.wired!=="1"){
     preset.dataset.wired="1";
     preset.onchange = ()=>{
+      // V699rev171: explicit preset choice always overrides any active
+      // minimap-driven custom range.
       perfGraphState.preset = preset.value || "all";
+      perfGraphState.customRangeStart = null;
+      perfGraphState.customRangeEnd = null;
       rerender();
     };
   }
@@ -11180,19 +11236,302 @@ function wirePerfGraphControls(){
       rerender();
     };
   }
+
+  // V699rev171: minimap drag/resize wiring. Single attachment guarded by
+  // dataset.wired so repeated openPerformanceOverTimePage() calls don't
+  // accumulate listeners.
+  wirePerfMinimapInteractions(rerender);
+}
+
+// V699rev171: minimap interactions. The minimap is a thin canvas below the
+// main chart that ALWAYS plots the full unfiltered history (sparkline of
+// CPI values) with a translucent focus-window rectangle indicating which
+// time range the main chart is showing. The user can:
+//   - drag the window to slide it across the timeline
+//   - drag the left or right edge (within ~8 px) to resize
+//   - click on empty minimap area to recenter the window there
+// Any of these gestures sets perfGraphState.preset = "custom" and writes
+// customRangeStart/End in ms.
+function wirePerfMinimapInteractions(rerender){
+  const canvas = $("perfTimeMinimap");
+  if(!canvas || canvas.dataset.wired === "1") return;
+  canvas.dataset.wired = "1";
+
+  function getFullTimeBounds(){
+    const base = getPerfGraphBaseSessions(state.history||[]);
+    if(!base.length) return null;
+    const times = base.map(r=>perfSessionUtcMs(r)).filter(Number.isFinite);
+    if(!times.length) return null;
+    let lo = Math.min(...times), hi = Math.max(...times);
+    if(!(hi > lo)){ lo -= 60*60*1000; hi += 60*60*1000; }
+    // Match the main chart: include any sleep span endpoints in the bounds.
+    base.forEach(r=>{
+      const bed = r?.sleepLog?.bedDateTimeIso ? new Date(r.sleepLog.bedDateTimeIso).getTime() : null;
+      const wake = (r?.sleepLog?.wakeDateTimeIso || r?.sleepLog?.lastWakeDateTimeIso) ? new Date(r.sleepLog.wakeDateTimeIso || r.sleepLog.lastWakeDateTimeIso).getTime() : null;
+      if(Number.isFinite(bed)) lo = Math.min(lo, bed);
+      if(Number.isFinite(wake)) hi = Math.max(hi, wake);
+    });
+    return {lo, hi};
+  }
+
+  function getCurrentFocusRangeMs(){
+    // What time range is the main chart currently showing? We re-derive
+    // this from the active filter rather than caching, so external
+    // changes to perfGraphState.preset are honored.
+    const filtered = filterSessionsForPerfGraph(state.history||[]);
+    if(!filtered.length){
+      const b = getFullTimeBounds();
+      return b ? {lo:b.lo, hi:b.hi} : null;
+    }
+    const times = filtered.map(r=>perfSessionUtcMs(r)).filter(Number.isFinite);
+    if(!times.length){
+      const b = getFullTimeBounds();
+      return b ? {lo:b.lo, hi:b.hi} : null;
+    }
+    let lo = Math.min(...times), hi = Math.max(...times);
+    if(!(hi > lo)){ lo -= 60*60*1000; hi += 60*60*1000; }
+    return {lo, hi};
+  }
+
+  const PAD_LEFT = 8, PAD_RIGHT = 8;
+  function pxToMs(px){
+    const bounds = getFullTimeBounds();
+    if(!bounds) return null;
+    const cssW = canvas.clientWidth || canvas.width || 900;
+    const usable = Math.max(1, cssW - PAD_LEFT - PAD_RIGHT);
+    const frac = Math.max(0, Math.min(1, (px - PAD_LEFT) / usable));
+    return bounds.lo + frac * (bounds.hi - bounds.lo);
+  }
+  function msToPx(ms){
+    const bounds = getFullTimeBounds();
+    if(!bounds) return PAD_LEFT;
+    const cssW = canvas.clientWidth || canvas.width || 900;
+    const usable = Math.max(1, cssW - PAD_LEFT - PAD_RIGHT);
+    const frac = Math.max(0, Math.min(1, (ms - bounds.lo) / Math.max(1, bounds.hi - bounds.lo)));
+    return PAD_LEFT + frac * usable;
+  }
+  function pointerLocalX(ev){
+    const r = canvas.getBoundingClientRect();
+    const cx = ev.clientX!=null ? ev.clientX : (ev.touches && ev.touches[0] ? ev.touches[0].clientX : 0);
+    return cx - r.left;
+  }
+  function detectDragMode(localX){
+    const focus = getCurrentFocusRangeMs();
+    if(!focus) return null;
+    const xL = msToPx(focus.lo), xR = msToPx(focus.hi);
+    const EDGE = 8;
+    if(Math.abs(localX - xL) <= EDGE) return "resize-left";
+    if(Math.abs(localX - xR) <= EDGE) return "resize-right";
+    if(localX > xL && localX < xR) return "move";
+    return "click";  // outside window; treated as recenter
+  }
+
+  function applyCustomRange(loMs, hiMs){
+    const bounds = getFullTimeBounds();
+    if(!bounds) return;
+    const span = bounds.hi - bounds.lo;
+    const minSpan = Math.max(60*1000, Math.round(span * 0.01)); // 1% of full span or 1 min
+    let s = Math.max(bounds.lo, Math.min(bounds.hi, loMs));
+    let e = Math.max(bounds.lo, Math.min(bounds.hi, hiMs));
+    if(e - s < minSpan){ e = Math.min(bounds.hi, s + minSpan); }
+    if(e - s < minSpan){ s = Math.max(bounds.lo, e - minSpan); }
+    perfGraphState.preset = "custom";
+    perfGraphState.customRangeStart = s;
+    perfGraphState.customRangeEnd = e;
+    rerender();
+  }
+
+  function onPointerDown(ev){
+    const localX = pointerLocalX(ev);
+    const mode = detectDragMode(localX);
+    const focus = getCurrentFocusRangeMs();
+    if(!mode || !focus) return;
+    const ms = pxToMs(localX);
+    if(mode === "click"){
+      // Recenter: keep existing window width, slide center to clicked position.
+      const halfWidth = (focus.hi - focus.lo) / 2;
+      applyCustomRange(ms - halfWidth, ms + halfWidth);
+      return;
+    }
+    perfGraphState.minimap.dragging = true;
+    perfGraphState.minimap.dragMode = mode;
+    perfGraphState.minimap.pointerStartMs = ms;
+    perfGraphState.minimap.rangeStartAtDrag = focus.lo;
+    perfGraphState.minimap.rangeEndAtDrag = focus.hi;
+    canvas.style.cursor = "grabbing";
+    ev.preventDefault();
+  }
+  function onPointerMove(ev){
+    const m = perfGraphState.minimap;
+    const localX = pointerLocalX(ev);
+    if(!m.dragging){
+      // Hover-only: update cursor based on mode.
+      const mode = detectDragMode(localX);
+      canvas.style.cursor = mode === "resize-left" || mode === "resize-right"
+        ? "ew-resize"
+        : (mode === "move" ? "grab" : "pointer");
+      return;
+    }
+    const ms = pxToMs(localX);
+    if(ms == null) return;
+    const dMs = ms - m.pointerStartMs;
+    if(m.dragMode === "move"){
+      applyCustomRange(m.rangeStartAtDrag + dMs, m.rangeEndAtDrag + dMs);
+    }else if(m.dragMode === "resize-left"){
+      applyCustomRange(m.rangeStartAtDrag + dMs, m.rangeEndAtDrag);
+    }else if(m.dragMode === "resize-right"){
+      applyCustomRange(m.rangeStartAtDrag, m.rangeEndAtDrag + dMs);
+    }
+    ev.preventDefault();
+  }
+  function onPointerUp(){
+    if(!perfGraphState.minimap.dragging) return;
+    perfGraphState.minimap.dragging = false;
+    perfGraphState.minimap.dragMode = null;
+    canvas.style.cursor = "grab";
+  }
+
+  canvas.addEventListener("mousedown", onPointerDown);
+  canvas.addEventListener("mousemove", onPointerMove);
+  window.addEventListener("mouseup", onPointerUp);
+  // Touch.
+  canvas.addEventListener("touchstart", onPointerDown, {passive:false});
+  canvas.addEventListener("touchmove", onPointerMove, {passive:false});
+  window.addEventListener("touchend", onPointerUp);
+  window.addEventListener("touchcancel", onPointerUp);
+}
+
+// V699rev171: minimap renderer. Always draws the full unfiltered history
+// as a faint CPI sparkline + a brighter focus-window rectangle showing
+// which time range the main chart is currently displaying.
+function drawPerformanceOverTimeMinimap(canvas, hist){
+  if(!canvas) return;
+  const dpr = window.devicePixelRatio || 1;
+  const cssW = Math.max(280, canvas.clientWidth || canvas.width || 900);
+  const cssH = 58;
+  canvas.style.height = cssH + "px";
+  canvas.width = Math.round(cssW * dpr);
+  canvas.height = Math.round(cssH * dpr);
+  const ctx = canvas.getContext("2d");
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  ctx.clearRect(0,0,cssW,cssH);
+  ctx.fillStyle = "#081321";
+  ctx.fillRect(0,0,cssW,cssH);
+
+  const base = getPerfGraphBaseSessions(hist||[]);
+  if(!base.length){
+    ctx.fillStyle = "#6c8aa6";
+    ctx.font = "11px sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText("No history yet", cssW/2, cssH/2 + 4);
+    return;
+  }
+  const PAD_LEFT = 8, PAD_RIGHT = 8, PAD_TOP = 8, PAD_BOTTOM = 14;
+  const plotW = Math.max(1, cssW - PAD_LEFT - PAD_RIGHT);
+  const plotH = Math.max(1, cssH - PAD_TOP - PAD_BOTTOM);
+  const times = base.map(r=>perfSessionUtcMs(r)).filter(Number.isFinite);
+  let lo = Math.min(...times), hi = Math.max(...times);
+  if(!(hi > lo)){ lo -= 60*60*1000; hi += 60*60*1000; }
+  // Include sleep span endpoints in bounds (matches the main chart).
+  base.forEach(r=>{
+    const bed = r?.sleepLog?.bedDateTimeIso ? new Date(r.sleepLog.bedDateTimeIso).getTime() : null;
+    const wake = (r?.sleepLog?.wakeDateTimeIso || r?.sleepLog?.lastWakeDateTimeIso) ? new Date(r.sleepLog.wakeDateTimeIso || r.sleepLog.lastWakeDateTimeIso).getTime() : null;
+    if(Number.isFinite(bed)) lo = Math.min(lo, bed);
+    if(Number.isFinite(wake)) hi = Math.max(hi, wake);
+  });
+  const span = Math.max(1, hi - lo);
+  const xOf = ms => PAD_LEFT + ((ms - lo) / span) * plotW;
+  const yOfCpi = c => PAD_TOP + plotH - (Math.max(0, Math.min(100, c)) / 100) * plotH;
+
+  // Faint horizontal baseline at CPI=50.
+  ctx.strokeStyle = "rgba(127,215,255,0.16)";
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(PAD_LEFT, yOfCpi(50));
+  ctx.lineTo(PAD_LEFT + plotW, yOfCpi(50));
+  ctx.stroke();
+
+  // CPI sparkline.
+  ctx.strokeStyle = "rgba(127,215,255,0.55)";
+  ctx.lineWidth = 1.2;
+  ctx.beginPath();
+  let started = false;
+  base.forEach(r=>{
+    const t = perfSessionUtcMs(r);
+    const c = perfSessionCpi(r);
+    if(!Number.isFinite(t) || c == null) return;
+    const x = xOf(t), y = yOfCpi(c);
+    if(!started){ ctx.moveTo(x,y); started = true; } else { ctx.lineTo(x,y); }
+  });
+  if(started) ctx.stroke();
+
+  // Tiny dots for each session (helps when history is sparse).
+  base.forEach(r=>{
+    const t = perfSessionUtcMs(r);
+    const c = perfSessionCpi(r);
+    if(!Number.isFinite(t) || c == null) return;
+    ctx.fillStyle = "rgba(127,215,255,0.6)";
+    ctx.beginPath();
+    ctx.arc(xOf(t), yOfCpi(c), 1.5, 0, Math.PI*2);
+    ctx.fill();
+  });
+
+  // Focus window. Computed from the same filter the main chart uses, so
+  // the visualization always agrees with the actual rendered slice.
+  const filtered = filterSessionsForPerfGraph(hist||[]);
+  let winLo = lo, winHi = hi;
+  if(filtered.length){
+    const ft = filtered.map(r=>perfSessionUtcMs(r)).filter(Number.isFinite);
+    if(ft.length){ winLo = Math.min(...ft); winHi = Math.max(...ft); }
+    if(!(winHi > winLo)){ winLo -= 60*60*1000; winHi += 60*60*1000; }
+  }
+  const wxL = xOf(winLo), wxR = xOf(winHi);
+  const wW = Math.max(8, wxR - wxL);
+  // Dim the area outside the focus window.
+  ctx.fillStyle = "rgba(8,19,33,0.55)";
+  ctx.fillRect(PAD_LEFT, PAD_TOP, wxL - PAD_LEFT, plotH);
+  ctx.fillRect(wxL + wW, PAD_TOP, (PAD_LEFT + plotW) - (wxL + wW), plotH);
+  // Highlight the focus window outline.
+  ctx.strokeStyle = "#7fd7ff";
+  ctx.lineWidth = 1.6;
+  ctx.strokeRect(wxL, PAD_TOP - 1, wW, plotH + 2);
+  // Edge handles.
+  ctx.fillStyle = "rgba(127,215,255,0.9)";
+  ctx.fillRect(wxL - 2, PAD_TOP - 1, 4, plotH + 2);
+  ctx.fillRect(wxL + wW - 2, PAD_TOP - 1, 4, plotH + 2);
+
+  // X-axis date label (rough — first/last only, to stay uncluttered).
+  ctx.fillStyle = "#6c8aa6";
+  ctx.font = "10px sans-serif";
+  ctx.textAlign = "left";
+  const firstD = new Date(lo).toLocaleDateString("en-US", {month:"numeric", day:"numeric", year:"2-digit"});
+  ctx.fillText(firstD, PAD_LEFT, cssH - 3);
+  ctx.textAlign = "right";
+  const lastD = new Date(hi).toLocaleDateString("en-US", {month:"numeric", day:"numeric", year:"2-digit"});
+  ctx.fillText(lastD, PAD_LEFT + plotW, cssH - 3);
 }
 
 function drawPerformanceOverTimeChart(canvas,hist){
   if(!canvas) return;
   const fullHist = hist || [];
   const scroller = canvas.parentElement;
+  // V699rev171: Detect viewport. On mobile (< 700 css px) we fit-to-viewport
+  // at zoom=1 so the chart never forces horizontal scrolling at the default
+  // setting; only the user-driven Zoom In or large session counts can
+  // expand the canvas past the scroller width.
   const viewportW = Math.max(320, Math.round((scroller && scroller.clientWidth) || canvas.clientWidth || canvas.offsetWidth || 900));
-  const viewportH = Math.max(620, Math.round((scroller && scroller.clientHeight) || canvas.clientHeight || canvas.offsetHeight || 700));
+  const viewportH = Math.max(420, Math.round((scroller && scroller.clientHeight) || canvas.clientHeight || canvas.offsetHeight || 600));
+  const isMobile = viewportW < 700;
+  const minCanvasH = isMobile ? 480 : 560;
+  const maxCanvasH = isMobile ? 620 : 720;
 
   function setupCanvas(cssW, cssH){
     const dpr = window.devicePixelRatio || 1;
     canvas.style.width = cssW + "px";
-    canvas.style.minWidth = cssW + "px";
+    // V699rev171: do NOT force min-width — let the canvas truly fit the
+    // viewport at zoom=1. The scroller will only kick in when the JS
+    // explicitly sets a wider cssW (zoomed in or dense desktop history).
+    canvas.style.minWidth = "0";
     canvas.style.height = cssH + "px";
     canvas.width = Math.round(cssW * dpr);
     canvas.height = Math.round(cssH * dpr);
@@ -11201,8 +11540,11 @@ function drawPerformanceOverTimeChart(canvas,hist){
     return ctx;
   }
 
-  let cssW = Math.max(viewportW, 920);
-  let cssH = Math.max(620, Math.min(760, viewportH));
+  // Initial fit-to-viewport sizing. The natural-width recalculation below
+  // may then expand cssW for desktop users who have lots of data and are
+  // zoomed in — but on mobile at zoom=1, this stays the final width.
+  let cssW = viewportW;
+  let cssH = Math.max(minCanvasH, Math.min(maxCanvasH, viewportH));
   let ctx = setupCanvas(cssW, cssH);
   let W = cssW, H = cssH;
   ctx.clearRect(0,0,W,H);
@@ -11282,20 +11624,34 @@ function drawPerformanceOverTimeChart(canvas,hist){
       widthForDensity = Math.max(widthForDensity, Math.round((minMarkerSepPx * timeSpan) / gap));
     }
   }
-  // Compress the time axis so typical history ranges stay readable on-screen
-  // without forcing an over-wide scroll canvas by default. User zoom can then
-  // expand or contract the time scale for closer examination.
+  // V699rev171: Width strategy.
+  //   - On mobile at zoom=1: keep cssW = viewport (no scroll).
+  //   - On mobile zoomed in: scale cssW by zoom.
+  //   - On desktop: use the maximum of (viewport, density-driven natural width)
+  //     so dense histories aren't artificially compressed.
+  // The minMarkerSepPx + density math below still drives the desktop natural
+  // width and the mobile zoom>1 width, so the user can always zoom in for
+  // closer examination.
   const zoom = Math.max(0.5, Math.min(4, Number(perfGraphState.zoom || 1)));
   const pxPerHourBase = perfGraphState.preset === "24h" ? 22
     : perfGraphState.preset === "7d" ? 4
     : perfGraphState.preset === "30sessions" ? 7
+    : perfGraphState.preset === "custom" ? 6
     : 1.2;
   const pxPerHour = pxPerHourBase * zoom;
   const widthForTime = Math.round(340 + (timeSpan / hourMs) * pxPerHour);
   const widthForSessions = Math.round(340 + Math.max(0, n - 1) * ((minMarkerSepPx * zoom) + 2));
-  const maxAutoWidth = Math.max(viewportW, Math.round(viewportW * Math.max(1.35, zoom * 1.6)));
-  cssW = Math.max(viewportW, Math.min(maxAutoWidth, Math.max(920, widthForTime, (widthForDensity ? Math.round(widthForDensity * zoom) : 0), widthForSessions)));
-  cssH = Math.max(640, Math.min(780, viewportH));
+  const densityNatural = Math.max(widthForTime, (widthForDensity ? Math.round(widthForDensity * zoom) : 0), widthForSessions, 920);
+  if(isMobile){
+    // Mobile: at zoom=1, cssW = viewport. At zoom>1, scale by zoom (capped).
+    cssW = Math.round(viewportW * Math.max(1, zoom));
+    cssW = Math.min(cssW, Math.max(viewportW, Math.round(densityNatural)));
+  }else{
+    // Desktop: pick the larger of viewport and density-driven natural width.
+    const maxAutoWidth = Math.max(viewportW, Math.round(viewportW * Math.max(1.35, zoom * 1.6)));
+    cssW = Math.max(viewportW, Math.min(maxAutoWidth, densityNatural));
+  }
+  cssH = Math.max(minCanvasH, Math.min(maxCanvasH, viewportH));
   ctx = setupCanvas(cssW, cssH);
   W = cssW;
   H = cssH;
@@ -11327,22 +11683,36 @@ function drawPerformanceOverTimeChart(canvas,hist){
   const fontSleepLegend = "12px sans-serif";
   const fontXAxisTitle = "bold 12px sans-serif";
 
-  const PAD = {top:72,right:118,left:126};
-  const gaps = {afterPlot: 10, betweenTickAndTitle: 12, betweenTitleAndSleep: 14, betweenSleepAndLegend: 14};
-  const sleepBarH = 12;
+  // V699rev171: Compact, mobile-aware padding.
+  //   PAD.top — title (16px, baseline 24) + subtitle (12px, baseline 46)
+  //             + LEGEND ROW(s) (~18px each, baseline 76 for one row)
+  //             + 12 px breathing room before plot.
+  //   PAD.left — wider on desktop to fit two rotated axis titles + tick labels;
+  //              tighter on mobile to maximize plot area.
+  //   PAD.right — narrower; only S-PFS ticks and one rotated title.
+  // Sleep legend band removed — sleep entries fold into the main top legend.
+  // PAD.top is bumped to 100 (from 96) so the second row of a wrapped
+  // mobile legend doesn't push into the plot area.
+  const PAD = isMobile
+    ? {top:100, right:54, left:64}
+    : {top:100, right:90, left:108};
+  const gaps = {afterPlot: 10, betweenTickAndTitle: 12, betweenTitleAndSleep: 12};
+  const sleepBarH = 10;
   const tickLine1H = 14;
   const tickLine2H = 14;
-  const tickBandH = tickLine1H + tickLine2H + 10;
+  const tickBandH = tickLine1H + tickLine2H + 6;
   const axisTitleBandH = 18;
-  const sleepLegendBandH = 18;
-  const reservedBottom = tickBandH + gaps.betweenTickAndTitle + axisTitleBandH + gaps.betweenTitleAndSleep + sleepBarH + gaps.betweenSleepAndLegend + sleepLegendBandH + 22;
+  const reservedBottom = tickBandH + gaps.betweenTickAndTitle + axisTitleBandH + gaps.betweenTitleAndSleep + sleepBarH + 14;
   const cW = Math.max(260, W - PAD.left - PAD.right);
   const cH = Math.max(180, H - PAD.top - reservedBottom);
   const plotBottom = PAD.top + cH;
   const tickLabelTop = plotBottom + gaps.afterPlot + 12;
   const axisTitleY = plotBottom + gaps.afterPlot + tickBandH + gaps.betweenTickAndTitle;
   const sleepBarY = axisTitleY + gaps.betweenTitleAndSleep;
-  const legendY = sleepBarY + sleepBarH + gaps.betweenSleepAndLegend;
+  // Legend baseline. For a single row this puts swatches at y=68–77, well
+  // below the subtitle baseline (46). For multi-row wrapping, additional
+  // rows extend downward and the plot area starts at PAD.top=100.
+  const legendY = 76;
 
   function rawXForTime(ts){
     const frac = (ts - minTime) / timeSpan;
@@ -11381,11 +11751,12 @@ function drawPerformanceOverTimeChart(canvas,hist){
   const validRawXs = rawXPositions.filter(v=>v!=null).sort((a,b)=>a-b);
   let minRawGapPx = Infinity;
   for(let i=1;i<validRawXs.length;i++) minRawGapPx = Math.min(minRawGapPx, validRawXs[i] - validRawXs[i-1]);
-  const denseCluster = Number.isFinite(minRawGapPx) && minRawGapPx < 10;
-  const perfOuterRadius = denseCluster ? 5.0 : 5.8;
-  const perfInnerRadius = denseCluster ? 2.4 : 2.8;
-  const perfMarkerSize = denseCluster ? 3.4 : 3.7;
-  const spfMarkerSize = denseCluster ? 3.7 : 4.2;
+  // V699rev171: smaller, more consistent markers regardless of density.
+  // Drops the prior counterintuitive "fewer points = bigger markers" logic.
+  const perfOuterRadius = 4.4;   // MBS ring (carries information about MBS presence)
+  const perfInnerRadius = 2.6;   // CPI dot
+  const perfMarkerSize = 3.4;    // CPA square (no x-offset now; sits AT session x)
+  const spfMarkerSize = 3.6;     // S-PFS diamond (slightly larger to remain visible)
 
   function xOfIndex(i){
     const x = displayXPositions[i];
@@ -11400,7 +11771,20 @@ function drawPerformanceOverTimeChart(canvas,hist){
 
   function formatTickDate(ts){
     const d = new Date(ts);
-    return d.toLocaleDateString("en-US", {month:"numeric", day:"numeric", year:"2-digit"});
+    // V699rev171: drop year on every tick when the displayed time span is
+    // short (within the same calendar year). The year is implicit from the
+    // first/last tick or from the minimap's year markers, so repeating it
+    // on every tick is just visual noise.
+    const includeYear = (() => {
+      try{
+        const minY = new Date(minTime).getFullYear();
+        const maxY = new Date(maxTime).getFullYear();
+        return minY !== maxY;
+      }catch(e){ return true; }
+    })();
+    return includeYear
+      ? d.toLocaleDateString("en-US", {month:"numeric", day:"numeric", year:"2-digit"})
+      : d.toLocaleDateString("en-US", {month:"numeric", day:"numeric"});
   }
   function formatTickTime(ts){
     const d = new Date(ts);
@@ -11454,7 +11838,11 @@ function drawPerformanceOverTimeChart(canvas,hist){
   ctx.textAlign="right";
   scoreTicks.forEach((score, i)=>{
     const y = yLeftFromScore(score);
-    if(showMsAxis){
+    // V699rev171: Hide the ms tick column on mobile — PAD.left=64 doesn't
+    // leave enough room for two parallel tick scales without crowding.
+    // The ms-equivalent values can still be inferred from the CPI score
+    // scale (which is the universal axis across all modes anyway).
+    if(showMsAxis && !isMobile){
      ctx.strokeStyle="#ffb357";
      ctx.beginPath(); ctx.moveTo(PAD.left-46, y); ctx.lineTo(PAD.left-36, y); ctx.stroke();
      ctx.fillStyle="#ffb357"; ctx.fillText(String(metricTicks[i]), PAD.left-52, y+4);
@@ -11488,18 +11876,26 @@ function drawPerformanceOverTimeChart(canvas,hist){
       : "    Range: All history";
   ctx.fillText(`All sessions in continuous device-local time    Subjects: ${subjectCount}    Sessions: ${n}${rangeLabel}`, PAD.left, 46);
 
+  // V699rev171: Single consolidated left-side rotated axis title.
+  // The previous two-title stack ("MBS ms" at x=18 + "CPI / CPA" at x=42)
+  // was wider than the mobile PAD.left=64 reservation could afford. The
+  // ms scale is shown via tick labels on the inside of the axis (orange
+  // numbers) and the score scale uses the same gridlines, so a single
+  // combined title is sufficient.
   ctx.save();
-  ctx.translate(18, PAD.top + cH/2); ctx.rotate(-Math.PI/2);
-  ctx.fillStyle="#ffb357"; ctx.textAlign="center"; ctx.font=fontAxis;
-  ctx.fillText(showMsAxis ? `MBS ms (${setLabelForAxis})` : "MBS ms (mixed sets — hidden)", 0, 0); ctx.restore();
-
-  ctx.save();
-  ctx.translate(42, PAD.top + cH/2); ctx.rotate(-Math.PI/2);
+  ctx.translate(Math.max(14, PAD.left - 48), PAD.top + cH/2); ctx.rotate(-Math.PI/2);
   ctx.fillStyle="#7fd7ff"; ctx.textAlign="center"; ctx.font=fontAxis;
-  ctx.fillText("CPI / CPA", 0, 0); ctx.restore();
+  // V699rev171: on mobile the ms tick column is hidden (PAD.left too narrow),
+  // so the title should reflect what's actually shown.
+  const leftTitle = isMobile
+    ? "CPI / CPA"
+    : (showMsAxis ? `CPI / CPA (left) — MBS ms (${setLabelForAxis})` : "CPI / CPA (left) — MBS hidden");
+  ctx.fillText(leftTitle, 0, 0); ctx.restore();
 
   ctx.save();
-  ctx.translate(W-8, PAD.top + cH/2); ctx.rotate(Math.PI/2);
+  // Right-side S-PFS title positioned relative to PAD.right so it doesn't
+  // get clipped on narrow viewports.
+  ctx.translate(W - Math.max(10, PAD.right - 50), PAD.top + cH/2); ctx.rotate(Math.PI/2);
   ctx.fillStyle="#88ff88"; ctx.textAlign="center"; ctx.font=fontXAxisTitle;
   ctx.fillText("S-PFS 1–7 (up is better)", 0, 0); ctx.restore();
 
@@ -11621,7 +12017,9 @@ function drawPerformanceOverTimeChart(canvas,hist){
 
   drawLine(spfVals, v=>yRightFromSpf(v), "#88ff88", "diamond", {markerSize: spfMarkerSize});
   drawCombinedPerfMarkers(scoreVals, metricVals);
-  drawLine(cpaVals, v=>yLeftFromScore(v), "#d6a7ff", "square", {markerDx:8, markerSize:perfMarkerSize, strokeMarker:true});
+  // V699rev171: CPA squares no longer offset by +8 px; this caused visual
+  // crowding and made it hard to align CPA with its parent session marker.
+  drawLine(cpaVals, v=>yLeftFromScore(v), "#d6a7ff", "square", {markerDx:0, markerSize:perfMarkerSize, strokeMarker:true});
 
   sleepSpans.forEach(span=>{
     if(!span) return;
@@ -11635,40 +12033,90 @@ function drawPerformanceOverTimeChart(canvas,hist){
     ctx.strokeRect(x1, sleepBarY, barW, sleepBarH);
   });
 
-  ctx.textAlign="left";
-  ctx.font=fontLegend;
-  ctx.beginPath();
-  ctx.arc(PAD.left+7, PAD.top-18, perfInnerRadius, 0, Math.PI*2);
-  ctx.fillStyle="#7fd7ff";
-  ctx.fill();
-  ctx.fillStyle="#7fd7ff";
-  ctx.fillText("Blue dot = CPI", PAD.left+18, PAD.top-14);
-  ctx.beginPath();
-  ctx.arc(PAD.left+188, PAD.top-18, perfOuterRadius, 0, Math.PI*2);
-  ctx.strokeStyle="#ffb357";
-  ctx.lineWidth=2.2;
-  ctx.stroke();
-  ctx.fillStyle="#ffb357";
-  ctx.fillText("Orange circle = MBS", PAD.left+200, PAD.top-14);
-  ctx.fillStyle="#d6a7ff";
-  ctx.fillRect(PAD.left+360, PAD.top-22, 8, 8);
-  ctx.fillText("Purple square = CPA", PAD.left+376, PAD.top-14);
-  const spLegendY = PAD.top + 4;
-  ctx.fillStyle="#88ff88";
-  ctx.save();
-  ctx.translate(PAD.left+7, spLegendY+4);
-  ctx.rotate(Math.PI/4);
-  ctx.fillRect(-3.8,-3.8,7.6,7.6);
-  ctx.restore();
-  ctx.fillText("Green diamond = S-PFS", PAD.left+18, spLegendY+8);
-
-  ctx.font=fontSleepLegend;
-  ctx.fillStyle = "#ff4d4f"; ctx.fillRect(PAD.left, legendY-8, 12, 8);
-  ctx.fillStyle = "#d7e7f8"; ctx.fillText("Sleep: Poor", PAD.left+18, legendY);
-  ctx.fillStyle = "#ffd84d"; ctx.fillRect(PAD.left+108, legendY-8, 12, 8);
-  ctx.fillStyle = "#d7e7f8"; ctx.fillText("Restless", PAD.left+126, legendY);
-  ctx.fillStyle = "#46d36a"; ctx.fillRect(PAD.left+198, legendY-8, 12, 8);
-  ctx.fillStyle = "#d7e7f8"; ctx.fillText("Good", PAD.left+216, legendY);
+  // V699rev171: SINGLE horizontal legend row at the top of the chart, between
+  // the subtitle and the plot area. Items are laid out left-to-right with
+  // measured spacing so they never collide. On mobile the legend wraps to
+  // a second row if it doesn't fit in the canvas width.
+  (function drawTopLegend(){
+    const items = [
+      { kind:"dot",     color:"#7fd7ff", label:"CPI" },
+      { kind:"ring",    color:"#ffb357", label:"MBS" },
+      { kind:"square",  color:"#d6a7ff", label:"CPA" },
+      { kind:"diamond", color:"#88ff88", label:"S-PFS" },
+      { kind:"bar",     color:"#46d36a", label:"Sleep: Good" },
+      { kind:"bar",     color:"#ffd84d", label:"Restless" },
+      { kind:"bar",     color:"#ff4d4f", label:"Poor" }
+    ];
+    const itemFont = isMobile ? "11px sans-serif" : "bold 11px sans-serif";
+    ctx.font = itemFont;
+    ctx.textBaseline = "alphabetic";
+    // Measure each item's width so we can pack them tightly.
+    const SWATCH_W = 14, SWATCH_TEXT_GAP = 4, ITEM_GAP = 14;
+    const widths = items.map(it=>{
+      const tw = ctx.measureText(it.label).width;
+      return SWATCH_W + SWATCH_TEXT_GAP + tw;
+    });
+    // Layout left-to-right, wrapping to a second row if width exceeds plot.
+    const legendMaxX = PAD.left + cW;
+    const rows = [];
+    let curRow = [], curRowW = 0;
+    items.forEach((it,i)=>{
+      const w = widths[i];
+      const proposed = curRowW + (curRow.length ? ITEM_GAP : 0) + w;
+      if(curRow.length && (PAD.left + proposed) > legendMaxX){
+        rows.push(curRow);
+        curRow = [{it, i, w}];
+        curRowW = w;
+      }else{
+        curRow.push({it, i, w});
+        curRowW = proposed;
+      }
+    });
+    if(curRow.length) rows.push(curRow);
+    // Vertical placement: center the row(s) in the available legend band
+    // (legendY is the baseline for a single row; for multi-row, stack upward).
+    const ROW_H = 18;
+    const totalH = rows.length * ROW_H;
+    const startY = legendY - (totalH - ROW_H);
+    rows.forEach((row, rIdx)=>{
+      let x = PAD.left;
+      const yBaseline = startY + rIdx * ROW_H;
+      row.forEach(({it, w}, idx)=>{
+        if(idx>0) x += ITEM_GAP;
+        // Swatch.
+        const sx = x, sy = yBaseline - 8;
+        if(it.kind === "dot"){
+          ctx.fillStyle = it.color;
+          ctx.beginPath(); ctx.arc(sx + 7, sy + 5, perfInnerRadius+0.3, 0, Math.PI*2); ctx.fill();
+        }else if(it.kind === "ring"){
+          ctx.strokeStyle = it.color; ctx.lineWidth = 2;
+          ctx.beginPath(); ctx.arc(sx + 7, sy + 5, perfOuterRadius-0.5, 0, Math.PI*2); ctx.stroke();
+        }else if(it.kind === "square"){
+          ctx.fillStyle = it.color;
+          ctx.fillRect(sx + 2, sy + 1, 9, 9);
+          ctx.strokeStyle = "#f6e7ff"; ctx.lineWidth = 1;
+          ctx.strokeRect(sx + 2, sy + 1, 9, 9);
+        }else if(it.kind === "diamond"){
+          ctx.save();
+          ctx.translate(sx + 7, sy + 5);
+          ctx.rotate(Math.PI/4);
+          ctx.fillStyle = it.color;
+          ctx.fillRect(-3.6, -3.6, 7.2, 7.2);
+          ctx.restore();
+        }else if(it.kind === "bar"){
+          ctx.fillStyle = it.color;
+          ctx.fillRect(sx, sy + 1, SWATCH_W, 9);
+          ctx.strokeStyle = "rgba(215,231,248,0.35)"; ctx.lineWidth = 1;
+          ctx.strokeRect(sx, sy + 1, SWATCH_W, 9);
+        }
+        // Label.
+        ctx.fillStyle = "#d7e7f8";
+        ctx.textAlign = "left";
+        ctx.fillText(it.label, sx + SWATCH_W + SWATCH_TEXT_GAP, yBaseline);
+        x += SWATCH_W + SWATCH_TEXT_GAP + (ctx.measureText(it.label).width);
+      });
+    });
+  })();
 }
 
 function getLastGraphableResult(){
@@ -11774,7 +12222,11 @@ function openResponseGraphPage(fromAdmin, selectedIndex){
 }
 
 function renderPerformanceOverTimePage(){
+  // V699rev171: also redraw minimap so the focus window stays in sync
+  // with the main chart on every render pass.
   drawPerformanceOverTimeChart($("perfTimeGraph"), state.history||[]);
+  drawPerformanceOverTimeMinimap($("perfTimeMinimap"), state.history||[]);
+  syncPerfGraphControls(state.history||[]);
 }
 
 function openPerformanceOverTimePage(){
@@ -12065,6 +12517,16 @@ window.addEventListener("resize", ()=>{
  if(last && !$("outcomeOverlay").classList.contains("hidden")){
   try{ renderSpfGaugeForResult(last); }catch(e){}
  }
+ // V699rev171: redraw Performance Over Time chart + minimap on resize so
+ // the canvas re-fits the new viewport width (mobile rotation, browser
+ // resize, etc.).
+ try{
+   const perfOv = $("perfTimeOverlay");
+   if(perfOv && !perfOv.classList.contains("hidden")){
+     drawPerformanceOverTimeChart($("perfTimeGraph"), state.history||[]);
+     drawPerformanceOverTimeMinimap($("perfTimeMinimap"), state.history||[]);
+   }
+ }catch(e){}
 });
 
 $("refSleepBtn").onclick=()=>showSleepPrompt();

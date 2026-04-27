@@ -1,4 +1,80 @@
-- Rev170 Baseline-creation defaults exposed in Admin:
+- Rev172 small Admin + Tutorial copy adjustments:
+  - Specification (Layne, V699 rev 172): two targeted small changes — (1) lower Admin #33 cpiBestMs default from 800 ms to 700 ms; (2) refresh the "Hints and Preparation" tutorial page (Step 1 of TUT_STEPS) with sharpened opening framing, Mode 3/Mode 4 practice guidance, and tightened capitalization of key takeaways.
+  - Change 1 — Admin #33 cpiBestMs default 800 → 700:
+    • DEFAULTS.cpiBestMs literal updated 800 → 700.
+    • Admin field-list label updated "(default 800)" → "(default 700)" so the 33rd row reads correctly when admins open the panel without prior settings.
+    • Stale "// Scale: cpiBestMs=800ms → CPI 100, cpiWorstMs=2800ms → CPI 0." doc-comment above computeCPI() updated to "cpiBestMs=700ms → CPI 100".
+    • No code-path change to computeCPI itself — it already reads getCurrentCpiBestMs() at runtime, so existing devices with a saved settings value of 800 keep computing the same way they always did. Only fresh installs (no saved settings yet) will pick up the new 700 default.
+    • Why this matters: a 700 ms anchor compresses the 100 → 0 CPI curve into the 700–2800 ms range (was 800–2800). At equivalent MBS the new scale yields CPI scores about 5 points lower in the fast end of the curve, more in line with current Mode 1 / Mode 2 normative data. cpiWorstMs (2800) and the Memory/Survival best/worst anchors are unchanged.
+    • Memory and Survival CPI anchors (memoryCpiBestMs=1400, survivalCpiBestMs=1000) are untouched — those metrics use different ms ranges.
+  - Change 2 — "Hints and Preparation" tutorial page (TUT_STEPS Step 1) refreshed:
+    • Item 1 sharpened — "CogSpeed is not an IQ test. Just do your best." became "CogSpeed is NOT an IQ test. It's a 'Speedometer for the Brain'." The new framing is more memorable than the prior generic encouragement and reinforces Layne's branding language for the test.
+    • Item 2 unchanged in content. Wording remains "Just respond as quickly as you can without guessing wildly." with the "→ There are no 'Right' or 'Wrong' scores." sub-bullet.
+    • Item 3 unchanged.
+    • Item 4 expanded — "It takes practice… Establish your personal baseline." became "It takes PRACTICE. Establish your personal BASELINE." with two NEW sub-bullets: "→ Use Mode 3 to practice at your own pace." and "→ Use Mode 4 for a more challenging practice." Prior version had no sub-bullets here. Capitalization of PRACTICE and BASELINE matches the visual emphasis pattern already used elsewhere on the page (NOT, MOST IMPORTANT!, STOP AND REST!).
+    • Item 5 unchanged.
+    • Items 6–7 unchanged.
+    • Item 8 — added the word "your" before "glasses" to match Layne's spec text ("Use your glasses or contacts if needed.").
+    • Item 9 (MOST IMPORTANT!) — "regardless of your score." → "Regardless of your score." (sentence-case capitalization matches the rest of the safety framing in this page).
+    • Visual styling unchanged — same nested <ol>, same <li>/<div> sub-bullet structure, same #f5fbff bold text on emphasized lines, same indent levels (0.4em for primary sub-bullets, 1.5em for the "always faster than you are!" / "STOP AND REST!" emphasis lines). The page renders with the same visual weight as before; only the text differs.
+    • Item count remains 9 — no items added or removed at the top level.
+    • Tutorial code-comment block above TUT_STEPS Step 1 updated to record the rev172 change rationale alongside the rev167 origin notes, so future audits can see why the wording evolved.
+  - Version stamps bumped V699rev171 → V699rev172 in APP_REV_STAMP, sw.js RELEASE, cache-bust query / tab title / versionBadge / statusLine / manifest.json name. APP_VERSION remains V699. No other content changed — graph code, baseline-creation rules, admin field-list (other than the #33 default-value text), audio, scheduler-notice, copyright/license, and technical-overview content all unchanged.
+
+
+  - Specification (Layne, V699 rev 171): "Performance over Date Time Graph is hard to read. Cluttered, ranges very wide, lots of scrolling, date points too large, legend hard to read." Audit identified 8 distinct readability issues; fixes target every one. Layne's confirmations on the implementation choices: default to "Last 30 sessions"; auto-fit (mobile fits viewport, desktop allows wider canvas); keep sleep span behavior; legend = single horizontal row at top; add minimap with draggable focus window showing ALL history; smaller markers (~3.5 px) with no CPA x-offset; minimap as additive navigation (Range dropdown + Zoom buttons stay).
+  - perfGraphState defaults updated:
+    • preset: "all" → "30sessions" (always shows recent activity at reasonable density on first open).
+    • Added customRangeStart / customRangeEnd (numbers, ms, set when minimap is dragged).
+    • Added minimap drag state (dragging, dragMode, pointer/range anchors).
+  - filterSessionsForPerfGraph now honors the new preset value "custom" — slices state.history to sessions whose perfSessionUtcMs falls within [customRangeStart, customRangeEnd] inclusive. Invalid/missing custom range falls back to "all".
+  - Preset dropdown handler clears any active custom range when the user makes an explicit preset selection. This way, dragging the minimap creates a custom view, but choosing "Last 7 days" from the dropdown overrides it cleanly.
+  - syncPerfGraphControls leaves the dropdown's value alone when preset==="custom" (the dropdown should reflect the most recent EXPLICIT user choice). The custom window is surfaced via the info-text line "Custom window via minimap: M/D/YY – M/D/YY (N sessions)."
+  - Main canvas now viewport-aware:
+    • HTML canvas (#perfTimeGraph) had a hardcoded min-width:1100px forcing horizontal scroll on every device regardless of data range — removed; min-width is set to "0" by JS.
+    • Mobile detection: viewportW < 700 css px ⇒ isMobile=true.
+    • At zoom=1 on mobile, cssW = viewportW (no horizontal scroll). At zoom>1 on mobile, cssW scales by zoom up to the density-natural width. Desktop preserves the old behavior of picking max(viewport, density-natural).
+    • Sandbox geometry test verifies: iPhone SE 375px viewport @ 5 sessions and @ 30 sessions both fit at cssW=375 (no scroll at default zoom); zoom=2 on mobile correctly expands to cssW=750 (scrolls). Desktop 1280px @ 100 sessions still expands to 2048 (scrolls — preserves dense-history readability).
+    • Window resize listener re-renders the chart when the perfTimeOverlay is visible, so mobile rotation / browser resize triggers an immediate re-fit.
+  - Markers simplified:
+    • Sizes flat across density rather than the prior counterintuitive "fewer points = bigger markers" logic. perfOuterRadius=4.4 (MBS ring), perfInnerRadius=2.6 (CPI dot), perfMarkerSize=3.4 (CPA square), spfMarkerSize=3.6 (S-PFS diamond).
+    • CPA squares no longer offset by +8 px in x — they sit directly above the parent session marker, eliminating the visual offset that made it hard to see which CPA belonged to which session.
+    • Anchor guide lines (the 1px translucent connectors from raw time position to display position) preserved unchanged — they're the disambiguator when adjacent sessions get visually separated for legibility.
+  - Legend redesigned as a SINGLE horizontal row at the top of the chart (between subtitle and plot):
+    • Items: CPI dot, MBS ring, CPA square, S-PFS diamond, Sleep:Good bar, Restless bar, Poor bar — all in one place with consistent 14×10 swatches and 14 px inter-item gaps.
+    • Width-aware text measurement — each label's actual rendered width is measured before placement. Items wrap to a second row if the legend exceeds the plot width (PAD.top=100 reserves enough vertical headroom for two rows).
+    • Removed the prior cluttered legend block: a top-row strip with hardcoded x-offsets at PAD.left+18, +200, +376 that overflowed on narrow viewports; an unrelated S-PFS legend wedged at PAD.top+4 right inside the plot area; and a separate sleep-color legend band at the bottom of the chart that consumed ~30 px of vertical real estate.
+    • Sleep legend folded into the main legend — the sleep band itself stays in its current position above the date-tick area; the legend just labels what its colors mean.
+  - Date tick label format made adaptive — only includes year when the displayed time span crosses a calendar-year boundary. Within a single year the ticks just read "M/D" instead of "M/D/YY", which both shortens labels and reduces visual noise.
+  - Padding reorganized:
+    • PAD.top: 72 → 100 to make room for the new top legend (and a possible second wrap row).
+    • PAD.left: 126 → 64 on mobile / 108 on desktop (was a fixed 126 — too wide on mobile).
+    • PAD.right: 118 → 54 on mobile / 90 on desktop.
+    • Reserved bottom band: dropped the sleepLegendBandH (18 px) since the sleep legend is now folded into the top legend.
+    • cH (plot height) gains the reclaimed bottom space; on mobile it gains a further ~30 px from the tighter horizontal margins.
+  - Left-axis layout consolidated:
+    • Previously TWO rotated 90° axis titles stacked at x=18 and x=42 ("MBS ms" and "CPI / CPA"). Both consumed PAD.left budget and the inner one (x=42) sat behind the orange tick labels at x=PAD.left-52. On mobile this collided badly.
+    • Now ONE rotated title positioned at PAD.left-48 (with a min of x=14 to avoid running off-canvas). Text reads "CPI / CPA (left) — MBS ms (Standard|Memory|Survival)" on desktop, just "CPI / CPA" on mobile (where the ms tick column is hidden anyway).
+    • Right-axis title position changed from W-8 to W − max(10, PAD.right - 50) so it scales with the right-padding choice instead of clipping.
+  - On mobile the orange ms tick column is HIDDEN entirely (no PAD.left budget for two parallel tick scales). The CPI score scale on the inside of the axis remains — that's the universal axis across all modes anyway. Desktop still shows both columns.
+  - Minimap (always-visible thin canvas below the main chart, ~58 px tall):
+    • Always plots the FULL unfiltered history as a faint CPI sparkline + tiny dots per session. Bounds include sleep span endpoints (matches the main chart's domain).
+    • A brighter focus-window rectangle indicates which time range the main chart is currently displaying. The window is computed from the active filter (preset OR custom), so the visualization always agrees with the actual rendered slice.
+    • Outside the focus window, the area is dimmed (rgba(8,19,33,0.55) overlay).
+    • Edge handles (4 px wide bars) drawn at the left/right edges for clear resize affordance.
+    • First and last date labels at the bottom-left and bottom-right corners.
+    • Interactions:
+      - Hover near edge (within 8 px) → ew-resize cursor; drag resizes that edge.
+      - Hover inside window → grab cursor; drag slides the window across the timeline.
+      - Click outside the window → recenters the window at the click point, keeping its width.
+      - All gestures set perfGraphState.preset = "custom" and write customRangeStart/End.
+      - Minimum window width = max(1 minute, 1% of full span).
+      - Mouse + touch listeners attached once via dataset.wired guard, so re-entering the page doesn't accumulate listeners.
+    • Hint text below the minimap: "Drag the highlighted window to focus, drag its edges to resize".
+  - renderPerformanceOverTimePage now also draws the minimap and re-syncs controls on every render pass, so the focus window stays consistent with the main chart at all times (including after zoom/preset changes from elsewhere in the page).
+  - Version stamps bumped V699rev170 → V699rev171 in APP_REV_STAMP, sw.js RELEASE, cache-bust query / tab title / versionBadge / statusLine / manifest.json name. APP_VERSION remains V699. No CPA, audio, scheduler-notice, copyright/license, or technical-overview content changed.
+
+
   - Specification (Layne, V699 rev 170): all six rev169 hardcoded Baseline-creation parameters made admin-configurable. Layne confirmed full configurability ("All 6") and that window size and minimum-sessions-to-establish should be decoupled — they default to the same value but can be tuned independently. The personalBaselineMaxMbs (admin #35, default 1900 ms) was already exposed and is unchanged. Memory and Survival Challenge baseline ceilings (admin #56 / #63) are also unchanged — those are different metrics.
   - Six new admin defaults added to DEFAULTS (lines 110ff) and to the field-list (entries #90-95). All six default to the rev169 hardcoded values, so any existing device whose saved settings predate rev170 will inherit identical behavior on first load via the existing DEFAULTS-merge in loadSettings():
     1. baselineWindowSize (#90, default 5) — rolling-average window size in qualifying sessions.
