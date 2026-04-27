@@ -108,6 +108,21 @@ const DEFAULTS={
  cpiBestMs:800,
  cpiWorstMs:2800,
  personalBaselineMaxMbs:1900,
+ // V699rev170: Personal Baseline creation rules (admin-configurable).
+ // window size = N most recent qualifying sessions averaged into the
+ // rolling Baseline. minSessionsToEstablish = how many qualifying
+ // sessions must accumulate before the FIRST Baseline is established
+ // (decoupled from window size per Layne's rev170 spec — they default
+ // equal but can be tuned independently). minSpfs/maxSpfs bound the
+ // S-PFS qualifying range. allowedModes is a comma-separated list of
+ // testMode values that may contribute (default "mode1,mode2").
+ // excludeFailed=1 omits failed sessions from qualification (default).
+ baselineWindowSize:5,
+ baselineMinSessionsToEstablish:5,
+ baselineMinSpfs:5,
+ baselineMaxSpfs:7,
+ baselineAllowedModes:"mode1,mode2",
+ baselineExcludeFailed:1,
  symbolSet:"standard",
  memoryNoResponseTimeoutMs:15000,
  memoryMinDurationMs:1400,
@@ -294,7 +309,14 @@ const ADMIN_FIELDS=[
  // previously collinear correct/wrong/miss triad).
  ["mode2NormExpectedAccuracyComposite","87. Mode 2 expected sustained accuracy composite by CPI bucket (min-max:value; ...). Composite = correctRate − wrongRate − 0.5·missRate","text"],
  ["mode2NormToleranceAccuracyComposite","88. Mode 2 accuracy-composite tolerance around expected profile (default 0.15)","number"],
- ["mode2NormWeightAccuracy","89. Mode 2 CPA weight for accuracy-composite deviation (default 9.0, V699rev151). Replaces the old sum of weights 75+76+77.","number"]
+ ["mode2NormWeightAccuracy","89. Mode 2 CPA weight for accuracy-composite deviation (default 9.0, V699rev151). Replaces the old sum of weights 75+76+77.","number"],
+ // 90-95. Personal Baseline creation rules (V699rev170).
+ ["baselineWindowSize","90. Personal Baseline rolling-average window size (qualifying sessions, default 5)","number"],
+ ["baselineMinSessionsToEstablish","91. Personal Baseline minimum qualifying sessions before first establishment (default 5)","number"],
+ ["baselineMinSpfs","92. Personal Baseline minimum qualifying S-PFS (default 5)","number"],
+ ["baselineMaxSpfs","93. Personal Baseline maximum qualifying S-PFS (default 7)","number"],
+ ["baselineAllowedModes","94. Personal Baseline allowed test modes, comma-separated (default \"mode1,mode2\")","text"],
+ ["baselineExcludeFailed","95. Personal Baseline exclude failed sessions (0=include, 1=exclude, default 1)","number"]
 ];
 
 // ─── Patterns ───
@@ -398,7 +420,7 @@ let settings=loadSettings();
 // profile record (profile is no longer the source of truth for test type),
 // and persist both. This fires once per fresh rev deployment per device;
 // after that, the stamp matches and nothing is touched on subsequent loads.
-const APP_REV_STAMP = "V699rev168";
+const APP_REV_STAMP = "V699rev170";
 // Version policy: APP_VERSION preserves base storage/schema continuity; DISPLAY_VERSION is what users see.
 const DISPLAY_VERSION = APP_REV_STAMP || APP_VERSION;
 
@@ -566,6 +588,9 @@ const state={
  overloads:[], recoveries:[], recoveryTrialsCompleted:0,
  spCorrectStreak:0, spWrongCount:0, terminalBlockReason:null,
  history:loadPersistedHistory(),
+ // V699rev169: per-subject permanent Baseline-history cache. See
+ // loadPersistedBaselineHistoryCache() for the shape and rationale.
+ baselineHistoryCache:loadPersistedBaselineHistoryCache(),
  totalTrials:0, totalResponses:0, totalCorrect:0, totalIncorrect:0,
  missedTrials:0, pacedErrors:0, recoveryErrors:0, rollMeanLog:[],
  testStartTime:null, trialTimer:null, absoluteNoResponseTimer:null, maxTestTimer:null,
@@ -947,6 +972,34 @@ function savePersistedHistory(list){
 function clearPersistedHistory(){
  localStorage.removeItem(`${STORAGE_PREFIX}_history`);
  state.history = [];
+ try{ clearPersistedBaselineHistoryCache(); }catch(e){}
+}
+
+// V699rev169: Permanent Baseline-history cache.
+// ---------------------------------------------
+// Storage key: `${STORAGE_PREFIX}_baseline_history`.
+// Shape: { [subjectId]: [ { baselineNumber, value, establishedAt,
+//   triggeringSessionIndex, windowSessionIndices } ... ] }
+//
+// This cache is REDUNDANT with what computePersonalBaseline() can derive
+// from state.history (and with the per-session result.baselineSnapshot
+// recorded at finish time). We keep it because the spec asks for Baselines
+// to be "permanently retained" — so even if a user later deletes a
+// triggering session from history, the historical Baseline record itself
+// survives. The cache is updated on every test save and is also rebuilt
+// from state.history on app start (additively — never replacing prior
+// recorded Baselines).
+function loadPersistedBaselineHistoryCache(){
+ try{
+  const raw = JSON.parse(localStorage.getItem(`${STORAGE_PREFIX}_baseline_history`)||"{}");
+  return (raw && typeof raw === "object" && !Array.isArray(raw)) ? raw : {};
+ }catch(e){ return {}; }
+}
+function savePersistedBaselineHistoryCache(cache){
+ try{ localStorage.setItem(`${STORAGE_PREFIX}_baseline_history`, JSON.stringify(cache||{})); }catch(e){}
+}
+function clearPersistedBaselineHistoryCache(){
+ try{ localStorage.removeItem(`${STORAGE_PREFIX}_baseline_history`); }catch(e){}
 }
 
 function clearSchedulerLocalData(){
@@ -2708,6 +2761,40 @@ async function finish(){
   // declared in the device-owner state machine but not actually enforced at
   // the save path. savePersistedHistory() also has a defensive filter now, so
   // Guest rows cannot land on disk regardless of caller.
+  // V699rev169: Compute Baseline state AFTER pushing this result so the
+  // snapshot reflects whether THIS session itself triggered/updated the
+  // Baseline. Then snapshot onto result.baselineSnapshot (permanent on
+  // the session record) and reconcile the persistent cache.
+  try{
+   const sidForBaseline = String(result?.subjectId||"").trim();
+   if(sidForBaseline && !isGuestBaselineSubject(sidForBaseline)){
+    const seq = reconcileBaselineHistoryForSubject(sidForBaseline);
+    const latest = seq.length ? seq[seq.length-1] : null;
+    const isThisSessionTriggering = !!(latest && latest.triggeringSessionIndex === (state.history.length-1));
+    result.baselineSnapshot = {
+     version: "v1",
+     established: !!latest,
+     latestBaselineNumber: latest ? latest.baselineNumber : null,
+     latestBaselineValueMs: latest ? latest.value : null,
+     latestBaselineEstablishedAt: latest ? latest.establishedAt : null,
+     baselineCountSoFar: seq.length,
+     thisSessionEstablishedNewBaseline: isThisSessionTriggering,
+     thisSessionWasQualifying: !!isBaselineQualifyingSession(result)
+    };
+   } else {
+    result.baselineSnapshot = {
+     version: "v1",
+     established: false,
+     latestBaselineNumber: null,
+     latestBaselineValueMs: null,
+     latestBaselineEstablishedAt: null,
+     baselineCountSoFar: 0,
+     thisSessionEstablishedNewBaseline: false,
+     thisSessionWasQualifying: false,
+     reason: "guest_or_no_subject"
+    };
+   }
+  }catch(snapErr){ console.error("baseline snapshot failed", snapErr); }
   if(shouldPersistSessionForLocalHistory(result)){
    state.history = savePersistedHistory(state.history);
   }
@@ -4511,21 +4598,29 @@ function getLatestCompletedMode2Timestamp(){
  Personal Baseline
  -----------------
  Personal Baseline is a rolling subject-specific reference based on the
- most recent 5 qualifying Mode 1 / Mode 2 adaptive-phase MBS scores.
+ most recent N qualifying Mode 1 / Mode 2 adaptive-phase MBS scores,
+ where N = settings.baselineWindowSize (default 5, admin #90).
 
  Purpose:
  - provides a current personal reference
  - updates over time to capture learning effects
  - excludes failed or low-quality baseline candidates
 
- A session qualifies only if:
- - testMode is mode1 or mode2
- - session is not failed
- - adaptive-phase MBS ≤ personal baseline qualifying threshold (default 1900 ms)
- - Samn-Perelli score is 5, 6, or 7
+ A session qualifies only if (admin defaults shown):
+ - testMode is in baselineAllowedModes (admin #94, default "mode1,mode2")
+ - session is not failed (when baselineExcludeFailed=1, admin #95)
+ - adaptive-phase MBS ≤ personalBaselineMaxMbs (admin #35, default 1900 ms)
+ - Samn-Perelli score is between baselineMinSpfs (admin #92, default 5)
+   and baselineMaxSpfs (admin #93, default 7) inclusive
+
+ Establishment threshold: admin #91 baselineMinSessionsToEstablish
+ (default 5, decoupled from window size). The first Baseline is
+ established once the qualifying-session count reaches this value;
+ every subsequent qualifying session establishes a new rolling
+ baselineWindowSize-session-average Baseline.
 
  Failed sessions remain in general session history only and are never
- included in baseline computation.
+ included in baseline computation when baselineExcludeFailed=1.
 */
 function isGuestBaselineSubject(v){
  const s = String(v||"").trim().toLowerCase();
@@ -4548,22 +4643,57 @@ function getPersonalBaselineMaxMbs(){
  const v = getCurrentBaselineMaxMbsValue();
  return Number.isFinite(v) && v>0 ? v : (isMemoryChallengeActive()?3200:1900);
 }
+// V699rev170: read each baseline-creation setting with a fallback to the
+// rev169 hardcoded value, so a corrupted-settings device still works.
+function getBaselineWindowSize(){
+ const v = Math.round(Number(settings?.baselineWindowSize));
+ return Number.isFinite(v) && v>=1 ? v : 5;
+}
+function getBaselineMinSessionsToEstablish(){
+ const v = Math.round(Number(settings?.baselineMinSessionsToEstablish));
+ return Number.isFinite(v) && v>=1 ? v : 5;
+}
+function getBaselineMinSpfs(){
+ const v = Math.round(Number(settings?.baselineMinSpfs));
+ return Number.isFinite(v) && v>=1 && v<=7 ? v : 5;
+}
+function getBaselineMaxSpfs(){
+ const v = Math.round(Number(settings?.baselineMaxSpfs));
+ return Number.isFinite(v) && v>=1 && v<=7 ? v : 7;
+}
+function getBaselineAllowedModes(){
+ const raw = settings?.baselineAllowedModes;
+ const txt = (raw==null || raw==="") ? "mode1,mode2" : String(raw);
+ return new Set(txt.split(",").map(s=>s.trim().toLowerCase()).filter(Boolean));
+}
+function getBaselineExcludeFailed(){
+ const v = Number(settings?.baselineExcludeFailed);
+ return v===0 ? false : true; // any value other than 0 → exclude (default)
+}
 function isBaselineQualifyingSession(result){
  if(!result) return false;
  if(isGuestHistorySubjectId(result.subjectId)) return false;
- if(!(result.testMode==="mode1" || result.testMode==="mode2")) return false;
+ // V699rev170: allowed-modes check now consults admin #94. The default
+ // ("mode1,mode2") matches the prior hardcoded rule.
+ const allowedModes = getBaselineAllowedModes();
+ if(!allowedModes.has(String(result.testMode||"").toLowerCase())) return false;
  // Personal Baseline uses STANDARD CogSpeed only.
  // Memory Challenge and Survival Challenge are excluded entirely.
  const symbolSet = getResultSymbolSet(result);
  if(symbolSet==="memory" || symbolSet==="survival") return false;
- if(isPerfFailureSession(result)) return false;
+ // V699rev170: failed-session exclusion now driven by admin #95. When
+ // excludeFailed=1 (default) the prior behavior is preserved exactly.
+ if(getBaselineExcludeFailed() && isPerfFailureSession(result)) return false;
  const mbs = getAdaptivePhaseMbs(result);
  const maxMbs = getPersonalBaselineMaxMbs();
  // Only sessions at or below the qualifying threshold enter the rolling baseline.
  // Sessions above the threshold are ignored for baseline updating and do not replace it.
  if(!Number.isFinite(mbs) || !(mbs <= maxMbs)) return false;
+ // V699rev170: S-PFS range now driven by admin #92/#93 (default 5..7
+ // inclusive, matching the prior hardcoded rule).
  const spfs = Number(result?.samnPerelli?.score);
- return spfs===5 || spfs===6 || spfs===7;
+ if(!Number.isFinite(spfs)) return false;
+ return spfs >= getBaselineMinSpfs() && spfs <= getBaselineMaxSpfs();
 }
 function mapBaselineRow(result, sourceIndex){
  return {
@@ -4580,7 +4710,10 @@ function computePersonalBaseline(results, subjectId, cutoffTime=null){
  const all = Array.isArray(results) ? results : [];
  const sid = String(subjectId||"").trim();
  if(!sid || isGuestBaselineSubject(sid)) return {
-  established:false, qualifyingCount:0, averageMbs:null, lastFive:[], allQualifying:[],
+  established:false, qualifyingCount:0, averageMbs:null, lastFive:[], lastWindow:[], allQualifying:[],
+  baselineHistory:[],
+  windowSize: getBaselineWindowSize(),
+  minSessionsToEstablish: getBaselineMinSessionsToEstablish(),
   statusText:"Baseline not yet established, Test again.", subjectId:sid
  };
  const cutoffMs = cutoffTime ? new Date(cutoffTime).getTime() : null;
@@ -4590,31 +4723,70 @@ function computePersonalBaseline(results, subjectId, cutoffTime=null){
   .filter(({r})=> cutoffMs==null || Date.parse(r?.time) <= cutoffMs)
   .filter(({r})=> isBaselineQualifyingSession(r))
   .sort((a,b)=> Date.parse(a.r.time)-Date.parse(b.r.time));
- const startOfLastFive = Math.max(0, qualifying.length - 5);
+ const windowSize = getBaselineWindowSize();
+ const minToEstablish = getBaselineMinSessionsToEstablish();
+ const startOfLastWindow = Math.max(0, qualifying.length - windowSize);
  const allQualifying = qualifying.map(({r,idx}, orderIndex)=> ({
   ...mapBaselineRow(r, idx),
   orderIndex,
-  usedInCurrentBaseline: orderIndex >= startOfLastFive
+  // "Used in current baseline" = sits inside the most recent windowSize-session
+  // slice (i.e. is part of what the latest rolling average is computed from).
+  usedInCurrentBaseline: orderIndex >= startOfLastWindow
  }));
- const lastFive = allQualifying.slice(-5);
- if(lastFive.length < 5){
+ // V699rev169 + V699rev170: Baseline-history sequence.
+ // Every qualifying session at or beyond order index `minToEstablish-1`
+ // establishes a new rolling baseline whose value is the average of the
+ // most recent `windowSize` qualifying sessions (or all of them, if fewer
+ // exist at that point — though by construction the loop won't run until
+ // at least `minToEstablish` qualifying sessions exist).
+ // Each Baseline is permanently recorded — the historical sequence below
+ // is what gets plotted on the graph and snapshotted onto each result.
+ const baselineHistory = [];
+ for(let i = minToEstablish-1; i < allQualifying.length; i++){
+  const winStart = Math.max(0, i - windowSize + 1);
+  const win = allQualifying.slice(winStart, i+1); // inclusive window ending at i
+  const value = Math.round(win.reduce((s,row)=> s + Number(row.mbs||0), 0) / win.length);
+  const triggering = allQualifying[i];
+  baselineHistory.push({
+   baselineNumber: baselineHistory.length + 1,
+   value,
+   establishedAt: triggering.time,
+   triggeringQualifyingOrderIndex: i,           // 0-based order in qualifying list
+   triggeringSessionIndex: triggering.sourceIndex, // index into raw history
+   windowQualifyingOrderIndices: win.map(r=> r.orderIndex),
+   windowSessionIndices: win.map(r=> r.sourceIndex),
+   windowSize,                                  // record the rule-set in force
+   minSessionsToEstablish: minToEstablish
+  });
+ }
+ const lastWindow = allQualifying.slice(-windowSize);
+ if(qualifying.length < minToEstablish){
   return {
    established:false,
    qualifyingCount:qualifying.length,
    averageMbs:null,
-   lastFive,
+   lastFive: lastWindow,        // legacy field name retained for callers
+   lastWindow,                  // V699rev170: window-size-aware alias
+   windowSize,
+   minSessionsToEstablish: minToEstablish,
    allQualifying,
+   baselineHistory,
    statusText:"Baseline not yet established, Test again.",
    subjectId:sid
   };
  }
- const avg = Math.round(lastFive.reduce((sum,row)=>sum + Number(row.mbs||0), 0) / 5);
+ const avg = baselineHistory.length ? baselineHistory[baselineHistory.length-1].value
+  : Math.round(lastWindow.reduce((sum,row)=>sum + Number(row.mbs||0), 0) / lastWindow.length);
  return {
   established:true,
   qualifyingCount:qualifying.length,
   averageMbs:avg,
-  lastFive,
+  lastFive: lastWindow,         // legacy field name retained for callers
+  lastWindow,                   // V699rev170: window-size-aware alias
+  windowSize,
+  minSessionsToEstablish: minToEstablish,
   allQualifying,
+  baselineHistory,
   statusText:`Baseline: ${avg} ms`,
   subjectId:sid
  };
@@ -4625,6 +4797,61 @@ function getPersonalBaselineForResult(result){
  // for the registered subject, independent of which session is selected in
  // the Speedometer. Do not clip the baseline to the selected session time.
  return computePersonalBaseline(state.history, sid, null);
+}
+
+// V699rev169: Reconcile the persistent baseline-history cache with the
+// derived sequence from state.history. Strategy:
+// - Compute the canonical historical sequence from state.history.
+// - For each canonical entry, if the cache already has a record at that
+//   baselineNumber whose establishedAt matches, keep the cached record
+//   verbatim (this is what makes Baselines "permanently retained" even
+//   if a session is later deleted; the prior cached record wins).
+// - Otherwise, write the canonical entry into the cache.
+// Returns the merged sequence used for display.
+function reconcileBaselineHistoryForSubject(subjectId){
+ const sid = String(subjectId||"").trim();
+ if(!sid || isGuestBaselineSubject(sid)) return [];
+ const derived = computePersonalBaseline(state.history, sid, null).baselineHistory || [];
+ const cache = state.baselineHistoryCache && typeof state.baselineHistoryCache === "object"
+  ? state.baselineHistoryCache : {};
+ const cached = Array.isArray(cache[sid]) ? cache[sid].slice() : [];
+ const cachedByNumber = new Map(cached.map(e=> [Number(e?.baselineNumber)||0, e]));
+ const merged = [];
+ derived.forEach((entry, i)=>{
+  const num = i + 1;
+  const prior = cachedByNumber.get(num);
+  if(prior && prior.establishedAt === entry.establishedAt && Number(prior.value) === Number(entry.value)){
+   merged.push({ ...prior, baselineNumber:num });
+  } else if(prior && prior.establishedAt === entry.establishedAt){
+   // Same trigger but different value (e.g. a window session got re-coded).
+   // Trust the freshly derived value — it reflects current state.history.
+   merged.push({ ...prior, ...entry, baselineNumber:num });
+  } else {
+   merged.push({ ...entry, baselineNumber:num });
+  }
+ });
+ // Preserve any cached Baselines beyond the derivable sequence (orphaned
+ // by deleted sessions) — these are append-only historical artifacts.
+ cached.forEach(prior=>{
+  const num = Number(prior?.baselineNumber)||0;
+  if(num > derived.length) merged.push({ ...prior, orphaned:true });
+ });
+ merged.sort((a,b)=> (Number(a.baselineNumber)||0) - (Number(b.baselineNumber)||0));
+ // Write back if changed.
+ const changed = JSON.stringify(cached) !== JSON.stringify(merged);
+ if(changed){
+  cache[sid] = merged;
+  state.baselineHistoryCache = cache;
+  savePersistedBaselineHistoryCache(cache);
+ }
+ return merged;
+}
+function getBaselineHistoryForSubject(subjectId){
+ return reconcileBaselineHistoryForSubject(subjectId);
+}
+function getLatestBaselineForSubject(subjectId){
+ const seq = reconcileBaselineHistoryForSubject(subjectId);
+ return seq.length ? seq[seq.length-1] : null;
 }
 function renderSpeedometerBaseline(result){
  const el = $("speedometerBaselineText");
@@ -4639,44 +4866,102 @@ function getPersonalBaselineSummaryText(result, label="Personal Baseline"){
 function escapeHtml(s){
  return String(s==null?"":s).replace(/[&<>"]/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]));
 }
-function buildPersonalBaselineSvg(rows, avg){
- const W=860, H=360, L=72, R=24, T=30, B=48;
+function buildPersonalBaselineSvg(rows, avg, baselineHistory){
+ // V699rev169: rows are all qualifying sessions (oldest -> newest);
+ // baselineHistory is the sequence of every Baseline ever established for
+ // this subject. Each Baseline entry's `triggeringQualifyingOrderIndex`
+ // tells us which session on the x-axis it was anchored to (always >= 4,
+ // since the 5th qualifying session establishes Baseline #1). The Baseline
+ // trace is drawn on top of the session trace and uses the same y-scale so
+ // the user can read both off the same axis.
+ const W=860, H=400, L=72, R=24, T=30, B=86; // taller bottom for legend
  const svgOpen = `<svg xmlns="http://www.w3.org/2000/svg" width="100%" height="auto" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet" style="display:block;width:100%;max-width:100%;height:auto">`;
- if(!rows.length){
+ if(!rows || !rows.length){
   return `<div style="width:100%;max-width:100%;overflow-x:hidden">${svgOpen}<rect width="100%" height="100%" fill="#081321"/><text x="${W/2}" y="${H/2}" fill="#c8d7e5" text-anchor="middle" font-family="Arial,sans-serif" font-size="24">No qualifying baseline sessions yet</text></svg></div>`;
  }
- const vals = rows.map(r=>Number(r.mbs)).filter(Number.isFinite);
- if(Number.isFinite(avg)) vals.push(avg);
- const minV = Math.min(...vals), maxV = Math.max(...vals);
+ const baselines = Array.isArray(baselineHistory) ? baselineHistory : [];
+ const sessionVals = rows.map(r=>Number(r.mbs)).filter(Number.isFinite);
+ const baselineVals = baselines.map(b=>Number(b.value)).filter(Number.isFinite);
+ const allVals = sessionVals.concat(baselineVals);
+ if(Number.isFinite(avg)) allVals.push(avg);
+ const minV = Math.min(...allVals), maxV = Math.max(...allVals);
  const pad = Math.max(40, Math.round((maxV-minV||100)*0.15));
  const lo = Math.max(0, minV - pad), hi = maxV + pad;
  const pw=W-L-R, ph=H-T-B;
  const x = i => rows.length===1 ? L+pw/2 : L + (pw*(i/(rows.length-1)));
  // Inverted plot: lower ms is better, so lower values draw higher on the chart.
  const y = v => T + ((v-lo)/(hi-lo||1))*ph;
- const poly = rows.map((r,i)=>`${x(i).toFixed(1)},${y(r.mbs).toFixed(1)}`).join(' ');
- let parts=[`<div style="width:100%;max-width:100%;overflow-x:hidden">`,svgOpen,`<rect width="100%" height="100%" fill="#081321" rx="16"/>`,`<text x="${W/2}" y="22" fill="#7fd7ff" text-anchor="middle" font-family="Arial,sans-serif" font-size="20" font-weight="700">Personal Baseline — All Qualifying MBS Scores</text>`];
+ const sessionPoly = rows.map((r,i)=>`${x(i).toFixed(1)},${y(r.mbs).toFixed(1)}`).join(' ');
+ // Baseline trace — anchored at each baseline's triggering qualifying-session
+ // x-position. Skip orphaned baselines whose triggering index is out of range.
+ const baselinePoints = baselines
+  .map(b=> ({...b, qIdx: Number(b.triggeringQualifyingOrderIndex)}))
+  .filter(b=> Number.isFinite(b.qIdx) && b.qIdx>=0 && b.qIdx<rows.length && Number.isFinite(b.value));
+ const baselinePoly = baselinePoints.map(b=>`${x(b.qIdx).toFixed(1)},${y(b.value).toFixed(1)}`).join(' ');
+ let parts=[`<div style="width:100%;max-width:100%;overflow-x:hidden">`,svgOpen,`<rect width="100%" height="100%" fill="#081321" rx="16"/>`,`<text x="${W/2}" y="22" fill="#7fd7ff" text-anchor="middle" font-family="Arial,sans-serif" font-size="20" font-weight="700">Personal Baseline — Qualifying Sessions &amp; Established Baselines</text>`];
+ // Y-axis gridlines and labels.
  for(let i=0;i<5;i++){
   const v = lo + (hi-lo)*(i/4);
   const yy = y(v);
   parts.push(`<line x1="${L}" y1="${yy.toFixed(1)}" x2="${W-R}" y2="${yy.toFixed(1)}" stroke="rgba(255,255,255,0.14)" stroke-width="1"/>`);
   parts.push(`<text x="${L-10}" y="${(yy+4).toFixed(1)}" fill="#c8d7e5" text-anchor="end" font-family="Arial,sans-serif" font-size="14">${Math.round(v)}</text>`);
  }
+ // Axes.
  parts.push(`<line x1="${L}" y1="${T}" x2="${L}" y2="${H-B}" stroke="#c8d7e5" stroke-width="1.4"/><line x1="${L}" y1="${H-B}" x2="${W-R}" y2="${H-B}" stroke="#c8d7e5" stroke-width="1.4"/>`);
- if(rows.length>1) parts.push(`<polyline fill="none" stroke="#7fd7ff" stroke-width="3" points="${poly}"/>`);
+ // Session trace and points.
+ if(rows.length>1) parts.push(`<polyline fill="none" stroke="#7fd7ff" stroke-width="3" points="${sessionPoly}"/>`);
  rows.forEach((r,i)=>{
   const xx=x(i), yy=y(r.mbs);
   const fill = r.usedInCurrentBaseline ? "#72d572" : "#ffd36f";
   const radius = r.usedInCurrentBaseline ? 6.4 : 5.5;
   parts.push(`<circle cx="${xx.toFixed(1)}" cy="${yy.toFixed(1)}" r="${radius}" fill="${fill}" stroke="#ffffff" stroke-width="1.2"/>`);
-  parts.push(`<text x="${xx.toFixed(1)}" y="${H-B+22}" fill="#c8d7e5" text-anchor="middle" font-family="Arial,sans-serif" font-size="12">${i+1}</text>`);
+  parts.push(`<text x="${xx.toFixed(1)}" y="${H-B+18}" fill="#c8d7e5" text-anchor="middle" font-family="Arial,sans-serif" font-size="12">${i+1}</text>`);
  });
+ // Baseline trace and markers (drawn AFTER session points so they sit on top).
+ if(baselinePoints.length>1){
+  parts.push(`<polyline fill="none" stroke="#ff7fb0" stroke-width="2.5" stroke-dasharray="6 4" points="${baselinePoly}"/>`);
+ }
+ baselinePoints.forEach(b=>{
+  const xx=x(b.qIdx), yy=y(b.value);
+  parts.push(`<rect x="${(xx-5).toFixed(1)}" y="${(yy-5).toFixed(1)}" width="10" height="10" fill="#ff7fb0" stroke="#ffffff" stroke-width="1.2" transform="rotate(45 ${xx.toFixed(1)} ${yy.toFixed(1)})"/>`);
+  // Small label showing the Baseline number (#1, #2…) above each diamond.
+  parts.push(`<text x="${xx.toFixed(1)}" y="${(yy-12).toFixed(1)}" fill="#ff7fb0" text-anchor="middle" font-family="Arial,sans-serif" font-size="10" font-weight="700">B${b.baselineNumber}</text>`);
+ });
+ // Latest-baseline horizontal reference line + annotation (uses the current
+ // rolling-average value when established).
  if(Number.isFinite(avg)){
   const yy=y(avg);
   parts.push(`<line x1="${L}" y1="${yy.toFixed(1)}" x2="${W-R}" y2="${yy.toFixed(1)}" stroke="#72d572" stroke-width="2" stroke-dasharray="8 6"/>`);
-  parts.push(`<text x="${W-R}" y="${Math.max(T+14,(yy-8)).toFixed(1)}" fill="#72d572" text-anchor="end" font-family="Arial,sans-serif" font-size="14" font-weight="700">Average ${Math.round(avg)} ms</text>`);
+  parts.push(`<text x="${W-R}" y="${Math.max(T+14,(yy-8)).toFixed(1)}" fill="#72d572" text-anchor="end" font-family="Arial,sans-serif" font-size="14" font-weight="700">Latest Baseline ${Math.round(avg)} ms</text>`);
  }
- parts.push(`<text x="${W/2}" y="${H-12}" fill="#9fb4c8" text-anchor="middle" font-family="Arial,sans-serif" font-size="13">Qualifying session order (oldest to newest); current rolling baseline uses the last 5 marked points</text></svg></div>`);
+ // X-axis caption.
+ parts.push(`<text x="${W/2}" y="${H-B+38}" fill="#9fb4c8" text-anchor="middle" font-family="Arial,sans-serif" font-size="12">Qualifying session order (oldest to newest)</text>`);
+ // Legend. V699rev170: window size is admin-driven (#90).
+ const legendY = H - 22;
+ const winN = getBaselineWindowSize();
+ const legendItems = [
+  { type:"circle", color:"#72d572", label:`Qualifying session (in current rolling ${winN})` },
+  { type:"circle", color:"#ffd36f", label:"Qualifying session (older)" },
+  { type:"diamond", color:"#ff7fb0", label:`Baseline established (rolling ${winN}-session avg)` },
+  { type:"line",    color:"#72d572", label:"Latest Baseline" }
+ ];
+ // Lay out the legend in two rows of two so it always fits at 860 wide.
+ const colWidth = (W - L - R) / 2;
+ legendItems.forEach((item, idx)=>{
+  const col = idx % 2;
+  const row = Math.floor(idx / 2);
+  const itemX = L + col*colWidth + 6;
+  const itemY = legendY - 6 + row*16;
+  if(item.type==="circle"){
+   parts.push(`<circle cx="${(itemX+6).toFixed(1)}" cy="${itemY.toFixed(1)}" r="5.5" fill="${item.color}" stroke="#ffffff" stroke-width="1"/>`);
+  } else if(item.type==="diamond"){
+   parts.push(`<rect x="${(itemX+1).toFixed(1)}" y="${(itemY-5).toFixed(1)}" width="10" height="10" fill="${item.color}" stroke="#ffffff" stroke-width="1" transform="rotate(45 ${(itemX+6).toFixed(1)} ${itemY.toFixed(1)})"/>`);
+  } else if(item.type==="line"){
+   parts.push(`<line x1="${itemX.toFixed(1)}" y1="${itemY.toFixed(1)}" x2="${(itemX+12).toFixed(1)}" y2="${itemY.toFixed(1)}" stroke="${item.color}" stroke-width="2.5" stroke-dasharray="5 3"/>`);
+  }
+  parts.push(`<text x="${(itemX+18).toFixed(1)}" y="${(itemY+4).toFixed(1)}" fill="#c8d7e5" font-family="Arial,sans-serif" font-size="12">${escapeHtml(item.label)}</text>`);
+ });
+ parts.push(`</svg></div>`);
  return parts.join('');
 }
 function openPersonalBaselinePage(sessionIndex){
@@ -4685,7 +4970,14 @@ function openPersonalBaselinePage(sessionIndex){
  if(!result){ setStatus("No session available for Personal Baseline"); return; }
  const baseline = getPersonalBaselineForResult(result);
  const rows = baseline.allQualifying || baseline.lastFive || [];
- const statusText = baseline.established ? `Baseline: ${baseline.averageMbs} ms` : "Baseline not yet established, Test again.";
+ // V699rev169: pull the merged (cache + derived) Baseline history for this
+ // subject. This is what gets plotted on the graph and listed in the
+ // Baselines table beneath.
+ const baselineHistory = getBaselineHistoryForSubject(String(result.subjectId||"").trim());
+ const latestBaseline = baselineHistory.length ? baselineHistory[baselineHistory.length-1] : null;
+ const statusText = baseline.established
+  ? `Latest Baseline: ${latestBaseline ? latestBaseline.value : baseline.averageMbs} ms (Baseline #${latestBaseline ? latestBaseline.baselineNumber : "—"})`
+  : "Baseline not yet established, Test again.";
  const statusEl = $("personalBaselineStatus");
  const metaEl = $("personalBaselineMeta");
  const graphEl = $("personalBaselineGraph");
@@ -4694,14 +4986,41 @@ function openPersonalBaselinePage(sessionIndex){
  if(statusEl) statusEl.textContent = statusText;
  if(metaEl){
   const sessionTime = result.time ? new Date(result.time).toLocaleString() : "—";
-  metaEl.innerHTML = `<div><strong>Subject:</strong> ${escapeHtml(String(result.subjectId||"—"))}</div><div><strong>History scope:</strong> Full qualifying saved history</div><div><strong>Selected session:</strong> ${escapeHtml(sessionTime)}</div><div><strong>Qualifying sessions available:</strong> ${baseline.qualifyingCount}</div><div style="margin-top:6px">All qualifying sessions are shown below. The rolling baseline value itself uses the most recent 5 qualifying non-Guest Mode 1 / Mode 2 adaptive-phase MBS scores with MBS &le; ${getPersonalBaselineMaxMbs()} ms, S-PFS 5–7, and no failed sessions.</div>`;
+  const winN = getBaselineWindowSize();
+  const minToEst = getBaselineMinSessionsToEstablish();
+  const minS = getBaselineMinSpfs();
+  const maxS = getBaselineMaxSpfs();
+  const allowedModesArr = Array.from(getBaselineAllowedModes()).sort();
+  const allowedModesPretty = allowedModesArr.map(m=> getFullModeLabel(m)).join(" / ") || "—";
+  const failedExclTxt = getBaselineExcludeFailed() ? "no failed sessions" : "failed sessions allowed";
+  metaEl.innerHTML = `<div><strong>Subject:</strong> ${escapeHtml(String(result.subjectId||"—"))}</div><div><strong>History scope:</strong> Full qualifying saved history</div><div><strong>Selected session:</strong> ${escapeHtml(sessionTime)}</div><div><strong>Qualifying sessions available:</strong> ${baseline.qualifyingCount}</div><div><strong>Baselines established:</strong> ${baselineHistory.length}</div><div style="margin-top:6px">A Baseline is established once ${minToEst} qualifying sessions exist; every subsequent qualifying session adds a new rolling ${winN}-session-average Baseline. Qualifying sessions are non-Guest ${escapeHtml(allowedModesPretty)} adaptive-phase tests with MBS &le; ${getPersonalBaselineMaxMbs()} ms, S-PFS ${minS}–${maxS}, and ${escapeHtml(failedExclTxt)}. Every Baseline ever established is permanently retained.</div>`;
  }
- if(graphEl) graphEl.innerHTML = buildPersonalBaselineSvg(rows, baseline.established ? baseline.averageMbs : null);
+ if(graphEl) graphEl.innerHTML = buildPersonalBaselineSvg(rows, baseline.established ? baseline.averageMbs : null, baselineHistory);
  if(tbody){
   const bodyRows = rows.map((row,idx)=>`<tr><td style="padding:8px;border-bottom:1px solid var(--edge)">${idx+1}</td><td style="padding:8px;border-bottom:1px solid var(--edge)">${escapeHtml(row.time ? new Date(row.time).toLocaleString() : "—")}</td><td style="padding:8px;border-bottom:1px solid var(--edge)">${escapeHtml(row.modeLabel||getFullModeLabel(row.testMode))}</td><td style="padding:8px;border-bottom:1px solid var(--edge);text-align:right">${Number(row.mbs).toFixed(1)}</td><td style="padding:8px;border-bottom:1px solid var(--edge);text-align:right">${row.spfs}</td><td style="padding:8px;border-bottom:1px solid var(--edge);text-align:center">${row.usedInCurrentBaseline ? "Yes" : ""}</td></tr>`).join('');
   const avgRow = baseline.established ? `<tr><td style="padding:8px"></td><td style="padding:8px"><strong>Current rolling baseline average</strong></td><td style="padding:8px"></td><td style="padding:8px;text-align:right"><strong>${baseline.averageMbs}</strong></td><td style="padding:8px"></td><td style="padding:8px;text-align:center"><strong>Last 5</strong></td></tr>` : "";
+  // V699rev169: After the qualifying-sessions rows + average row, append a
+  // header row and one row per established Baseline so the user can read
+  // off every Baseline value with its establishment timestamp.
+  let baselineSection = "";
+  if(baselineHistory.length){
+   const headerWinN = getBaselineWindowSize();
+   const headerRow = `<tr><td colspan="6" style="padding:10px 8px 6px;font-weight:700;color:#ff7fb0;border-top:2px solid #ff7fb0">Established Baselines (rolling ${headerWinN}-session averages)</td></tr>`;
+   const baselineRows = baselineHistory.map(b=>{
+    const at = b.establishedAt ? new Date(b.establishedAt).toLocaleString() : "—";
+    const orphanTag = b.orphaned ? ` <span style="color:#9fb4c8;font-style:italic">(historical — triggering session removed)</span>` : "";
+    // Each row uses the windowSize stamped on the Baseline itself when
+    // available, falling back to the current admin value. This means an
+    // older Baseline computed under a different window size still
+    // describes itself accurately even after admin changes.
+    const rowWin = Number.isFinite(Number(b.windowSize)) ? Number(b.windowSize) : headerWinN;
+    return `<tr><td style="padding:8px;border-bottom:1px solid var(--edge)"><strong>B${b.baselineNumber}</strong></td><td style="padding:8px;border-bottom:1px solid var(--edge)" colspan="2">${escapeHtml(at)}${orphanTag}</td><td style="padding:8px;border-bottom:1px solid var(--edge);text-align:right"><strong>${Number(b.value).toFixed(0)}</strong></td><td style="padding:8px;border-bottom:1px solid var(--edge)" colspan="2">ms (rolling ${rowWin}-session average)</td></tr>`;
+   }).join('');
+   baselineSection = headerRow + baselineRows;
+  }
   tbody.innerHTML = bodyRows || '<tr><td colspan="6" style="padding:10px">No qualifying baseline sessions yet.</td></tr>';
   if(avgRow) tbody.insertAdjacentHTML("beforeend", avgRow);
+  if(baselineSection) tbody.insertAdjacentHTML("beforeend", baselineSection);
  }
  $("outcomeOverlay").classList.add("hidden");
  $("personalBaselineOverlay").classList.remove("hidden");
@@ -6669,7 +6988,7 @@ function getResultsMetricExplanationText(result){
 RESULTS METRIC EXPLANATIONS
  MBS (Maximum Blocking Speed) = average in ms of the last 2 consecutive blocks within 250 ms.${usesMode1Metrics||usesMode2Metrics?"":" Not used in this mode."}
  CPI (Cognitive Processing Index) = normalized 0 - 100 index based on MBS.${usesMode1Metrics||usesMode2Metrics?"":" Not used in this mode."}
- BASELINE = rolling personal baseline average built from the most recent 5 qualifying Mode 1 / Mode 2 adaptive-phase MBS sessions for the same registered subject, using non-failed non-Guest sessions with MBS at or below the Admin qualifying threshold and Samn-Perelli Fatigue Scale scores of 5, 6, or 7.${usesMode1Metrics||usesMode2Metrics?"":" Not used in this mode."}
+ BASELINE = rolling personal baseline average built from the most recent ${getBaselineWindowSize()} qualifying ${Array.from(getBaselineAllowedModes()).sort().map(m=>getFullModeLabel(m)).join(" / ")} adaptive-phase MBS sessions for the same registered subject, using ${getBaselineExcludeFailed()?"non-failed ":""}non-Guest sessions with MBS at or below the Admin qualifying threshold and Samn-Perelli Fatigue Scale scores of ${getBaselineMinSpfs()} through ${getBaselineMaxSpfs()}. First Baseline established once ${getBaselineMinSessionsToEstablish()} qualifying sessions exist.${usesMode1Metrics||usesMode2Metrics?"":" Not used in this mode."}
  CSR (Correct Sustained Responses) = number of correct sustained responses in the Mode 2 sustained segment.${usesMode2Metrics?"":" Not used in this mode."}
  SBLP (Sustained Blocking Limit Performance) = average RT of correct sustained responses during Mode 2 sustained segment, but defined as 0 when CSR = 0.${usesMode2Metrics?"":" Not used in this mode."}
  SBLP P90 = 90th-percentile correct sustained RT; conservative ceiling estimate.${usesMode2Metrics?"":" Not used in this mode."}
@@ -9274,10 +9593,10 @@ ${getTutorialTapInstructionHtml()}
     <div style="max-width:360px;background:rgba(12,22,40,0.9);border:1px solid rgba(127,215,255,0.25);border-radius:18px;padding:18px 18px 16px;box-shadow:0 10px 28px rgba(0,0,0,0.2)">
      <div style="font-size:28px;font-weight:900;color:#7fd7ff;letter-spacing:.04em;margin-bottom:10px">PERSONAL BASELINE</div>
      <div style="font-size:15px;line-height:1.6;color:rgba(255,255,255,0.88)">
-      CogSpeed works best when you build your own personal Baseline. Your Baseline is a rolling average of your last 5 qualifying Mode 1 or Mode 2 MBS scores.
+      CogSpeed works best when you build your own personal Baseline. Your Baseline is a rolling average of your last ${getBaselineWindowSize()} qualifying ${Array.from(getBaselineAllowedModes()).sort().map(m=>getFullModeLabel(m).replace(/^Mode (\d).*/,'Mode $1')).join(" or ")} MBS scores.
      </div>
      <div style="margin-top:12px;font-size:14px;line-height:1.6;color:rgba(220,235,255,0.88);background:rgba(127,215,255,0.08);border:1px solid rgba(127,215,255,0.22);border-radius:12px;padding:10px 12px">
-      Baseline sessions must be non-failed non-Guest tests with <strong>MBS at or below ${getPersonalBaselineMaxMbs()} ms</strong> and <strong>S-PFS of 5, 6, or 7</strong>. This helps CogSpeed track changes from your own normal level and capture learning effects over time.
+      Baseline sessions must be ${getBaselineExcludeFailed()?"non-failed ":""}non-Guest tests with <strong>MBS at or below ${getPersonalBaselineMaxMbs()} ms</strong> and <strong>S-PFS of ${getBaselineMinSpfs()} through ${getBaselineMaxSpfs()}</strong>. This helps CogSpeed track changes from your own normal level and capture learning effects over time.
      </div>
     </div>
    </div>`;
