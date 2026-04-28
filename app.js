@@ -65,7 +65,6 @@ const DEFAULTS={
  testMode:"mode2",
  mode3TrialLimit:150,
  mode3MaxDurationMs:90000,
- mode4CalibrationTrials:10,
  mode4PacedTrialLimit:140,
  mode4MaxDurationMs:90000,
  mode4BaselineFactor:1.1,
@@ -91,8 +90,23 @@ const DEFAULTS={
  rollMeanWindow:10,
  rollMeanThreshold:0.50,
  recoveryNoResponseMs:10000,
- calibrationFirstNoResponseMs:10000,
- calibrationNoResponseMs:6000,
+ // V699rev176 — NEW unified self-paced calibration phase rules (replaces
+ // legacy calibrationFirstNoResponseMs / calibrationNoResponseMs /
+ // calibrationStopErrors / calibrationStopSlowMs / initialMeasuredCalibrationTrials
+ // / mode4CalibrationTrials). The new rules are mode-agnostic: a self-paced
+ // training phase that ends when the subject demonstrates 6 consecutive
+ // correct responses with rolling mean RT < 2600 ms inside 21 measured
+ // attempts. Per-trial 10s no-response cap; 6s green-hint flash on the
+ // correct cell to assist learning; 60s overall phase cap. On pass, the
+ // rolling mean RT is fed to the existing initialPacedPercent /
+ // mode4BaselineFactor formulas to size the next phase. See
+ // ─── CALIBRATION — SELF-PACED ─── block in finishCalibration() below.
+ calibrationPassConsecutiveCorrect:6,
+ calibrationPassRtMeanMs:2600,
+ calibrationMaxAttempts:21,
+ calibrationMaxPhaseDurationMs:60000,
+ calibrationHintAfterMs:6000,
+ calibrationPerTrialMaxMs:10000,
  wrongWindowSize:5,
  wrongThresholdStop:4,
  maxTrialCount:180,
@@ -101,10 +115,7 @@ const DEFAULTS={
  minDurationMs:600,
  maxDurationMs:3500,
  initialUnusedCalibrationTrials:1,
- initialMeasuredCalibrationTrials:7,
  initialPacedPercent:1.2,
- calibrationStopErrors:4,
- calibrationStopSlowMs:6000,
  cpiBestMs:700,
  cpiWorstMs:2800,
  personalBaselineMaxMbs:1900,
@@ -204,60 +215,67 @@ const ADMIN_FIELDS=[
  ["adminPasscode","1. Admin passcode","text"],
  ["defaultTestMode","2. Default test mode for new users / reset devices (default Mode 2 CogSpeed Sustained)","select:mode1|mode2|mode3|mode4"],
 
- // 3-15. Shared startup / calibration / anti-spoof settings, in program-use order
+ // 3-13. Shared startup / calibration / anti-spoof settings, in program-use order.
+ // V699rev176: legacy calibration knobs (initialMeasuredCalibrationTrials,
+ // calibrationFirstNoResponseMs, calibrationNoResponseMs, calibrationStopErrors,
+ // calibrationStopSlowMs, mode4CalibrationTrials) were retired and replaced by
+ // the new unified self-paced training-phase rules below. The warm-up trial
+ // count (initialUnusedCalibrationTrials) is unchanged.
  ["initialUnusedCalibrationTrials","3. Warm-up calibration trials (default 1)","number"],
- ["initialMeasuredCalibrationTrials","4. Measured calibration trials (default 7)","number"],
- ["calibrationFirstNoResponseMs","5. Calibration first-trial no-response (ms, default 10000)","number"],
- ["calibrationNoResponseMs","6. Calibration later-trial no-response (ms, default 6000)","number"],
- ["calibrationStopErrors","7. Calibration stop after N wrong (default 4)","number"],
- ["calibrationStopSlowMs","8. Calibration avg RT limit (ms, default 6000)","number"],
- ["minDurationMs","9. MP frame minimum duration (ms, default 600)","number"],
- ["maxDurationMs","10. MP frame maximum duration (ms, default 3500)","number"],
- ["maxTestDurationMs","11. Max total test time (ms, default 150000)","number"],
- ["wrongWindowSize","12. Anti-spoof wrong window size (default 5)","number"],
- ["wrongThresholdStop","13. Anti-spoof max wrong in window (default 4)","number"],
- ["rollMeanWindow","14. Anti-spoof rolling mean window (default 10)","number"],
- ["rollMeanThreshold","15. Anti-spoof rolling mean threshold (default 0.50)","number"],
+ ["calibrationPassConsecutiveCorrect","4. Calibration pass: consecutive correct required (default 6)","number"],
+ ["calibrationPassRtMeanMs","5. Calibration pass: rolling mean RT threshold (ms, default 2600)","number"],
+ ["calibrationMaxAttempts","6. Calibration max measured attempts (default 21)","number"],
+ ["calibrationMaxPhaseDurationMs","7. Calibration max phase duration (ms, default 60000)","number"],
+ ["calibrationHintAfterMs","8. Calibration green-hint flash after (ms, default 6000)","number"],
+ ["calibrationPerTrialMaxMs","9. Calibration per-trial no-response cap (ms, default 10000)","number"],
+ ["minDurationMs","10. MP frame minimum duration (ms, default 600)","number"],
+ ["maxDurationMs","11. MP frame maximum duration (ms, default 3500)","number"],
+ ["maxTestDurationMs","12. Max total test time (ms, default 150000)","number"],
+ ["wrongWindowSize","13. Anti-spoof wrong window size (default 5)","number"],
+ ["wrongThresholdStop","14. Anti-spoof max wrong in window (default 4)","number"],
+ ["rollMeanWindow","15. Anti-spoof rolling mean window (default 10)","number"],
+ ["rollMeanThreshold","16. Anti-spoof rolling mean threshold (default 0.50)","number"],
 
- // 16-35. Mode 1 CogSpeed Adapted, in program-use order
- ["initialPacedPercent","16. Mode 1 MP start: % of calibration avg (default 1.2)","number"],
- ["consecutiveMissesForBlock","17. Mode 1 misses to trigger block (default 2)","number"],
- ["blockRestartPercent","18. Mode 1 restart multiplier after block (default 1.3 = 130% of block baseline)","number"],
- ["spRestartCorrectStreak","19. Mode 1 recovery correct streak to resume (default 2)","number"],
- ["spRestartWrongLimit","20. Mode 1 recovery max wrong before fail (default 3)","number"],
- ["wrongSlowdownMs","21. Mode 1 MP slowdown on wrong (ms, default 50)","number"],
- ["correctSpeedupFactor","22. Mode 1 MP correct formula factor (default 0.30)","number"],
- ["minSpeedupOnCorrectMs","23. Mode 1 MP minimum speedup on correct (ms, default 50)","number"],
- ["maxSpeedupOnCorrectMs","24. Mode 1 MP maximum speedup on correct (ms, default 200)","number"],
- ["lateResponseThresholdMs","25. Mode 1 late response reassignment threshold (ms, default 600)","number"],
- ["recoveryNoResponseMs","26. Mode 1 recovery no-response timeout (ms, default 10000)","number"],
- ["RecoveryInterTrialDelayMsStart","27. Recovery inter-trial delay at start (ms, default 0)","number"],
- ["ResumeToPacedDelayMs","28. Resume-to-paced delay after recovery (ms, default 0)","number"],
- ["maxBlockCount","29. Mode 1 max total blocks before fail (default 6)","number"],
- ["qualifyingBlockGapMs","30. Mode 1 qualifying block max gap (ms, default 250)","number"],
- ["maxTrialCount","31. Mode 1 max paced trials (default 180)","number"],
- ["maxPacedWrong","32. Mode 1 max paced wrong before fail (default 20)","number"],
- ["cpiBestMs","33. Mode 1 CPI best ms anchor (default 700)","number"],
- ["cpiWorstMs","34. Mode 1 CPI worst ms anchor (default 2800)","number"],
- ["personalBaselineMaxMbs","35. Personal Baseline maximum qualifying MBS (ms, default 1900)","number"],
+ // 17-36. Mode 1 CogSpeed Adapted, in program-use order
+ ["initialPacedPercent","17. Mode 1 MP start: % of calibration avg (default 1.2)","number"],
+ ["consecutiveMissesForBlock","18. Mode 1 misses to trigger block (default 2)","number"],
+ ["blockRestartPercent","19. Mode 1 restart multiplier after block (default 1.3 = 130% of block baseline)","number"],
+ ["spRestartCorrectStreak","20. Mode 1 recovery correct streak to resume (default 2)","number"],
+ ["spRestartWrongLimit","21. Mode 1 recovery max wrong before fail (default 3)","number"],
+ ["wrongSlowdownMs","22. Mode 1 MP slowdown on wrong (ms, default 50)","number"],
+ ["correctSpeedupFactor","23. Mode 1 MP correct formula factor (default 0.30)","number"],
+ ["minSpeedupOnCorrectMs","24. Mode 1 MP minimum speedup on correct (ms, default 50)","number"],
+ ["maxSpeedupOnCorrectMs","25. Mode 1 MP maximum speedup on correct (ms, default 200)","number"],
+ ["lateResponseThresholdMs","26. Mode 1 late response reassignment threshold (ms, default 600)","number"],
+ ["recoveryNoResponseMs","27. Mode 1 recovery no-response timeout (ms, default 10000)","number"],
+ ["RecoveryInterTrialDelayMsStart","28. Recovery inter-trial delay at start (ms, default 0)","number"],
+ ["ResumeToPacedDelayMs","29. Resume-to-paced delay after recovery (ms, default 0)","number"],
+ ["maxBlockCount","30. Mode 1 max total blocks before fail (default 6)","number"],
+ ["qualifyingBlockGapMs","31. Mode 1 qualifying block max gap (ms, default 250)","number"],
+ ["maxTrialCount","32. Mode 1 max paced trials (default 180)","number"],
+ ["maxPacedWrong","33. Mode 1 max paced wrong before fail (default 20)","number"],
+ ["cpiBestMs","34. Mode 1 CPI best ms anchor (default 700)","number"],
+ ["cpiWorstMs","35. Mode 1 CPI worst ms anchor (default 2800)","number"],
+ ["personalBaselineMaxMbs","36. Personal Baseline maximum qualifying MBS (ms, default 1900)","number"],
 
- // 36-42. Mode 2 runtime flow settings, in program-use order
- ["mode2SustainedReliefMinMs","36. Mode 2 sustained relief minimum (ms, default 0)","number"],
- ["mode2SustainedReliefPct","37. Mode 2 sustained relief % of adaptive MBS (default -0.10 = -10%)","number"],
- ["mode2SustainedReliefMaxMs","38. Mode 2 sustained relief cap (ms, default 220)","number"],
- ["mode2SustainedTrialCount","39. Mode 2 sustained trials at adaptive MBS + relief (default 20)","number"],
- ["mode2SustainedWrongFailPercent","40. Mode 2 wrong-fail threshold for sustained phase (default 50% of sustained trials)","number"],
- ["mode2SustainedRollMeanWindow","41. Mode 2 anti-spoof rolling mean window in Sustained Phase (default 10)","number"],
- ["mode2SustainedRollMeanThreshold","42. Mode 2 anti-spoof rolling mean threshold in Sustained Phase (default 0.50)","number"],
- ["mode2LateResponseThresholdMs","43. Mode 2 late response reassignment threshold (ms, default 600)","number"],
- ["mode2FinalTrialCount","44. Mode 2 final self-paced trials (default 2)","number"],
+ // 37-45. Mode 2 runtime flow settings, in program-use order
+ ["mode2SustainedReliefMinMs","37. Mode 2 sustained relief minimum (ms, default 0)","number"],
+ ["mode2SustainedReliefPct","38. Mode 2 sustained relief % of adaptive MBS (default -0.10 = -10%)","number"],
+ ["mode2SustainedReliefMaxMs","39. Mode 2 sustained relief cap (ms, default 220)","number"],
+ ["mode2SustainedTrialCount","40. Mode 2 sustained trials at adaptive MBS + relief (default 20)","number"],
+ ["mode2SustainedWrongFailPercent","41. Mode 2 wrong-fail threshold for sustained phase (default 50% of sustained trials)","number"],
+ ["mode2SustainedRollMeanWindow","42. Mode 2 anti-spoof rolling mean window in Sustained Phase (default 10)","number"],
+ ["mode2SustainedRollMeanThreshold","43. Mode 2 anti-spoof rolling mean threshold in Sustained Phase (default 0.50)","number"],
+ ["mode2LateResponseThresholdMs","44. Mode 2 late response reassignment threshold (ms, default 600)","number"],
+ ["mode2FinalTrialCount","45. Mode 2 final self-paced trials (default 2)","number"],
 
- // 45-46. Mode 3 Self-paced, in program-use order
- ["mode3TrialLimit","45. Mode 3 self-paced trial limit (default 150)","number"],
- ["mode3MaxDurationMs","46. Mode 3 total duration ms (default 90000)","number"],
+ // 46-47. Mode 3 Self-paced, in program-use order
+ ["mode3TrialLimit","46. Mode 3 self-paced trial limit (default 150)","number"],
+ ["mode3MaxDurationMs","47. Mode 3 total duration ms (default 90000)","number"],
 
- // 47-50. Mode 4 Machine-paced, in program-use order
- ["mode4CalibrationTrials","47. Mode 4 self-paced calibration trials (default 10)","number"],
+ // 48-50. Mode 4 Machine-paced, in program-use order
+ // V699rev176: mode4CalibrationTrials retired — Mode 4's self-paced phase now
+ // uses the unified calibrationMaxAttempts / pass criteria (fields 4-9).
  ["mode4BaselineFactor","48. Mode 4 MP baseline factor from cal avg (default 1.1)","number"],
  ["mode4PacedTrialLimit","49. Mode 4 fixed machine-paced trial limit (default 140)","number"],
  ["mode4MaxDurationMs","50. Mode 4 total duration ms (default 90000)","number"],
@@ -424,7 +442,7 @@ let settings=loadSettings();
 // profile record (profile is no longer the source of truth for test type),
 // and persist both. This fires once per fresh rev deployment per device;
 // after that, the stamp matches and nothing is touched on subsequent loads.
-const APP_REV_STAMP = "V699rev174";
+const APP_REV_STAMP = "V699rev176";
 // Version policy: APP_VERSION preserves base storage/schema continuity; DISPLAY_VERSION is what users see.
 const DISPLAY_VERSION = APP_REV_STAMP || APP_VERSION;
 
@@ -601,6 +619,30 @@ const state={
  maxTestRemainingMs:null, maxTestDeadlineMs:null,
  lastFiveAnswers:[], samnPerelli:null, subjectId:null,
  calibrationTrialIndex:0, calibrationRTs:[], calibrationErrors:0,
+ // V699rev176 — unified self-paced calibration phase.
+ // calibrationConsecCorrect: streak of consecutive correct measured responses
+ //   (resets to 0 on any wrong measured response); pass requires this to
+ //   reach calibrationPassConsecutiveCorrect (default 6).
+ // calibrationRollingCorrectRTs: post-warmup CORRECT-only RTs since the last
+ //   wrong response (or since post-warmup start). Mean of this list is the
+ //   "rolling average trial RT mean"; rebuilt empty on every wrong response.
+ // calibrationAttemptsUsed: count of post-warmup attempts consumed (correct
+ //   AND wrong each consume one slot per Layne's spec). Hard cap = calibrationMaxAttempts.
+ // calibrationPhaseStartMs: performance.now() when first measured trial opens;
+ //   gates the 60-second overall calibration phase cap.
+ // calibrationPhaseTimer: setTimeout handle for the phase-cap.
+ // calibrationHintTimer: setTimeout handle for the per-trial 6s green-hint flash.
+ // calibrationHintActive: true while the green hint is currently flashing on
+ //   the correct cell (pre-tap or pending tap-correct after wrong).
+ // calibrationPendingCorrectTap: when a wrong measured response was recorded,
+ //   true while we wait for the subject to tap the correct cell to advance.
+ // calibrationFailedFlag: snapshot used by the speedometer to render the
+ //   "FAILED — NEEDS MORE PRACTICE!" outcome with the S-PFS-keyed disposition.
+ calibrationConsecCorrect:0, calibrationRollingCorrectRTs:[],
+ calibrationAttemptsUsed:0, calibrationPhaseStartMs:null,
+ calibrationPhaseTimer:null, calibrationHintTimer:null,
+ calibrationHintActive:false, calibrationPendingCorrectTap:false,
+ calibrationFailedFlag:false,
  pacedRTs:[], rtLog:[], lastFrameDuration:null,
  presentedRoundDuration:null,
  activeMode:"mode1", selfPacedRTs:[], selfPacedCorrect:0, selfPacedWrong:0,
@@ -887,12 +929,13 @@ function normalizeLegacyResultRow(row){
    if(r.mode2Triggered && r.cpa==null){
     Object.assign(r, computeMode2CPA(r));
    }
-   if(r.mode2Triggered && (r.dispositionCode==null || r.dispositionLabel==null || r.dispositionSpfs==null)){
+   if(r.mode2Triggered && (r.dispositionCode==null || r.dispositionLabel==null || r.dispositionSpfs==null || r.dispositionRecommendation==null)){
     const nextDisp = computeDisposition(r);
     if(nextDisp && typeof nextDisp==="object"){
      if(nextDisp.dispositionCode!=null) r.dispositionCode = nextDisp.dispositionCode;
      if(nextDisp.dispositionLabel!=null) r.dispositionLabel = nextDisp.dispositionLabel;
      if(nextDisp.dispositionSpfs!=null) r.dispositionSpfs = nextDisp.dispositionSpfs;
+     if(nextDisp.dispositionRecommendation!=null) r.dispositionRecommendation = nextDisp.dispositionRecommendation;
     }
    }
   }catch(e){}
@@ -902,9 +945,12 @@ function normalizeLegacyResultRow(row){
  // Legacy disposition cleanup:
  // - old legacy color codes like GREEN/YELLOW/ORANGE/RED
  // - missing disposition fields
+ // V699rev175: also re-runs when dispositionRecommendation is missing,
+ // so saved rows from prior revs pick up the new universal action-
+ // recommendation string on first rev175 launch.
  const legacyCodes = new Set(["GREEN","YELLOW","ORANGE","RED"]);
  const badLegacy = legacyCodes.has(String(r.dispositionCode||"").toUpperCase()) || legacyCodes.has(String(r.dispositionLabel||"").toUpperCase());
- const missingDisp = r.dispositionCode == null || r.dispositionLabel == null || r.dispositionSpfs == null;
+ const missingDisp = r.dispositionCode == null || r.dispositionLabel == null || r.dispositionSpfs == null || r.dispositionRecommendation == null;
  if(badLegacy || missingDisp){
   try{
    const next = computeDisposition(r);
@@ -912,6 +958,7 @@ function normalizeLegacyResultRow(row){
     if(next.dispositionCode != null) r.dispositionCode = next.dispositionCode;
     if(next.dispositionLabel != null) r.dispositionLabel = next.dispositionLabel;
     if(next.dispositionSpfs != null) r.dispositionSpfs = next.dispositionSpfs;
+    if(next.dispositionRecommendation != null) r.dispositionRecommendation = next.dispositionRecommendation;
    }
   }catch(e){}
  }
@@ -1185,9 +1232,12 @@ function resumeMaxTestTimer(){
  armMaxTestTimer(remaining);
 }
 // Absolute "not responding" timer — keeps tests from hanging forever.
-// Calibration trial 1 uses calibrationFirstNoResponseMs (default 10s).
-// Later calibration trials use calibrationNoResponseMs (default 6s).
-// Calibration and Mode 1 recovery use explicit per-trial no-response timeouts.
+// V699rev176: calibration uses a flat per-trial no-response cap
+// (calibrationPerTrialMaxMs, default 10s) for ALL calibration trials
+// including the warm-up. The 6-second green-hint flash is a separate
+// timer (armCalibrationHintTimer) that runs in parallel and assists the
+// subject without consuming attempts.
+// Mode 1 recovery uses recoveryNoResponseMs (default 10s).
 // Mode 2 final self-paced uses no per-trial timeout; only the overall max-time rule can end an unanswered final trial.
 // Fires finish() with a no-response end reason if nothing is tapped in time.
 function armNoResponseTimer(){
@@ -1202,9 +1252,8 @@ function armNoResponseTimer(){
   case "mode2_final":
    return;
   case "calibration":
-   ms = state.calibrationTrialIndex===0
-    ? (Number(settings.calibrationFirstNoResponseMs)||10000)
-    : (Number(settings.calibrationNoResponseMs)||6000);
+   // V699rev176 — unified flat per-trial cap; no first-vs-later distinction.
+   ms = Number(settings.calibrationPerTrialMaxMs) || DEFAULTS.calibrationPerTrialMaxMs;
    break;
   case "paced":
   case "paced_fixed":
@@ -1215,9 +1264,14 @@ function armNoResponseTimer(){
  }
  if(challengeTimeout!=null && ms!=null) ms = challengeTimeout;
  state.absoluteNoResponseTimer=setTimeout(()=>{
-  state.endReason = state.phase==="calibration"
-   ? "No response detected — please retest."
-   : "Responses were too slow to continue — please retest.";
+  // V699rev176 — calibration no-response timeout now routes through
+  // failCalibration() so the run is flagged with calibrationFailedFlag and
+  // the speedometer renders the unified FAILED outcome.
+  if(state.phase==="calibration"){
+   failCalibration("Calibration: no response within per-trial cap — needs more practice.");
+   return;
+  }
+  state.endReason = "Responses were too slow to continue — please retest.";
   finish();
  }, ms);
 }
@@ -2418,70 +2472,206 @@ function maybeTriggerTerminalRule(){
  }
  return false;
 }
-function failCalibration(reason){ state.endReason=reason; finish(); }
-// ─── CALIBRATION — SELF-PACED ─────────────────────────────────
-// Warm-up trials:
-//   initialUnusedCalibrationTrials (default 1) are shown first and never used
-//   in averaging or measured-calibration counts.
-//
-// Measured calibration phase:
-//   After warmups, keep presenting self-paced trials until the number of
-//   CORRECT measured responses reaches initialMeasuredCalibrationTrials
-//   (default 7).
-//
-// IMPORTANT:
-//   Wrong-response RTs are NEVER included in calibration averaging.
-//   Only correct measured calibration RTs are averaged.
-//
-// CHECK ADEQUATELY TRAINED:
-//   calibrationErrors >= calibrationStopErrors (default 4)
-//   → fail with the calibration wrong-response practice/retest message
-//
-// CHECK RESPONSE SPEED:
-//   any correct measured calibration RT > calibrationStopSlowMs (default 6000)
-//   → fail with the calibration too-slow practice/retest message
-//
-// DETERMINE BASELINE RT FOR MODE 1 AND MODE 3:
-//   avg of the required number of CORRECT measured calibration RTs
-//   → paced start / fixed baseline derivation
-//
-// Slow calibration halt:
-//   avg correct measured calibration RT > calibrationStopSlowMs
-//   → "Calibration performance indicates more practice is needed before testing."
-//
-// NO-RESPONSE TIMEOUTS: first trial=10s, subsequent=6s
-// ──────────────────────────────────────────────────────────────
-// finishCalibration() now branches by selected mode:
-// mode1 -> begin adaptive machine-paced CogSpeed phase
-// mode2 -> begin adaptive machine-paced CogSpeed phase and later enter sustained + final self-paced
-// mode3 -> finish after self-paced-only session
-// mode4 -> begin fixed-baseline machine-paced phase using
-//          calibration average × mode4BaselineFactor
-//          IMPORTANT: mode4CalibrationTrials means CORRECT MEASURED trials;
-//          initialUnusedCalibrationTrials warmups are added on top and
-//          wrong measured trials do not count toward the target or the average.
-function finishCalibration(){
- const avg=mean(state.calibrationRTs.length?state.calibrationRTs:state.selfPacedRTs);
- if(isMode3()){
-  state.endReason = state.endReason || "Mode 3 complete: required responses completed.";
-  finish(); return;
+function failCalibration(reason){
+ // V699rev176 — every calibration failure now flags the run so the
+ // speedometer/outcome surfaces can render the "FAILED — NEEDS MORE PRACTICE!"
+ // headline plus the S-PFS-keyed disposition recommendation, regardless of
+ // mode. Phase + hint timers are cleared first so an in-flight tap or hint
+ // animation does not race the finish() flow.
+ clearCalibrationPhaseTimer();
+ clearCalibrationHintTimer();
+ state.calibrationFailedFlag=true;
+ state.endReason=reason||"Calibration failed — needs more practice.";
+ finish();
+}
+
+// ─── V699rev176 — CALIBRATION-PHASE HELPERS ───────────────────
+// armCalibrationPhaseTimer(): wall-clock budget for the entire self-paced
+//   calibration phase (default 60s). Started exactly once on the first
+//   measured-trial open. On expiry → failCalibration with the over-budget
+//   message. Idempotent: re-arming when state.calibrationPhaseTimer is
+//   already set is a no-op (we never want a second concurrent phase timer).
+// clearCalibrationPhaseTimer(): cancels the phase timer.
+// armCalibrationHintTimer(correctIdx): per-trial 6s timer that, on expiry,
+//   adds the .calibration-hint-correct-flash class to the correct response
+//   button so subjects who freeze get a visual prompt (mirrors the
+//   tutPairFlashCorrect pattern used in the tutorial). The 10s per-trial
+//   no-response cap (armNoResponseTimer) runs in parallel so the hint
+//   appears at 6s and the trial fails at 10s if still untapped.
+// clearCalibrationHintTimer(): cancels the hint timer AND removes the
+//   flash class from any currently-flashing cell. Called on tap, on phase
+//   end, and at the top of every new trial.
+// applyCalibrationHintToCorrectCell(): adds the green-hint class to the
+//   correct response button. Pulled out of armCalibrationHintTimer's
+//   timeout closure so callers can also force-flash the cell on a wrong
+//   measured response (per spec: "After each wrong response… correct
+//   answer is flashed").
+function armCalibrationPhaseTimer(){
+ if(state.calibrationPhaseTimer) return;
+ const phaseMs = Math.max(1000, Number(settings.calibrationMaxPhaseDurationMs) || DEFAULTS.calibrationMaxPhaseDurationMs);
+ state.calibrationPhaseStartMs = performance.now();
+ state.calibrationPhaseTimer = setTimeout(()=>{
+  state.calibrationPhaseTimer = null;
+  if(state.phase!=="calibration") return;
+  failCalibration(`Calibration phase exceeded ${(phaseMs/1000).toFixed(0)} seconds — needs more practice.`);
+ }, phaseMs);
+}
+function clearCalibrationPhaseTimer(){
+ if(state.calibrationPhaseTimer){
+  try{ clearTimeout(state.calibrationPhaseTimer); }catch(e){}
+  state.calibrationPhaseTimer = null;
  }
+}
+function applyCalibrationHintToCorrectCell(){
+ try{
+  if(!state.current || !respGrid) return;
+  const correctIdx = Number(state.current.correctPos);
+  if(!Number.isFinite(correctIdx)) return;
+  const btns = respGrid.querySelectorAll(".resp-btn");
+  if(!btns[correctIdx]) return;
+  // Clear the class from any other cell first so successive flashes don't
+  // accidentally light up multiple cells if a renderer ordering bug ever
+  // leaves stale classes around.
+  btns.forEach(b=>b.classList.remove("calibration-hint-correct-flash"));
+  btns[correctIdx].classList.add("calibration-hint-correct-flash");
+  state.calibrationHintActive = true;
+ }catch(e){ /* defensive: hint is purely cosmetic, never throw */ }
+}
+function armCalibrationHintTimer(){
+ clearCalibrationHintTimer();
+ const hintMs = Math.max(500, Number(settings.calibrationHintAfterMs) || DEFAULTS.calibrationHintAfterMs);
+ state.calibrationHintTimer = setTimeout(()=>{
+  state.calibrationHintTimer = null;
+  if(state.phase!=="calibration") return;
+  if(!state.current || state.current.resolved) return;
+  applyCalibrationHintToCorrectCell();
+ }, hintMs);
+}
+function clearCalibrationHintTimer(){
+ if(state.calibrationHintTimer){
+  try{ clearTimeout(state.calibrationHintTimer); }catch(e){}
+  state.calibrationHintTimer = null;
+ }
+ // Always sweep stale flash classes — calling clear is a hard reset.
+ try{
+  if(respGrid){
+   respGrid.querySelectorAll(".resp-btn.calibration-hint-correct-flash").forEach(b=>b.classList.remove("calibration-hint-correct-flash"));
+  }
+ }catch(e){}
+ state.calibrationHintActive = false;
+}
+
+// V699rev176 — calibration-failure disposition lookup.
+// Per Layne's spec the failed-calibration disposition box on the speedometer
+// page reads from the SUBJECT'S SELF-REPORTED S-PFS (state.samnPerelli at
+// pre-test), NOT from any test-derived score (since calibration failure means
+// no test-derived disposition is computable). Three bands:
+//   S-PFS 7 / 6 / 5 → "Safe to drive..."
+//   S-PFS 4         → "Functioning slightly less than normal. Caution..."
+//   S-PFS 3         → "Functioning starting to slow. Strong recommendation..."
+//   S-PFS 2 / 1     → "Unable to function / Definitely unsafe. Stop!..."
+// Returns null for invalid inputs so callers can render an em-dash fallback.
+// Wording is verbatim per spec; do NOT paraphrase without an explicit rev.
+function getCalibrationFailDispositionBySpfs(spfs){
+ const n = Number(spfs);
+ if(!Number.isFinite(n) || n < 1 || n > 7) return null;
+ const i = Math.round(n);
+ if(i >= 5) return "Safe to drive or perform any safety-critical task.";
+ if(i === 4) return "Functioning slightly less than normal. Caution. Mild fatigue detected.";
+ if(i === 3) return "Functioning starting to slow. Strong recommendation: rest before continuing. Do not drive or perform any safety-critical task without a break.";
+ // i === 2 || i === 1
+ return "Unable to function / Definitely unsafe. Stop! You are not safe to drive or perform any safety-critical task. Rest is required.";
+}
+// Convenience: pull the S-PFS off either a saved result or live state, with
+// a defensive null fallback. Used by syncOutcomeStatusText and the
+// speedometer-failure renderer.
+function getEffectiveSpfsForFailedCalibration(result){
+ const fromResult = Number(result && result.samnPerelli && result.samnPerelli.score);
+ if(Number.isFinite(fromResult) && fromResult>=1 && fromResult<=7) return fromResult;
+ const fromState = Number(state && state.samnPerelli && state.samnPerelli.score);
+ if(Number.isFinite(fromState) && fromState>=1 && fromState<=7) return fromState;
+ return null;
+}
+// Detect a failed-calibration session from a saved result. Used by the
+// speedometer/outcome renderers to decide whether to swap in the new
+// "FAILED — NEEDS MORE PRACTICE!" headline + S-PFS-keyed disposition box.
+// Two signals: the explicit calibrationFailedFlag carried on the saved row,
+// or — for legacy/repaired rows — an endReason that begins with the
+// canonical V699rev176 calibration-fail prefixes. Defensive: returns false
+// if result is missing.
+function isCalibrationFailedResult(result){
+ if(!result) return false;
+ if(result.calibrationFailedFlag === true) return true;
+ const reason = String(result.endReason || "").toLowerCase();
+ if(!reason) return false;
+ if(reason.includes("calibration failed")) return true;
+ if(reason.includes("calibration phase exceeded")) return true;
+ if(reason.includes("calibration: rolling mean")) return true;
+ if(reason.includes("calibration: did not reach")) return true;
+ if(reason.includes("calibration: max attempts")) return true;
+ if(reason.includes("calibration: no response")) return true;
+ return false;
+}
+
+// ─── V699rev176: CALIBRATION COMPLETION ───────────────────────
+// finishCalibration() is reached only on PASS (the new unified pass
+// criteria from the handleTap calibration branch — 6 consecutive
+// correct AND rolling-mean RT < 2600 ms within 21 measured attempts).
+// All FAIL paths now route through failCalibration(), which sets
+// state.calibrationFailedFlag and the speedometer renders the unified
+// "FAILED — NEEDS MORE PRACTICE!" outcome with an S-PFS-keyed
+// disposition box.
+//
+// MODE BRANCHING ON PASS:
+//   mode1 / mode2 → adaptive machine-paced phase, baseline =
+//     rollingMeanRT × initialPacedPercent (admin-configurable, default 1.2)
+//   mode3         → enter mode3_continued phase: pure self-paced trials
+//     with NO green hint and NO per-trial 10s cap (reverts to legacy Mode 3
+//     behavior). The phase ends via existing mode3MaxDurationMs /
+//     mode3TrialLimit guards. Trial-log rows continue to use phase tag
+//     "calibration" so the CSV/aggregate code keeps working — the
+//     `mode3_continued` value is internal to the trial flow only.
+//   mode4         → fixed-baseline machine-paced phase, baseline =
+//     rollingMeanRT × mode4BaselineFactor (default 1.1)
+function finishCalibration(){
+ // V699rev176 — clear calibration-only timers as we leave the phase.
+ clearCalibrationPhaseTimer();
+ clearCalibrationHintTimer();
+
+ // Source the calibration baseline RT from the rolling-correct window
+ // captured under the new pass rules. Fallback chain mirrors the V699rev175
+ // behavior so legacy persisted trial-log shape stays intact.
+ const sourceArr = state.calibrationRollingCorrectRTs.length
+  ? state.calibrationRollingCorrectRTs
+  : (state.calibrationRTs.length ? state.calibrationRTs : state.selfPacedRTs);
+ const avg = mean(sourceArr);
+
+ if(isMode3()){
+  // Mode 3 PASS — continue self-paced for the remainder of the session.
+  // No hint, no per-trial 10s cap (those were calibration-only learning
+  // aids); the existing mode3MaxDurationMs (default 90000) and
+  // mode3TrialLimit (default 150) guards handle phase termination via
+  // the mode3_continued phase below.
+  state.phase = "mode3_continued";
+  state.calibrationPendingCorrectTap = false;
+  setStatus("Mode 3 self-paced — continuing without hints");
+  openTrial("mode3_continued");
+  return;
+ }
+
  if(isMode4()){
-  const factor=Number(settings.mode4BaselineFactor)||DEFAULTS.mode4BaselineFactor;
-  state.fixedPacedBaseline=clamp(avg*factor,getCurrentMinDurationMs(),getCurrentMaxDurationMs());
-  state.duration=state.fixedPacedBaseline;
-  state.phase="paced_fixed";
+  const factor = Number(settings.mode4BaselineFactor) || DEFAULTS.mode4BaselineFactor;
+  state.fixedPacedBaseline = clamp(avg*factor, getCurrentMinDurationMs(), getCurrentMaxDurationMs());
+  state.duration = state.fixedPacedBaseline;
+  state.phase = "paced_fixed";
   setStatus(`Mode 4 machine-paced baseline: ${state.duration.toFixed(0)}ms`);
   openTrial("paced_fixed");
   return;
  }
- // Slow calibration halt: avg RT too slow — needs more practice
- if(avg>settings.calibrationStopSlowMs){
-  state.endReason="Calibration performance indicates more practice is needed before testing.";
-  finish(); return;
- }
- state.duration=clamp(avg*settings.initialPacedPercent,getCurrentMinDurationMs(),getCurrentMaxDurationMs());
- state.phase="paced";
+
+ // Mode 1 / Mode 2 — adaptive machine-paced.
+ state.duration = clamp(avg*settings.initialPacedPercent, getCurrentMinDurationMs(), getCurrentMaxDurationMs());
+ state.phase = "paced";
  setStatus(`Machine-paced start: ${state.duration.toFixed(0)}ms`);
  openTrial("paced");
 }
@@ -2627,6 +2817,14 @@ function failOpenResultsHandoff(result, stage, err){
 async function finish(){
  if(state.phase==="finished") return;
  clearTimer(); clearNoResponseTimer(); clearMaxTestTimer();
+ // V699rev176 — also cancel any pending calibration phase / hint timers so
+ // they don't fire after the run has ended. The closures inside both timers
+ // guard with `if(state.phase!=="calibration") return;` so a stale fire is
+ // already a no-op, but explicit cancellation here keeps the JS event loop
+ // tidy and prevents a 60-second-out timer from silently holding state
+ // across a "Back to Start → Start" round-trip on the same page load.
+ if(typeof clearCalibrationPhaseTimer==="function") clearCalibrationPhaseTimer();
+ if(typeof clearCalibrationHintTimer==="function") clearCalibrationHintTimer();
  state.phase="finished";
  let result=null;
  try{
@@ -2686,6 +2884,11 @@ async function finish(){
    sleepLog: state.sleepLog ? JSON.parse(JSON.stringify(state.sleepLog)) : null,
    symbolSet: getActiveSymbolSet(),
    calibrationErrors:state.calibrationErrors,
+   // V699rev176 — propagate the calibration-failure flag onto the saved row
+   // so isCalibrationFailedResult() can identify it on rehydration without
+   // fragile endReason string parsing. The flag is set by failCalibration()
+   // before finish() is called.
+   calibrationFailedFlag: state.calibrationFailedFlag === true,
    pacedErrors:state.pacedErrors, recoveryErrors:state.recoveryErrors, pacedResponseCount:state.pacedRTs.length,
    pacedResponseMeanMs:state.pacedRTs.length?mean(state.pacedRTs):null,
    pacedResponseSdMs:pacedSd, testDurationMs:testDurMs,
@@ -2860,6 +3063,13 @@ function openTrial(kind){
  if(state.phase==="finished" || state.phase==="idle") return;
  clearTimer();
  clearNoResponseTimer();
+ // V699rev176 — defensive: clear any stale calibration-hint flash on every
+ // trial open so a phase transition (e.g. calibration → mode3_continued, or
+ // calibration → paced) cannot leave a green-pulse animation running on a
+ // cell from the previous trial. The handleTap flow already clears the hint
+ // before each calibration → calibration re-open via handleTap, so this is
+ // belt-and-suspenders for the transition cases.
+ clearCalibrationHintTimer();
  normalizeCurtainForTesting();
 
  // Track overall test duration from very first trial
@@ -2886,10 +3096,26 @@ function openTrial(kind){
  try{ setFlowDiagnostic("TRIAL", `${String(kind||"trial").toUpperCase()} — awaiting response`); }catch(e){}
 
  if(kind==="calibration"){
-  const total=isMode3()?(Number(settings.mode3TrialLimit)||150):isMode4()?((Number.isFinite(Number(settings.initialUnusedCalibrationTrials))?Number(settings.initialUnusedCalibrationTrials):1)+(Number(settings.mode4CalibrationTrials)||10)):((Number.isFinite(Number(settings.initialUnusedCalibrationTrials))?Number(settings.initialUnusedCalibrationTrials):1)+(Number(settings.initialMeasuredCalibrationTrials)||7)), idx=state.calibrationTrialIndex+1;
-  phaseLabel.textContent=`Cal ${idx}/${total}`;
+  // V699rev176 — unified self-paced calibration. Total cap on the phase
+  // label = warm-ups + max measured attempts (default 1 + 21 = 22 across
+  // all modes). The per-mode total counts used pre-rev176 are gone.
   const warmupLimit = Number.isFinite(Number(settings.initialUnusedCalibrationTrials)) ? Number(settings.initialUnusedCalibrationTrials) : 1;
-  setStatus((isMode1() || isMode2()) ? (idx<=warmupLimit?"Self-paced (unused)":"Self-paced (measured)") : "Self-paced");
+  const maxAttempts = Math.max(1, Number(settings.calibrationMaxAttempts) || DEFAULTS.calibrationMaxAttempts);
+  const total = warmupLimit + maxAttempts;
+  const idx = state.calibrationTrialIndex + 1;
+  phaseLabel.textContent = `Cal ${idx}/${total}`;
+  setStatus(idx<=warmupLimit ? "Self-paced (warm-up)" : "Self-paced (measured)");
+ }else if(kind==="mode3_continued"){
+  // V699rev176 — Mode 3 post-calibration. Pure self-paced, no hint, no
+  // per-trial 10s cap; trial-log rows continue to use phase tag
+  // "calibration" so legacy CSV/aggregate code stays compatible.
+  const warmupLimit = Number.isFinite(Number(settings.initialUnusedCalibrationTrials)) ? Number(settings.initialUnusedCalibrationTrials) : 1;
+  const total = Number(settings.mode3TrialLimit) || 150;
+  // Mode 3 trial counter is shared with calibrationTrialIndex; the warm-up
+  // and the calibration-pass trials both consumed slots already.
+  const idx = state.calibrationTrialIndex + 1;
+  phaseLabel.textContent = `Mode 3 SP ${idx}/${total + warmupLimit}`;
+  setStatus("Mode 3 self-paced");
  }else if(kind==="paced"){
   // Store the ACTUAL frame duration shown for this paced round.
   state.presentedRoundDuration = Math.round(state.duration);
@@ -2932,7 +3158,17 @@ function openTrial(kind){
    state.trialOpenedAt = performance.now();
 
    if(kind==="calibration"){
+    // V699rev176 — every calibration trial gets a 10s no-response cap
+    // and a 6s green-hint flash. The phase-budget timer is armed exactly
+    // once on the first trial open (idempotent inside armCalibrationPhaseTimer).
     armNoResponseTimer();
+    armCalibrationHintTimer();
+    armCalibrationPhaseTimer();
+   }else if(kind==="mode3_continued"){
+    // V699rev176 — Mode 3 post-cal: no hint, no per-trial 10s cap.
+    // The overall mode3MaxDurationMs / mode3TrialLimit guards via the
+    // existing armMaxTestTimer (which was started on the very first
+    // calibration trial via the testStartTime gate above).
    }else if(kind==="paced" || kind==="paced_fixed" || kind==="mode2_sustained"){
     const targetMs = state.duration;
     const frameStart = state.trialOpenedAt;
@@ -3172,107 +3408,198 @@ function getSafeTrialRtMs(eventTimeStamp){
 }
 
 function handleTap(index,eventTimeStamp){
- if(!["calibration","paced","paced_fixed","mode2_sustained","recovery","terminal_recovery","mode2_final"].includes(state.phase)) return;
+ if(!["calibration","mode3_continued","paced","paced_fixed","mode2_sustained","recovery","terminal_recovery","mode2_final"].includes(state.phase)) return;
  noteAnyResponse();
 
  // Calibration
+ // V699rev176 — UNIFIED SELF-PACED CALIBRATION FLOW (replaces the per-mode
+ // branching used through V699rev175).
+ // Spec summary (Layne, V699 rev 176):
+ //   PASS criteria: 6 consecutive correct AND rolling-mean RT < 2600 ms
+ //                  inside 21 measured attempts (post-warmup).
+ //   FAIL criteria: any of:
+ //     • 60s phase budget exceeded (handled by armCalibrationPhaseTimer)
+ //     • 21 measured attempts used without pass
+ //     • 10s per-trial no-response (handled by armNoResponseTimer)
+ //   On wrong measured response: streak→0; rolling-mean window resets;
+ //     correct cell flashes green (calibration-hint-correct-flash); the
+ //     subject must tap the correct cell to advance to the next new trial.
+ //     The wrong response itself consumes one of the 21 attempt slots.
+ //   On correct measured response: streak++; rolling-mean window appends
+ //     this RT; if pass criteria met → finishCalibration(); else next trial
+ //     opens immediately.
+ //   On warm-up trial (idx < initialUnusedCalibrationTrials, default 1):
+ //     any tap (correct or wrong) clears the hint and advances to the next
+ //     trial. Warm-up does not consume an attempt and does not push to the
+ //     rolling mean. The 6s green hint still fires on the warm-up.
  if(state.phase==="calibration"){
   if(!state.current || state.current.resolved) return;
-  state.current.resolved=true;
-  const rt=getSafeTrialRtMs(eventTimeStamp), ok=trialMatches(state.current,index);
-  flashBtn(index,ok); state.totalResponses+=1;
 
   const warmups = Number.isFinite(Number(settings.initialUnusedCalibrationTrials)) ? Number(settings.initialUnusedCalibrationTrials) : 1;
-  const measuredTargetMode1 = Number(settings.initialMeasuredCalibrationTrials)||7;
-  const includeInAverages = state.calibrationTrialIndex>=warmups;
+  const isWarmup = state.calibrationTrialIndex < warmups;
+  const ok = trialMatches(state.current, index);
 
-  // Warm-up exclusion applies across all modes:
-  // warmups never contribute to averages/calculations.
-  // V699rev174: state.selfPacedRTs now holds CORRECT post-warmup responses
-  // only. Wrong post-warmup responses are tallied in state.selfPacedWrong
-  // (line below) but not pushed into the RT array, so they no longer
-  // contribute to selfPacedResponseMeanMs / SdMs / Mode 3 modeMetricMs.
-  // Per Layne's V699 rev 174 spec: "selfPacedResponseMeanMs should ONLY
-  // include correct calibration responses post-warmup." This makes the
-  // self-paced RT mean a clean estimate of stimulus-response latency on
-  // correctly classified trials, mirroring the long-standing behavior of
-  // calibrationRTs (which is always correct-only).
-  // selfPacedResponseCount on the saved result is computed from the
-  // selfPacedCorrect+selfPacedWrong tallies (NOT array.length) so the
-  // display "Total N · Correct C · Wrong W" line continues to read
-  // N = C + W and existing CSV column semantics are preserved.
-  if(includeInAverages && ok) state.selfPacedRTs.push(rt);
-  if(ok){ state.totalCorrect+=1; if(includeInAverages) state.selfPacedCorrect+=1; } else { state.totalIncorrect+=1; if(includeInAverages) state.selfPacedWrong+=1; }
+  // Pending-correct-tap handling: after a wrong measured response we hold
+  // the trial "active" while waiting for the subject to tap the correct
+  // cell (per spec). Until that tap arrives we ignore taps on incorrect
+  // cells (no flash, no advance) so the subject is gently forced to
+  // identify the right answer before the test continues.
+  if(state.calibrationPendingCorrectTap){
+   if(!ok) return; // ignore wrong taps while pending-correct-tap is active
+   // Correct cell tapped → clear hint, advance to next NEW trial.
+   state.current.resolved = true;
+   clearCalibrationHintTimer();
+   clearNoResponseTimer();
+   flashBtn(index, true);
+   logTrial({phase:"calibration", rt:null, outcome:"hint_correct_tap", responseIndex:index, counted:false});
+   state.calibrationPendingCorrectTap = false;
+   state.calibrationTrialIndex += 1;
+   // After consuming a wrong attempt + the pending-tap, check whether
+   // we've already burned all the attempts before opening another trial.
+   const maxAttempts = Math.max(1, Number(settings.calibrationMaxAttempts) || DEFAULTS.calibrationMaxAttempts);
+   if(state.calibrationAttemptsUsed >= maxAttempts){
+    failCalibration(`Calibration: max attempts (${maxAttempts}) used without reaching pass criteria — needs more practice.`);
+    return;
+   }
+   openTrial("calibration");
+   return;
+  }
 
-  logTrial({phase:"calibration",rt,outcome:includeInAverages?(ok?"correct":"wrong"):"Warmup",responseIndex:index,counted:includeInAverages});
+  // Normal first-tap handling.
+  state.current.resolved = true;
+  const rt = getSafeTrialRtMs(eventTimeStamp);
+  clearCalibrationHintTimer();
+  clearNoResponseTimer();
+  flashBtn(index, ok);
+  state.totalResponses += 1;
 
-  if(isMode1() || isMode2()){
-   if(!ok){
-    state.calibrationErrors+=1; updateMetrics();
-    const calWrongLimit=Math.max(1,Number(settings.calibrationStopErrors)||4);
-    if(state.calibrationErrors>=calWrongLimit){
-      failCalibration(`Too many wrong responses during practice/calibration — please practice and retest. (${state.calibrationErrors}/${calWrongLimit})`);
-      return;
+  // Tally totals + selfPaced bookkeeping. Warm-ups never contribute to
+  // selfPacedCorrect/Wrong/RTs (preserves the V699rev174 semantics that
+  // selfPacedResponseMeanMs is a CORRECT-post-warmup-only mean).
+  if(!isWarmup && ok) state.selfPacedRTs.push(rt);
+  if(ok){
+   state.totalCorrect += 1;
+   if(!isWarmup) state.selfPacedCorrect += 1;
+  } else {
+   state.totalIncorrect += 1;
+   if(!isWarmup) state.selfPacedWrong += 1;
+  }
+  // Trial log: warm-up rows still labeled "Warmup"; measured rows get
+  // "correct" / "wrong". `counted:true` for measured rows preserves the
+  // long-standing trial-log column semantics.
+  logTrial({phase:"calibration", rt, outcome: isWarmup ? "Warmup" : (ok?"correct":"wrong"), responseIndex:index, counted:!isWarmup});
+
+  // Warm-up branch: any tap advances. No attempt consumed, no rolling-
+  // mean push, no streak update, no pass check. Phase timer still ticks.
+  if(isWarmup){
+   state.calibrationTrialIndex += 1;
+   openTrial("calibration");
+   return;
+  }
+
+  // Measured branch — bookkeeping common to both correct and wrong.
+  state.calibrationAttemptsUsed += 1;
+  state.calibrationTrialIndex += 1;
+
+  if(ok){
+   // Correct measured response.
+   state.calibrationConsecCorrect += 1;
+   state.calibrationRollingCorrectRTs.push(rt);
+   state.calibrationRTs.push(rt); // legacy array kept in sync for downstream consumers (calibrationAverageMs etc.)
+   updateMetrics();
+
+   // Pass check.
+   const passStreak = Math.max(1, Number(settings.calibrationPassConsecutiveCorrect) || DEFAULTS.calibrationPassConsecutiveCorrect);
+   const passRtMs = Math.max(1, Number(settings.calibrationPassRtMeanMs) || DEFAULTS.calibrationPassRtMeanMs);
+   const maxAttempts = Math.max(1, Number(settings.calibrationMaxAttempts) || DEFAULTS.calibrationMaxAttempts);
+   const rollingMean = state.calibrationRollingCorrectRTs.length
+    ? mean(state.calibrationRollingCorrectRTs)
+    : Infinity;
+   if(state.calibrationConsecCorrect >= passStreak && rollingMean < passRtMs && state.calibrationAttemptsUsed <= maxAttempts){
+    finishCalibration();
+    return;
+   }
+   // Not yet passed; check whether attempts budget is exhausted.
+   if(state.calibrationAttemptsUsed >= maxAttempts){
+    // Attempted the max but didn't pass — examine why for a precise message.
+    if(state.calibrationConsecCorrect < passStreak){
+     failCalibration(`Calibration: did not reach ${passStreak} consecutive correct within ${maxAttempts} attempts — needs more practice.`);
+    }else{
+     failCalibration(`Calibration: rolling mean RT ${rollingMean.toFixed(0)}ms exceeds ${passRtMs}ms after ${maxAttempts} attempts — needs more practice.`);
     }
-   }else if(includeInAverages){
-    // Only CORRECT measured trials count toward calibration average and target count.
-    if(rt>settings.calibrationStopSlowMs){
-      failCalibration("Responses were too slow during practice/calibration — please practice and retest.");
-      return;
-    }
-    state.calibrationRTs.push(rt);
+    return;
    }
-
-   state.calibrationTrialIndex+=1;
-
-   // End only after warmups are done AND we have the required number of CORRECT measured trials.
-   if(state.calibrationRTs.length >= measuredTargetMode1){
-     finishCalibration();
-   }else{
-     openTrial("calibration");
-   }
+   // Otherwise: open the next new trial immediately.
+   openTrial("calibration");
    return;
   }
 
-  // Mode 3 + Mode 4:
-  // warmups are excluded from averages. After warmups, all self-paced trials are counted
-  // toward the fixed trial-count phase, but only correct RTs are included in calibrationRTs.
-  if(includeInAverages && ok) state.calibrationRTs.push(rt);
-  state.calibrationTrialIndex+=1;
+  // Wrong measured response.
+  state.calibrationErrors += 1;
+  state.calibrationConsecCorrect = 0;
+  state.calibrationRollingCorrectRTs = []; // rolling mean RESETS on wrong (per spec)
+  updateMetrics();
 
-  if(isMode3()){
-   if(state.calibrationTrialIndex >= (Number(settings.mode3TrialLimit)||150)){
-     state.endReason="Mode 3 complete: required responses completed.";
-     finishCalibration();
-   }else{
-     openTrial("calibration");
-   }
+  // If the wrong response already exhausted the attempts budget, fail
+  // immediately rather than ask the subject to tap the correct cell —
+  // there's no next trial to open even after they tap.
+  const maxAttemptsAfterWrong = Math.max(1, Number(settings.calibrationMaxAttempts) || DEFAULTS.calibrationMaxAttempts);
+  if(state.calibrationAttemptsUsed >= maxAttemptsAfterWrong){
+   failCalibration(`Calibration: max attempts (${maxAttemptsAfterWrong}) used without reaching pass criteria — needs more practice.`);
    return;
   }
 
-  if(isMode4()){
-   const mode4MeasuredTarget = Number(settings.mode4CalibrationTrials)||10;
-   if(!ok && includeInAverages){
-     state.calibrationErrors += 1;
-     const calWrongLimit=Math.max(1,Number(settings.calibrationStopErrors)||4);
-     if(state.calibrationErrors>=calWrongLimit){
-       failCalibration(`Too many wrong responses during practice/calibration — please practice and retest. (${state.calibrationErrors}/${calWrongLimit})`);
-       return;
-     }
-   }
-   if(ok && includeInAverages && rt>settings.calibrationStopSlowMs){
-     failCalibration("Responses were too slow during practice/calibration — please practice and retest.");
-     return;
-   }
-   // End only after warmups are done AND we have the required number of CORRECT measured trials.
-   if(state.calibrationRTs.length >= mode4MeasuredTarget){
-     state.endReason="Mode 4 complete: required responses completed.";
-     finishCalibration();
-   }else{
-     openTrial("calibration");
-   }
+  // Otherwise: enter pending-correct-tap mode. Flash the correct cell
+  // green and re-arm the per-trial 10s no-response cap so the subject
+  // can't stall indefinitely. The hint timer is NOT re-armed (the hint
+  // is already showing). The phase timer keeps running.
+  state.calibrationPendingCorrectTap = true;
+  applyCalibrationHintToCorrectCell();
+  // Re-arm just the no-response cap for the pending-tap window.
+  // Use the per-trial cap so the subject has the same 10s budget to find
+  // the correct cell as they had to answer the trial.
+  const ms = Number(settings.calibrationPerTrialMaxMs) || DEFAULTS.calibrationPerTrialMaxMs;
+  state.absoluteNoResponseTimer = setTimeout(()=>{
+   if(state.phase!=="calibration") return;
+   failCalibration("Calibration: no response within per-trial cap — needs more practice.");
+  }, ms);
+  return;
+ }
+
+ // V699rev176 — Mode 3 post-calibration self-paced phase.
+ // Behaves like the legacy Mode 3 self-paced trial: every tap (correct or
+ // wrong) advances; correct RTs flow into selfPacedRTs / calibrationRTs for
+ // existing scoring; wrong responses tally without flashing a hint or
+ // resetting any rolling-mean state. The phase ends via the existing
+ // mode3MaxDurationMs (overall session timer) or once mode3TrialLimit
+ // measured trials have been reached. Trial-log rows are emitted with
+ // phase tag "calibration" so downstream CSV/aggregate code keeps
+ // identifying them as Mode 3 self-paced trials per the existing schema.
+ if(state.phase==="mode3_continued"){
+  if(!state.current || state.current.resolved) return;
+  state.current.resolved = true;
+  const rt = getSafeTrialRtMs(eventTimeStamp);
+  const ok = trialMatches(state.current, index);
+  flashBtn(index, ok);
+  state.totalResponses += 1;
+  if(ok){
+   state.totalCorrect += 1; state.selfPacedCorrect += 1;
+   state.selfPacedRTs.push(rt);
+   state.calibrationRTs.push(rt);
+  }else{
+   state.totalIncorrect += 1; state.selfPacedWrong += 1;
+  }
+  logTrial({phase:"calibration", rt, outcome: ok?"correct":"wrong", responseIndex:index, counted:true});
+  state.calibrationTrialIndex += 1;
+  // End condition: reached the Mode 3 trial limit (warm-up + measured budget).
+  const limit = (Number(settings.mode3TrialLimit) || 150) + (Number(settings.initialUnusedCalibrationTrials) || 1);
+  if(state.calibrationTrialIndex >= limit){
+   state.endReason = "Mode 3 complete: required responses completed.";
+   finish();
    return;
   }
+  openTrial("mode3_continued");
+  return;
  }
 
  // Recovery (SP Restart)
@@ -4067,7 +4394,7 @@ function exportCSV(){
   "sleepSinceLastTest","sleepBedtime","sleepWakeTime","sleepWakeDateTimeIso","sleepDurationMinutes","sleepQualityLabel","sleepQualityScore",
   "pacedCorrect","pacedWrong","spRestartWrong","meanPacedRtMs","pacedRtSd",
   "avgFrameOvershootMs","maxFrameOvershootMs","avgRafIntervalMs","maxRafIntervalMs",
-  "cpa","cpaBaseCpi","cpaCorrectWeighting","cpaWrongWeighting","cpaMissedWeighting","cpaSdWeighting","cpaDriftWeighting","cpaRecoveryWeighting","cpaLapseWeighting","cpaEfficiencyWeighting","cpaAccuracyWeighting","cpaAccuracyResidual","cpaObservedAccuracyComposite","cpaExpectedAccuracyComposite","cpaObservedDriftSlopeMsPerTrial","cpaObservedDriftPctOls","cpaSustainedResponseSdMs","cpaSustainedCvPct","cpaEarlyMedianRtMs","cpaLateMedianRtMs","cpaSustainedDriftRatio","cpaRecoveryCalibRatio","cpaLapseRatePct","cpaTrialsPerBlock","dispositionCode","dispositionLabel","dispositionSpfs",
+  "cpa","cpaBaseCpi","cpaCorrectWeighting","cpaWrongWeighting","cpaMissedWeighting","cpaSdWeighting","cpaDriftWeighting","cpaRecoveryWeighting","cpaLapseWeighting","cpaEfficiencyWeighting","cpaAccuracyWeighting","cpaAccuracyResidual","cpaObservedAccuracyComposite","cpaExpectedAccuracyComposite","cpaObservedDriftSlopeMsPerTrial","cpaObservedDriftPctOls","cpaSustainedResponseSdMs","cpaSustainedCvPct","cpaEarlyMedianRtMs","cpaLateMedianRtMs","cpaSustainedDriftRatio","cpaRecoveryCalibRatio","cpaLapseRatePct","cpaTrialsPerBlock","dispositionCode","dispositionLabel","dispositionSpfs","dispositionRecommendation",
   "testDurationMs","endReason","location","sessionUuid","payloadHash","trialLogHash","settingsHash","verificationStatus","verificationReceiptId","cpaModelVersion","baselineModelVersion"];
  const rows=h.map((raw,i)=>{ const r=normalizeLegacyResultRow(raw); return [
   i+1,
@@ -4131,6 +4458,7 @@ function exportCSV(){
   r.dispositionCode||"",
   r.dispositionLabel||"",
   r.dispositionSpfs!=null?r.dispositionSpfs:"",
+  r.dispositionRecommendation||"",
   r.testDurationMs!=null?Math.round(r.testDurationMs):"",
   r.endReason||"",
   (r.geo&&r.geo.address)||"",
@@ -7154,7 +7482,7 @@ function buildResultsSummaryCompact(result){
  if(result.mode2Triggered && result.cpa==null){
   Object.assign(result, computeMode2CPA(result));
  }
- if(result.dispositionCode==null || result.dispositionLabel==null || /^(GREEN|YELLOW|ORANGE|RED)$/i.test(String(result.dispositionCode||""))){
+ if(result.dispositionCode==null || result.dispositionLabel==null || result.dispositionRecommendation==null || /^(GREEN|YELLOW|ORANGE|RED)$/i.test(String(result.dispositionCode||""))){
   Object.assign(result, computeDisposition(result));
  }
  const adaptiveCounts = result.testMode==="mode2" ? computeMode2AdaptiveCounts(result) : null;
@@ -7175,6 +7503,13 @@ function buildResultsSummaryCompact(result){
        ? `S-PFS ${result.dispositionCode} — ${result.dispositionLabel}`
        : `${result.dispositionCode||"—"} ${result.dispositionLabel||"—"}`.trim())
    : '—';
+ // V699rev175: separate user-facing recommendation line below the
+ // (research-style) state line. The state line is for analysis context;
+ // the recommendation line is universal action guidance suitable for
+ // any safety-critical task.
+ const recommendationLine = result.dispositionRecommendation
+   ? `Recommendation: ${result.dispositionRecommendation}`
+   : null;
  const wrongBreakdownLine = result.testMode==="mode2" ? `Wrong breakdown: Cal ${mode2WrongBreakdown.calibration} · Adaptive ${mode2WrongBreakdown.adaptive} · Recovery ${mode2WrongBreakdown.recovery} · Sustained ${mode2WrongBreakdown.sustained} · Final SP ${mode2WrongBreakdown.finalSelfPaced} · Total ${mode2WrongBreakdown.total}` : null;
  el.textContent=
 moveEndReasonNearSession(`CogSpeed version: ${DISPLAY_VERSION}
@@ -7203,7 +7538,7 @@ ${wrongBreakdownLine||""}
 Cognitive Performance table:
  ${getCognitivePerformanceTableText(result)}
 ${cpaLine}
-Disposition: ${dispositionLine}
+Disposition: ${dispositionLine}${recommendationLine?`\n${recommendationLine}`:""}
 END Reason: ${result.endReason||"Run complete"}
 ${hr}
 ${buildVerificationSummaryLines(result)}
@@ -7334,7 +7669,7 @@ ${getResultsMetricExplanationText(result)}`);
   if(result.mode2Triggered && result.cpa==null){
    Object.assign(result, computeMode2CPA(result));
   }
-  if(result.dispositionCode==null || result.dispositionLabel==null || /^(GREEN|YELLOW|ORANGE|RED)$/i.test(String(result.dispositionCode||""))){
+  if(result.dispositionCode==null || result.dispositionLabel==null || result.dispositionRecommendation==null || /^(GREEN|YELLOW|ORANGE|RED)$/i.test(String(result.dispositionCode||""))){
    Object.assign(result, computeDisposition(result));
   }
   const mode2Cpi=(adaptiveMbs!=null) ? (result.mode2CpiFromMbs!=null ? result.mode2CpiFromMbs : computeCPI(adaptiveMbs)) : null;
@@ -8620,7 +8955,7 @@ function computeMode2CPA(result){
 }
 
 function computeDisposition(result){
- const blank = { dispositionCode:null, dispositionLabel:null, dispositionSpfs:null };
+ const blank = { dispositionCode:null, dispositionLabel:null, dispositionSpfs:null, dispositionRecommendation:null };
  if(!result) return blank;
  // Gate: only completed/successful tests get a disposition. A failed
  // calibration or aborted run should not be assigned an S-PFS level as
@@ -8642,6 +8977,27 @@ function computeDisposition(result){
  // so the disposition vocabulary matches the rest of the app exactly.
  // dispositionCode is the S-PFS numeric level as a string ("1".."7");
  // dispositionSpfs is the same value as a Number for CSV/analysis use.
+ //
+ // POLARITY NOTE — important to read before changing this code:
+ // CogSpeed uses a RE-ORIENTED Samn-Perelli convention. In the canonical
+ // published Samn-Perelli scale, 1 = "fully alert" and 7 = "completely
+ // exhausted". CogSpeed flips this so 7 = best and 1 = worst, matching
+ // the more intuitive "higher is better" reading throughout the app's
+ // UI (registration prompt, speedometer, disposition table, etc.).
+ // dispositionSpfs values produced here use the CogSpeed re-oriented
+ // convention. Anything that maps to canonical Samn-Perelli MUST flip.
+ //
+ // V699rev175 — `dispositionRecommendation` (NEW) carries universal
+ // action guidance suitable for any safety-critical context (driving,
+ // operating machinery, piloting, performing safety-critical work).
+ // The existing `dispositionLabel` continues to describe COGNITIVE STATE
+ // ("Functioning normally", "Difficult to function") so research and
+ // analysis surfaces that have always read it stay unaffected.
+ // The two fields are paired: same dispositionSpfs always produces the
+ // same dispositionLabel AND the same dispositionRecommendation. Per
+ // Layne's V699 rev 175 spec, recommendations are grouped 7-6-5 (Fit
+ // for duty), 4 (Caution), 3 (Strong recommendation), 2-1 (Stop), so
+ // the action guidance is identical within each safety band.
  // ┌────┬──────────────────┬──────────────────────────────────────────────┐
  // │SPF │ Score band (CPA  │ Label (from mode1Bands)                      │
  // │    │ or CPI)          │                                              │
@@ -8674,7 +9030,41 @@ function computeDisposition(result){
  else if(score >= 18)  { spfs=3; label="Functioning starting to slow"; }
  else if(score >= 5.5) { spfs=2; label="Difficult to function / becoming unsafe"; }
  else                  { spfs=1; label="Unable to function / definitely unsafe"; }
- return { dispositionCode: String(spfs), dispositionLabel: label, dispositionSpfs: spfs };
+
+ // V699rev175 — universal action-recommendation strings.
+ // Keep wording verbatim. These strings are user-facing and have been
+ // approved by Layne; do not paraphrase, "tighten", or localize without
+ // an explicit spec change. They are intentionally portable across
+ // safety-critical domains (driving, piloting, operating machinery,
+ // performing safety-critical work) so a single deployment configuration
+ // can serve roadside, aviation pre-flight, ER pre-shift, and other
+ // contexts without separate copy.
+ const recommendation = getDispositionRecommendation(spfs);
+
+ return {
+  dispositionCode: String(spfs),
+  dispositionLabel: label,
+  dispositionSpfs: spfs,
+  dispositionRecommendation: recommendation
+ };
+}
+
+// V699rev175 — universal action-recommendation lookup.
+// Pulled into its own function so future deployments (e.g. a Buc-ee's
+// kiosk variant, an aviation pre-flight build, a research-only build
+// that suppresses recommendations entirely) can override or replace
+// this single function without touching computeDisposition's scoring
+// logic. Returns null for invalid input rather than throwing, mirroring
+// the existing computeDisposition contract.
+function getDispositionRecommendation(spfs){
+ const n = Number(spfs);
+ if(!Number.isFinite(n) || n < 1 || n > 7) return null;
+ const i = Math.round(n);
+ if(i >= 5) return "Fit for duty. Safe to drive or perform any safety-critical task.";
+ if(i === 4) return "Caution. Mild fatigue detected. Consider rest before driving or any safety-critical task.";
+ if(i === 3) return "Strong recommendation: rest before continuing. Do not drive or perform any safety-critical task without a break.";
+ // i === 2 || i === 1
+ return "Stop. You are not safe to drive or perform any safety-critical task. Rest is required.";
 }
 
 // Backward-compatible alias — older call sites use the Mode 2 name, and some
@@ -8806,6 +9196,13 @@ function resetTrialStateOnly(){
  state.testStartTime=null; state.maxTestRemainingMs=null; state.maxTestDeadlineMs=null; state.totalCorrect=0; state.totalIncorrect=0;
  state.missedTrials=0; state.rollMeanLog=[]; state.mode2SustainedRollMeanLog=[]; state.mode2PendingPriorMiss=null; state.lastFiveAnswers=[];
  state.calibrationTrialIndex=0; state.calibrationRTs=[]; state.calibrationErrors=0;
+ // V699rev176 — clear unified-calibration state on every fresh test start.
+ state.calibrationConsecCorrect=0; state.calibrationRollingCorrectRTs=[];
+ state.calibrationAttemptsUsed=0; state.calibrationPhaseStartMs=null;
+ if(state.calibrationPhaseTimer){ try{clearTimeout(state.calibrationPhaseTimer);}catch(e){} state.calibrationPhaseTimer=null; }
+ if(state.calibrationHintTimer){ try{clearTimeout(state.calibrationHintTimer);}catch(e){} state.calibrationHintTimer=null; }
+ state.calibrationHintActive=false; state.calibrationPendingCorrectTap=false;
+ state.calibrationFailedFlag=false;
  state.pacedRTs=[]; state.rtLog=[]; state.lastFrameDuration=null; state.presentedRoundDuration=null;
  state.activeMode=settings.testMode||"mode1"; state.selfPacedRTs=[]; state.selfPacedCorrect=0; state.selfPacedWrong=0;
  state.fixedPacedBaseline=null; state.fixedPacedPresented=0; state.fixedPacedCorrect=0; state.fixedPacedWrong=0;
@@ -10789,8 +11186,18 @@ function renderMode2SpeedometerBoxes(metric){
  // V699rev137: Mode 2 now emits a single "Disposition" box. Collapse the grid
  // to one column in that case so the card stretches the full width and no
  // empty phantom column appears beside it.
+ // V699rev176: each box may optionally specify a `valueStyle` string used as
+ // an inline style on the value div (the default 20px font is too tight for
+ // the longer calibration-fail recommendation strings, which run 60-110
+ // characters; the failed-cal renderer in renderSpeedometerOutcome passes
+ // `valueStyle:"font-size:14px;line-height:1.35;font-weight:700"` for those
+ // boxes). HTML escaping kept consistent with the existing pattern (boxes
+ // are built internally; values are not user-typed input).
  wrap.style.gridTemplateColumns = boxes.length === 1 ? "1fr" : "1fr 1fr";
- wrap.innerHTML = boxes.map(b=>`<div class="summary-card"><div class="summary-card-label">${b.label}</div><div class="summary-card-val" style="font-size:20px">${b.value}</div></div>`).join("");
+ wrap.innerHTML = boxes.map(b=>{
+  const valStyle = b.valueStyle || "font-size:20px";
+  return `<div class="summary-card"><div class="summary-card-label">${b.label}</div><div class="summary-card-val" style="${valStyle}">${b.value}</div></div>`;
+ }).join("");
 }
 
 function renderSpeedometerOutcome(result, sessionIndex){
@@ -10815,7 +11222,7 @@ function renderSpeedometerOutcome(result, sessionIndex){
  const isMode2Speedometer = !!(result && result.testMode==="mode2");
  if(isMode2Speedometer){
   if(result && result.mode2Triggered && result.cpa==null) Object.assign(result, computeMode2CPA(result));
-  if(result && (result.dispositionCode==null || result.dispositionLabel==null || /^(GREEN|YELLOW|ORANGE|RED)$/i.test(String(result.dispositionCode||"")))) Object.assign(result, computeDisposition(result));
+  if(result && (result.dispositionCode==null || result.dispositionLabel==null || result.dispositionRecommendation==null || /^(GREEN|YELLOW|ORANGE|RED)$/i.test(String(result.dispositionCode||"")))) Object.assign(result, computeDisposition(result));
   const mode2Metric = getMode2SpeedometerMetric(result, success);
   cps = success ? mode2Metric.score : 0;
   if(success){
@@ -10899,7 +11306,36 @@ function renderSpeedometerOutcome(result, sessionIndex){
  // V699rev137: The CPI/CPA toggle button has been removed from the DOM; Mode 2
  // now always renders both needles simultaneously. Any legacy references to
  // #speedometerMode2ToggleBtn are harmlessly ignored because $() returns null.
- renderMode2SpeedometerBoxes(isMode2Speedometer ? {boxes:mode2MetricBoxes||[]} : null);
+ // V699rev176 — calibration-failed sessions get a unified disposition box in
+ // every mode (Mode 1/2/3/4). Box label is "Disposition" and value is the
+ // S-PFS-keyed recommendation per Layne's spec; the value falls back to "—"
+ // when the subject's S-PFS is missing/invalid (extremely rare since the
+ // pre-test gate requires it). The box overrides the Mode-2-only box that
+ // would otherwise have been built for triggered Mode 2 sessions; for failed
+ // calibrations no Mode 2 sustained phase ever ran, so the override is
+ // semantically clean.
+ if(isCalibrationFailedResult(result)){
+  const spfs = getEffectiveSpfsForFailedCalibration(result);
+  const dispositionText = getCalibrationFailDispositionBySpfs(spfs) || "—";
+  // Smaller font + tighter line-height because the calibration-fail
+  // recommendation strings run up to ~110 characters (vs ~25-40 for the
+  // legacy Mode-2 disposition labels). Bold-but-readable.
+  renderMode2SpeedometerBoxes({ boxes: [ { label:"Disposition", value: dispositionText, valueStyle:"font-size:14px;line-height:1.35;font-weight:700" } ] });
+  // V699rev176 — relabel the "Back to Start" button to "Continue" per
+  // Layne's spec ("CAN GO TO 'CONTINUE' TO RESTART"). The handler is
+  // unchanged — it still routes back to the start page where the subject
+  // re-presses the Start button — but the verb is more inviting after a
+  // training-only failure than the generic Back-to-Start phrasing.
+  const _ssp = $("speedStartPageBtn");
+  if(_ssp) _ssp.textContent = "Continue";
+ } else {
+  renderMode2SpeedometerBoxes(isMode2Speedometer ? {boxes:mode2MetricBoxes||[]} : null);
+  // Restore the default label for non-calibration-fail sessions so users
+  // who navigate from a failed-cal speedometer to a successful session
+  // via Prev/Next don't see the "Continue" label persist.
+  const _ssp = $("speedStartPageBtn");
+  if(_ssp) _ssp.textContent = "Back to Start";
+ }
  stopSpeedometer();
  setTimeout(()=>animateSpeedometer(canvas, cps, success, scoreLabel, metricLabel, metricValueText, speedoOpts), 80);
  renderSpfGaugeForResult(result);
@@ -10924,7 +11360,18 @@ function syncOutcomeStatusText(result){
  const ot=$("outcomeText");
  if(!ot) return;
  const ok = !!(result && isTestSuccess(result));
- ot.textContent = isResultSurvivalChallenge(result) ? getSurvivalOutcomeText(result) : (ok ? "Success!" : "Failed");
+ // V699rev176 — failed-calibration sessions get a more specific headline
+ // ("FAILED — NEEDS MORE PRACTICE!") instead of the generic "Failed". The
+ // disposition box rendered separately in renderMode2SpeedometerBoxes /
+ // renderSpeedometerBoxesForCalibrationFail uses the subject's pre-test
+ // S-PFS to show the safety-critical recommendation.
+ if(isResultSurvivalChallenge(result)){
+  ot.textContent = getSurvivalOutcomeText(result);
+ } else if(!ok && isCalibrationFailedResult(result)){
+  ot.textContent = "FAILED — NEEDS MORE PRACTICE!";
+ } else {
+  ot.textContent = ok ? "Success!" : "Failed";
+ }
  ot.className = "outcome-text " + (ok ? "success" : "failed");
 }
 
