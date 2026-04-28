@@ -424,7 +424,7 @@ let settings=loadSettings();
 // profile record (profile is no longer the source of truth for test type),
 // and persist both. This fires once per fresh rev deployment per device;
 // after that, the stamp matches and nothing is touched on subsequent loads.
-const APP_REV_STAMP = "V699rev173";
+const APP_REV_STAMP = "V699rev174";
 // Version policy: APP_VERSION preserves base storage/schema continuity; DISPLAY_VERSION is what users see.
 const DISPLAY_VERSION = APP_REV_STAMP || APP_VERSION;
 
@@ -2689,7 +2689,17 @@ async function finish(){
    pacedErrors:state.pacedErrors, recoveryErrors:state.recoveryErrors, pacedResponseCount:state.pacedRTs.length,
    pacedResponseMeanMs:state.pacedRTs.length?mean(state.pacedRTs):null,
    pacedResponseSdMs:pacedSd, testDurationMs:testDurMs,
-   selfPacedResponseCount: state.selfPacedRTs.length, selfPacedResponseMeanMs: state.selfPacedRTs.length?mean(state.selfPacedRTs):null,
+   // V699rev174: selfPacedResponseCount is now computed from the
+   // selfPacedCorrect+selfPacedWrong tallies rather than from
+   // state.selfPacedRTs.length. As of rev174 the array holds correct
+   // RTs only, so its length would underrepresent the total post-warmup
+   // response count. The tallies are the authoritative all-responses count.
+   // selfPacedResponseMeanMs / SdMs continue to read from the (now
+   // correct-only) array, giving the clean correct-only RT mean Layne
+   // requested without disturbing the count semantics shown in the
+   // "Total N · Correct C · Wrong W" display lines.
+   selfPacedResponseCount: (Number(state.selfPacedCorrect)||0) + (Number(state.selfPacedWrong)||0),
+   selfPacedResponseMeanMs: state.selfPacedRTs.length?mean(state.selfPacedRTs):null,
    selfPacedResponseSdMs: selfPacedSd,
    allResponseMeanMs: allResponseMean, allResponseSdMs: allResponseSd,
    selfPacedCorrect: state.selfPacedCorrect, selfPacedWrong: state.selfPacedWrong,
@@ -3178,7 +3188,20 @@ function handleTap(index,eventTimeStamp){
 
   // Warm-up exclusion applies across all modes:
   // warmups never contribute to averages/calculations.
-  if(includeInAverages) state.selfPacedRTs.push(rt);
+  // V699rev174: state.selfPacedRTs now holds CORRECT post-warmup responses
+  // only. Wrong post-warmup responses are tallied in state.selfPacedWrong
+  // (line below) but not pushed into the RT array, so they no longer
+  // contribute to selfPacedResponseMeanMs / SdMs / Mode 3 modeMetricMs.
+  // Per Layne's V699 rev 174 spec: "selfPacedResponseMeanMs should ONLY
+  // include correct calibration responses post-warmup." This makes the
+  // self-paced RT mean a clean estimate of stimulus-response latency on
+  // correctly classified trials, mirroring the long-standing behavior of
+  // calibrationRTs (which is always correct-only).
+  // selfPacedResponseCount on the saved result is computed from the
+  // selfPacedCorrect+selfPacedWrong tallies (NOT array.length) so the
+  // display "Total N · Correct C · Wrong W" line continues to read
+  // N = C + W and existing CSV column semantics are preserved.
+  if(includeInAverages && ok) state.selfPacedRTs.push(rt);
   if(ok){ state.totalCorrect+=1; if(includeInAverages) state.selfPacedCorrect+=1; } else { state.totalIncorrect+=1; if(includeInAverages) state.selfPacedWrong+=1; }
 
   logTrial({phase:"calibration",rt,outcome:includeInAverages?(ok?"correct":"wrong"):"Warmup",responseIndex:index,counted:includeInAverages});

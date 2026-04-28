@@ -1,4 +1,34 @@
-- Rev173 cpiBestMs migration for existing devices:
+- Rev174 selfPacedResponseMeanMs / Mode 3 modeMetricMs corrected to "post-warmup correct only":
+  - Specification (Layne, V699 rev 174): "selfPacedResponseMeanMs should ONLY include correct calibration responses post-warmup." Audit on rev173 confirmed the prior behavior pushed every post-warmup self-paced RT into state.selfPacedRTs regardless of correctness, so wrong responses (which often have substantially longer RTs because they typically reflect a confused/uncertain tap) were diluting the reported mean. Layne also confirmed the same correct-only rule should apply to Mode 3's modeMetricMs (the displayed RT/CPI value for Mode 3 sessions). Both reads come from the same array, so a single change to the push site at handleTap line 3204 fixes both.
+  - One-line semantic change to handleTap calibration branch (line 3204):
+    • Before: `if(includeInAverages) state.selfPacedRTs.push(rt);`
+    • After:  `if(includeInAverages && ok) state.selfPacedRTs.push(rt);`
+    Wrong post-warmup responses are still tallied in state.selfPacedWrong (line 3205) but no longer contribute to the RT array. The `ok` and `includeInAverages` variables are already in scope at that line, so this is a strictly local edit.
+  - Result-build block (line 2700) updated to compute selfPacedResponseCount from the correct+wrong tallies rather than from state.selfPacedRTs.length:
+    • Before: `selfPacedResponseCount: state.selfPacedRTs.length`
+    • After:  `selfPacedResponseCount: (Number(state.selfPacedCorrect)||0) + (Number(state.selfPacedWrong)||0)`
+    This preserves the "Total N · Correct C · Wrong W" display invariant N = C + W in the SELF-PACED CALIBRATION display lines (lines 7144–7145). selfPacedResponseMeanMs and selfPacedResponseSdMs continue reading from state.selfPacedRTs and now reflect correct-only post-warmup statistics as Layne requested.
+  - Knock-on effects audited and confirmed correct under the new semantics:
+    • allResponseMeanMs / allResponseSdMs (line 2641) — concatenation of state.selfPacedRTs + state.pacedRTs. state.pacedRTs is already correct-only (the paced phase only pushes RT on the correct branch, see line 3319 and the various paced-phase handlers). Now both inputs are correct-only, so allResponseMeanMs becomes a clean correct-response RT mean. Layne confirmed in the rev173 follow-up that allResponseMeanMs should remain calibration-self-paced + machine-paced only (no recovery, no Mode 2 final) — that scope is preserved.
+    • Mode 3 modeMetricMs (line 2658) — `mean(state.selfPacedRTs)`. Now correct-only. Per Layne's rev174 confirmation this is the desired behavior.
+    • finishCalibration() fallback (line 2464) — `mean(state.calibrationRTs.length ? state.calibrationRTs : state.selfPacedRTs)`. The fallback to selfPacedRTs is rarely hit in practice (calibrationRTs is populated with correct measured trials in all four modes' calibration paths). When the fallback IS hit, getting a correct-only mean is more semantically aligned with what calibrationRTs would have provided, so the fallback path is now consistent with the primary path.
+    • selfPacedCorrect / selfPacedWrong counters — unchanged. Still tally all post-warmup responses by correctness, independent of the RT array.
+    • Calibration warmup exclusion — unchanged. Both arrays still respect includeInAverages = (state.calibrationTrialIndex >= warmups).
+    • Calibration failure conditions (calibrationStopErrors, calibrationStopSlowMs at lines 3209–3222) — unchanged. The slow-RT failure check `rt > settings.calibrationStopSlowMs` only fires inside the `else if(includeInAverages)` correct-trial branch (the wrong-trial branch handles the calibrationErrors threshold instead), so the slow-failure path is unaffected.
+    • CSV export — selfPacedResponseMeanMs column (line 11045) now exports correct-only mean. selfPacedResponseCount column still exports total post-warmup responses. selfPacedCorrect / selfPacedWrong columns unchanged.
+  - Rationale for keeping selfPacedResponseCount as "all post-warmup":
+    • The display lines at 7144–7145 read "Total N · Correct C · Wrong W". If selfPacedResponseCount were also correct-only, the display would show "Total 7 · Correct 7 · Wrong 1" which is internally inconsistent. By keeping Count as the all-post-warmup count and only redefining Mean/SD as correct-only, the display invariant N=C+W is preserved AND the RT statistics reflect Layne's spec.
+    • The CSV column semantics for selfPacedResponseCount are preserved (still total post-warmup), so any historical analysis that joined on this column continues to work without back-converting.
+  - Sandbox verification (23 assertions across 5 scenarios) confirms:
+    1. All-correct post-warmup: array length = correct count, mean = simple average of all RTs, Total = Correct.
+    2. Correct + 1 wrong post-warmup (the canonical rev174 case): wrong RT (1500 ms) excluded; mean stays at 850 ms instead of being dragged up to ~980 ms by including the wrong trial. Total = 5 = Correct(4) + Wrong(1).
+    3. Multiple wrongs post-warmup: array still pure-correct, mean unaffected by long wrong RTs.
+    4. Degenerate all-wrong post-warmup: array empty, selfPacedResponseMeanMs = null (correctly handled, no division by zero).
+    5. Multi-warmup (warmups=3): warmups still excluded from BOTH array and counters regardless of warmup correctness; only post-warmup responses contribute.
+  - No migration code needed. Pre-rev174 saved sessions on a device's localStorage were computed under the old "all-post-warmup" rule and remain frozen at those values — the change only affects sessions saved with rev174 onward, which is the appropriate behavior (historical sessions should preserve the rule under which they were originally computed).
+  - Version stamps bumped V699rev173 → V699rev174 in APP_REV_STAMP, sw.js RELEASE, cache-bust query / tab title / versionBadge / statusLine / manifest.json name. APP_VERSION remains V699. No other content changed.
+
+
   - Specification (Layne, V699 rev 173): the rev172 cpiBestMs default change (800 → 700) only affected fresh installs because computeCPI reads getCurrentCpiBestMs() from saved settings at runtime. Existing devices that had previously launched any rev ≤171 had cpiBestMs:800 written to their localStorage settings blob, so they kept computing CPI on the old anchor. Layne wants existing devices to also migrate to 700 automatically.
   - One-line change to the existing repairChallengeAdminDefaults() startup repair block (added at line 403): fixNum("cpiBestMs", [800], 700). This matches the pattern already used by six other admin-default migrations in the same block (memoryCpiWorstMs, survivalCpiBestMs, survivalCpiWorstMs, memoryMaxTestDurationMs, memoryNoResponseTimeoutMs, survivalNoResponseTimeoutMs). Behavior:
     • Devices with saved cpiBestMs:800 (the prior rev ≤171 default that was carried into rev172) are rewritten to 700 on the first rev173 load and saveSettings() is called.
