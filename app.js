@@ -90,7 +90,7 @@ const DEFAULTS={
  rollMeanWindow:10,
  rollMeanThreshold:0.50,
  recoveryNoResponseMs:10000,
- // V699rev179 — NEW unified self-paced calibration phase rules (replaces
+ // V699rev180 — NEW unified self-paced calibration phase rules (replaces
  // legacy calibrationFirstNoResponseMs / calibrationNoResponseMs /
  // calibrationStopErrors / calibrationStopSlowMs / initialMeasuredCalibrationTrials
  // / mode4CalibrationTrials). The new rules are mode-agnostic: a self-paced
@@ -216,7 +216,7 @@ const ADMIN_FIELDS=[
  ["defaultTestMode","2. Default test mode for new users / reset devices (default Mode 2 CogSpeed Sustained)","select:mode1|mode2|mode3|mode4"],
 
  // 3-13. Shared startup / calibration / anti-spoof settings, in program-use order.
- // V699rev179: legacy calibration knobs (initialMeasuredCalibrationTrials,
+ // V699rev180: legacy calibration knobs (initialMeasuredCalibrationTrials,
  // calibrationFirstNoResponseMs, calibrationNoResponseMs, calibrationStopErrors,
  // calibrationStopSlowMs, mode4CalibrationTrials) were retired and replaced by
  // the new unified self-paced training-phase rules below. The warm-up trial
@@ -274,7 +274,7 @@ const ADMIN_FIELDS=[
  ["mode3MaxDurationMs","47. Mode 3 total duration ms (default 90000)","number"],
 
  // 48-50. Mode 4 Machine-paced, in program-use order
- // V699rev179: mode4CalibrationTrials retired — Mode 4's self-paced phase now
+ // V699rev180: mode4CalibrationTrials retired — Mode 4's self-paced phase now
  // uses the unified calibrationMaxAttempts / pass criteria (fields 4-9).
  ["mode4BaselineFactor","48. Mode 4 MP baseline factor from cal avg (default 1.1)","number"],
  ["mode4PacedTrialLimit","49. Mode 4 fixed machine-paced trial limit (default 140)","number"],
@@ -442,7 +442,7 @@ let settings=loadSettings();
 // profile record (profile is no longer the source of truth for test type),
 // and persist both. This fires once per fresh rev deployment per device;
 // after that, the stamp matches and nothing is touched on subsequent loads.
-const APP_REV_STAMP = "V699rev179";
+const APP_REV_STAMP = "V699rev180";
 // Version policy: APP_VERSION preserves base storage/schema continuity; DISPLAY_VERSION is what users see.
 const DISPLAY_VERSION = APP_REV_STAMP || APP_VERSION;
 
@@ -619,7 +619,7 @@ const state={
  maxTestRemainingMs:null, maxTestDeadlineMs:null,
  lastFiveAnswers:[], samnPerelli:null, subjectId:null,
  calibrationTrialIndex:0, calibrationRTs:[], calibrationErrors:0,
- // V699rev179 — unified self-paced calibration phase.
+ // V699rev180 — unified self-paced calibration phase.
  // calibrationConsecCorrect: streak of consecutive correct measured responses
  //   (resets to 0 on any wrong measured response); pass requires this to
  //   reach calibrationPassConsecutiveCorrect (default 6).
@@ -1232,7 +1232,7 @@ function resumeMaxTestTimer(){
  armMaxTestTimer(remaining);
 }
 // Absolute "not responding" timer — keeps tests from hanging forever.
-// V699rev179: calibration uses a flat per-trial no-response cap
+// V699rev180: calibration uses a flat per-trial no-response cap
 // (calibrationPerTrialMaxMs, default 10s) for ALL calibration trials
 // including the warm-up. The 6-second green-hint flash is a separate
 // timer (armCalibrationHintTimer) that runs in parallel and assists the
@@ -1252,7 +1252,7 @@ function armNoResponseTimer(){
   case "mode2_final":
    return;
   case "calibration":
-   // V699rev179 — unified flat per-trial cap; no first-vs-later distinction.
+   // V699rev180 — unified flat per-trial cap; no first-vs-later distinction.
    ms = Number(settings.calibrationPerTrialMaxMs) || DEFAULTS.calibrationPerTrialMaxMs;
    break;
   case "paced":
@@ -1264,7 +1264,7 @@ function armNoResponseTimer(){
  }
  if(challengeTimeout!=null && ms!=null) ms = challengeTimeout;
  state.absoluteNoResponseTimer=setTimeout(()=>{
-  // V699rev179 — calibration no-response timeout now routes through
+  // V699rev180 — calibration no-response timeout now routes through
   // failCalibration() so the run is flagged with calibrationFailedFlag and
   // the speedometer renders the unified FAILED outcome.
   if(state.phase==="calibration"){
@@ -2473,7 +2473,7 @@ function maybeTriggerTerminalRule(){
  return false;
 }
 function failCalibration(reason){
- // V699rev179 — every calibration failure now flags the run so the
+ // V699rev180 — every calibration failure now flags the run so the
  // speedometer/outcome surfaces can render the "FAILED — NEEDS MORE PRACTICE!"
  // headline plus the S-PFS-keyed disposition recommendation, regardless of
  // mode. Phase + hint timers are cleared first so an in-flight tap or hint
@@ -2485,7 +2485,7 @@ function failCalibration(reason){
  finish();
 }
 
-// ─── V699rev179 — CALIBRATION-PHASE HELPERS ───────────────────
+// ─── V699rev180 — CALIBRATION-PHASE HELPERS ───────────────────
 // armCalibrationPhaseTimer(): wall-clock budget for the entire self-paced
 //   calibration phase (default 60s). Started exactly once on the first
 //   measured-trial open. On expiry → failCalibration with the over-budget
@@ -2561,7 +2561,7 @@ function clearCalibrationHintTimer(){
  state.calibrationHintActive = false;
 }
 
-// V699rev179 — calibration-failure disposition lookup.
+// V699rev180 — calibration-failure disposition lookup.
 // Per Layne's spec the failed-calibration disposition box on the speedometer
 // page reads from the SUBJECT'S SELF-REPORTED S-PFS (state.samnPerelli at
 // pre-test), NOT from any test-derived score (since calibration failure means
@@ -2597,7 +2597,7 @@ function getEffectiveSpfsForFailedCalibration(result){
 // "FAILED — NEEDS MORE PRACTICE!" headline + S-PFS-keyed disposition box.
 // Two signals: the explicit calibrationFailedFlag carried on the saved row,
 // or — for legacy/repaired rows — an endReason that begins with the
-// canonical V699rev179 calibration-fail prefixes. Defensive: returns false
+// canonical V699rev180 calibration-fail prefixes. Defensive: returns false
 // if result is missing.
 function isCalibrationFailedResult(result){
  if(!result) return false;
@@ -2613,7 +2613,7 @@ function isCalibrationFailedResult(result){
  return false;
 }
 
-// ─── V699rev179: CALIBRATION COMPLETION ───────────────────────
+// ─── V699rev180: CALIBRATION COMPLETION ───────────────────────
 // finishCalibration() is reached only on PASS (the new unified pass
 // criteria from the handleTap calibration branch — 6 consecutive
 // correct AND rolling-mean RT < 2600 ms within 21 measured attempts).
@@ -2634,7 +2634,7 @@ function isCalibrationFailedResult(result){
 //   mode4         → fixed-baseline machine-paced phase, baseline =
 //     rollingMeanRT × mode4BaselineFactor (default 1.1)
 function finishCalibration(){
- // V699rev179 — clear calibration-only timers as we leave the phase.
+ // V699rev180 — clear calibration-only timers as we leave the phase.
  clearCalibrationPhaseTimer();
  clearCalibrationHintTimer();
 
@@ -2817,7 +2817,7 @@ function failOpenResultsHandoff(result, stage, err){
 async function finish(){
  if(state.phase==="finished") return;
  clearTimer(); clearNoResponseTimer(); clearMaxTestTimer();
- // V699rev179 — also cancel any pending calibration phase / hint timers so
+ // V699rev180 — also cancel any pending calibration phase / hint timers so
  // they don't fire after the run has ended. The closures inside both timers
  // guard with `if(state.phase!=="calibration") return;` so a stale fire is
  // already a no-op, but explicit cancellation here keeps the JS event loop
@@ -2884,7 +2884,7 @@ async function finish(){
    sleepLog: state.sleepLog ? JSON.parse(JSON.stringify(state.sleepLog)) : null,
    symbolSet: getActiveSymbolSet(),
    calibrationErrors:state.calibrationErrors,
-   // V699rev179 — propagate the calibration-failure flag onto the saved row
+   // V699rev180 — propagate the calibration-failure flag onto the saved row
    // so isCalibrationFailedResult() can identify it on rehydration without
    // fragile endReason string parsing. The flag is set by failCalibration()
    // before finish() is called.
@@ -3063,7 +3063,7 @@ function openTrial(kind){
  if(state.phase==="finished" || state.phase==="idle") return;
  clearTimer();
  clearNoResponseTimer();
- // V699rev179 — defensive: clear any stale calibration-hint flash on every
+ // V699rev180 — defensive: clear any stale calibration-hint flash on every
  // trial open so a phase transition (e.g. calibration → mode3_continued, or
  // calibration → paced) cannot leave a green-pulse animation running on a
  // cell from the previous trial. The handleTap flow already clears the hint
@@ -3096,7 +3096,7 @@ function openTrial(kind){
  try{ setFlowDiagnostic("TRIAL", `${String(kind||"trial").toUpperCase()} — awaiting response`); }catch(e){}
 
  if(kind==="calibration"){
-  // V699rev179 — unified self-paced calibration. Total cap on the phase
+  // V699rev180 — unified self-paced calibration. Total cap on the phase
   // label = warm-ups + max measured attempts (default 1 + 21 = 22 across
   // all modes). The per-mode total counts used pre-rev176 are gone.
   const warmupLimit = Number.isFinite(Number(settings.initialUnusedCalibrationTrials)) ? Number(settings.initialUnusedCalibrationTrials) : 1;
@@ -3106,7 +3106,7 @@ function openTrial(kind){
   phaseLabel.textContent = `Cal ${idx}/${total}`;
   setStatus(idx<=warmupLimit ? "Self-paced (warm-up)" : "Self-paced (measured)");
  }else if(kind==="mode3_continued"){
-  // V699rev179 — Mode 3 post-calibration. Pure self-paced, no hint, no
+  // V699rev180 — Mode 3 post-calibration. Pure self-paced, no hint, no
   // per-trial 10s cap; trial-log rows continue to use phase tag
   // "calibration" so legacy CSV/aggregate code stays compatible.
   const warmupLimit = Number.isFinite(Number(settings.initialUnusedCalibrationTrials)) ? Number(settings.initialUnusedCalibrationTrials) : 1;
@@ -3158,14 +3158,14 @@ function openTrial(kind){
    state.trialOpenedAt = performance.now();
 
    if(kind==="calibration"){
-    // V699rev179 — every calibration trial gets a 10s no-response cap
+    // V699rev180 — every calibration trial gets a 10s no-response cap
     // and a 6s green-hint flash. The phase-budget timer is armed exactly
     // once on the first trial open (idempotent inside armCalibrationPhaseTimer).
     armNoResponseTimer();
     armCalibrationHintTimer();
     armCalibrationPhaseTimer();
    }else if(kind==="mode3_continued"){
-    // V699rev179 — Mode 3 post-cal: no hint, no per-trial 10s cap.
+    // V699rev180 — Mode 3 post-cal: no hint, no per-trial 10s cap.
     // The overall mode3MaxDurationMs / mode3TrialLimit guards via the
     // existing armMaxTestTimer (which was started on the very first
     // calibration trial via the testStartTime gate above).
@@ -3412,7 +3412,7 @@ function handleTap(index,eventTimeStamp){
  noteAnyResponse();
 
  // Calibration
- // V699rev179 — UNIFIED SELF-PACED CALIBRATION FLOW (replaces the per-mode
+ // V699rev180 — UNIFIED SELF-PACED CALIBRATION FLOW (replaces the per-mode
  // branching used through V699rev175).
  // Spec summary (Layne, V699 rev 176):
  //   PASS criteria: 6 consecutive correct AND rolling-mean RT < 2600 ms
@@ -3568,7 +3568,7 @@ function handleTap(index,eventTimeStamp){
   return;
  }
 
- // V699rev179 — Mode 3 post-calibration self-paced phase.
+ // V699rev180 — Mode 3 post-calibration self-paced phase.
  // Behaves like the legacy Mode 3 self-paced trial: every tap (correct or
  // wrong) advances; correct RTs flow into selfPacedRTs / calibrationRTs for
  // existing scoring; wrong responses tally without flashing a hint or
@@ -9198,7 +9198,7 @@ function resetTrialStateOnly(){
  state.testStartTime=null; state.maxTestRemainingMs=null; state.maxTestDeadlineMs=null; state.totalCorrect=0; state.totalIncorrect=0;
  state.missedTrials=0; state.rollMeanLog=[]; state.mode2SustainedRollMeanLog=[]; state.mode2PendingPriorMiss=null; state.lastFiveAnswers=[];
  state.calibrationTrialIndex=0; state.calibrationRTs=[]; state.calibrationErrors=0;
- // V699rev179 — clear unified-calibration state on every fresh test start.
+ // V699rev180 — clear unified-calibration state on every fresh test start.
  state.calibrationConsecCorrect=0; state.calibrationRollingCorrectRTs=[];
  state.calibrationAttemptsUsed=0; state.calibrationPhaseStartMs=null;
  if(state.calibrationPhaseTimer){ try{clearTimeout(state.calibrationPhaseTimer);}catch(e){} state.calibrationPhaseTimer=null; }
@@ -11114,24 +11114,21 @@ function renderSpeedometerSleepMetrics(result){
 // Disposition box consistent with both the color arc and the saved summary/CSV.
 function getMode2DispositionWindowText(result){
  // MODE 2 ONLY:
- // Disposition is an operational recommendation derived from CPA, not CPI.
- // The Speedometer disposition window intentionally does NOT display S-PFS text
- // because visible S-PFS and visible CPA/Disposition can otherwise disagree and
- // confuse the operator.
+ // Disposition is an operational recommendation derived from CPA, not CPI,
+ // except for the explicit self-report safety override below.
  //
  // Safety override rule:
- // - If pre-test S-PFS is 1 or 2, force RED regardless of CPA
- // - If pre-test S-PFS is 3, force ORANGE regardless of CPA
- // - Otherwise use CPA bands only
- //   GREEN  = CPA >= 62.5
- //   YELLOW = CPA >= 37.5 and < 62.5
- //   ORANGE = CPA >= 18 and < 37.5
- //   RED    = CPA < 18
+ // - If pre-test S-PFS is 1 or 2, force the full STOP recommendation
+ //   regardless of CPA.
+ // - If pre-test S-PFS is 3, force ORANGE regardless of CPA.
+ // - Otherwise use CPA bands only.
  //
  // Modes 1, 3, and 4 must not use this Disposition window.
  if(!result) return "—";
  const spfs = Number(result?.samnPerelli?.score);
- if(spfs === 1 || spfs === 2) return "RED — Remove from Hazardous Duty";
+ if(spfs === 1 || spfs === 2){
+  return "Unable to function / Definitely unsafe. Stop! You are not safe to drive or perform any safety-critical task. Rest is required.";
+ }
  if(spfs === 3) return "ORANGE — Human review required";
 
  const cpa = Number(result?.cpa);
@@ -11140,6 +11137,22 @@ function getMode2DispositionWindowText(result){
  if(cpa >= 37.5) return "YELLOW — Monitor / human review recommended";
  if(cpa >= 18) return "ORANGE — Human review required";
  return "RED — Remove from Hazardous Duty";
+}
+
+function getSpfsBandTextStyle(spfs, extra=""){
+ const n = Math.round(Number(spfs));
+ const color = (
+  n === 1 ? "#650000" :
+  n === 2 ? "#cf2020" :
+  n === 3 ? "#f28c18" :
+  n === 4 ? "#8a6f00" :
+  n === 5 ? "#4f8f2f" :
+  n === 6 ? "#2f7f38" :
+  n === 7 ? "#0a5d1c" :
+  null
+ );
+ const base = "font-weight:700";
+ return [base, extra, color ? `color:${color}` : ""].filter(Boolean).join(";");
 }
 
 
@@ -11173,7 +11186,11 @@ function getMode2SpeedometerMetric(result, success){
   cpiValue: failed ? null : (Number.isFinite(cpi) ? cpi : null),
   cpaValue: failed ? null : (Number.isFinite(cpa) ? cpa : null),
   boxes: [
-   {label:"Disposition", value:dispositionText}
+   {
+    label:"Disposition",
+    value:dispositionText,
+    valueStyle:getSpfsBandTextStyle(result && result.samnPerelli && result.samnPerelli.score, "font-size:20px")
+   }
   ]
  };
 }
@@ -11188,7 +11205,7 @@ function renderMode2SpeedometerBoxes(metric){
  // V699rev137: Mode 2 now emits a single "Disposition" box. Collapse the grid
  // to one column in that case so the card stretches the full width and no
  // empty phantom column appears beside it.
- // V699rev179: each box may optionally specify a `valueStyle` string used as
+ // V699rev180: each box may optionally specify a `valueStyle` string used as
  // an inline style on the value div (the default 20px font is too tight for
  // the longer calibration-fail recommendation strings, which run 60-110
  // characters; the failed-cal renderer in renderSpeedometerOutcome passes
@@ -11308,7 +11325,7 @@ function renderSpeedometerOutcome(result, sessionIndex){
  // V699rev137: The CPI/CPA toggle button has been removed from the DOM; Mode 2
  // now always renders both needles simultaneously. Any legacy references to
  // #speedometerMode2ToggleBtn are harmlessly ignored because $() returns null.
- // V699rev179 — calibration-failed sessions get a unified disposition box in
+ // V699rev180 — calibration-failed sessions get a unified disposition box in
  // every mode (Mode 1/2/3/4). Box label is "Disposition" and value is the
  // S-PFS-keyed recommendation per Layne's spec; the value falls back to "—"
  // when the subject's S-PFS is missing/invalid (extremely rare since the
@@ -11322,8 +11339,8 @@ function renderSpeedometerOutcome(result, sessionIndex){
   // Smaller font + tighter line-height because the calibration-fail
   // recommendation strings run up to ~110 characters (vs ~25-40 for the
   // legacy Mode-2 disposition labels). Bold-but-readable.
-  renderMode2SpeedometerBoxes({ boxes: [ { label:"Disposition", value: dispositionText, valueStyle:"font-size:14px;line-height:1.35;font-weight:700" } ] });
-  // V699rev179 — relabel the "Back to Start" button to "Continue" per
+  renderMode2SpeedometerBoxes({ boxes: [ { label:"Disposition", value: dispositionText, valueStyle:getSpfsBandTextStyle(spfs, "font-size:14px;line-height:1.35") } ] });
+  // V699rev180 — relabel the "Back to Start" button to "Continue" per
   // Layne's spec ("CAN GO TO 'CONTINUE' TO RESTART"). The handler is
   // unchanged — it still routes back to the start page where the subject
   // re-presses the Start button — but the verb is more inviting after a
@@ -11362,7 +11379,7 @@ function syncOutcomeStatusText(result){
  const ot=$("outcomeText");
  if(!ot) return;
  const ok = !!(result && isTestSuccess(result));
- // V699rev179 — failed-calibration sessions get a more specific headline
+ // V699rev180 — failed-calibration sessions get a more specific headline
  // ("FAILED — NEEDS MORE PRACTICE!") instead of the generic "Failed". The
  // disposition box rendered separately in renderMode2SpeedometerBoxes /
  // renderSpeedometerBoxesForCalibrationFail uses the subject's pre-test
