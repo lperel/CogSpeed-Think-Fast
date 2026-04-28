@@ -397,6 +397,10 @@ let settings=loadSettings();
  fixNum("memoryMaxTestDurationMs", [0], 240000);
  fixNum("memoryNoResponseTimeoutMs", [10000], 15000);
  fixNum("survivalNoResponseTimeoutMs", [12000], 15000);
+ // V699rev173: Mode 1 CPI best-ms anchor lowered 800 → 700 per Layne's spec.
+ // Migrate any device whose saved value is the prior default (800) to the
+ // new default (700). Devices that have set a custom value are left alone.
+ fixNum("cpiBestMs", [800], 700);
  if(changed){
   try{ saveSettings(); }catch(e){}
   try{ localStorage.setItem(`${STORAGE_PREFIX}_admin_defaults_repaired`, "1"); }catch(e){}
@@ -420,7 +424,7 @@ let settings=loadSettings();
 // profile record (profile is no longer the source of truth for test type),
 // and persist both. This fires once per fresh rev deployment per device;
 // after that, the stamp matches and nothing is touched on subsequent loads.
-const APP_REV_STAMP = "V699rev172";
+const APP_REV_STAMP = "V699rev173";
 // Version policy: APP_VERSION preserves base storage/schema continuity; DISPLAY_VERSION is what users see.
 const DISPLAY_VERSION = APP_REV_STAMP || APP_VERSION;
 

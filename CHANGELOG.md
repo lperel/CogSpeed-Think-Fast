@@ -1,4 +1,15 @@
-- Rev172 small Admin + Tutorial copy adjustments:
+- Rev173 cpiBestMs migration for existing devices:
+  - Specification (Layne, V699 rev 173): the rev172 cpiBestMs default change (800 → 700) only affected fresh installs because computeCPI reads getCurrentCpiBestMs() from saved settings at runtime. Existing devices that had previously launched any rev ≤171 had cpiBestMs:800 written to their localStorage settings blob, so they kept computing CPI on the old anchor. Layne wants existing devices to also migrate to 700 automatically.
+  - One-line change to the existing repairChallengeAdminDefaults() startup repair block (added at line 403): fixNum("cpiBestMs", [800], 700). This matches the pattern already used by six other admin-default migrations in the same block (memoryCpiWorstMs, survivalCpiBestMs, survivalCpiWorstMs, memoryMaxTestDurationMs, memoryNoResponseTimeoutMs, survivalNoResponseTimeoutMs). Behavior:
+    • Devices with saved cpiBestMs:800 (the prior rev ≤171 default that was carried into rev172) are rewritten to 700 on the first rev173 load and saveSettings() is called.
+    • Devices with a custom cpiBestMs (e.g. 750 or 900 — admin tuned the value) are LEFT ALONE. The migration only fires when the saved value is in the oldVals=[800] list.
+    • Devices missing the cpiBestMs key entirely (loadSettings will have already filled it from DEFAULTS=700 before the repair block runs, but defensively the fixNum helper's `!Number.isFinite(cur)` branch also writes 700) — fixed at 700.
+    • Idempotent: a second rev173 load on an already-migrated device sees cpiBestMs:700, which is not in oldVals=[800], so nothing is rewritten and saveSettings is not called.
+  - Sandbox verification (8 assertions across 6 scenarios): saved 800 → migrated to 700; saved 750 → left at 750; saved 900 → left at 900; missing key → left as DEFAULTS-filled 700; saved 700 → idempotent (no change). Pre-existing helper quirk noted: `cpiBestMs:null` saved verbatim would survive the migration (Number(null)=0, isFinite(0)=true, 0 not in [800]) — consistent with how all the other migrations behave; no real-world code path produces this state, so not worth changing.
+  - Why this works without a separate "force-rewrite-once" flag: the migration is keyed on the OLD VALUE (800), not on whether a migration ran. Once a device's cpiBestMs is anything other than 800 (either migrated to 700, or admin-tuned), the migration is a no-op forever. The shared `${STORAGE_PREFIX}_admin_defaults_repaired` flag in localStorage is updated as a side effect when any field migrated, but it's purely a diagnostic marker — the migration logic itself doesn't depend on it.
+  - Version stamps bumped V699rev172 → V699rev173 in APP_REV_STAMP, sw.js RELEASE, cache-bust query / tab title / versionBadge / statusLine / manifest.json name. APP_VERSION remains V699. No other content changed.
+
+
   - Specification (Layne, V699 rev 172): two targeted small changes — (1) lower Admin #33 cpiBestMs default from 800 ms to 700 ms; (2) refresh the "Hints and Preparation" tutorial page (Step 1 of TUT_STEPS) with sharpened opening framing, Mode 3/Mode 4 practice guidance, and tightened capitalization of key takeaways.
   - Change 1 — Admin #33 cpiBestMs default 800 → 700:
     • DEFAULTS.cpiBestMs literal updated 800 → 700.
