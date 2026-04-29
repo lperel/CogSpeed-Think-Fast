@@ -1,3 +1,6 @@
+## V699rev181 — comment cleanup
+- Rev-agnostic phrasing in `openTrial` calibration-block comment (line ~3101): replaced the stale "pre-rev176" reference with "in earlier revs" so the comment doesn't continue to drift as future revs ship. No functional change; comment-only edit.
+
 ## V699rev180 — calibration pending-correct-tap freeze fix
 - Fix calibration freeze after the green correct-answer hint appears. The pending-correct-tap path now runs before the generic resolved-trial early return in `handleTap()`, so tapping the flashed correct box advances to the next trial as intended.
 

@@ -442,7 +442,7 @@ let settings=loadSettings();
 // profile record (profile is no longer the source of truth for test type),
 // and persist both. This fires once per fresh rev deployment per device;
 // after that, the stamp matches and nothing is touched on subsequent loads.
-const APP_REV_STAMP = "V699rev180";
+const APP_REV_STAMP = "V699rev181";
 // Version policy: APP_VERSION preserves base storage/schema continuity; DISPLAY_VERSION is what users see.
 const DISPLAY_VERSION = APP_REV_STAMP || APP_VERSION;
 
@@ -3098,7 +3098,7 @@ function openTrial(kind){
  if(kind==="calibration"){
   // V699rev180 — unified self-paced calibration. Total cap on the phase
   // label = warm-ups + max measured attempts (default 1 + 21 = 22 across
-  // all modes). The per-mode total counts used pre-rev176 are gone.
+  // all modes). The per-mode total counts used in earlier revs are gone.
   const warmupLimit = Number.isFinite(Number(settings.initialUnusedCalibrationTrials)) ? Number(settings.initialUnusedCalibrationTrials) : 1;
   const maxAttempts = Math.max(1, Number(settings.calibrationMaxAttempts) || DEFAULTS.calibrationMaxAttempts);
   const total = warmupLimit + maxAttempts;
