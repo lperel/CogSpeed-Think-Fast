@@ -65,6 +65,7 @@ const DEFAULTS={
  testMode:"mode2",
  mode3TrialLimit:150,
  mode3MaxDurationMs:90000,
+ mode4CalibrationTrials:10,
  mode4PacedTrialLimit:140,
  mode4MaxDurationMs:90000,
  mode4BaselineFactor:1.1,
@@ -90,23 +91,8 @@ const DEFAULTS={
  rollMeanWindow:10,
  rollMeanThreshold:0.50,
  recoveryNoResponseMs:10000,
- // V699rev180 — NEW unified self-paced calibration phase rules (replaces
- // legacy calibrationFirstNoResponseMs / calibrationNoResponseMs /
- // calibrationStopErrors / calibrationStopSlowMs / initialMeasuredCalibrationTrials
- // / mode4CalibrationTrials). The new rules are mode-agnostic: a self-paced
- // training phase that ends when the subject demonstrates 6 consecutive
- // correct responses with rolling mean RT < 2600 ms inside 21 measured
- // attempts. Per-trial 10s no-response cap; 6s green-hint flash on the
- // correct cell to assist learning; 60s overall phase cap. On pass, the
- // rolling mean RT is fed to the existing initialPacedPercent /
- // mode4BaselineFactor formulas to size the next phase. See
- // ─── CALIBRATION — SELF-PACED ─── block in finishCalibration() below.
- calibrationPassConsecutiveCorrect:6,
- calibrationPassRtMeanMs:2600,
- calibrationMaxAttempts:21,
- calibrationMaxPhaseDurationMs:60000,
- calibrationHintAfterMs:6000,
- calibrationPerTrialMaxMs:10000,
+ calibrationFirstNoResponseMs:10000,
+ calibrationNoResponseMs:6000,
  wrongWindowSize:5,
  wrongThresholdStop:4,
  maxTrialCount:180,
@@ -115,25 +101,13 @@ const DEFAULTS={
  minDurationMs:600,
  maxDurationMs:3500,
  initialUnusedCalibrationTrials:1,
+ initialMeasuredCalibrationTrials:7,
  initialPacedPercent:1.2,
- cpiBestMs:700,
+ calibrationStopErrors:4,
+ calibrationStopSlowMs:6000,
+ cpiBestMs:800,
  cpiWorstMs:2800,
  personalBaselineMaxMbs:1900,
- // V699rev170: Personal Baseline creation rules (admin-configurable).
- // window size = N most recent qualifying sessions averaged into the
- // rolling Baseline. minSessionsToEstablish = how many qualifying
- // sessions must accumulate before the FIRST Baseline is established
- // (decoupled from window size per Layne's rev170 spec — they default
- // equal but can be tuned independently). minSpfs/maxSpfs bound the
- // S-PFS qualifying range. allowedModes is a comma-separated list of
- // testMode values that may contribute (default "mode1,mode2").
- // excludeFailed=1 omits failed sessions from qualification (default).
- baselineWindowSize:5,
- baselineMinSessionsToEstablish:5,
- baselineMinSpfs:5,
- baselineMaxSpfs:7,
- baselineAllowedModes:"mode1,mode2",
- baselineExcludeFailed:1,
  symbolSet:"standard",
  memoryNoResponseTimeoutMs:15000,
  memoryMinDurationMs:1400,
@@ -162,41 +136,16 @@ const DEFAULTS={
  mode2NormExpectedMissRate:"0-20:0.15;20.01-40:0.16;40.01-60:0.19;60.01-80:0.23;80.01-100:0.29",
  mode2NormExpectedDriftPct:"0-20:4;20.01-40:5;40.01-60:7;60.01-80:9;80.01-100:12",
  mode2NormExpectedCvPct:"0-20:12;20.01-40:13;40.01-60:15;60.01-80:18;80.01-100:22",
- // V699rev151: new accuracy-composite profile, consolidating the previously
- // collinear correct/wrong/miss rates into a single metric
- //   accComposite = correctRate - wrongRate - 0.5 * missRate
- // Expected values are derived from the old expected profile:
- //   0-20:    0.82 - 0.03 - 0.5*0.15 = 0.715
- //   20-40:   0.80 - 0.04 - 0.5*0.16 = 0.680
- //   40-60:   0.76 - 0.05 - 0.5*0.19 = 0.615
- //   60-80:   0.70 - 0.07 - 0.5*0.23 = 0.515
- //   80-100:  0.62 - 0.09 - 0.5*0.29 = 0.385
- mode2NormExpectedAccuracyComposite:"0-20:0.715;20.01-40:0.680;40.01-60:0.615;60.01-80:0.515;80.01-100:0.385",
- mode2NormToleranceCorrectRate:0.12,   // Deprecated in V699rev151 — retained for storage continuity only.
- mode2NormToleranceWrongRate:0.08,     // Deprecated in V699rev151 — retained for storage continuity only.
- mode2NormToleranceMissRate:0.10,      // Deprecated in V699rev151 — retained for storage continuity only.
+ mode2NormToleranceCorrectRate:0.12,
+ mode2NormToleranceWrongRate:0.08,
+ mode2NormToleranceMissRate:0.10,
  mode2NormToleranceDriftPct:8,
  mode2NormToleranceCvPct:10,
- // V699rev151: tolerance for the new accuracy composite. Sized so that a
- // one-tolerance deviation is roughly comparable in magnitude to the prior
- // summed tolerance of the three collinear features it replaces.
- mode2NormToleranceAccuracyComposite:0.15,
- mode2NormWeightCorrect:0,   // V699rev151: RETIRED. Was 3.0. Consolidated into mode2NormWeightAccuracy.
- mode2NormWeightWrong:0,     // V699rev151: RETIRED. Was 2.5. Consolidated into mode2NormWeightAccuracy.
- mode2NormWeightMiss:0,      // V699rev151: RETIRED. Was 3.5. Consolidated into mode2NormWeightAccuracy.
- // V699rev151: upgraded drift and CV weights, since drift is now measured by
- // the stronger OLS-slope estimator and the composite has headroom after the
- // accuracy-feature consolidation.
- mode2NormWeightDrift:6.0,   // V699rev151: was 1.5; now drives OLS-slope residual
- mode2NormWeightCv:6.0,      // V699rev151: was 1.5
- // V699rev151: new consolidated-accuracy weight. Replaces the previous 9.0
- // combined weight (3.0+2.5+3.5) of the three collinear accuracy features.
- mode2NormWeightAccuracy:9.0,
- // V699rev151: total max absolute weighted residual is
- //   9 (accuracy) + 6 (drift) + 6 (CV) = 21
- // The cap is kept at 20 so the cap can actually engage under sufficiently
- // poor sustained-phase performance, while leaving 1 point of weight headroom
- // so no single feature alone saturates the cap.
+ mode2NormWeightCorrect:3.0,
+ mode2NormWeightWrong:2.5,
+ mode2NormWeightMiss:3.5,
+ mode2NormWeightDrift:1.5,
+ mode2NormWeightCv:1.5,
  mode2NormMaxDelta:20,
  researchModeLocked:0,
  researchUploadEndpoint:'',
@@ -215,67 +164,60 @@ const ADMIN_FIELDS=[
  ["adminPasscode","1. Admin passcode","text"],
  ["defaultTestMode","2. Default test mode for new users / reset devices (default Mode 2 CogSpeed Sustained)","select:mode1|mode2|mode3|mode4"],
 
- // 3-13. Shared startup / calibration / anti-spoof settings, in program-use order.
- // V699rev180: legacy calibration knobs (initialMeasuredCalibrationTrials,
- // calibrationFirstNoResponseMs, calibrationNoResponseMs, calibrationStopErrors,
- // calibrationStopSlowMs, mode4CalibrationTrials) were retired and replaced by
- // the new unified self-paced training-phase rules below. The warm-up trial
- // count (initialUnusedCalibrationTrials) is unchanged.
+ // 3-15. Shared startup / calibration / anti-spoof settings, in program-use order
  ["initialUnusedCalibrationTrials","3. Warm-up calibration trials (default 1)","number"],
- ["calibrationPassConsecutiveCorrect","4. Calibration pass: consecutive correct required (default 6)","number"],
- ["calibrationPassRtMeanMs","5. Calibration pass: rolling mean RT threshold (ms, default 2600)","number"],
- ["calibrationMaxAttempts","6. Calibration max measured attempts (default 21)","number"],
- ["calibrationMaxPhaseDurationMs","7. Calibration max phase duration (ms, default 60000)","number"],
- ["calibrationHintAfterMs","8. Calibration green-hint flash after (ms, default 6000)","number"],
- ["calibrationPerTrialMaxMs","9. Calibration per-trial no-response cap (ms, default 10000)","number"],
- ["minDurationMs","10. MP frame minimum duration (ms, default 600)","number"],
- ["maxDurationMs","11. MP frame maximum duration (ms, default 3500)","number"],
- ["maxTestDurationMs","12. Max total test time (ms, default 150000)","number"],
- ["wrongWindowSize","13. Anti-spoof wrong window size (default 5)","number"],
- ["wrongThresholdStop","14. Anti-spoof max wrong in window (default 4)","number"],
- ["rollMeanWindow","15. Anti-spoof rolling mean window (default 10)","number"],
- ["rollMeanThreshold","16. Anti-spoof rolling mean threshold (default 0.50)","number"],
+ ["initialMeasuredCalibrationTrials","4. Measured calibration trials (default 7)","number"],
+ ["calibrationFirstNoResponseMs","5. Calibration first-trial no-response (ms, default 10000)","number"],
+ ["calibrationNoResponseMs","6. Calibration later-trial no-response (ms, default 6000)","number"],
+ ["calibrationStopErrors","7. Calibration stop after N wrong (default 4)","number"],
+ ["calibrationStopSlowMs","8. Calibration avg RT limit (ms, default 6000)","number"],
+ ["minDurationMs","9. MP frame minimum duration (ms, default 600)","number"],
+ ["maxDurationMs","10. MP frame maximum duration (ms, default 3500)","number"],
+ ["maxTestDurationMs","11. Max total test time (ms, default 150000)","number"],
+ ["wrongWindowSize","12. Anti-spoof wrong window size (default 5)","number"],
+ ["wrongThresholdStop","13. Anti-spoof max wrong in window (default 4)","number"],
+ ["rollMeanWindow","14. Anti-spoof rolling mean window (default 10)","number"],
+ ["rollMeanThreshold","15. Anti-spoof rolling mean threshold (default 0.50)","number"],
 
- // 17-36. Mode 1 CogSpeed Adapted, in program-use order
- ["initialPacedPercent","17. Mode 1 MP start: % of calibration avg (default 1.2)","number"],
- ["consecutiveMissesForBlock","18. Mode 1 misses to trigger block (default 2)","number"],
- ["blockRestartPercent","19. Mode 1 restart multiplier after block (default 1.3 = 130% of block baseline)","number"],
- ["spRestartCorrectStreak","20. Mode 1 recovery correct streak to resume (default 2)","number"],
- ["spRestartWrongLimit","21. Mode 1 recovery max wrong before fail (default 3)","number"],
- ["wrongSlowdownMs","22. Mode 1 MP slowdown on wrong (ms, default 50)","number"],
- ["correctSpeedupFactor","23. Mode 1 MP correct formula factor (default 0.30)","number"],
- ["minSpeedupOnCorrectMs","24. Mode 1 MP minimum speedup on correct (ms, default 50)","number"],
- ["maxSpeedupOnCorrectMs","25. Mode 1 MP maximum speedup on correct (ms, default 200)","number"],
- ["lateResponseThresholdMs","26. Mode 1 late response reassignment threshold (ms, default 600)","number"],
- ["recoveryNoResponseMs","27. Mode 1 recovery no-response timeout (ms, default 10000)","number"],
- ["RecoveryInterTrialDelayMsStart","28. Recovery inter-trial delay at start (ms, default 0)","number"],
- ["ResumeToPacedDelayMs","29. Resume-to-paced delay after recovery (ms, default 0)","number"],
- ["maxBlockCount","30. Mode 1 max total blocks before fail (default 6)","number"],
- ["qualifyingBlockGapMs","31. Mode 1 qualifying block max gap (ms, default 250)","number"],
- ["maxTrialCount","32. Mode 1 max paced trials (default 180)","number"],
- ["maxPacedWrong","33. Mode 1 max paced wrong before fail (default 20)","number"],
- ["cpiBestMs","34. Mode 1 CPI best ms anchor (default 700)","number"],
- ["cpiWorstMs","35. Mode 1 CPI worst ms anchor (default 2800)","number"],
- ["personalBaselineMaxMbs","36. Personal Baseline maximum qualifying MBS (ms, default 1900)","number"],
+ // 16-35. Mode 1 CogSpeed Adapted, in program-use order
+ ["initialPacedPercent","16. Mode 1 MP start: % of calibration avg (default 1.2)","number"],
+ ["consecutiveMissesForBlock","17. Mode 1 misses to trigger block (default 2)","number"],
+ ["blockRestartPercent","18. Mode 1 restart multiplier after block (default 1.3 = 130% of block baseline)","number"],
+ ["spRestartCorrectStreak","19. Mode 1 recovery correct streak to resume (default 2)","number"],
+ ["spRestartWrongLimit","20. Mode 1 recovery max wrong before fail (default 3)","number"],
+ ["wrongSlowdownMs","21. Mode 1 MP slowdown on wrong (ms, default 50)","number"],
+ ["correctSpeedupFactor","22. Mode 1 MP correct formula factor (default 0.30)","number"],
+ ["minSpeedupOnCorrectMs","23. Mode 1 MP minimum speedup on correct (ms, default 50)","number"],
+ ["maxSpeedupOnCorrectMs","24. Mode 1 MP maximum speedup on correct (ms, default 200)","number"],
+ ["lateResponseThresholdMs","25. Mode 1 late response reassignment threshold (ms, default 600)","number"],
+ ["recoveryNoResponseMs","26. Mode 1 recovery no-response timeout (ms, default 10000)","number"],
+ ["RecoveryInterTrialDelayMsStart","27. Recovery inter-trial delay at start (ms, default 0)","number"],
+ ["ResumeToPacedDelayMs","28. Resume-to-paced delay after recovery (ms, default 0)","number"],
+ ["maxBlockCount","29. Mode 1 max total blocks before fail (default 6)","number"],
+ ["qualifyingBlockGapMs","30. Mode 1 qualifying block max gap (ms, default 250)","number"],
+ ["maxTrialCount","31. Mode 1 max paced trials (default 180)","number"],
+ ["maxPacedWrong","32. Mode 1 max paced wrong before fail (default 20)","number"],
+ ["cpiBestMs","33. Mode 1 CPI best ms anchor (default 800)","number"],
+ ["cpiWorstMs","34. Mode 1 CPI worst ms anchor (default 2800)","number"],
+ ["personalBaselineMaxMbs","35. Personal Baseline maximum qualifying MBS (ms, default 1900)","number"],
 
- // 37-45. Mode 2 runtime flow settings, in program-use order
- ["mode2SustainedReliefMinMs","37. Mode 2 sustained relief minimum (ms, default 0)","number"],
- ["mode2SustainedReliefPct","38. Mode 2 sustained relief % of adaptive MBS (default -0.10 = -10%)","number"],
- ["mode2SustainedReliefMaxMs","39. Mode 2 sustained relief cap (ms, default 220)","number"],
- ["mode2SustainedTrialCount","40. Mode 2 sustained trials at adaptive MBS + relief (default 20)","number"],
- ["mode2SustainedWrongFailPercent","41. Mode 2 wrong-fail threshold for sustained phase (default 50% of sustained trials)","number"],
- ["mode2SustainedRollMeanWindow","42. Mode 2 anti-spoof rolling mean window in Sustained Phase (default 10)","number"],
- ["mode2SustainedRollMeanThreshold","43. Mode 2 anti-spoof rolling mean threshold in Sustained Phase (default 0.50)","number"],
- ["mode2LateResponseThresholdMs","44. Mode 2 late response reassignment threshold (ms, default 600)","number"],
- ["mode2FinalTrialCount","45. Mode 2 final self-paced trials (default 2)","number"],
+ // 36-42. Mode 2 runtime flow settings, in program-use order
+ ["mode2SustainedReliefMinMs","36. Mode 2 sustained relief minimum (ms, default 0)","number"],
+ ["mode2SustainedReliefPct","37. Mode 2 sustained relief % of adaptive MBS (default -0.10 = -10%)","number"],
+ ["mode2SustainedReliefMaxMs","38. Mode 2 sustained relief cap (ms, default 220)","number"],
+ ["mode2SustainedTrialCount","39. Mode 2 sustained trials at adaptive MBS + relief (default 20)","number"],
+ ["mode2SustainedWrongFailPercent","40. Mode 2 wrong-fail threshold for sustained phase (default 50% of sustained trials)","number"],
+ ["mode2SustainedRollMeanWindow","41. Mode 2 anti-spoof rolling mean window in Sustained Phase (default 10)","number"],
+ ["mode2SustainedRollMeanThreshold","42. Mode 2 anti-spoof rolling mean threshold in Sustained Phase (default 0.50)","number"],
+ ["mode2LateResponseThresholdMs","43. Mode 2 late response reassignment threshold (ms, default 600)","number"],
+ ["mode2FinalTrialCount","44. Mode 2 final self-paced trials (default 2)","number"],
 
- // 46-47. Mode 3 Self-paced, in program-use order
- ["mode3TrialLimit","46. Mode 3 self-paced trial limit (default 150)","number"],
- ["mode3MaxDurationMs","47. Mode 3 total duration ms (default 90000)","number"],
+ // 45-46. Mode 3 Self-paced, in program-use order
+ ["mode3TrialLimit","45. Mode 3 self-paced trial limit (default 150)","number"],
+ ["mode3MaxDurationMs","46. Mode 3 total duration ms (default 90000)","number"],
 
- // 48-50. Mode 4 Machine-paced, in program-use order
- // V699rev180: mode4CalibrationTrials retired — Mode 4's self-paced phase now
- // uses the unified calibrationMaxAttempts / pass criteria (fields 4-9).
+ // 47-50. Mode 4 Machine-paced, in program-use order
+ ["mode4CalibrationTrials","47. Mode 4 self-paced calibration trials (default 10)","number"],
  ["mode4BaselineFactor","48. Mode 4 MP baseline factor from cal avg (default 1.1)","number"],
  ["mode4PacedTrialLimit","49. Mode 4 fixed machine-paced trial limit (default 140)","number"],
  ["mode4MaxDurationMs","50. Mode 4 total duration ms (default 90000)","number"],
@@ -300,21 +242,21 @@ const ADMIN_FIELDS=[
 
  // 65-79. Mode 2 normative CPA defaults
  ["mode2NormExpectedCorrectRate","65. Mode 2 expected sustained correct rate by CPI bucket (min-max:value; ...)","text"],
- ["mode2NormExpectedWrongRate","66. Mode 2 expected sustained wrong rate by CPI bucket (min-max:value; ...) — Deprecated V699rev151 (retained for storage continuity)","text"],
- ["mode2NormExpectedMissRate","67. Mode 2 expected sustained miss rate by CPI bucket (min-max:value; ...) — Deprecated V699rev151 (retained for storage continuity)","text"],
- ["mode2NormExpectedDriftPct","68. Mode 2 expected sustained drift % by CPI bucket (min-max:value; ...) — V699rev151 now compared against OLS-slope drift","text"],
+ ["mode2NormExpectedWrongRate","66. Mode 2 expected sustained wrong rate by CPI bucket (min-max:value; ...)","text"],
+ ["mode2NormExpectedMissRate","67. Mode 2 expected sustained miss rate by CPI bucket (min-max:value; ...)","text"],
+ ["mode2NormExpectedDriftPct","68. Mode 2 expected sustained drift % by CPI bucket (min-max:value; ...)","text"],
  ["mode2NormExpectedCvPct","69. Mode 2 expected sustained CV% by CPI bucket (min-max:value; ...)","text"],
- ["mode2NormToleranceCorrectRate","70. Mode 2 correct-rate tolerance — Deprecated V699rev151 (retained for storage continuity)","number"],
- ["mode2NormToleranceWrongRate","71. Mode 2 wrong-rate tolerance — Deprecated V699rev151 (retained for storage continuity)","number"],
- ["mode2NormToleranceMissRate","72. Mode 2 miss-rate tolerance — Deprecated V699rev151 (retained for storage continuity)","number"],
+ ["mode2NormToleranceCorrectRate","70. Mode 2 correct-rate tolerance around expected profile (default 0.12)","number"],
+ ["mode2NormToleranceWrongRate","71. Mode 2 wrong-rate tolerance around expected profile (default 0.08)","number"],
+ ["mode2NormToleranceMissRate","72. Mode 2 miss-rate tolerance around expected profile (default 0.10)","number"],
  ["mode2NormToleranceDriftPct","73. Mode 2 drift tolerance % around expected profile (default 8)","number"],
  ["mode2NormToleranceCvPct","74. Mode 2 CV tolerance % around expected profile (default 10)","number"],
- ["mode2NormWeightCorrect","75. Mode 2 CPA weight for correct-rate — RETIRED V699rev151 (default 0). Consolidated into weight 87.","number"],
- ["mode2NormWeightWrong","76. Mode 2 CPA weight for wrong-rate — RETIRED V699rev151 (default 0). Consolidated into weight 87.","number"],
- ["mode2NormWeightMiss","77. Mode 2 CPA weight for miss-rate — RETIRED V699rev151 (default 0). Consolidated into weight 87.","number"],
- ["mode2NormWeightDrift","78. Mode 2 CPA weight for OLS-drift deviation (default 6.0, V699rev151 — was 1.5)","number"],
- ["mode2NormWeightCv","79. Mode 2 CPA weight for CV deviation (default 6.0, V699rev151 — was 1.5)","number"],
- ["mode2NormMaxDelta","80. Mode 2 CPA max total divergence from CPI (points, default 20). Max pre-cap residual is 21 so the cap can engage.","number"],
+ ["mode2NormWeightCorrect","75. Mode 2 CPA weight for correct-rate deviation (default 3.0)","number"],
+ ["mode2NormWeightWrong","76. Mode 2 CPA weight for wrong-rate deviation (default 2.5)","number"],
+ ["mode2NormWeightMiss","77. Mode 2 CPA weight for miss-rate deviation (default 3.5)","number"],
+ ["mode2NormWeightDrift","78. Mode 2 CPA weight for drift deviation (default 1.5)","number"],
+ ["mode2NormWeightCv","79. Mode 2 CPA weight for CV deviation (default 1.5)","number"],
+ ["mode2NormMaxDelta","80. Mode 2 CPA max total divergence from CPI (points, default 20)","number"],
 
  // 81. Diagnostics
  ["deviceBenchmarkEnabled","81. Device benchmark (0=off, 1=on)","number"],
@@ -322,19 +264,7 @@ const ADMIN_FIELDS=[
  ["researchUploadEndpoint","83. Research upload endpoint URL (leave blank to disable uploads)","text"],
  ["researchIncludeLearningSessions","84. Research upload include learning/pre-baseline sessions (0=off, 1=on)","number"],
  ["researchAutoUpload","85. Research upload automatically when online (0=off, 1=on)","number"],
- ["researchRetainRawAfterVerify","86. Keep raw research payload on device after verification (0=off, 1=on)","number"],
- // V699rev151: new Mode 2 CPA accuracy-composite settings (replace the
- // previously collinear correct/wrong/miss triad).
- ["mode2NormExpectedAccuracyComposite","87. Mode 2 expected sustained accuracy composite by CPI bucket (min-max:value; ...). Composite = correctRate − wrongRate − 0.5·missRate","text"],
- ["mode2NormToleranceAccuracyComposite","88. Mode 2 accuracy-composite tolerance around expected profile (default 0.15)","number"],
- ["mode2NormWeightAccuracy","89. Mode 2 CPA weight for accuracy-composite deviation (default 9.0, V699rev151). Replaces the old sum of weights 75+76+77.","number"],
- // 90-95. Personal Baseline creation rules (V699rev170).
- ["baselineWindowSize","90. Personal Baseline rolling-average window size (qualifying sessions, default 5)","number"],
- ["baselineMinSessionsToEstablish","91. Personal Baseline minimum qualifying sessions before first establishment (default 5)","number"],
- ["baselineMinSpfs","92. Personal Baseline minimum qualifying S-PFS (default 5)","number"],
- ["baselineMaxSpfs","93. Personal Baseline maximum qualifying S-PFS (default 7)","number"],
- ["baselineAllowedModes","94. Personal Baseline allowed test modes, comma-separated (default \"mode1,mode2\")","text"],
- ["baselineExcludeFailed","95. Personal Baseline exclude failed sessions (0=include, 1=exclude, default 1)","number"]
+ ["researchRetainRawAfterVerify","86. Keep raw research payload on device after verification (0=off, 1=on)","number"]
 ];
 
 // ─── Patterns ───
@@ -415,10 +345,6 @@ let settings=loadSettings();
  fixNum("memoryMaxTestDurationMs", [0], 240000);
  fixNum("memoryNoResponseTimeoutMs", [10000], 15000);
  fixNum("survivalNoResponseTimeoutMs", [12000], 15000);
- // V699rev173: Mode 1 CPI best-ms anchor lowered 800 → 700 per Layne's spec.
- // Migrate any device whose saved value is the prior default (800) to the
- // new default (700). Devices that have set a custom value are left alone.
- fixNum("cpiBestMs", [800], 700);
  if(changed){
   try{ saveSettings(); }catch(e){}
   try{ localStorage.setItem(`${STORAGE_PREFIX}_admin_defaults_repaired`, "1"); }catch(e){}
@@ -442,7 +368,7 @@ let settings=loadSettings();
 // profile record (profile is no longer the source of truth for test type),
 // and persist both. This fires once per fresh rev deployment per device;
 // after that, the stamp matches and nothing is touched on subsequent loads.
-const APP_REV_STAMP = "V699rev181";
+const APP_REV_STAMP = "V699rev149";
 // Version policy: APP_VERSION preserves base storage/schema continuity; DISPLAY_VERSION is what users see.
 const DISPLAY_VERSION = APP_REV_STAMP || APP_VERSION;
 
@@ -474,72 +400,6 @@ const DISPLAY_VERSION = APP_REV_STAMP || APP_VERSION;
   try{ saveSettings(); }catch(e){}
  }
  try{ localStorage.setItem(`${STORAGE_PREFIX}_rev145_safe_admin_migration`, APP_REV_STAMP); }catch(e){}
-})();
-
-
-// V699rev151 one-time per-revision migration:
-// Safely bring Admin defaults to the new CPA architecture (accuracy composite
-// consolidation + upgraded drift/CV weights + new accuracy-composite expected
-// profile and tolerance). Only replace when the stored value still equals the
-// old default, preserving any user-edited Admin values.
-//
-// Migration table:
-//   #75 mode2NormWeightCorrect          3.0 -> 0      (RETIRED, consolidated into #89)
-//   #76 mode2NormWeightWrong            2.5 -> 0      (RETIRED, consolidated into #89)
-//   #77 mode2NormWeightMiss             3.5 -> 0      (RETIRED, consolidated into #89)
-//   #78 mode2NormWeightDrift            1.5 -> 6.0    (now drives OLS-slope drift)
-//   #79 mode2NormWeightCv               1.5 -> 6.0
-//   #87 mode2NormExpectedAccuracyComposite  "" -> default bucket string  (new key)
-//   #88 mode2NormToleranceAccuracyComposite "" -> 0.15                    (new key)
-//   #89 mode2NormWeightAccuracy             "" -> 9.0                     (new key)
-//
-// Total max weighted residual after migration:
-//    |acc|·9 + |drift|·6 + |cv|·6 = 21   (with each |residual| ≤ 1)
-// so the cap of 20 CAN engage at the extremes without any one feature on its
-// own saturating it. This is the structural fix called out by the Rev 150
-// audit: previously the sum of weights (12) was below the cap (20), making
-// the cap vestigial. The new default satisfies that review point.
-(function migrateRev151CpaArchitectureSafely(){
- let stored = "";
- try{ stored = localStorage.getItem(`${STORAGE_PREFIX}_rev151_safe_cpa_migration`) || ""; }catch(e){ stored = ""; }
- if(stored === APP_REV_STAMP) return;
-
- let changed = false;
- const maybeReplaceNum = (key, oldVals, nextVal)=>{
-  const cur = Number(settings[key]);
-  if(!Number.isFinite(cur) || oldVals.includes(cur)){
-   settings[key] = nextVal;
-   changed = true;
-  }
- };
- const maybeReplaceText = (key, oldVals, nextVal)=>{
-  const cur = settings[key];
-  if(cur == null || cur === "" || oldVals.includes(String(cur))){
-   settings[key] = nextVal;
-   changed = true;
-  }
- };
-
- maybeReplaceNum("mode2NormWeightCorrect", [3.0, 3], 0);   // #75 RETIRED
- maybeReplaceNum("mode2NormWeightWrong",   [2.5],    0);   // #76 RETIRED
- maybeReplaceNum("mode2NormWeightMiss",    [3.5],    0);   // #77 RETIRED
- maybeReplaceNum("mode2NormWeightDrift",   [1.5],    6.0); // #78
- maybeReplaceNum("mode2NormWeightCv",      [1.5],    6.0); // #79
-
- maybeReplaceText("mode2NormExpectedAccuracyComposite",
-  [],
-  DEFAULTS.mode2NormExpectedAccuracyComposite);            // #87
- maybeReplaceNum("mode2NormToleranceAccuracyComposite",
-  [],
-  DEFAULTS.mode2NormToleranceAccuracyComposite);           // #88
- maybeReplaceNum("mode2NormWeightAccuracy",
-  [],
-  DEFAULTS.mode2NormWeightAccuracy);                       // #89
-
- if(changed){
-  try{ saveSettings(); }catch(e){}
- }
- try{ localStorage.setItem(`${STORAGE_PREFIX}_rev151_safe_cpa_migration`, APP_REV_STAMP); }catch(e){}
 })();
 
 
@@ -610,39 +470,12 @@ const state={
  overloads:[], recoveries:[], recoveryTrialsCompleted:0,
  spCorrectStreak:0, spWrongCount:0, terminalBlockReason:null,
  history:loadPersistedHistory(),
- // V699rev169: per-subject permanent Baseline-history cache. See
- // loadPersistedBaselineHistoryCache() for the shape and rationale.
- baselineHistoryCache:loadPersistedBaselineHistoryCache(),
  totalTrials:0, totalResponses:0, totalCorrect:0, totalIncorrect:0,
  missedTrials:0, pacedErrors:0, recoveryErrors:0, rollMeanLog:[],
  testStartTime:null, trialTimer:null, absoluteNoResponseTimer:null, maxTestTimer:null,
  maxTestRemainingMs:null, maxTestDeadlineMs:null,
  lastFiveAnswers:[], samnPerelli:null, subjectId:null,
  calibrationTrialIndex:0, calibrationRTs:[], calibrationErrors:0,
- // V699rev180 — unified self-paced calibration phase.
- // calibrationConsecCorrect: streak of consecutive correct measured responses
- //   (resets to 0 on any wrong measured response); pass requires this to
- //   reach calibrationPassConsecutiveCorrect (default 6).
- // calibrationRollingCorrectRTs: post-warmup CORRECT-only RTs since the last
- //   wrong response (or since post-warmup start). Mean of this list is the
- //   "rolling average trial RT mean"; rebuilt empty on every wrong response.
- // calibrationAttemptsUsed: count of post-warmup attempts consumed (correct
- //   AND wrong each consume one slot per Layne's spec). Hard cap = calibrationMaxAttempts.
- // calibrationPhaseStartMs: performance.now() when first measured trial opens;
- //   gates the 60-second overall calibration phase cap.
- // calibrationPhaseTimer: setTimeout handle for the phase-cap.
- // calibrationHintTimer: setTimeout handle for the per-trial 6s green-hint flash.
- // calibrationHintActive: true while the green hint is currently flashing on
- //   the correct cell (pre-tap or pending tap-correct after wrong).
- // calibrationPendingCorrectTap: when a wrong measured response was recorded,
- //   true while we wait for the subject to tap the correct cell to advance.
- // calibrationFailedFlag: snapshot used by the speedometer to render the
- //   "FAILED — NEEDS MORE PRACTICE!" outcome with the S-PFS-keyed disposition.
- calibrationConsecCorrect:0, calibrationRollingCorrectRTs:[],
- calibrationAttemptsUsed:0, calibrationPhaseStartMs:null,
- calibrationPhaseTimer:null, calibrationHintTimer:null,
- calibrationHintActive:false, calibrationPendingCorrectTap:false,
- calibrationFailedFlag:false,
  pacedRTs:[], rtLog:[], lastFrameDuration:null,
  presentedRoundDuration:null,
  activeMode:"mode1", selfPacedRTs:[], selfPacedCorrect:0, selfPacedWrong:0,
@@ -689,143 +522,6 @@ function syncReleaseUI(){
  if(statusLine) statusLine.textContent = `CogSpeed ${visibleVersion}`;
 }
 syncReleaseUI();
-
-// V699rev154: iOS WebAudio unlock.
-//
-// On iOS Safari — even with the hardware silent switch OFF — a newly created
-// AudioContext can be in state "suspended" or in state "running" but still
-// produce no actual speaker output until the audio session has been primed
-// via user-gesture-originated audio activity. `ctx.resume()` alone is not
-// always sufficient; the system also wants to see actual audio scheduling
-// from the gesture that created or resumed the context.
-//
-// The fix is the standard one-shot primer: on the first user gesture after
-// script load, create/resume the shared survival AudioContext and play a
-// zero-amplitude oscillator burst for ~25ms. This is inaudible but routes
-// nonzero samples through the destination, which is what iOS needs to see
-// before subsequent WebAudio playback actually reaches the speaker.
-//
-// Listeners are in the capture phase so they run before any stopPropagation
-// upstream, and { once: true } auto-removes them so the primer only runs
-// once per page load.
-//
-// Guarded: failures (e.g. older Safari rejecting setValueAtTime or the
-// AudioContext constructor) are swallowed silently so a device that does
-// not need priming is never broken by this code path.
-(function installIosWebAudioUnlock(){
- let unlocked = false;
- const unlock = ()=>{
-  if(unlocked) return;
-  unlocked = true;
-  try{
-   const AC = window.AudioContext || window.webkitAudioContext;
-   if(!AC) return;
-   state._survivalAudioCtx = state._survivalAudioCtx || new AC();
-   const ctx = state._survivalAudioCtx;
-   // Synchronous resume attempt within the user gesture. On iOS this is
-   // the most reliable form; the promise fallback covers older engines.
-   const afterResume = ()=>{
-    try{
-     const t0 = ctx.currentTime + 0.005;
-     const osc = ctx.createOscillator();
-     const g = ctx.createGain();
-     g.gain.setValueAtTime(0.00001, t0);                         // inaudible
-     g.gain.linearRampToValueAtTime(0.00001, t0 + 0.025);
-     osc.frequency.setValueAtTime(440, t0);
-     osc.connect(g).connect(ctx.destination);
-     osc.start(t0);
-     osc.stop(t0 + 0.03);
-    }catch(e){ /* primer best-effort */ }
-   };
-   if(ctx.state === "suspended"){
-    try{
-     Promise.resolve(ctx.resume()).then(afterResume).catch(afterResume);
-    }catch(e){ afterResume(); }
-   }else{
-    afterResume();
-   }
-  }catch(e){ /* unlock best-effort */ }
- };
- const opts = { capture: true, once: true, passive: true };
- try{ document.addEventListener("touchstart", unlock, opts); }catch(e){}
- try{ document.addEventListener("pointerdown", unlock, opts); }catch(e){}
- try{ document.addEventListener("click",       unlock, opts); }catch(e){}
- try{ document.addEventListener("keydown",     unlock, opts); }catch(e){}
-})();
-
-// V699rev155: iOS detection + Survival silent-switch notice gate.
-//
-// Why this exists: iOS Safari and Chrome-on-iOS (which is forced to use
-// WebKit under Apple's App Store rules) route WebAudio output through an
-// audio session category that obeys the hardware silent switch on the side
-// of the device. If the switch is ON (orange showing), WebAudio is muted
-// even though other apps play audio normally, the ringer volume is up, and
-// media volume is up. Users universally hit this wall; the notice saves the
-// support round-trip.
-//
-// Detection: the classic userAgent regex + a fallback for iPadOS 13+, which
-// Safari misidentifies as MacIntel but betrays by reporting touch support
-// (navigator.maxTouchPoints > 1 on a Mac basically never happens outside of
-// iPadOS spoofing the Mac UA string).
-//
-// The "is-ios" class is added to the <html> element so CSS can gate
-// iOS-specific affordances without JS branching at render time. The notice
-// is additionally gated by "show-for-survival" on the notice element, which
-// is toggled by a change listener on the test-type selector. The notice
-// therefore appears only for the intersection of (iPhone/iPad) AND
-// (Survival selected).
-// V699rev157: platform detection — sets two classes on the <html> element.
-//
-//   html.is-ios       → device is iPhone, iPad, or iPadOS-13+ spoofing Mac.
-//                       Gates iOS-specific notices (e.g. the Survival
-//                       silent-switch warning, which is a genuine iOS-only
-//                       audio-session quirk).
-//
-//   html.is-mobile    → device is iOS OR Android. Gates mobile-generic
-//                       notices that apply to both platforms (e.g. the
-//                       scheduler background-limitation warning, since both
-//                       iOS and Android throttle or suspend setTimeout in
-//                       backgrounded tabs and neither delivers alerts when
-//                       the browser is closed without server-side Web Push).
-//
-// This IIFE also preserves the Rev 155 behavior of toggling
-// "show-for-survival" on the iOS-only silent-switch notice when the user
-// selects the Survival test type.
-//
-// Detection: userAgent regex for iOS, iPadOS spoof fallback via
-// navigator.maxTouchPoints > 1 on a reported Mac, and a /Android/ substring
-// test for Android. Guarded so detection failures never break boot.
-(function installPlatformNoticesRev157(){
- try{
-  const ua = String(navigator.userAgent || "");
-  const isIpadOsSpoofingMac = /Macintosh/.test(ua)
-   && typeof navigator.maxTouchPoints === "number"
-   && navigator.maxTouchPoints > 1;
-  const isIos = /iPad|iPhone|iPod/.test(ua) || isIpadOsSpoofingMac;
-  const isAndroid = /Android/.test(ua);
-  const isMobile = isIos || isAndroid;
-  const htmlEl = document.documentElement;
-  if(isIos)    htmlEl.classList.add("is-ios");
-  if(isMobile) htmlEl.classList.add("is-mobile");
-  // The remaining logic is iOS-only — it wires the Survival silent-switch
-  // notice to the test-type selector. On Android there is no silent-switch
-  // gate on WebAudio, so that notice stays hidden.
-  if(!isIos) return;
-  const sel = document.getElementById("profileTestType");
-  const notice = document.getElementById("iosSilentSwitchNotice");
-  if(!sel || !notice) return;
-  const sync = ()=>{
-   if(sel.value === "survival"){
-    notice.classList.add("show-for-survival");
-   } else {
-    notice.classList.remove("show-for-survival");
-   }
-  };
-  sel.addEventListener("change", sync);
-  // Run once at boot so the notice reflects any persisted / default value.
-  sync();
- }catch(e){ /* detection best-effort */ }
-})();
 
 $("openResearchUploadPageBtn")?.addEventListener("click", ()=>$("researchUploadPage")?.classList.remove("hidden"));
 $("closeResearchUploadPageBtn")?.addEventListener("click", ()=>$("researchUploadPage")?.classList.add("hidden"));
@@ -929,13 +625,12 @@ function normalizeLegacyResultRow(row){
    if(r.mode2Triggered && r.cpa==null){
     Object.assign(r, computeMode2CPA(r));
    }
-   if(r.mode2Triggered && (r.dispositionCode==null || r.dispositionLabel==null || r.dispositionSpfs==null || r.dispositionRecommendation==null)){
+   if(r.mode2Triggered && (r.dispositionCode==null || r.dispositionLabel==null || r.dispositionSpfs==null)){
     const nextDisp = computeDisposition(r);
     if(nextDisp && typeof nextDisp==="object"){
      if(nextDisp.dispositionCode!=null) r.dispositionCode = nextDisp.dispositionCode;
      if(nextDisp.dispositionLabel!=null) r.dispositionLabel = nextDisp.dispositionLabel;
      if(nextDisp.dispositionSpfs!=null) r.dispositionSpfs = nextDisp.dispositionSpfs;
-     if(nextDisp.dispositionRecommendation!=null) r.dispositionRecommendation = nextDisp.dispositionRecommendation;
     }
    }
   }catch(e){}
@@ -945,12 +640,9 @@ function normalizeLegacyResultRow(row){
  // Legacy disposition cleanup:
  // - old legacy color codes like GREEN/YELLOW/ORANGE/RED
  // - missing disposition fields
- // V699rev175: also re-runs when dispositionRecommendation is missing,
- // so saved rows from prior revs pick up the new universal action-
- // recommendation string on first rev175 launch.
  const legacyCodes = new Set(["GREEN","YELLOW","ORANGE","RED"]);
  const badLegacy = legacyCodes.has(String(r.dispositionCode||"").toUpperCase()) || legacyCodes.has(String(r.dispositionLabel||"").toUpperCase());
- const missingDisp = r.dispositionCode == null || r.dispositionLabel == null || r.dispositionSpfs == null || r.dispositionRecommendation == null;
+ const missingDisp = r.dispositionCode == null || r.dispositionLabel == null || r.dispositionSpfs == null;
  if(badLegacy || missingDisp){
   try{
    const next = computeDisposition(r);
@@ -958,7 +650,6 @@ function normalizeLegacyResultRow(row){
     if(next.dispositionCode != null) r.dispositionCode = next.dispositionCode;
     if(next.dispositionLabel != null) r.dispositionLabel = next.dispositionLabel;
     if(next.dispositionSpfs != null) r.dispositionSpfs = next.dispositionSpfs;
-    if(next.dispositionRecommendation != null) r.dispositionRecommendation = next.dispositionRecommendation;
    }
   }catch(e){}
  }
@@ -1023,34 +714,6 @@ function savePersistedHistory(list){
 function clearPersistedHistory(){
  localStorage.removeItem(`${STORAGE_PREFIX}_history`);
  state.history = [];
- try{ clearPersistedBaselineHistoryCache(); }catch(e){}
-}
-
-// V699rev169: Permanent Baseline-history cache.
-// ---------------------------------------------
-// Storage key: `${STORAGE_PREFIX}_baseline_history`.
-// Shape: { [subjectId]: [ { baselineNumber, value, establishedAt,
-//   triggeringSessionIndex, windowSessionIndices } ... ] }
-//
-// This cache is REDUNDANT with what computePersonalBaseline() can derive
-// from state.history (and with the per-session result.baselineSnapshot
-// recorded at finish time). We keep it because the spec asks for Baselines
-// to be "permanently retained" — so even if a user later deletes a
-// triggering session from history, the historical Baseline record itself
-// survives. The cache is updated on every test save and is also rebuilt
-// from state.history on app start (additively — never replacing prior
-// recorded Baselines).
-function loadPersistedBaselineHistoryCache(){
- try{
-  const raw = JSON.parse(localStorage.getItem(`${STORAGE_PREFIX}_baseline_history`)||"{}");
-  return (raw && typeof raw === "object" && !Array.isArray(raw)) ? raw : {};
- }catch(e){ return {}; }
-}
-function savePersistedBaselineHistoryCache(cache){
- try{ localStorage.setItem(`${STORAGE_PREFIX}_baseline_history`, JSON.stringify(cache||{})); }catch(e){}
-}
-function clearPersistedBaselineHistoryCache(){
- try{ localStorage.removeItem(`${STORAGE_PREFIX}_baseline_history`); }catch(e){}
 }
 
 function clearSchedulerLocalData(){
@@ -1173,7 +836,7 @@ function harvestActiveFrameTiming(actualAtMs){
 // ─── CPI ───
 // ─── CPI SCORE CALCULATION ────────────────────────────────────
 // Converts avg last 2 block durations (ms) to 0-100 CPI score.
-// Scale: cpiBestMs=700ms → CPI 100, cpiWorstMs=2800ms → CPI 0.
+// Scale: cpiBestMs=800ms → CPI 100, cpiWorstMs=2800ms → CPI 0.
 // Source: Perelli (2026). Formula: (worst-ms)/(worst-best)*100
 // ──────────────────────────────────────────────────────────────
 function computeCPI(avgMs){
@@ -1232,12 +895,9 @@ function resumeMaxTestTimer(){
  armMaxTestTimer(remaining);
 }
 // Absolute "not responding" timer — keeps tests from hanging forever.
-// V699rev180: calibration uses a flat per-trial no-response cap
-// (calibrationPerTrialMaxMs, default 10s) for ALL calibration trials
-// including the warm-up. The 6-second green-hint flash is a separate
-// timer (armCalibrationHintTimer) that runs in parallel and assists the
-// subject without consuming attempts.
-// Mode 1 recovery uses recoveryNoResponseMs (default 10s).
+// Calibration trial 1 uses calibrationFirstNoResponseMs (default 10s).
+// Later calibration trials use calibrationNoResponseMs (default 6s).
+// Calibration and Mode 1 recovery use explicit per-trial no-response timeouts.
 // Mode 2 final self-paced uses no per-trial timeout; only the overall max-time rule can end an unanswered final trial.
 // Fires finish() with a no-response end reason if nothing is tapped in time.
 function armNoResponseTimer(){
@@ -1252,8 +912,9 @@ function armNoResponseTimer(){
   case "mode2_final":
    return;
   case "calibration":
-   // V699rev180 — unified flat per-trial cap; no first-vs-later distinction.
-   ms = Number(settings.calibrationPerTrialMaxMs) || DEFAULTS.calibrationPerTrialMaxMs;
+   ms = state.calibrationTrialIndex===0
+    ? (Number(settings.calibrationFirstNoResponseMs)||10000)
+    : (Number(settings.calibrationNoResponseMs)||6000);
    break;
   case "paced":
   case "paced_fixed":
@@ -1264,14 +925,9 @@ function armNoResponseTimer(){
  }
  if(challengeTimeout!=null && ms!=null) ms = challengeTimeout;
  state.absoluteNoResponseTimer=setTimeout(()=>{
-  // V699rev180 — calibration no-response timeout now routes through
-  // failCalibration() so the run is flagged with calibrationFailedFlag and
-  // the speedometer renders the unified FAILED outcome.
-  if(state.phase==="calibration"){
-   failCalibration("Calibration: no response within per-trial cap — needs more practice.");
-   return;
-  }
-  state.endReason = "Responses were too slow to continue — please retest.";
+  state.endReason = state.phase==="calibration"
+   ? "No response detected — please retest."
+   : "Responses were too slow to continue — please retest.";
   finish();
  }, ms);
 }
@@ -1965,26 +1621,7 @@ function playSurvivalCorrectSound(iconNum){
    }
   };
   if(ctx.state === "suspended"){
-   // V699rev154: attempt synchronous resume within the user gesture first,
-   // since the Promise-then-setTimeout deferral pattern can lose gesture
-   // context on iOS Safari and cause the first tap to be silent. If the
-   // synchronous resume completes in-frame (ctx.state flips to "running"),
-   // we emit immediately. Otherwise fall back to the promise path. Either
-   // way the emit fires — this is a latency optimization for iOS, not a
-   // correctness change.
-   try{
-    const resumePromise = ctx.resume();
-    if(ctx.state === "running"){
-     emit();
-    }else{
-     Promise.resolve(resumePromise).then(()=>{
-      try{ emit(); }catch(e){}
-     }).catch(()=>{ try{ emit(); }catch(e){} });
-    }
-   }catch(e){
-    // Older engines that throw on resume() — schedule on next tick.
-    setTimeout(()=>{ try{ emit(); }catch(e2){} }, 0);
-   }
+   Promise.resolve(ctx.resume()).then(()=>setTimeout(emit,0)).catch(()=>setTimeout(emit,0));
   }else{
    emit();
   }
@@ -2472,206 +2109,70 @@ function maybeTriggerTerminalRule(){
  }
  return false;
 }
-function failCalibration(reason){
- // V699rev180 — every calibration failure now flags the run so the
- // speedometer/outcome surfaces can render the "FAILED — NEEDS MORE PRACTICE!"
- // headline plus the S-PFS-keyed disposition recommendation, regardless of
- // mode. Phase + hint timers are cleared first so an in-flight tap or hint
- // animation does not race the finish() flow.
- clearCalibrationPhaseTimer();
- clearCalibrationHintTimer();
- state.calibrationFailedFlag=true;
- state.endReason=reason||"Calibration failed — needs more practice.";
- finish();
-}
-
-// ─── V699rev180 — CALIBRATION-PHASE HELPERS ───────────────────
-// armCalibrationPhaseTimer(): wall-clock budget for the entire self-paced
-//   calibration phase (default 60s). Started exactly once on the first
-//   measured-trial open. On expiry → failCalibration with the over-budget
-//   message. Idempotent: re-arming when state.calibrationPhaseTimer is
-//   already set is a no-op (we never want a second concurrent phase timer).
-// clearCalibrationPhaseTimer(): cancels the phase timer.
-// armCalibrationHintTimer(correctIdx): per-trial 6s timer that, on expiry,
-//   adds the .calibration-hint-correct-flash class to the correct response
-//   button so subjects who freeze get a visual prompt (mirrors the
-//   tutPairFlashCorrect pattern used in the tutorial). The 10s per-trial
-//   no-response cap (armNoResponseTimer) runs in parallel so the hint
-//   appears at 6s and the trial fails at 10s if still untapped.
-// clearCalibrationHintTimer(): cancels the hint timer AND removes the
-//   flash class from any currently-flashing cell. Called on tap, on phase
-//   end, and at the top of every new trial.
-// applyCalibrationHintToCorrectCell(): adds the green-hint class to the
-//   correct response button. Pulled out of armCalibrationHintTimer's
-//   timeout closure so callers can also force-flash the cell on a wrong
-//   measured response (per spec: "After each wrong response… correct
-//   answer is flashed").
-function armCalibrationPhaseTimer(){
- if(state.calibrationPhaseTimer) return;
- const phaseMs = Math.max(1000, Number(settings.calibrationMaxPhaseDurationMs) || DEFAULTS.calibrationMaxPhaseDurationMs);
- state.calibrationPhaseStartMs = performance.now();
- state.calibrationPhaseTimer = setTimeout(()=>{
-  state.calibrationPhaseTimer = null;
-  if(state.phase!=="calibration") return;
-  failCalibration(`Calibration phase exceeded ${(phaseMs/1000).toFixed(0)} seconds — needs more practice.`);
- }, phaseMs);
-}
-function clearCalibrationPhaseTimer(){
- if(state.calibrationPhaseTimer){
-  try{ clearTimeout(state.calibrationPhaseTimer); }catch(e){}
-  state.calibrationPhaseTimer = null;
- }
-}
-function applyCalibrationHintToCorrectCell(){
- try{
-  if(!state.current || !respGrid) return;
-  const correctIdx = Number(state.current.correctPos);
-  if(!Number.isFinite(correctIdx)) return;
-  const btns = respGrid.querySelectorAll(".resp-btn");
-  if(!btns[correctIdx]) return;
-  // Clear the class from any other cell first so successive flashes don't
-  // accidentally light up multiple cells if a renderer ordering bug ever
-  // leaves stale classes around.
-  btns.forEach(b=>b.classList.remove("calibration-hint-correct-flash"));
-  btns[correctIdx].classList.add("calibration-hint-correct-flash");
-  state.calibrationHintActive = true;
- }catch(e){ /* defensive: hint is purely cosmetic, never throw */ }
-}
-function armCalibrationHintTimer(){
- clearCalibrationHintTimer();
- const hintMs = Math.max(500, Number(settings.calibrationHintAfterMs) || DEFAULTS.calibrationHintAfterMs);
- state.calibrationHintTimer = setTimeout(()=>{
-  state.calibrationHintTimer = null;
-  if(state.phase!=="calibration") return;
-  if(!state.current || state.current.resolved) return;
-  applyCalibrationHintToCorrectCell();
- }, hintMs);
-}
-function clearCalibrationHintTimer(){
- if(state.calibrationHintTimer){
-  try{ clearTimeout(state.calibrationHintTimer); }catch(e){}
-  state.calibrationHintTimer = null;
- }
- // Always sweep stale flash classes — calling clear is a hard reset.
- try{
-  if(respGrid){
-   respGrid.querySelectorAll(".resp-btn.calibration-hint-correct-flash").forEach(b=>b.classList.remove("calibration-hint-correct-flash"));
-  }
- }catch(e){}
- state.calibrationHintActive = false;
-}
-
-// V699rev180 — calibration-failure disposition lookup.
-// Per Layne's spec the failed-calibration disposition box on the speedometer
-// page reads from the SUBJECT'S SELF-REPORTED S-PFS (state.samnPerelli at
-// pre-test), NOT from any test-derived score (since calibration failure means
-// no test-derived disposition is computable). Three bands:
-//   S-PFS 7 / 6 / 5 → "Safe to drive..."
-//   S-PFS 4         → "Functioning slightly less than normal. Caution..."
-//   S-PFS 3         → "Functioning starting to slow. Strong recommendation..."
-//   S-PFS 2 / 1     → "Unable to function / Definitely unsafe. Stop!..."
-// Returns null for invalid inputs so callers can render an em-dash fallback.
-// Wording is verbatim per spec; do NOT paraphrase without an explicit rev.
-function getCalibrationFailDispositionBySpfs(spfs){
- const n = Number(spfs);
- if(!Number.isFinite(n) || n < 1 || n > 7) return null;
- const i = Math.round(n);
- if(i >= 5) return "Safe to drive or perform any safety-critical task.";
- if(i === 4) return "Functioning slightly less than normal. Caution. Mild fatigue detected.";
- if(i === 3) return "Functioning starting to slow. Strong recommendation: rest before continuing. Do not drive or perform any safety-critical task without a break.";
- // i === 2 || i === 1
- return "Unable to function / Definitely unsafe. Stop! You are not safe to drive or perform any safety-critical task. Rest is required.";
-}
-// Convenience: pull the S-PFS off either a saved result or live state, with
-// a defensive null fallback. Used by syncOutcomeStatusText and the
-// speedometer-failure renderer.
-function getEffectiveSpfsForFailedCalibration(result){
- const fromResult = Number(result && result.samnPerelli && result.samnPerelli.score);
- if(Number.isFinite(fromResult) && fromResult>=1 && fromResult<=7) return fromResult;
- const fromState = Number(state && state.samnPerelli && state.samnPerelli.score);
- if(Number.isFinite(fromState) && fromState>=1 && fromState<=7) return fromState;
- return null;
-}
-// Detect a failed-calibration session from a saved result. Used by the
-// speedometer/outcome renderers to decide whether to swap in the new
-// "FAILED — NEEDS MORE PRACTICE!" headline + S-PFS-keyed disposition box.
-// Two signals: the explicit calibrationFailedFlag carried on the saved row,
-// or — for legacy/repaired rows — an endReason that begins with the
-// canonical V699rev180 calibration-fail prefixes. Defensive: returns false
-// if result is missing.
-function isCalibrationFailedResult(result){
- if(!result) return false;
- if(result.calibrationFailedFlag === true) return true;
- const reason = String(result.endReason || "").toLowerCase();
- if(!reason) return false;
- if(reason.includes("calibration failed")) return true;
- if(reason.includes("calibration phase exceeded")) return true;
- if(reason.includes("calibration: rolling mean")) return true;
- if(reason.includes("calibration: did not reach")) return true;
- if(reason.includes("calibration: max attempts")) return true;
- if(reason.includes("calibration: no response")) return true;
- return false;
-}
-
-// ─── V699rev180: CALIBRATION COMPLETION ───────────────────────
-// finishCalibration() is reached only on PASS (the new unified pass
-// criteria from the handleTap calibration branch — 6 consecutive
-// correct AND rolling-mean RT < 2600 ms within 21 measured attempts).
-// All FAIL paths now route through failCalibration(), which sets
-// state.calibrationFailedFlag and the speedometer renders the unified
-// "FAILED — NEEDS MORE PRACTICE!" outcome with an S-PFS-keyed
-// disposition box.
+function failCalibration(reason){ state.endReason=reason; finish(); }
+// ─── CALIBRATION — SELF-PACED ─────────────────────────────────
+// Warm-up trials:
+//   initialUnusedCalibrationTrials (default 1) are shown first and never used
+//   in averaging or measured-calibration counts.
 //
-// MODE BRANCHING ON PASS:
-//   mode1 / mode2 → adaptive machine-paced phase, baseline =
-//     rollingMeanRT × initialPacedPercent (admin-configurable, default 1.2)
-//   mode3         → enter mode3_continued phase: pure self-paced trials
-//     with NO green hint and NO per-trial 10s cap (reverts to legacy Mode 3
-//     behavior). The phase ends via existing mode3MaxDurationMs /
-//     mode3TrialLimit guards. Trial-log rows continue to use phase tag
-//     "calibration" so the CSV/aggregate code keeps working — the
-//     `mode3_continued` value is internal to the trial flow only.
-//   mode4         → fixed-baseline machine-paced phase, baseline =
-//     rollingMeanRT × mode4BaselineFactor (default 1.1)
+// Measured calibration phase:
+//   After warmups, keep presenting self-paced trials until the number of
+//   CORRECT measured responses reaches initialMeasuredCalibrationTrials
+//   (default 7).
+//
+// IMPORTANT:
+//   Wrong-response RTs are NEVER included in calibration averaging.
+//   Only correct measured calibration RTs are averaged.
+//
+// CHECK ADEQUATELY TRAINED:
+//   calibrationErrors >= calibrationStopErrors (default 4)
+//   → fail with the calibration wrong-response practice/retest message
+//
+// CHECK RESPONSE SPEED:
+//   any correct measured calibration RT > calibrationStopSlowMs (default 6000)
+//   → fail with the calibration too-slow practice/retest message
+//
+// DETERMINE BASELINE RT FOR MODE 1 AND MODE 3:
+//   avg of the required number of CORRECT measured calibration RTs
+//   → paced start / fixed baseline derivation
+//
+// Slow calibration halt:
+//   avg correct measured calibration RT > calibrationStopSlowMs
+//   → "Calibration performance indicates more practice is needed before testing."
+//
+// NO-RESPONSE TIMEOUTS: first trial=10s, subsequent=6s
+// ──────────────────────────────────────────────────────────────
+// finishCalibration() now branches by selected mode:
+// mode1 -> begin adaptive machine-paced CogSpeed phase
+// mode2 -> begin adaptive machine-paced CogSpeed phase and later enter sustained + final self-paced
+// mode3 -> finish after self-paced-only session
+// mode4 -> begin fixed-baseline machine-paced phase using
+//          calibration average × mode4BaselineFactor
+//          IMPORTANT: mode4CalibrationTrials means CORRECT MEASURED trials;
+//          initialUnusedCalibrationTrials warmups are added on top and
+//          wrong measured trials do not count toward the target or the average.
 function finishCalibration(){
- // V699rev180 — clear calibration-only timers as we leave the phase.
- clearCalibrationPhaseTimer();
- clearCalibrationHintTimer();
-
- // Source the calibration baseline RT from the rolling-correct window
- // captured under the new pass rules. Fallback chain mirrors the V699rev175
- // behavior so legacy persisted trial-log shape stays intact.
- const sourceArr = state.calibrationRollingCorrectRTs.length
-  ? state.calibrationRollingCorrectRTs
-  : (state.calibrationRTs.length ? state.calibrationRTs : state.selfPacedRTs);
- const avg = mean(sourceArr);
-
+ const avg=mean(state.calibrationRTs.length?state.calibrationRTs:state.selfPacedRTs);
  if(isMode3()){
-  // Mode 3 PASS — continue self-paced for the remainder of the session.
-  // No hint, no per-trial 10s cap (those were calibration-only learning
-  // aids); the existing mode3MaxDurationMs (default 90000) and
-  // mode3TrialLimit (default 150) guards handle phase termination via
-  // the mode3_continued phase below.
-  state.phase = "mode3_continued";
-  state.calibrationPendingCorrectTap = false;
-  setStatus("Mode 3 self-paced — continuing without hints");
-  openTrial("mode3_continued");
-  return;
+  state.endReason = state.endReason || "Mode 3 complete: required responses completed.";
+  finish(); return;
  }
-
  if(isMode4()){
-  const factor = Number(settings.mode4BaselineFactor) || DEFAULTS.mode4BaselineFactor;
-  state.fixedPacedBaseline = clamp(avg*factor, getCurrentMinDurationMs(), getCurrentMaxDurationMs());
-  state.duration = state.fixedPacedBaseline;
-  state.phase = "paced_fixed";
+  const factor=Number(settings.mode4BaselineFactor)||DEFAULTS.mode4BaselineFactor;
+  state.fixedPacedBaseline=clamp(avg*factor,getCurrentMinDurationMs(),getCurrentMaxDurationMs());
+  state.duration=state.fixedPacedBaseline;
+  state.phase="paced_fixed";
   setStatus(`Mode 4 machine-paced baseline: ${state.duration.toFixed(0)}ms`);
   openTrial("paced_fixed");
   return;
  }
-
- // Mode 1 / Mode 2 — adaptive machine-paced.
- state.duration = clamp(avg*settings.initialPacedPercent, getCurrentMinDurationMs(), getCurrentMaxDurationMs());
- state.phase = "paced";
+ // Slow calibration halt: avg RT too slow — needs more practice
+ if(avg>settings.calibrationStopSlowMs){
+  state.endReason="Calibration performance indicates more practice is needed before testing.";
+  finish(); return;
+ }
+ state.duration=clamp(avg*settings.initialPacedPercent,getCurrentMinDurationMs(),getCurrentMaxDurationMs());
+ state.phase="paced";
  setStatus(`Machine-paced start: ${state.duration.toFixed(0)}ms`);
  openTrial("paced");
 }
@@ -2817,14 +2318,6 @@ function failOpenResultsHandoff(result, stage, err){
 async function finish(){
  if(state.phase==="finished") return;
  clearTimer(); clearNoResponseTimer(); clearMaxTestTimer();
- // V699rev180 — also cancel any pending calibration phase / hint timers so
- // they don't fire after the run has ended. The closures inside both timers
- // guard with `if(state.phase!=="calibration") return;` so a stale fire is
- // already a no-op, but explicit cancellation here keeps the JS event loop
- // tidy and prevents a 60-second-out timer from silently holding state
- // across a "Back to Start → Start" round-trip on the same page load.
- if(typeof clearCalibrationPhaseTimer==="function") clearCalibrationPhaseTimer();
- if(typeof clearCalibrationHintTimer==="function") clearCalibrationHintTimer();
  state.phase="finished";
  let result=null;
  try{
@@ -2884,25 +2377,10 @@ async function finish(){
    sleepLog: state.sleepLog ? JSON.parse(JSON.stringify(state.sleepLog)) : null,
    symbolSet: getActiveSymbolSet(),
    calibrationErrors:state.calibrationErrors,
-   // V699rev180 — propagate the calibration-failure flag onto the saved row
-   // so isCalibrationFailedResult() can identify it on rehydration without
-   // fragile endReason string parsing. The flag is set by failCalibration()
-   // before finish() is called.
-   calibrationFailedFlag: state.calibrationFailedFlag === true,
    pacedErrors:state.pacedErrors, recoveryErrors:state.recoveryErrors, pacedResponseCount:state.pacedRTs.length,
    pacedResponseMeanMs:state.pacedRTs.length?mean(state.pacedRTs):null,
    pacedResponseSdMs:pacedSd, testDurationMs:testDurMs,
-   // V699rev174: selfPacedResponseCount is now computed from the
-   // selfPacedCorrect+selfPacedWrong tallies rather than from
-   // state.selfPacedRTs.length. As of rev174 the array holds correct
-   // RTs only, so its length would underrepresent the total post-warmup
-   // response count. The tallies are the authoritative all-responses count.
-   // selfPacedResponseMeanMs / SdMs continue to read from the (now
-   // correct-only) array, giving the clean correct-only RT mean Layne
-   // requested without disturbing the count semantics shown in the
-   // "Total N · Correct C · Wrong W" display lines.
-   selfPacedResponseCount: (Number(state.selfPacedCorrect)||0) + (Number(state.selfPacedWrong)||0),
-   selfPacedResponseMeanMs: state.selfPacedRTs.length?mean(state.selfPacedRTs):null,
+   selfPacedResponseCount: state.selfPacedRTs.length, selfPacedResponseMeanMs: state.selfPacedRTs.length?mean(state.selfPacedRTs):null,
    selfPacedResponseSdMs: selfPacedSd,
    allResponseMeanMs: allResponseMean, allResponseSdMs: allResponseSd,
    selfPacedCorrect: state.selfPacedCorrect, selfPacedWrong: state.selfPacedWrong,
@@ -2978,40 +2456,6 @@ async function finish(){
   // declared in the device-owner state machine but not actually enforced at
   // the save path. savePersistedHistory() also has a defensive filter now, so
   // Guest rows cannot land on disk regardless of caller.
-  // V699rev169: Compute Baseline state AFTER pushing this result so the
-  // snapshot reflects whether THIS session itself triggered/updated the
-  // Baseline. Then snapshot onto result.baselineSnapshot (permanent on
-  // the session record) and reconcile the persistent cache.
-  try{
-   const sidForBaseline = String(result?.subjectId||"").trim();
-   if(sidForBaseline && !isGuestBaselineSubject(sidForBaseline)){
-    const seq = reconcileBaselineHistoryForSubject(sidForBaseline);
-    const latest = seq.length ? seq[seq.length-1] : null;
-    const isThisSessionTriggering = !!(latest && latest.triggeringSessionIndex === (state.history.length-1));
-    result.baselineSnapshot = {
-     version: "v1",
-     established: !!latest,
-     latestBaselineNumber: latest ? latest.baselineNumber : null,
-     latestBaselineValueMs: latest ? latest.value : null,
-     latestBaselineEstablishedAt: latest ? latest.establishedAt : null,
-     baselineCountSoFar: seq.length,
-     thisSessionEstablishedNewBaseline: isThisSessionTriggering,
-     thisSessionWasQualifying: !!isBaselineQualifyingSession(result)
-    };
-   } else {
-    result.baselineSnapshot = {
-     version: "v1",
-     established: false,
-     latestBaselineNumber: null,
-     latestBaselineValueMs: null,
-     latestBaselineEstablishedAt: null,
-     baselineCountSoFar: 0,
-     thisSessionEstablishedNewBaseline: false,
-     thisSessionWasQualifying: false,
-     reason: "guest_or_no_subject"
-    };
-   }
-  }catch(snapErr){ console.error("baseline snapshot failed", snapErr); }
   if(shouldPersistSessionForLocalHistory(result)){
    state.history = savePersistedHistory(state.history);
   }
@@ -3063,13 +2507,6 @@ function openTrial(kind){
  if(state.phase==="finished" || state.phase==="idle") return;
  clearTimer();
  clearNoResponseTimer();
- // V699rev180 — defensive: clear any stale calibration-hint flash on every
- // trial open so a phase transition (e.g. calibration → mode3_continued, or
- // calibration → paced) cannot leave a green-pulse animation running on a
- // cell from the previous trial. The handleTap flow already clears the hint
- // before each calibration → calibration re-open via handleTap, so this is
- // belt-and-suspenders for the transition cases.
- clearCalibrationHintTimer();
  normalizeCurtainForTesting();
 
  // Track overall test duration from very first trial
@@ -3096,26 +2533,10 @@ function openTrial(kind){
  try{ setFlowDiagnostic("TRIAL", `${String(kind||"trial").toUpperCase()} — awaiting response`); }catch(e){}
 
  if(kind==="calibration"){
-  // V699rev180 — unified self-paced calibration. Total cap on the phase
-  // label = warm-ups + max measured attempts (default 1 + 21 = 22 across
-  // all modes). The per-mode total counts used in earlier revs are gone.
+  const total=isMode3()?(Number(settings.mode3TrialLimit)||150):isMode4()?((Number.isFinite(Number(settings.initialUnusedCalibrationTrials))?Number(settings.initialUnusedCalibrationTrials):1)+(Number(settings.mode4CalibrationTrials)||10)):((Number.isFinite(Number(settings.initialUnusedCalibrationTrials))?Number(settings.initialUnusedCalibrationTrials):1)+(Number(settings.initialMeasuredCalibrationTrials)||7)), idx=state.calibrationTrialIndex+1;
+  phaseLabel.textContent=`Cal ${idx}/${total}`;
   const warmupLimit = Number.isFinite(Number(settings.initialUnusedCalibrationTrials)) ? Number(settings.initialUnusedCalibrationTrials) : 1;
-  const maxAttempts = Math.max(1, Number(settings.calibrationMaxAttempts) || DEFAULTS.calibrationMaxAttempts);
-  const total = warmupLimit + maxAttempts;
-  const idx = state.calibrationTrialIndex + 1;
-  phaseLabel.textContent = `Cal ${idx}/${total}`;
-  setStatus(idx<=warmupLimit ? "Self-paced (warm-up)" : "Self-paced (measured)");
- }else if(kind==="mode3_continued"){
-  // V699rev180 — Mode 3 post-calibration. Pure self-paced, no hint, no
-  // per-trial 10s cap; trial-log rows continue to use phase tag
-  // "calibration" so legacy CSV/aggregate code stays compatible.
-  const warmupLimit = Number.isFinite(Number(settings.initialUnusedCalibrationTrials)) ? Number(settings.initialUnusedCalibrationTrials) : 1;
-  const total = Number(settings.mode3TrialLimit) || 150;
-  // Mode 3 trial counter is shared with calibrationTrialIndex; the warm-up
-  // and the calibration-pass trials both consumed slots already.
-  const idx = state.calibrationTrialIndex + 1;
-  phaseLabel.textContent = `Mode 3 SP ${idx}/${total + warmupLimit}`;
-  setStatus("Mode 3 self-paced");
+  setStatus((isMode1() || isMode2()) ? (idx<=warmupLimit?"Self-paced (unused)":"Self-paced (measured)") : "Self-paced");
  }else if(kind==="paced"){
   // Store the ACTUAL frame duration shown for this paced round.
   state.presentedRoundDuration = Math.round(state.duration);
@@ -3158,17 +2579,7 @@ function openTrial(kind){
    state.trialOpenedAt = performance.now();
 
    if(kind==="calibration"){
-    // V699rev180 — every calibration trial gets a 10s no-response cap
-    // and a 6s green-hint flash. The phase-budget timer is armed exactly
-    // once on the first trial open (idempotent inside armCalibrationPhaseTimer).
     armNoResponseTimer();
-    armCalibrationHintTimer();
-    armCalibrationPhaseTimer();
-   }else if(kind==="mode3_continued"){
-    // V699rev180 — Mode 3 post-cal: no hint, no per-trial 10s cap.
-    // The overall mode3MaxDurationMs / mode3TrialLimit guards via the
-    // existing armMaxTestTimer (which was started on the very first
-    // calibration trial via the testStartTime gate above).
    }else if(kind==="paced" || kind==="paced_fixed" || kind==="mode2_sustained"){
     const targetMs = state.duration;
     const frameStart = state.trialOpenedAt;
@@ -3408,200 +2819,94 @@ function getSafeTrialRtMs(eventTimeStamp){
 }
 
 function handleTap(index,eventTimeStamp){
- if(!["calibration","mode3_continued","paced","paced_fixed","mode2_sustained","recovery","terminal_recovery","mode2_final"].includes(state.phase)) return;
+ if(!["calibration","paced","paced_fixed","mode2_sustained","recovery","terminal_recovery","mode2_final"].includes(state.phase)) return;
  noteAnyResponse();
 
  // Calibration
- // V699rev180 — UNIFIED SELF-PACED CALIBRATION FLOW (replaces the per-mode
- // branching used through V699rev175).
- // Spec summary (Layne, V699 rev 176):
- //   PASS criteria: 6 consecutive correct AND rolling-mean RT < 2600 ms
- //                  inside 21 measured attempts (post-warmup).
- //   FAIL criteria: any of:
- //     • 60s phase budget exceeded (handled by armCalibrationPhaseTimer)
- //     • 21 measured attempts used without pass
- //     • 10s per-trial no-response (handled by armNoResponseTimer)
- //   On wrong measured response: streak→0; rolling-mean window resets;
- //     correct cell flashes green (calibration-hint-correct-flash); the
- //     subject must tap the correct cell to advance to the next new trial.
- //     The wrong response itself consumes one of the 21 attempt slots.
- //   On correct measured response: streak++; rolling-mean window appends
- //     this RT; if pass criteria met → finishCalibration(); else next trial
- //     opens immediately.
- //   On warm-up trial (idx < initialUnusedCalibrationTrials, default 1):
- //     any tap (correct or wrong) clears the hint and advances to the next
- //     trial. Warm-up does not consume an attempt and does not push to the
- //     rolling mean. The 6s green hint still fires on the warm-up.
  if(state.phase==="calibration"){
-  if(!state.current) return;
+  if(!state.current || state.current.resolved) return;
+  state.current.resolved=true;
+  const rt=getSafeTrialRtMs(eventTimeStamp), ok=trialMatches(state.current,index);
+  flashBtn(index,ok); state.totalResponses+=1;
 
   const warmups = Number.isFinite(Number(settings.initialUnusedCalibrationTrials)) ? Number(settings.initialUnusedCalibrationTrials) : 1;
-  const isWarmup = state.calibrationTrialIndex < warmups;
-  const ok = trialMatches(state.current, index);
+  const measuredTargetMode1 = Number(settings.initialMeasuredCalibrationTrials)||7;
+  const includeInAverages = state.calibrationTrialIndex>=warmups;
 
-  // Pending-correct-tap handling: after a wrong measured response we hold
-  // the trial "active" while waiting for the subject to tap the correct
-  // cell (per spec). Until that tap arrives we ignore taps on incorrect
-  // cells (no flash, no advance) so the subject is gently forced to
-  // identify the right answer before the test continues.
-  if(state.calibrationPendingCorrectTap){
-   if(!ok) return; // ignore wrong taps while pending-correct-tap is active
-   // Correct cell tapped → clear hint, advance to next NEW trial.
-   state.current.resolved = true;
-   clearCalibrationHintTimer();
-   clearNoResponseTimer();
-   flashBtn(index, true);
-   logTrial({phase:"calibration", rt:null, outcome:"hint_correct_tap", responseIndex:index, counted:false});
-   state.calibrationPendingCorrectTap = false;
-   state.calibrationTrialIndex += 1;
-   // After consuming a wrong attempt + the pending-tap, check whether
-   // we've already burned all the attempts before opening another trial.
-   const maxAttempts = Math.max(1, Number(settings.calibrationMaxAttempts) || DEFAULTS.calibrationMaxAttempts);
-   if(state.calibrationAttemptsUsed >= maxAttempts){
-    failCalibration(`Calibration: max attempts (${maxAttempts}) used without reaching pass criteria — needs more practice.`);
-    return;
-   }
-   openTrial("calibration");
-   return;
-  }
+  // Warm-up exclusion applies across all modes:
+  // warmups never contribute to averages/calculations.
+  if(includeInAverages) state.selfPacedRTs.push(rt);
+  if(ok){ state.totalCorrect+=1; if(includeInAverages) state.selfPacedCorrect+=1; } else { state.totalIncorrect+=1; if(includeInAverages) state.selfPacedWrong+=1; }
 
-  if(state.current.resolved) return;
+  logTrial({phase:"calibration",rt,outcome:includeInAverages?(ok?"correct":"wrong"):"Warmup",responseIndex:index,counted:includeInAverages});
 
-  // Normal first-tap handling.
-  state.current.resolved = true;
-  const rt = getSafeTrialRtMs(eventTimeStamp);
-  clearCalibrationHintTimer();
-  clearNoResponseTimer();
-  flashBtn(index, ok);
-  state.totalResponses += 1;
-
-  // Tally totals + selfPaced bookkeeping. Warm-ups never contribute to
-  // selfPacedCorrect/Wrong/RTs (preserves the V699rev174 semantics that
-  // selfPacedResponseMeanMs is a CORRECT-post-warmup-only mean).
-  if(!isWarmup && ok) state.selfPacedRTs.push(rt);
-  if(ok){
-   state.totalCorrect += 1;
-   if(!isWarmup) state.selfPacedCorrect += 1;
-  } else {
-   state.totalIncorrect += 1;
-   if(!isWarmup) state.selfPacedWrong += 1;
-  }
-  // Trial log: warm-up rows still labeled "Warmup"; measured rows get
-  // "correct" / "wrong". `counted:true` for measured rows preserves the
-  // long-standing trial-log column semantics.
-  logTrial({phase:"calibration", rt, outcome: isWarmup ? "Warmup" : (ok?"correct":"wrong"), responseIndex:index, counted:!isWarmup});
-
-  // Warm-up branch: any tap advances. No attempt consumed, no rolling-
-  // mean push, no streak update, no pass check. Phase timer still ticks.
-  if(isWarmup){
-   state.calibrationTrialIndex += 1;
-   openTrial("calibration");
-   return;
-  }
-
-  // Measured branch — bookkeeping common to both correct and wrong.
-  state.calibrationAttemptsUsed += 1;
-  state.calibrationTrialIndex += 1;
-
-  if(ok){
-   // Correct measured response.
-   state.calibrationConsecCorrect += 1;
-   state.calibrationRollingCorrectRTs.push(rt);
-   state.calibrationRTs.push(rt); // legacy array kept in sync for downstream consumers (calibrationAverageMs etc.)
-   updateMetrics();
-
-   // Pass check.
-   const passStreak = Math.max(1, Number(settings.calibrationPassConsecutiveCorrect) || DEFAULTS.calibrationPassConsecutiveCorrect);
-   const passRtMs = Math.max(1, Number(settings.calibrationPassRtMeanMs) || DEFAULTS.calibrationPassRtMeanMs);
-   const maxAttempts = Math.max(1, Number(settings.calibrationMaxAttempts) || DEFAULTS.calibrationMaxAttempts);
-   const rollingMean = state.calibrationRollingCorrectRTs.length
-    ? mean(state.calibrationRollingCorrectRTs)
-    : Infinity;
-   if(state.calibrationConsecCorrect >= passStreak && rollingMean < passRtMs && state.calibrationAttemptsUsed <= maxAttempts){
-    finishCalibration();
-    return;
-   }
-   // Not yet passed; check whether attempts budget is exhausted.
-   if(state.calibrationAttemptsUsed >= maxAttempts){
-    // Attempted the max but didn't pass — examine why for a precise message.
-    if(state.calibrationConsecCorrect < passStreak){
-     failCalibration(`Calibration: did not reach ${passStreak} consecutive correct within ${maxAttempts} attempts — needs more practice.`);
-    }else{
-     failCalibration(`Calibration: rolling mean RT ${rollingMean.toFixed(0)}ms exceeds ${passRtMs}ms after ${maxAttempts} attempts — needs more practice.`);
+  if(isMode1() || isMode2()){
+   if(!ok){
+    state.calibrationErrors+=1; updateMetrics();
+    const calWrongLimit=Math.max(1,Number(settings.calibrationStopErrors)||4);
+    if(state.calibrationErrors>=calWrongLimit){
+      failCalibration(`Too many wrong responses during practice/calibration — please practice and retest. (${state.calibrationErrors}/${calWrongLimit})`);
+      return;
     }
-    return;
+   }else if(includeInAverages){
+    // Only CORRECT measured trials count toward calibration average and target count.
+    if(rt>settings.calibrationStopSlowMs){
+      failCalibration("Responses were too slow during practice/calibration — please practice and retest.");
+      return;
+    }
+    state.calibrationRTs.push(rt);
    }
-   // Otherwise: open the next new trial immediately.
-   openTrial("calibration");
+
+   state.calibrationTrialIndex+=1;
+
+   // End only after warmups are done AND we have the required number of CORRECT measured trials.
+   if(state.calibrationRTs.length >= measuredTargetMode1){
+     finishCalibration();
+   }else{
+     openTrial("calibration");
+   }
    return;
   }
 
-  // Wrong measured response.
-  state.calibrationErrors += 1;
-  state.calibrationConsecCorrect = 0;
-  state.calibrationRollingCorrectRTs = []; // rolling mean RESETS on wrong (per spec)
-  updateMetrics();
+  // Mode 3 + Mode 4:
+  // warmups are excluded from averages. After warmups, all self-paced trials are counted
+  // toward the fixed trial-count phase, but only correct RTs are included in calibrationRTs.
+  if(includeInAverages && ok) state.calibrationRTs.push(rt);
+  state.calibrationTrialIndex+=1;
 
-  // If the wrong response already exhausted the attempts budget, fail
-  // immediately rather than ask the subject to tap the correct cell —
-  // there's no next trial to open even after they tap.
-  const maxAttemptsAfterWrong = Math.max(1, Number(settings.calibrationMaxAttempts) || DEFAULTS.calibrationMaxAttempts);
-  if(state.calibrationAttemptsUsed >= maxAttemptsAfterWrong){
-   failCalibration(`Calibration: max attempts (${maxAttemptsAfterWrong}) used without reaching pass criteria — needs more practice.`);
+  if(isMode3()){
+   if(state.calibrationTrialIndex >= (Number(settings.mode3TrialLimit)||150)){
+     state.endReason="Mode 3 complete: required responses completed.";
+     finishCalibration();
+   }else{
+     openTrial("calibration");
+   }
    return;
   }
 
-  // Otherwise: enter pending-correct-tap mode. Flash the correct cell
-  // green and re-arm the per-trial 10s no-response cap so the subject
-  // can't stall indefinitely. The hint timer is NOT re-armed (the hint
-  // is already showing). The phase timer keeps running.
-  state.calibrationPendingCorrectTap = true;
-  applyCalibrationHintToCorrectCell();
-  // Re-arm just the no-response cap for the pending-tap window.
-  // Use the per-trial cap so the subject has the same 10s budget to find
-  // the correct cell as they had to answer the trial.
-  const ms = Number(settings.calibrationPerTrialMaxMs) || DEFAULTS.calibrationPerTrialMaxMs;
-  state.absoluteNoResponseTimer = setTimeout(()=>{
-   if(state.phase!=="calibration") return;
-   failCalibration("Calibration: no response within per-trial cap — needs more practice.");
-  }, ms);
-  return;
- }
-
- // V699rev180 — Mode 3 post-calibration self-paced phase.
- // Behaves like the legacy Mode 3 self-paced trial: every tap (correct or
- // wrong) advances; correct RTs flow into selfPacedRTs / calibrationRTs for
- // existing scoring; wrong responses tally without flashing a hint or
- // resetting any rolling-mean state. The phase ends via the existing
- // mode3MaxDurationMs (overall session timer) or once mode3TrialLimit
- // measured trials have been reached. Trial-log rows are emitted with
- // phase tag "calibration" so downstream CSV/aggregate code keeps
- // identifying them as Mode 3 self-paced trials per the existing schema.
- if(state.phase==="mode3_continued"){
-  if(!state.current || state.current.resolved) return;
-  state.current.resolved = true;
-  const rt = getSafeTrialRtMs(eventTimeStamp);
-  const ok = trialMatches(state.current, index);
-  flashBtn(index, ok);
-  state.totalResponses += 1;
-  if(ok){
-   state.totalCorrect += 1; state.selfPacedCorrect += 1;
-   state.selfPacedRTs.push(rt);
-   state.calibrationRTs.push(rt);
-  }else{
-   state.totalIncorrect += 1; state.selfPacedWrong += 1;
-  }
-  logTrial({phase:"calibration", rt, outcome: ok?"correct":"wrong", responseIndex:index, counted:true});
-  state.calibrationTrialIndex += 1;
-  // End condition: reached the Mode 3 trial limit (warm-up + measured budget).
-  const limit = (Number(settings.mode3TrialLimit) || 150) + (Number(settings.initialUnusedCalibrationTrials) || 1);
-  if(state.calibrationTrialIndex >= limit){
-   state.endReason = "Mode 3 complete: required responses completed.";
-   finish();
+  if(isMode4()){
+   const mode4MeasuredTarget = Number(settings.mode4CalibrationTrials)||10;
+   if(!ok && includeInAverages){
+     state.calibrationErrors += 1;
+     const calWrongLimit=Math.max(1,Number(settings.calibrationStopErrors)||4);
+     if(state.calibrationErrors>=calWrongLimit){
+       failCalibration(`Too many wrong responses during practice/calibration — please practice and retest. (${state.calibrationErrors}/${calWrongLimit})`);
+       return;
+     }
+   }
+   if(ok && includeInAverages && rt>settings.calibrationStopSlowMs){
+     failCalibration("Responses were too slow during practice/calibration — please practice and retest.");
+     return;
+   }
+   // End only after warmups are done AND we have the required number of CORRECT measured trials.
+   if(state.calibrationRTs.length >= mode4MeasuredTarget){
+     state.endReason="Mode 4 complete: required responses completed.";
+     finishCalibration();
+   }else{
+     openTrial("calibration");
+   }
    return;
   }
-  openTrial("mode3_continued");
-  return;
  }
 
  // Recovery (SP Restart)
@@ -4225,11 +3530,7 @@ function getResponseGraphPhaseLegendText(result){
  return "Includes phases: paced family only.";
 }
 
-// V699rev168: function renamed from formatModeTag (which was misleading —
-// it returned the FULL mode label, not a short tag). Use formatCompactResultModeLabel
-// for the short tag form (e.g., "M2 Sustained"). All call sites updated to
-// the new name.
-function getFullModeLabel(mode){
+function formatModeTag(mode){
  const labels={mode1:"Mode 1 CogSpeed Adapted",mode2:"Mode 2 CogSpeed Sustained",mode3:"Mode 3 Self-paced",mode4:"Mode 4 Machine-paced"};
  return labels[mode||"mode1"] || (mode||"mode1").replace("mode","Test Mode ");
 }
@@ -4373,7 +3674,7 @@ function formatModePooledRankSection(mode){
  const rs = computeRankAveragesForMode(mode);
  const cs = computeCombinationRankAveragesForMode(mode);
  const {sessions, pooledLogs} = getModePooledSessionRecords(mode);
- const header = `Combined sessions for ${getFullModeLabel(mode)}\nSessions pooled: ${sessions.length}\nTotal counted pooled trials: ${pooledLogs.length}`;
+ const header = `Combined sessions for ${formatModeTag(mode)}\nSessions pooled: ${sessions.length}\nTotal counted pooled trials: ${pooledLogs.length}`;
  return `${header}\n\nCorrect responses:\nDots:\n${formatRankRows(rs.correct.dotRows)}\nLines:\n${formatRankRows(rs.correct.lineRows)}\nPositions:\n${formatRankRows(rs.correct.posRows)}\nCombinations (correct):\n${formatRankRows(cs.correct)}\n\nWrong responses:\nDots:\n${formatRankRows(rs.wrong.dotRows)}\nLines:\n${formatRankRows(rs.wrong.lineRows)}\nPositions:\n${formatRankRows(rs.wrong.posRows)}\nCombinations (wrong):\n${formatRankRows(cs.wrong)}\n\nAll responses combined:\nCombinations (all):\n${formatRankRows(cs.all)}`;
 }
 // ─── Export / Email ───
@@ -4396,7 +3697,7 @@ function exportCSV(){
   "sleepSinceLastTest","sleepBedtime","sleepWakeTime","sleepWakeDateTimeIso","sleepDurationMinutes","sleepQualityLabel","sleepQualityScore",
   "pacedCorrect","pacedWrong","spRestartWrong","meanPacedRtMs","pacedRtSd",
   "avgFrameOvershootMs","maxFrameOvershootMs","avgRafIntervalMs","maxRafIntervalMs",
-  "cpa","cpaBaseCpi","cpaCorrectWeighting","cpaWrongWeighting","cpaMissedWeighting","cpaSdWeighting","cpaDriftWeighting","cpaRecoveryWeighting","cpaLapseWeighting","cpaEfficiencyWeighting","cpaAccuracyWeighting","cpaAccuracyResidual","cpaObservedAccuracyComposite","cpaExpectedAccuracyComposite","cpaObservedDriftSlopeMsPerTrial","cpaObservedDriftPctOls","cpaSustainedResponseSdMs","cpaSustainedCvPct","cpaEarlyMedianRtMs","cpaLateMedianRtMs","cpaSustainedDriftRatio","cpaRecoveryCalibRatio","cpaLapseRatePct","cpaTrialsPerBlock","dispositionCode","dispositionLabel","dispositionSpfs","dispositionRecommendation",
+  "cpa","cpaBaseCpi","cpaCorrectWeighting","cpaWrongWeighting","cpaMissedWeighting","cpaSdWeighting","cpaDriftWeighting","cpaRecoveryWeighting","cpaLapseWeighting","cpaEfficiencyWeighting","cpaSustainedResponseSdMs","cpaSustainedCvPct","cpaEarlyMedianRtMs","cpaLateMedianRtMs","cpaSustainedDriftRatio","cpaRecoveryCalibRatio","cpaLapseRatePct","cpaTrialsPerBlock","dispositionCode","dispositionLabel","dispositionSpfs",
   "testDurationMs","endReason","location","sessionUuid","payloadHash","trialLogHash","settingsHash","verificationStatus","verificationReceiptId","cpaModelVersion","baselineModelVersion"];
  const rows=h.map((raw,i)=>{ const r=normalizeLegacyResultRow(raw); return [
   i+1,
@@ -4443,12 +3744,6 @@ function exportCSV(){
   r.cpaRecoveryWeighting!=null?r.cpaRecoveryWeighting.toFixed(1):"",
   r.cpaLapseWeighting!=null?r.cpaLapseWeighting.toFixed(1):"",
   r.cpaEfficiencyWeighting!=null?r.cpaEfficiencyWeighting.toFixed(1):"",
-  r.cpaAccuracyWeighting!=null?r.cpaAccuracyWeighting.toFixed(1):"",
-  r.cpaAccuracyResidual!=null?r.cpaAccuracyResidual.toFixed(2):"",
-  r.cpaObservedAccuracyComposite!=null?r.cpaObservedAccuracyComposite.toFixed(3):"",
-  r.cpaExpectedAccuracyComposite!=null?r.cpaExpectedAccuracyComposite.toFixed(3):"",
-  r.cpaObservedDriftSlopeMsPerTrial!=null?r.cpaObservedDriftSlopeMsPerTrial.toFixed(3):"",
-  r.cpaObservedDriftPctOls!=null?r.cpaObservedDriftPctOls.toFixed(1):"",
   r.cpaSustainedResponseSdMs!=null?r.cpaSustainedResponseSdMs.toFixed(1):"",
   r.cpaSustainedCvPct!=null?r.cpaSustainedCvPct.toFixed(1):"",
   r.cpaEarlyMedianRtMs!=null?r.cpaEarlyMedianRtMs.toFixed(1):"",
@@ -4460,7 +3755,6 @@ function exportCSV(){
   r.dispositionCode||"",
   r.dispositionLabel||"",
   r.dispositionSpfs!=null?r.dispositionSpfs:"",
-  r.dispositionRecommendation||"",
   r.testDurationMs!=null?Math.round(r.testDurationMs):"",
   r.endReason||"",
   (r.geo&&r.geo.address)||"",
@@ -4755,7 +4049,7 @@ function renderSchedulerStatusFields(s){
  $("schedulerStatusType") && ($("schedulerStatusType").textContent = schedulerStatusTypeLabel(s.type));
  $("schedulerStatusNextTest") && ($("schedulerStatusNextTest").textContent = formatSchedulerDateTime(s.nextTestAt));
  $("schedulerStatusReason") && ($("schedulerStatusReason").textContent = s.nextReason || "No active reminder");
- $("schedulerStatusLastCompleted") && ($("schedulerStatusLastCompleted").textContent = getLatestCompletedMode2Timestamp() || "—");
+ $("schedulerStatusLastCompleted") && ($("schedulerStatusLastCompleted").textContent = getLatestCompletedMode2Label() || "—");
  $("schedulerStatusLastReminderResult") && ($("schedulerStatusLastReminderResult").textContent = s.lastReminderResult || "Not yet used");
 }
 function renderSchedulerDeviceFields(dt){
@@ -4944,10 +4238,7 @@ function getLatestCompletedMode2Result(ignoreIncomplete=true){
  }
  return null;
 }
-// V699rev168: renamed from getLatestCompletedMode2Label. The old name was
-// misleading — it returned a localized timestamp string, not a label. The
-// only consumer (the scheduler status panel) is updated below.
-function getLatestCompletedMode2Timestamp(){
+function getLatestCompletedMode2Label(){
  const r = getLatestCompletedMode2Result(false);
  return r && r.time ? new Date(r.time).toLocaleString() : "";
 }
@@ -4955,29 +4246,21 @@ function getLatestCompletedMode2Timestamp(){
  Personal Baseline
  -----------------
  Personal Baseline is a rolling subject-specific reference based on the
- most recent N qualifying Mode 1 / Mode 2 adaptive-phase MBS scores,
- where N = settings.baselineWindowSize (default 5, admin #90).
+ most recent 5 qualifying Mode 1 / Mode 2 adaptive-phase MBS scores.
 
  Purpose:
  - provides a current personal reference
  - updates over time to capture learning effects
  - excludes failed or low-quality baseline candidates
 
- A session qualifies only if (admin defaults shown):
- - testMode is in baselineAllowedModes (admin #94, default "mode1,mode2")
- - session is not failed (when baselineExcludeFailed=1, admin #95)
- - adaptive-phase MBS ≤ personalBaselineMaxMbs (admin #35, default 1900 ms)
- - Samn-Perelli score is between baselineMinSpfs (admin #92, default 5)
-   and baselineMaxSpfs (admin #93, default 7) inclusive
-
- Establishment threshold: admin #91 baselineMinSessionsToEstablish
- (default 5, decoupled from window size). The first Baseline is
- established once the qualifying-session count reaches this value;
- every subsequent qualifying session establishes a new rolling
- baselineWindowSize-session-average Baseline.
+ A session qualifies only if:
+ - testMode is mode1 or mode2
+ - session is not failed
+ - adaptive-phase MBS ≤ personal baseline qualifying threshold (default 1900 ms)
+ - Samn-Perelli score is 5, 6, or 7
 
  Failed sessions remain in general session history only and are never
- included in baseline computation when baselineExcludeFailed=1.
+ included in baseline computation.
 */
 function isGuestBaselineSubject(v){
  const s = String(v||"").trim().toLowerCase();
@@ -5000,57 +4283,22 @@ function getPersonalBaselineMaxMbs(){
  const v = getCurrentBaselineMaxMbsValue();
  return Number.isFinite(v) && v>0 ? v : (isMemoryChallengeActive()?3200:1900);
 }
-// V699rev170: read each baseline-creation setting with a fallback to the
-// rev169 hardcoded value, so a corrupted-settings device still works.
-function getBaselineWindowSize(){
- const v = Math.round(Number(settings?.baselineWindowSize));
- return Number.isFinite(v) && v>=1 ? v : 5;
-}
-function getBaselineMinSessionsToEstablish(){
- const v = Math.round(Number(settings?.baselineMinSessionsToEstablish));
- return Number.isFinite(v) && v>=1 ? v : 5;
-}
-function getBaselineMinSpfs(){
- const v = Math.round(Number(settings?.baselineMinSpfs));
- return Number.isFinite(v) && v>=1 && v<=7 ? v : 5;
-}
-function getBaselineMaxSpfs(){
- const v = Math.round(Number(settings?.baselineMaxSpfs));
- return Number.isFinite(v) && v>=1 && v<=7 ? v : 7;
-}
-function getBaselineAllowedModes(){
- const raw = settings?.baselineAllowedModes;
- const txt = (raw==null || raw==="") ? "mode1,mode2" : String(raw);
- return new Set(txt.split(",").map(s=>s.trim().toLowerCase()).filter(Boolean));
-}
-function getBaselineExcludeFailed(){
- const v = Number(settings?.baselineExcludeFailed);
- return v===0 ? false : true; // any value other than 0 → exclude (default)
-}
 function isBaselineQualifyingSession(result){
  if(!result) return false;
  if(isGuestHistorySubjectId(result.subjectId)) return false;
- // V699rev170: allowed-modes check now consults admin #94. The default
- // ("mode1,mode2") matches the prior hardcoded rule.
- const allowedModes = getBaselineAllowedModes();
- if(!allowedModes.has(String(result.testMode||"").toLowerCase())) return false;
+ if(!(result.testMode==="mode1" || result.testMode==="mode2")) return false;
  // Personal Baseline uses STANDARD CogSpeed only.
  // Memory Challenge and Survival Challenge are excluded entirely.
  const symbolSet = getResultSymbolSet(result);
  if(symbolSet==="memory" || symbolSet==="survival") return false;
- // V699rev170: failed-session exclusion now driven by admin #95. When
- // excludeFailed=1 (default) the prior behavior is preserved exactly.
- if(getBaselineExcludeFailed() && isPerfFailureSession(result)) return false;
+ if(isPerfFailureSession(result)) return false;
  const mbs = getAdaptivePhaseMbs(result);
  const maxMbs = getPersonalBaselineMaxMbs();
  // Only sessions at or below the qualifying threshold enter the rolling baseline.
  // Sessions above the threshold are ignored for baseline updating and do not replace it.
  if(!Number.isFinite(mbs) || !(mbs <= maxMbs)) return false;
- // V699rev170: S-PFS range now driven by admin #92/#93 (default 5..7
- // inclusive, matching the prior hardcoded rule).
  const spfs = Number(result?.samnPerelli?.score);
- if(!Number.isFinite(spfs)) return false;
- return spfs >= getBaselineMinSpfs() && spfs <= getBaselineMaxSpfs();
+ return spfs===5 || spfs===6 || spfs===7;
 }
 function mapBaselineRow(result, sourceIndex){
  return {
@@ -5058,7 +4306,7 @@ function mapBaselineRow(result, sourceIndex){
   sessionNumber: result.sessionNumber!=null ? result.sessionNumber : null,
   time: result.time || null,
   testMode: result.testMode,
-  modeLabel: getFullModeLabel(result.testMode),
+  modeLabel: formatModeTag(result.testMode),
   mbs: getAdaptivePhaseMbs(result),
   spfs: Number(result?.samnPerelli?.score)
  };
@@ -5067,10 +4315,7 @@ function computePersonalBaseline(results, subjectId, cutoffTime=null){
  const all = Array.isArray(results) ? results : [];
  const sid = String(subjectId||"").trim();
  if(!sid || isGuestBaselineSubject(sid)) return {
-  established:false, qualifyingCount:0, averageMbs:null, lastFive:[], lastWindow:[], allQualifying:[],
-  baselineHistory:[],
-  windowSize: getBaselineWindowSize(),
-  minSessionsToEstablish: getBaselineMinSessionsToEstablish(),
+  established:false, qualifyingCount:0, averageMbs:null, lastFive:[], allQualifying:[],
   statusText:"Baseline not yet established, Test again.", subjectId:sid
  };
  const cutoffMs = cutoffTime ? new Date(cutoffTime).getTime() : null;
@@ -5080,70 +4325,31 @@ function computePersonalBaseline(results, subjectId, cutoffTime=null){
   .filter(({r})=> cutoffMs==null || Date.parse(r?.time) <= cutoffMs)
   .filter(({r})=> isBaselineQualifyingSession(r))
   .sort((a,b)=> Date.parse(a.r.time)-Date.parse(b.r.time));
- const windowSize = getBaselineWindowSize();
- const minToEstablish = getBaselineMinSessionsToEstablish();
- const startOfLastWindow = Math.max(0, qualifying.length - windowSize);
+ const startOfLastFive = Math.max(0, qualifying.length - 5);
  const allQualifying = qualifying.map(({r,idx}, orderIndex)=> ({
   ...mapBaselineRow(r, idx),
   orderIndex,
-  // "Used in current baseline" = sits inside the most recent windowSize-session
-  // slice (i.e. is part of what the latest rolling average is computed from).
-  usedInCurrentBaseline: orderIndex >= startOfLastWindow
+  usedInCurrentBaseline: orderIndex >= startOfLastFive
  }));
- // V699rev169 + V699rev170: Baseline-history sequence.
- // Every qualifying session at or beyond order index `minToEstablish-1`
- // establishes a new rolling baseline whose value is the average of the
- // most recent `windowSize` qualifying sessions (or all of them, if fewer
- // exist at that point — though by construction the loop won't run until
- // at least `minToEstablish` qualifying sessions exist).
- // Each Baseline is permanently recorded — the historical sequence below
- // is what gets plotted on the graph and snapshotted onto each result.
- const baselineHistory = [];
- for(let i = minToEstablish-1; i < allQualifying.length; i++){
-  const winStart = Math.max(0, i - windowSize + 1);
-  const win = allQualifying.slice(winStart, i+1); // inclusive window ending at i
-  const value = Math.round(win.reduce((s,row)=> s + Number(row.mbs||0), 0) / win.length);
-  const triggering = allQualifying[i];
-  baselineHistory.push({
-   baselineNumber: baselineHistory.length + 1,
-   value,
-   establishedAt: triggering.time,
-   triggeringQualifyingOrderIndex: i,           // 0-based order in qualifying list
-   triggeringSessionIndex: triggering.sourceIndex, // index into raw history
-   windowQualifyingOrderIndices: win.map(r=> r.orderIndex),
-   windowSessionIndices: win.map(r=> r.sourceIndex),
-   windowSize,                                  // record the rule-set in force
-   minSessionsToEstablish: minToEstablish
-  });
- }
- const lastWindow = allQualifying.slice(-windowSize);
- if(qualifying.length < minToEstablish){
+ const lastFive = allQualifying.slice(-5);
+ if(lastFive.length < 5){
   return {
    established:false,
    qualifyingCount:qualifying.length,
    averageMbs:null,
-   lastFive: lastWindow,        // legacy field name retained for callers
-   lastWindow,                  // V699rev170: window-size-aware alias
-   windowSize,
-   minSessionsToEstablish: minToEstablish,
+   lastFive,
    allQualifying,
-   baselineHistory,
    statusText:"Baseline not yet established, Test again.",
    subjectId:sid
   };
  }
- const avg = baselineHistory.length ? baselineHistory[baselineHistory.length-1].value
-  : Math.round(lastWindow.reduce((sum,row)=>sum + Number(row.mbs||0), 0) / lastWindow.length);
+ const avg = Math.round(lastFive.reduce((sum,row)=>sum + Number(row.mbs||0), 0) / 5);
  return {
   established:true,
   qualifyingCount:qualifying.length,
   averageMbs:avg,
-  lastFive: lastWindow,         // legacy field name retained for callers
-  lastWindow,                   // V699rev170: window-size-aware alias
-  windowSize,
-  minSessionsToEstablish: minToEstablish,
+  lastFive,
   allQualifying,
-  baselineHistory,
   statusText:`Baseline: ${avg} ms`,
   subjectId:sid
  };
@@ -5154,61 +4360,6 @@ function getPersonalBaselineForResult(result){
  // for the registered subject, independent of which session is selected in
  // the Speedometer. Do not clip the baseline to the selected session time.
  return computePersonalBaseline(state.history, sid, null);
-}
-
-// V699rev169: Reconcile the persistent baseline-history cache with the
-// derived sequence from state.history. Strategy:
-// - Compute the canonical historical sequence from state.history.
-// - For each canonical entry, if the cache already has a record at that
-//   baselineNumber whose establishedAt matches, keep the cached record
-//   verbatim (this is what makes Baselines "permanently retained" even
-//   if a session is later deleted; the prior cached record wins).
-// - Otherwise, write the canonical entry into the cache.
-// Returns the merged sequence used for display.
-function reconcileBaselineHistoryForSubject(subjectId){
- const sid = String(subjectId||"").trim();
- if(!sid || isGuestBaselineSubject(sid)) return [];
- const derived = computePersonalBaseline(state.history, sid, null).baselineHistory || [];
- const cache = state.baselineHistoryCache && typeof state.baselineHistoryCache === "object"
-  ? state.baselineHistoryCache : {};
- const cached = Array.isArray(cache[sid]) ? cache[sid].slice() : [];
- const cachedByNumber = new Map(cached.map(e=> [Number(e?.baselineNumber)||0, e]));
- const merged = [];
- derived.forEach((entry, i)=>{
-  const num = i + 1;
-  const prior = cachedByNumber.get(num);
-  if(prior && prior.establishedAt === entry.establishedAt && Number(prior.value) === Number(entry.value)){
-   merged.push({ ...prior, baselineNumber:num });
-  } else if(prior && prior.establishedAt === entry.establishedAt){
-   // Same trigger but different value (e.g. a window session got re-coded).
-   // Trust the freshly derived value — it reflects current state.history.
-   merged.push({ ...prior, ...entry, baselineNumber:num });
-  } else {
-   merged.push({ ...entry, baselineNumber:num });
-  }
- });
- // Preserve any cached Baselines beyond the derivable sequence (orphaned
- // by deleted sessions) — these are append-only historical artifacts.
- cached.forEach(prior=>{
-  const num = Number(prior?.baselineNumber)||0;
-  if(num > derived.length) merged.push({ ...prior, orphaned:true });
- });
- merged.sort((a,b)=> (Number(a.baselineNumber)||0) - (Number(b.baselineNumber)||0));
- // Write back if changed.
- const changed = JSON.stringify(cached) !== JSON.stringify(merged);
- if(changed){
-  cache[sid] = merged;
-  state.baselineHistoryCache = cache;
-  savePersistedBaselineHistoryCache(cache);
- }
- return merged;
-}
-function getBaselineHistoryForSubject(subjectId){
- return reconcileBaselineHistoryForSubject(subjectId);
-}
-function getLatestBaselineForSubject(subjectId){
- const seq = reconcileBaselineHistoryForSubject(subjectId);
- return seq.length ? seq[seq.length-1] : null;
 }
 function renderSpeedometerBaseline(result){
  const el = $("speedometerBaselineText");
@@ -5223,102 +4374,44 @@ function getPersonalBaselineSummaryText(result, label="Personal Baseline"){
 function escapeHtml(s){
  return String(s==null?"":s).replace(/[&<>"]/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]));
 }
-function buildPersonalBaselineSvg(rows, avg, baselineHistory){
- // V699rev169: rows are all qualifying sessions (oldest -> newest);
- // baselineHistory is the sequence of every Baseline ever established for
- // this subject. Each Baseline entry's `triggeringQualifyingOrderIndex`
- // tells us which session on the x-axis it was anchored to (always >= 4,
- // since the 5th qualifying session establishes Baseline #1). The Baseline
- // trace is drawn on top of the session trace and uses the same y-scale so
- // the user can read both off the same axis.
- const W=860, H=400, L=72, R=24, T=30, B=86; // taller bottom for legend
+function buildPersonalBaselineSvg(rows, avg){
+ const W=860, H=360, L=72, R=24, T=30, B=48;
  const svgOpen = `<svg xmlns="http://www.w3.org/2000/svg" width="100%" height="auto" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet" style="display:block;width:100%;max-width:100%;height:auto">`;
- if(!rows || !rows.length){
+ if(!rows.length){
   return `<div style="width:100%;max-width:100%;overflow-x:hidden">${svgOpen}<rect width="100%" height="100%" fill="#081321"/><text x="${W/2}" y="${H/2}" fill="#c8d7e5" text-anchor="middle" font-family="Arial,sans-serif" font-size="24">No qualifying baseline sessions yet</text></svg></div>`;
  }
- const baselines = Array.isArray(baselineHistory) ? baselineHistory : [];
- const sessionVals = rows.map(r=>Number(r.mbs)).filter(Number.isFinite);
- const baselineVals = baselines.map(b=>Number(b.value)).filter(Number.isFinite);
- const allVals = sessionVals.concat(baselineVals);
- if(Number.isFinite(avg)) allVals.push(avg);
- const minV = Math.min(...allVals), maxV = Math.max(...allVals);
+ const vals = rows.map(r=>Number(r.mbs)).filter(Number.isFinite);
+ if(Number.isFinite(avg)) vals.push(avg);
+ const minV = Math.min(...vals), maxV = Math.max(...vals);
  const pad = Math.max(40, Math.round((maxV-minV||100)*0.15));
  const lo = Math.max(0, minV - pad), hi = maxV + pad;
  const pw=W-L-R, ph=H-T-B;
  const x = i => rows.length===1 ? L+pw/2 : L + (pw*(i/(rows.length-1)));
  // Inverted plot: lower ms is better, so lower values draw higher on the chart.
  const y = v => T + ((v-lo)/(hi-lo||1))*ph;
- const sessionPoly = rows.map((r,i)=>`${x(i).toFixed(1)},${y(r.mbs).toFixed(1)}`).join(' ');
- // Baseline trace — anchored at each baseline's triggering qualifying-session
- // x-position. Skip orphaned baselines whose triggering index is out of range.
- const baselinePoints = baselines
-  .map(b=> ({...b, qIdx: Number(b.triggeringQualifyingOrderIndex)}))
-  .filter(b=> Number.isFinite(b.qIdx) && b.qIdx>=0 && b.qIdx<rows.length && Number.isFinite(b.value));
- const baselinePoly = baselinePoints.map(b=>`${x(b.qIdx).toFixed(1)},${y(b.value).toFixed(1)}`).join(' ');
- let parts=[`<div style="width:100%;max-width:100%;overflow-x:hidden">`,svgOpen,`<rect width="100%" height="100%" fill="#081321" rx="16"/>`,`<text x="${W/2}" y="22" fill="#7fd7ff" text-anchor="middle" font-family="Arial,sans-serif" font-size="20" font-weight="700">Personal Baseline — Qualifying Sessions &amp; Established Baselines</text>`];
- // Y-axis gridlines and labels.
+ const poly = rows.map((r,i)=>`${x(i).toFixed(1)},${y(r.mbs).toFixed(1)}`).join(' ');
+ let parts=[`<div style="width:100%;max-width:100%;overflow-x:hidden">`,svgOpen,`<rect width="100%" height="100%" fill="#081321" rx="16"/>`,`<text x="${W/2}" y="22" fill="#7fd7ff" text-anchor="middle" font-family="Arial,sans-serif" font-size="20" font-weight="700">Personal Baseline — All Qualifying MBS Scores</text>`];
  for(let i=0;i<5;i++){
   const v = lo + (hi-lo)*(i/4);
   const yy = y(v);
   parts.push(`<line x1="${L}" y1="${yy.toFixed(1)}" x2="${W-R}" y2="${yy.toFixed(1)}" stroke="rgba(255,255,255,0.14)" stroke-width="1"/>`);
   parts.push(`<text x="${L-10}" y="${(yy+4).toFixed(1)}" fill="#c8d7e5" text-anchor="end" font-family="Arial,sans-serif" font-size="14">${Math.round(v)}</text>`);
  }
- // Axes.
  parts.push(`<line x1="${L}" y1="${T}" x2="${L}" y2="${H-B}" stroke="#c8d7e5" stroke-width="1.4"/><line x1="${L}" y1="${H-B}" x2="${W-R}" y2="${H-B}" stroke="#c8d7e5" stroke-width="1.4"/>`);
- // Session trace and points.
- if(rows.length>1) parts.push(`<polyline fill="none" stroke="#7fd7ff" stroke-width="3" points="${sessionPoly}"/>`);
+ if(rows.length>1) parts.push(`<polyline fill="none" stroke="#7fd7ff" stroke-width="3" points="${poly}"/>`);
  rows.forEach((r,i)=>{
   const xx=x(i), yy=y(r.mbs);
   const fill = r.usedInCurrentBaseline ? "#72d572" : "#ffd36f";
   const radius = r.usedInCurrentBaseline ? 6.4 : 5.5;
   parts.push(`<circle cx="${xx.toFixed(1)}" cy="${yy.toFixed(1)}" r="${radius}" fill="${fill}" stroke="#ffffff" stroke-width="1.2"/>`);
-  parts.push(`<text x="${xx.toFixed(1)}" y="${H-B+18}" fill="#c8d7e5" text-anchor="middle" font-family="Arial,sans-serif" font-size="12">${i+1}</text>`);
+  parts.push(`<text x="${xx.toFixed(1)}" y="${H-B+22}" fill="#c8d7e5" text-anchor="middle" font-family="Arial,sans-serif" font-size="12">${i+1}</text>`);
  });
- // Baseline trace and markers (drawn AFTER session points so they sit on top).
- if(baselinePoints.length>1){
-  parts.push(`<polyline fill="none" stroke="#ff7fb0" stroke-width="2.5" stroke-dasharray="6 4" points="${baselinePoly}"/>`);
- }
- baselinePoints.forEach(b=>{
-  const xx=x(b.qIdx), yy=y(b.value);
-  parts.push(`<rect x="${(xx-5).toFixed(1)}" y="${(yy-5).toFixed(1)}" width="10" height="10" fill="#ff7fb0" stroke="#ffffff" stroke-width="1.2" transform="rotate(45 ${xx.toFixed(1)} ${yy.toFixed(1)})"/>`);
-  // Small label showing the Baseline number (#1, #2…) above each diamond.
-  parts.push(`<text x="${xx.toFixed(1)}" y="${(yy-12).toFixed(1)}" fill="#ff7fb0" text-anchor="middle" font-family="Arial,sans-serif" font-size="10" font-weight="700">B${b.baselineNumber}</text>`);
- });
- // Latest-baseline horizontal reference line + annotation (uses the current
- // rolling-average value when established).
  if(Number.isFinite(avg)){
   const yy=y(avg);
   parts.push(`<line x1="${L}" y1="${yy.toFixed(1)}" x2="${W-R}" y2="${yy.toFixed(1)}" stroke="#72d572" stroke-width="2" stroke-dasharray="8 6"/>`);
-  parts.push(`<text x="${W-R}" y="${Math.max(T+14,(yy-8)).toFixed(1)}" fill="#72d572" text-anchor="end" font-family="Arial,sans-serif" font-size="14" font-weight="700">Latest Baseline ${Math.round(avg)} ms</text>`);
+  parts.push(`<text x="${W-R}" y="${Math.max(T+14,(yy-8)).toFixed(1)}" fill="#72d572" text-anchor="end" font-family="Arial,sans-serif" font-size="14" font-weight="700">Average ${Math.round(avg)} ms</text>`);
  }
- // X-axis caption.
- parts.push(`<text x="${W/2}" y="${H-B+38}" fill="#9fb4c8" text-anchor="middle" font-family="Arial,sans-serif" font-size="12">Qualifying session order (oldest to newest)</text>`);
- // Legend. V699rev170: window size is admin-driven (#90).
- const legendY = H - 22;
- const winN = getBaselineWindowSize();
- const legendItems = [
-  { type:"circle", color:"#72d572", label:`Qualifying session (in current rolling ${winN})` },
-  { type:"circle", color:"#ffd36f", label:"Qualifying session (older)" },
-  { type:"diamond", color:"#ff7fb0", label:`Baseline established (rolling ${winN}-session avg)` },
-  { type:"line",    color:"#72d572", label:"Latest Baseline" }
- ];
- // Lay out the legend in two rows of two so it always fits at 860 wide.
- const colWidth = (W - L - R) / 2;
- legendItems.forEach((item, idx)=>{
-  const col = idx % 2;
-  const row = Math.floor(idx / 2);
-  const itemX = L + col*colWidth + 6;
-  const itemY = legendY - 6 + row*16;
-  if(item.type==="circle"){
-   parts.push(`<circle cx="${(itemX+6).toFixed(1)}" cy="${itemY.toFixed(1)}" r="5.5" fill="${item.color}" stroke="#ffffff" stroke-width="1"/>`);
-  } else if(item.type==="diamond"){
-   parts.push(`<rect x="${(itemX+1).toFixed(1)}" y="${(itemY-5).toFixed(1)}" width="10" height="10" fill="${item.color}" stroke="#ffffff" stroke-width="1" transform="rotate(45 ${(itemX+6).toFixed(1)} ${itemY.toFixed(1)})"/>`);
-  } else if(item.type==="line"){
-   parts.push(`<line x1="${itemX.toFixed(1)}" y1="${itemY.toFixed(1)}" x2="${(itemX+12).toFixed(1)}" y2="${itemY.toFixed(1)}" stroke="${item.color}" stroke-width="2.5" stroke-dasharray="5 3"/>`);
-  }
-  parts.push(`<text x="${(itemX+18).toFixed(1)}" y="${(itemY+4).toFixed(1)}" fill="#c8d7e5" font-family="Arial,sans-serif" font-size="12">${escapeHtml(item.label)}</text>`);
- });
- parts.push(`</svg></div>`);
+ parts.push(`<text x="${W/2}" y="${H-12}" fill="#9fb4c8" text-anchor="middle" font-family="Arial,sans-serif" font-size="13">Qualifying session order (oldest to newest); current rolling baseline uses the last 5 marked points</text></svg></div>`);
  return parts.join('');
 }
 function openPersonalBaselinePage(sessionIndex){
@@ -5327,14 +4420,7 @@ function openPersonalBaselinePage(sessionIndex){
  if(!result){ setStatus("No session available for Personal Baseline"); return; }
  const baseline = getPersonalBaselineForResult(result);
  const rows = baseline.allQualifying || baseline.lastFive || [];
- // V699rev169: pull the merged (cache + derived) Baseline history for this
- // subject. This is what gets plotted on the graph and listed in the
- // Baselines table beneath.
- const baselineHistory = getBaselineHistoryForSubject(String(result.subjectId||"").trim());
- const latestBaseline = baselineHistory.length ? baselineHistory[baselineHistory.length-1] : null;
- const statusText = baseline.established
-  ? `Latest Baseline: ${latestBaseline ? latestBaseline.value : baseline.averageMbs} ms (Baseline #${latestBaseline ? latestBaseline.baselineNumber : "—"})`
-  : "Baseline not yet established, Test again.";
+ const statusText = baseline.established ? `Baseline: ${baseline.averageMbs} ms` : "Baseline not yet established, Test again.";
  const statusEl = $("personalBaselineStatus");
  const metaEl = $("personalBaselineMeta");
  const graphEl = $("personalBaselineGraph");
@@ -5343,41 +4429,14 @@ function openPersonalBaselinePage(sessionIndex){
  if(statusEl) statusEl.textContent = statusText;
  if(metaEl){
   const sessionTime = result.time ? new Date(result.time).toLocaleString() : "—";
-  const winN = getBaselineWindowSize();
-  const minToEst = getBaselineMinSessionsToEstablish();
-  const minS = getBaselineMinSpfs();
-  const maxS = getBaselineMaxSpfs();
-  const allowedModesArr = Array.from(getBaselineAllowedModes()).sort();
-  const allowedModesPretty = allowedModesArr.map(m=> getFullModeLabel(m)).join(" / ") || "—";
-  const failedExclTxt = getBaselineExcludeFailed() ? "no failed sessions" : "failed sessions allowed";
-  metaEl.innerHTML = `<div><strong>Subject:</strong> ${escapeHtml(String(result.subjectId||"—"))}</div><div><strong>History scope:</strong> Full qualifying saved history</div><div><strong>Selected session:</strong> ${escapeHtml(sessionTime)}</div><div><strong>Qualifying sessions available:</strong> ${baseline.qualifyingCount}</div><div><strong>Baselines established:</strong> ${baselineHistory.length}</div><div style="margin-top:6px">A Baseline is established once ${minToEst} qualifying sessions exist; every subsequent qualifying session adds a new rolling ${winN}-session-average Baseline. Qualifying sessions are non-Guest ${escapeHtml(allowedModesPretty)} adaptive-phase tests with MBS &le; ${getPersonalBaselineMaxMbs()} ms, S-PFS ${minS}–${maxS}, and ${escapeHtml(failedExclTxt)}. Every Baseline ever established is permanently retained.</div>`;
+  metaEl.innerHTML = `<div><strong>Subject:</strong> ${escapeHtml(String(result.subjectId||"—"))}</div><div><strong>History scope:</strong> Full qualifying saved history</div><div><strong>Selected session:</strong> ${escapeHtml(sessionTime)}</div><div><strong>Qualifying sessions available:</strong> ${baseline.qualifyingCount}</div><div style="margin-top:6px">All qualifying sessions are shown below. The rolling baseline value itself uses the most recent 5 qualifying non-Guest Mode 1 / Mode 2 adaptive-phase MBS scores with MBS &le; ${getPersonalBaselineMaxMbs()} ms, S-PFS 5–7, and no failed sessions.</div>`;
  }
- if(graphEl) graphEl.innerHTML = buildPersonalBaselineSvg(rows, baseline.established ? baseline.averageMbs : null, baselineHistory);
+ if(graphEl) graphEl.innerHTML = buildPersonalBaselineSvg(rows, baseline.established ? baseline.averageMbs : null);
  if(tbody){
-  const bodyRows = rows.map((row,idx)=>`<tr><td style="padding:8px;border-bottom:1px solid var(--edge)">${idx+1}</td><td style="padding:8px;border-bottom:1px solid var(--edge)">${escapeHtml(row.time ? new Date(row.time).toLocaleString() : "—")}</td><td style="padding:8px;border-bottom:1px solid var(--edge)">${escapeHtml(row.modeLabel||getFullModeLabel(row.testMode))}</td><td style="padding:8px;border-bottom:1px solid var(--edge);text-align:right">${Number(row.mbs).toFixed(1)}</td><td style="padding:8px;border-bottom:1px solid var(--edge);text-align:right">${row.spfs}</td><td style="padding:8px;border-bottom:1px solid var(--edge);text-align:center">${row.usedInCurrentBaseline ? "Yes" : ""}</td></tr>`).join('');
+  const bodyRows = rows.map((row,idx)=>`<tr><td style="padding:8px;border-bottom:1px solid var(--edge)">${idx+1}</td><td style="padding:8px;border-bottom:1px solid var(--edge)">${escapeHtml(row.time ? new Date(row.time).toLocaleString() : "—")}</td><td style="padding:8px;border-bottom:1px solid var(--edge)">${escapeHtml(row.modeLabel||formatModeTag(row.testMode))}</td><td style="padding:8px;border-bottom:1px solid var(--edge);text-align:right">${Number(row.mbs).toFixed(1)}</td><td style="padding:8px;border-bottom:1px solid var(--edge);text-align:right">${row.spfs}</td><td style="padding:8px;border-bottom:1px solid var(--edge);text-align:center">${row.usedInCurrentBaseline ? "Yes" : ""}</td></tr>`).join('');
   const avgRow = baseline.established ? `<tr><td style="padding:8px"></td><td style="padding:8px"><strong>Current rolling baseline average</strong></td><td style="padding:8px"></td><td style="padding:8px;text-align:right"><strong>${baseline.averageMbs}</strong></td><td style="padding:8px"></td><td style="padding:8px;text-align:center"><strong>Last 5</strong></td></tr>` : "";
-  // V699rev169: After the qualifying-sessions rows + average row, append a
-  // header row and one row per established Baseline so the user can read
-  // off every Baseline value with its establishment timestamp.
-  let baselineSection = "";
-  if(baselineHistory.length){
-   const headerWinN = getBaselineWindowSize();
-   const headerRow = `<tr><td colspan="6" style="padding:10px 8px 6px;font-weight:700;color:#ff7fb0;border-top:2px solid #ff7fb0">Established Baselines (rolling ${headerWinN}-session averages)</td></tr>`;
-   const baselineRows = baselineHistory.map(b=>{
-    const at = b.establishedAt ? new Date(b.establishedAt).toLocaleString() : "—";
-    const orphanTag = b.orphaned ? ` <span style="color:#9fb4c8;font-style:italic">(historical — triggering session removed)</span>` : "";
-    // Each row uses the windowSize stamped on the Baseline itself when
-    // available, falling back to the current admin value. This means an
-    // older Baseline computed under a different window size still
-    // describes itself accurately even after admin changes.
-    const rowWin = Number.isFinite(Number(b.windowSize)) ? Number(b.windowSize) : headerWinN;
-    return `<tr><td style="padding:8px;border-bottom:1px solid var(--edge)"><strong>B${b.baselineNumber}</strong></td><td style="padding:8px;border-bottom:1px solid var(--edge)" colspan="2">${escapeHtml(at)}${orphanTag}</td><td style="padding:8px;border-bottom:1px solid var(--edge);text-align:right"><strong>${Number(b.value).toFixed(0)}</strong></td><td style="padding:8px;border-bottom:1px solid var(--edge)" colspan="2">ms (rolling ${rowWin}-session average)</td></tr>`;
-   }).join('');
-   baselineSection = headerRow + baselineRows;
-  }
   tbody.innerHTML = bodyRows || '<tr><td colspan="6" style="padding:10px">No qualifying baseline sessions yet.</td></tr>';
   if(avgRow) tbody.insertAdjacentHTML("beforeend", avgRow);
-  if(baselineSection) tbody.insertAdjacentHTML("beforeend", baselineSection);
  }
  $("outcomeOverlay").classList.add("hidden");
  $("personalBaselineOverlay").classList.remove("hidden");
@@ -5838,18 +4897,8 @@ function ensureResearchAnonymousId(){
  return rid;
 }
 function currentResearchModelVersions(){
- // V699rev151: CPA model bumped from v1 → v2. v2 features:
- //   • Accuracy composite (correct − wrong − 0.5·miss) replaces three
- //     collinear per-rate residuals.
- //   • OLS-slope drift replaces median-of-halves drift (signed; rewards
- //     within-phase speed-up instead of flooring to zero).
- //   • Piecewise-linear expected-profile interpolation replaces step buckets.
- //   • Weights retuned to 9/6/6 so the mode2NormMaxDelta cap (20) can
- //     actually engage at the extreme of underperformance.
- // A server-side verifier will need to implement v2 semantics before it
- // can issue receipts for CPA values computed under this model version.
  return {
-  cpaModelVersion: 'mode2-cpa-norm-v2',
+  cpaModelVersion: 'mode2-cpa-norm-v1',
   baselineModelVersion: 'baseline-v1',
   cpiModelVersion: 'cpi-v1',
   dispositionModelVersion: 'disp-v1'
@@ -5877,9 +4926,9 @@ function buildScoringSnapshot(){
   finalTrialCount: Number(settings.mode2FinalTrialCount ?? 2)
  };
  const adminFields = [
-  'mode2NormExpectedCorrectRate','mode2NormExpectedWrongRate','mode2NormExpectedMissRate','mode2NormExpectedAccuracyComposite','mode2NormExpectedDriftPct','mode2NormExpectedCvPct',
-  'mode2NormToleranceCorrectRate','mode2NormToleranceWrongRate','mode2NormToleranceMissRate','mode2NormToleranceAccuracyComposite','mode2NormToleranceDriftPct','mode2NormToleranceCvPct',
-  'mode2NormWeightCorrect','mode2NormWeightWrong','mode2NormWeightMiss','mode2NormWeightAccuracy','mode2NormWeightDrift','mode2NormWeightCv','mode2NormMaxDelta'
+  'mode2NormExpectedCorrectRate','mode2NormExpectedWrongRate','mode2NormExpectedMissRate','mode2NormExpectedDriftPct','mode2NormExpectedCvPct',
+  'mode2NormToleranceCorrectRate','mode2NormToleranceWrongRate','mode2NormToleranceMissRate','mode2NormToleranceDriftPct','mode2NormToleranceCvPct',
+  'mode2NormWeightCorrect','mode2NormWeightWrong','mode2NormWeightMiss','mode2NormWeightDrift','mode2NormWeightCv','mode2NormMaxDelta'
  ];
  const profile = {};
  adminFields.forEach(k=>{ if(settings[k] != null) profile[k] = settings[k]; });
@@ -7328,7 +6377,7 @@ function getCognitivePerformanceTableText(result){
 function buildRankedSummary(result){
  const el=$("rankedText"); if(!el) return;
  const hr="─────────────────────────";
- const modeName = getFullModeLabel(result.testMode);
+ const modeName = formatModeTag(result.testMode);
  el.textContent =
 `CogSpeed ${DISPLAY_VERSION} — ${modeName}
 ${hr}
@@ -7345,18 +6394,21 @@ function getResultsMetricExplanationText(result){
 RESULTS METRIC EXPLANATIONS
  MBS (Maximum Blocking Speed) = average in ms of the last 2 consecutive blocks within 250 ms.${usesMode1Metrics||usesMode2Metrics?"":" Not used in this mode."}
  CPI (Cognitive Processing Index) = normalized 0 - 100 index based on MBS.${usesMode1Metrics||usesMode2Metrics?"":" Not used in this mode."}
- BASELINE = rolling personal baseline average built from the most recent ${getBaselineWindowSize()} qualifying ${Array.from(getBaselineAllowedModes()).sort().map(m=>getFullModeLabel(m)).join(" / ")} adaptive-phase MBS sessions for the same registered subject, using ${getBaselineExcludeFailed()?"non-failed ":""}non-Guest sessions with MBS at or below the Admin qualifying threshold and Samn-Perelli Fatigue Scale scores of ${getBaselineMinSpfs()} through ${getBaselineMaxSpfs()}. First Baseline established once ${getBaselineMinSessionsToEstablish()} qualifying sessions exist.${usesMode1Metrics||usesMode2Metrics?"":" Not used in this mode."}
+ BASELINE = rolling personal baseline average built from the most recent 5 qualifying Mode 1 / Mode 2 adaptive-phase MBS sessions for the same registered subject, using non-failed non-Guest sessions with MBS at or below the Admin qualifying threshold and Samn-Perelli Fatigue Scale scores of 5, 6, or 7.${usesMode1Metrics||usesMode2Metrics?"":" Not used in this mode."}
  CSR (Correct Sustained Responses) = number of correct sustained responses in the Mode 2 sustained segment.${usesMode2Metrics?"":" Not used in this mode."}
  SBLP (Sustained Blocking Limit Performance) = average RT of correct sustained responses during Mode 2 sustained segment, but defined as 0 when CSR = 0.${usesMode2Metrics?"":" Not used in this mode."}
  SBLP P90 = 90th-percentile correct sustained RT; conservative ceiling estimate.${usesMode2Metrics?"":" Not used in this mode."}
  SPI (Sustained Processing Index) = normalized 0 - 100 index based on CSR.${usesMode2Metrics?"":" Not used in this mode."}
- CPA (Cognitive Performance Ability) = Mode 2 combined end-state score (0–100). CPA starts with CPI (the speed anchor from adaptive MBS) and then applies a bounded normative-profile adjustment derived from sustained-phase performance. The adjustment can increase CPA, leave it unchanged, or decrease it. Computed for Mode 2 only. Revised V699rev151 to use a 3-feature architecture (accuracy composite, OLS drift, CV).${usesMode2Metrics?"":" Not used in this mode."}
- CPA factor 1 — Sustained Accuracy-Composite Factor = the composite metric (correct_rate − wrong_rate − 0.5 × miss_rate) measured against a CPI-matched expected profile. Weight 9.0. Replaces the three separate correct/wrong/miss factors used before V699rev151 because those three rates live on a simplex (they sum to ~1) and were collinear — summing them triple-counted accuracy. Higher composite is better.${usesMode2Metrics?"":" Not used in this mode."}
- CPA factor 2 — OLS-Drift Factor = ordinary-least-squares slope of correct sustained RT versus 1-indexed trial position, expressed as percent change in RT from trial 1 to trial N, measured against a CPI-matched expected drift profile. Weight 6.0. Replaces the median-of-halves estimator used before V699rev151, which was a weak low-power statistic at typical sustained-phase trial counts. Signed: a negative slope (speeding up across the phase) earns a positive residual — the old estimator floored this to zero and discarded that information.${usesMode2Metrics?"":" Not used in this mode."}
- CPA factor 3 — Sustained RT Variability (CV) Factor = 100 × SD(correct sustained RTs) ÷ mean(correct sustained RTs), measured against a CPI-matched expected CV profile. Weight 6.0 (raised from 1.5 in V699rev151). Lower CV is better. Captures intra-individual RT instability, a well-established vigilance / fatigue marker.${usesMode2Metrics?"":" Not used in this mode."}
- Each feature produces a residual in [−1, +1] via tolerance-normalized deviation from the expected profile. Max absolute weighted residual is 9+6+6 = 21. CPA = clamp(CPI + clampSigned(Σ weighted_residual, ±20), 0, 100). The ±20 cap can engage under extreme sustained-phase underperformance but is dormant under typical operation.${usesMode2Metrics?"":" Not used in this mode."}
- Expected-profile lookup uses piecewise-linear interpolation between CPI-bucket centers (10, 30, 50, 70, 90), not step lookup, so adjacent CPI values produce smoothly adjacent expected profiles.${usesMode2Metrics?"":" Not used in this mode."}
- CPA-retired features (V699rev151) — Recovery÷Calibration RT Factor, Lapse-Rate Factor, and Block-Efficiency Factor were previously described as CPA factors 6–8. These values are still computed and reported as secondary diagnostics but no longer drive the CPA adjustment.${usesMode2Metrics?"":" Not used in this mode."}
+ CPA (Cognitive Performance Ability) = Mode 2 combined end-state score (0–100). CPA starts with CPI and then applies sustained-phase performance factors. These factors may increase CPA, leave it unchanged, or decrease it. Computed for Mode 2 only.${usesMode2Metrics?"":" Not used in this mode."}
+ CPA factor 1 — Sustained Correct-Response Factor = more sustained correct responses can increase CPA.${usesMode2Metrics?"":" Not used in this mode."}
+ CPA factor 2 — Sustained Wrong-Response Factor = based on sustained wrong-response count. Zero wrong responses can increase CPA, moderate wrong counts may have little or no effect, and higher wrong counts reduce CPA.${usesMode2Metrics?"":" Not used in this mode."}
+ CPA factor 3 — Sustained Missed-Response Factor = based on sustained missed-response count. Zero or very low missed counts can increase CPA, moderate missed counts may have little or no effect, and higher missed counts reduce CPA.${usesMode2Metrics?"":" Not used in this mode."}
+ CPA factor 4 — Sustained RT Variability Factor = based on coefficient of variation of correct sustained RTs: CV = (SD ÷ mean RT) × 100. More stable sustained response times can support CPA, while higher variability can reduce it.${usesMode2Metrics?"":" Not used in this mode."}
+ CPA factor 5 — Drift Factor = based on positive slowing from early median sustained RT to late median sustained RT. Greater slowing across the sustained phase can reduce CPA. Negative drift is forced to 0 before weighting.${usesMode2Metrics?"":" Not used in this mode."}
+ CPA factor 6 — Recovery÷Calibration RT Factor = based on mean recovery-trial RT divided by calibration average RT. Less favorable recovery relative to calibration can reduce CPA.${usesMode2Metrics?"":" Not used in this mode."}
+ CPA factor 7 — Lapse-Rate Factor = based on the percent of correct sustained responses that are slower than 2× the median correct sustained RT. More lapse-like sustained responses can reduce CPA.${usesMode2Metrics?"":" Not used in this mode."}
+ CPA factor 8 — Block-Efficiency Factor = based on adaptive paced trials divided by block count. Better block efficiency can support CPA, while poorer efficiency can reduce it. 10–30 trials per block is the typical range.${usesMode2Metrics?"":" Not used in this mode."}
+ CPA max total reduction cap = the total of all negative CPA adjustments is limited by the Admin max reduction factor × CPI. This prevents multiple mild penalties from driving CPA implausibly low in one session.${usesMode2Metrics?"":" Not used in this mode."}
  Disposition = operational recommendation aligned to the seven-point Samn-Perelli Fatigue Scale (S-PFS). For Mode 2 the CPA score drives the disposition; for Modes 1, 3, and 4 the CPI score is used (same 0–100 scale, same band edges). Bands use the midpoints between the canonical CPI anchors and map to the same captions as the Cognitive Performance table: ≥ 90 = S-PFS 7, Functioning exceptionally well. 77.5 to <90 = S-PFS 6, Functioning very well. 62.5 to <77.5 = S-PFS 5, Functioning normally. 37.5 to <62.5 = S-PFS 4, Functioning slightly less than normal. 18 to <37.5 = S-PFS 3, Functioning starting to slow. 5.5 to <18 = S-PFS 2, Difficult to function / becoming unsafe. <5.5 = S-PFS 1, Unable to function / definitely unsafe. The Speedometer dial groups these seven tiers into four operational colors: GREEN — Clear for duty (S-PFS 5, 6, 7). YELLOW — Monitor / human review recommended (S-PFS 4). ORANGE — Human review required (S-PFS 3). RED — Remove from Hazardous Duty (S-PFS 1, 2). The Speedometer Disposition window shows both halves together, e.g. "GREEN — Clear for duty (S-PFS 6)". CogSpeed disposition is a structured recommendation requiring human review — not a standalone fitness determination.`;
 }
 
@@ -7467,7 +6519,7 @@ function buildResultsSummaryCompact(result){
    ?(result.geo.address||`${result.geo.latitude.toFixed(5)}, ${result.geo.longitude.toFixed(5)}`)+` (±${Math.round(result.geo.accuracy_m)}m)`
    :result.geo.status;
  }
- const modeName = getFullModeLabel(result.testMode);
+ const modeName = formatModeTag(result.testMode);
  const totalPresentations = computeTotalTrialPresentations(result);
  const totalDuration = formatDuration(result.testDurationMs);
  const sleepLine = formatSleepLine(result);
@@ -7484,7 +6536,7 @@ function buildResultsSummaryCompact(result){
  if(result.mode2Triggered && result.cpa==null){
   Object.assign(result, computeMode2CPA(result));
  }
- if(result.dispositionCode==null || result.dispositionLabel==null || result.dispositionRecommendation==null || /^(GREEN|YELLOW|ORANGE|RED)$/i.test(String(result.dispositionCode||""))){
+ if(result.dispositionCode==null || result.dispositionLabel==null || /^(GREEN|YELLOW|ORANGE|RED)$/i.test(String(result.dispositionCode||""))){
   Object.assign(result, computeDisposition(result));
  }
  const adaptiveCounts = result.testMode==="mode2" ? computeMode2AdaptiveCounts(result) : null;
@@ -7505,13 +6557,6 @@ function buildResultsSummaryCompact(result){
        ? `S-PFS ${result.dispositionCode} — ${result.dispositionLabel}`
        : `${result.dispositionCode||"—"} ${result.dispositionLabel||"—"}`.trim())
    : '—';
- // V699rev175: separate user-facing recommendation line below the
- // (research-style) state line. The state line is for analysis context;
- // the recommendation line is universal action guidance suitable for
- // any safety-critical task.
- const recommendationLine = result.dispositionRecommendation
-   ? `Recommendation: ${result.dispositionRecommendation}`
-   : null;
  const wrongBreakdownLine = result.testMode==="mode2" ? `Wrong breakdown: Cal ${mode2WrongBreakdown.calibration} · Adaptive ${mode2WrongBreakdown.adaptive} · Recovery ${mode2WrongBreakdown.recovery} · Sustained ${mode2WrongBreakdown.sustained} · Final SP ${mode2WrongBreakdown.finalSelfPaced} · Total ${mode2WrongBreakdown.total}` : null;
  el.textContent=
 moveEndReasonNearSession(`CogSpeed version: ${DISPLAY_VERSION}
@@ -7540,7 +6585,7 @@ ${wrongBreakdownLine||""}
 Cognitive Performance table:
  ${getCognitivePerformanceTableText(result)}
 ${cpaLine}
-Disposition: ${dispositionLine}${recommendationLine?`\n${recommendationLine}`:""}
+Disposition: ${dispositionLine}
 END Reason: ${result.endReason||"Run complete"}
 ${hr}
 ${buildVerificationSummaryLines(result)}
@@ -7569,12 +6614,12 @@ function buildSummary(result){
    ?(result.geo.address||`${result.geo.latitude.toFixed(5)}, ${result.geo.longitude.toFixed(5)}`)+` (±${Math.round(result.geo.accuracy_m)}m)`
    :result.geo.status;
  }
- const modeName = getFullModeLabel(result.testMode);
+ const modeName = formatModeTag(result.testMode);
  if(result.testMode==="mode3"){
   el.textContent=
 moveEndReasonNearSession(`CogSpeed ${DISPLAY_VERSION} — ${modeName}
 ${hr}
-Test Mode:  ${getFullModeLabel(result.testMode)}
+Test Mode:  ${formatModeTag(result.testMode)}
 Session:    ${result.sessionNumber!=null?result.sessionNumber:"—"}
 Subject ID:  ${result.subjectId}
 Date / Time:  ${new Date(result.time).toLocaleString()}
@@ -7614,7 +6659,7 @@ ${getResultsMetricExplanationText(result)}`);
   el.textContent=
 moveEndReasonNearSession(`CogSpeed ${DISPLAY_VERSION} — ${modeName}
 ${hr}
-Test Mode:  ${getFullModeLabel(result.testMode)}
+Test Mode:  ${formatModeTag(result.testMode)}
 Session:    ${result.sessionNumber!=null?result.sessionNumber:"—"}
 Subject ID:  ${result.subjectId}
 Date / Time:  ${new Date(result.time).toLocaleString()}
@@ -7671,7 +6716,7 @@ ${getResultsMetricExplanationText(result)}`);
   if(result.mode2Triggered && result.cpa==null){
    Object.assign(result, computeMode2CPA(result));
   }
-  if(result.dispositionCode==null || result.dispositionLabel==null || result.dispositionRecommendation==null || /^(GREEN|YELLOW|ORANGE|RED)$/i.test(String(result.dispositionCode||""))){
+  if(result.dispositionCode==null || result.dispositionLabel==null || /^(GREEN|YELLOW|ORANGE|RED)$/i.test(String(result.dispositionCode||""))){
    Object.assign(result, computeDisposition(result));
   }
   const mode2Cpi=(adaptiveMbs!=null) ? (result.mode2CpiFromMbs!=null ? result.mode2CpiFromMbs : computeCPI(adaptiveMbs)) : null;
@@ -7680,7 +6725,7 @@ ${getResultsMetricExplanationText(result)}`);
   el.textContent=
 moveEndReasonNearSession(`CogSpeed ${DISPLAY_VERSION} — ${modeName}
 ${hr}
-Test Mode:  ${getFullModeLabel(result.testMode)}
+Test Mode:  ${formatModeTag(result.testMode)}
 Session:    ${result.sessionNumber!=null?result.sessionNumber:"—"}
 Subject ID:  ${result.subjectId}
 Date / Time:  ${new Date(result.time).toLocaleString()}
@@ -7744,16 +6789,19 @@ CPA — COGNITIVE PERFORMANCE ABILITY
  CPA: ${result.cpa!=null?result.cpa.toFixed(1)+" / 100":"—"}
  Disposition: ${(result.dispositionCode && result.dispositionLabel) ? `S-PFS ${result.dispositionCode} — ${result.dispositionLabel}` : `${result.dispositionCode||"—"} ${result.dispositionLabel||"—"}`.trim()}
  Base CPI: ${result.cpaBaseCpi!=null?result.cpaBaseCpi.toFixed(1):"—"}
- Sustained accuracy-composite factor: ${result.cpaAccuracyWeighting!=null?(result.cpaAccuracyWeighting>=0?"+":"")+result.cpaAccuracyWeighting.toFixed(1):"—"}
- Sustained RT variability (CV) factor: ${result.cpaSdWeighting!=null?(result.cpaSdWeighting>=0?"+":"")+result.cpaSdWeighting.toFixed(1):"—"}
- Drift (OLS slope) factor: ${result.cpaDriftWeighting!=null?(result.cpaDriftWeighting>=0?"+":"")+result.cpaDriftWeighting.toFixed(1):"—"}
- Accuracy composite (observed / expected): ${result.cpaObservedAccuracyComposite!=null?result.cpaObservedAccuracyComposite.toFixed(3):"—"} / ${result.cpaExpectedAccuracyComposite!=null?result.cpaExpectedAccuracyComposite.toFixed(3):"—"}
- Drift OLS slope: ${result.cpaObservedDriftSlopeMsPerTrial!=null?result.cpaObservedDriftSlopeMsPerTrial.toFixed(2)+" ms/trial":"—"}
- Drift OLS full-phase: ${result.cpaObservedDriftPctOls!=null?(result.cpaObservedDriftPctOls>=0?"+":"")+result.cpaObservedDriftPctOls.toFixed(1)+"%":"—"}
+ Sustained correct-response factor: ${result.cpaCorrectWeighting!=null?(result.cpaCorrectWeighting>=0?"+":"")+result.cpaCorrectWeighting.toFixed(1):"—"}
+ Sustained wrong-response factor: ${result.cpaWrongWeighting!=null?(result.cpaWrongWeighting>=0?"+":"")+result.cpaWrongWeighting.toFixed(1):"—"}
+ Sustained missed-response factor: ${result.cpaMissedWeighting!=null?(result.cpaMissedWeighting>=0?"+":"")+result.cpaMissedWeighting.toFixed(1):"—"}
+ Sustained RT variability factor: ${result.cpaSdWeighting!=null?(result.cpaSdWeighting>=0?"+":"")+result.cpaSdWeighting.toFixed(1):"—"}
+ Drift factor: ${result.cpaDriftWeighting!=null?(result.cpaDriftWeighting>=0?"+":"")+result.cpaDriftWeighting.toFixed(1):"—"}
+ Recovery / calibration RT factor: ${result.cpaRecoveryWeighting!=null?(result.cpaRecoveryWeighting>=0?"+":"")+result.cpaRecoveryWeighting.toFixed(1):"—"}
+ Lapse-rate factor: ${result.cpaLapseWeighting!=null?(result.cpaLapseWeighting>=0?"+":"")+result.cpaLapseWeighting.toFixed(1):"—"}
+ Block-efficiency factor: ${result.cpaEfficiencyWeighting!=null?(result.cpaEfficiencyWeighting>=0?"+":"")+result.cpaEfficiencyWeighting.toFixed(1):"—"}
  Sustained response RT SD: ${result.cpaSustainedResponseSdMs!=null?result.cpaSustainedResponseSdMs.toFixed(1)+" ms":"—"}
  Sustained RT CV%: ${result.cpaSustainedCvPct!=null?result.cpaSustainedCvPct.toFixed(1)+"%":"—"}
  Early median sustained RT: ${result.cpaEarlyMedianRtMs!=null?result.cpaEarlyMedianRtMs.toFixed(1)+" ms":"—"}
  Late median sustained RT: ${result.cpaLateMedianRtMs!=null?result.cpaLateMedianRtMs.toFixed(1)+" ms":"—"}
+ Drift ratio: ${result.cpaSustainedDriftRatio!=null?(result.cpaSustainedDriftRatio*100).toFixed(1)+"%":"—"}
  Recovery÷calib RT ratio: ${result.cpaRecoveryCalibRatio!=null?result.cpaRecoveryCalibRatio.toFixed(2):"—"}
  Sustained-phase lapse rate: ${result.cpaLapseRatePct!=null?result.cpaLapseRatePct.toFixed(1)+"%":"—"}
  Block formation efficiency: ${result.cpaTrialsPerBlock!=null?result.cpaTrialsPerBlock.toFixed(1)+" trials/block":"—"}
@@ -7784,7 +6832,7 @@ ${getResultsMetricExplanationText(result)}`);
  el.textContent=
 moveEndReasonNearSession(`CogSpeed ${DISPLAY_VERSION} — ${modeName}
 ${hr}
-Test Mode:  ${getFullModeLabel(result.testMode)}
+Test Mode:  ${formatModeTag(result.testMode)}
 Session:    ${result.sessionNumber!=null?result.sessionNumber:"—"}
 Subject ID:  ${result.subjectId}
 Date / Time:  ${new Date(result.time).toLocaleString()}
@@ -8073,20 +7121,6 @@ function drawSpeedometer(canvas, scoreValue, success, scoreLabel="CPI", tipLabel
  }
 
  // MBS window and label
- // V699rev150: auto-shrink the tip label + value so long Mode 3/4 labels
- // ("Average Self-paced RT", "Average Machine-Paced RT") and long Mode 4
- // value strings ("450.0 ms • Rate 550.0 ms") fit inside the yellow box
- // without overflowing the speedometer arc. Base font sizes are preserved;
- // we only shrink when the measured text width exceeds the allowed inner
- // width (box width minus horizontal padding).
- //
- // V699rev158: support an optional second value line. When opts.tipValueSecondary
- // is provided (currently Mode 4 only, to separate "RT {avgRt} ms" from
- // "Rate {pacedRate} ms"), the yellow box renders two rows inside the same
- // box rather than one centered row. A smaller floor is used for the
- // two-line font so the rows don't collide with the box edges on narrow
- // canvases. If tipValueSecondary is null/undefined/empty, the original
- // single-line path runs unchanged.
  if(success && tipValue){
   const bw = R*0.72, bh = R*0.18;
   const bx = cx - bw/2, by = cy + R*0.37;
@@ -8100,41 +7134,9 @@ function drawSpeedometer(canvas, scoreValue, success, scoreLabel="CPI", tipLabel
   ctx.fillStyle = dark;
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
-  // Horizontal padding inside the box. Label is drawn ABOVE the box so it
-  // has a slightly larger usable width than the value line, but we keep
-  // the allowed width conservative to avoid crowding neighboring dial art.
-  const labelMaxW = bw - R*0.04;
-  const valueMaxW = bw - R*0.08;
-  // Floor the font so extreme strings still remain legible rather than
-  // collapsing to illegible microtype.
-  function fitFont(text, basePx, maxW, floorPx){
-   let px = basePx;
-   ctx.font = `700 ${px.toFixed(1)}px Arial,sans-serif`;
-   let w = ctx.measureText(String(text)).width;
-   if(w <= maxW) return px;
-   px = Math.max(floorPx, basePx * (maxW / w));
-   ctx.font = `700 ${px.toFixed(1)}px Arial,sans-serif`;
-   return px;
-  }
-  const tipValueSecondary = opts && opts.tipValueSecondary ? String(opts.tipValueSecondary) : null;
-  const labelBasePx = R*0.108;
-  const labelFloorPx = R*0.070;
-  if(tipValueSecondary){
-   // Two-line layout: slightly smaller base font, two rows at 30% / 72% of
-   // box height so they visually separate with a comfortable margin.
-   const valueBasePxTwoLine = R*0.058;
-   const valueFloorPxTwoLine = R*0.042;
-   fitFont(tipValue, valueBasePxTwoLine, valueMaxW, valueFloorPxTwoLine);
-   ctx.fillText(String(tipValue), cx, by + bh*0.30);
-   fitFont(tipValueSecondary, valueBasePxTwoLine, valueMaxW, valueFloorPxTwoLine);
-   ctx.fillText(tipValueSecondary, cx, by + bh*0.72);
-  } else {
-   const valueBasePx = R*0.068;
-   const valueFloorPx = R*0.050;
-   fitFont(tipValue, valueBasePx, valueMaxW, valueFloorPx);
-   ctx.fillText(String(tipValue), cx, by + bh*0.54);
-  }
-  fitFont(tipLabel||"MBS", labelBasePx, labelMaxW, labelFloorPx);
+  ctx.font = `700 ${(R*0.068).toFixed(1)}px Arial,sans-serif`;
+  ctx.fillText(String(tipValue), cx, by + bh*0.54);
+  ctx.font = `700 ${(R*0.108).toFixed(1)}px Arial,sans-serif`;
   ctx.fillText(String(tipLabel||"MBS"), cx, by - R*0.07);
  }
 
@@ -8264,86 +7266,6 @@ function formatCompactResultModeLabel(result){
  return '—';
 }
 
-// V699rev168: canonical session-label formatter shared by every "session
-// select" dropdown and info bar. Replaces three previously divergent inline
-// label formats that gave the same session four different appearances
-// across the Summary page, Research view, Trial-log overlay, and Rate-RT
-// chart selector.
-//
-// Composition (left to right, with a · separator):
-//   "Sess N"                  — 1-based history index (stable per device).
-//                               Always present so the label is unambiguous
-//                               even if all other parts collide.
-//   "{compactMode}"           — short mode tag from formatCompactResultModeLabel,
-//                               e.g. "M2 Sustained", "M1 Adapted".
-//   "(no CPA)"                — appended when testMode==="mode2" but
-//                               mode2Triggered===false, so users can tell
-//                               at a glance which Mode 2 sessions actually
-//                               produced a CPA score.
-//   "{subjectHint}"           — short subject identifier, only when opts.showSubject
-//                               is true (Trial Log, Rate-RT chart). Guest sessions
-//                               render as "Guest"; registered subjects render as
-//                               the first 14 characters of subjectId so a long
-//                               email address doesn't crowd the option text.
-//   "{date} {time}"           — toLocaleDateString plus toLocaleTimeString
-//                               truncated to "HH:MM" in 24h or "h:MM AM/PM" in
-//                               12h depending on the user locale. Always
-//                               include time so two sessions on the same day
-//                               are visually distinct.
-//   "⚠ FAILED"                — appended when isTestSuccess(result) is false.
-//                               Failed sessions are still shown in dropdowns
-//                               (history is push-only) but should be visually
-//                               flagged so a user reviewing past data does
-//                               not pick one expecting a complete result.
-//
-// Options:
-//   opts.showSubject  : include the subjectHint segment (default: false).
-//                       Selectors with one subject visible per page (Summary,
-//                       Research) leave it false; selectors that span subjects
-//                       on multi-user devices (Trial Log, Rate-RT) set it true.
-//   opts.shortDateOnly: omit the time segment (default: false). Reserved for
-//                       legacy behavior; not used by any current caller.
-function formatSessionListLabel(result, idx, opts){
- const o = opts || {};
- const dt = result && result.time ? new Date(result.time) : null;
- const dateStr = dt ? dt.toLocaleDateString() : "";
- const timeStr = (dt && !o.shortDateOnly)
-  ? dt.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })
-  : "";
- const compactMode = formatCompactResultModeLabel(result);
- // Mode 2 sessions that never reached the sustained phase have no CPA. Flag
- // them inline so the user can distinguish "M2 with CPA" from "M2 without CPA"
- // at a glance.
- const isMode2NotTriggered = !!(result
-  && result.testMode === "mode2"
-  && !result.mode2Triggered);
- const triggerSuffix = isMode2NotTriggered ? " (no CPA)" : "";
- // Subject hint: only when the caller asks for it, and only when subjectId is
- // present and non-Guest. Trim long emails so option text stays readable.
- let subjectHint = "";
- if(o.showSubject && result){
-  const sid = String(result.subjectId || "").trim();
-  if(!sid || sid === "0" || /^guest$/i.test(sid)){
-   subjectHint = "Guest";
-  } else {
-   subjectHint = sid.length > 14 ? (sid.slice(0, 14) + "…") : sid;
-  }
- }
- // Failure marker: any session not isTestSuccess gets flagged. Avoid the
- // mode2_final_self_paced_no_response false-positive (handled inside
- // isTestSuccess for triggered Mode 2 sessions).
- const failed = !isTestSuccess(result);
- const failSuffix = failed ? " ⚠ FAILED" : "";
- // Compose with · separators. Skip empty segments.
- const segments = [];
- segments.push(`Sess ${(idx != null ? idx : 0) + 1}`);
- segments.push(`${compactMode}${triggerSuffix}`);
- if(subjectHint) segments.push(subjectHint);
- const dtSegment = (dateStr && timeStr) ? `${dateStr} ${timeStr}` : (dateStr || timeStr);
- if(dtSegment) segments.push(dtSegment);
- return segments.join(" · ") + failSuffix;
-}
-
 function syncSummarySessionSelect(selectedIdx){
  const s=$("summarySessionSelect");
  if(!s) return;
@@ -8351,12 +7273,11 @@ function syncSummarySessionSelect(selectedIdx){
  const existing = Array.from(s.options).map(o=>o.value).join('|');
  const desired = state.history.map((r,idx)=>String(idx)).join('|');
  if(existing !== desired){
-  // V699rev168: use canonical formatSessionListLabel so the Summary dropdown
-  // matches the Trial Log and Rate-RT chart selectors. Subject is omitted
-  // here because the Summary view is per-subject already.
   s.innerHTML = state.history.map((r,idx)=>{
-   const label = formatSessionListLabel(r, idx, { showSubject: false });
-   return `<option value="${idx}">${label.replace(/&/g,"&amp;").replace(/</g,"&lt;")}</option>`;
+   const dt = r && r.time ? new Date(r.time) : null;
+   const stamp = dt ? dt.toLocaleDateString() : `Sess ${idx+1}`;
+   const mode = formatCompactResultModeLabel(r);
+   return `<option value="${idx}">Sess ${idx+1} · ${mode} · ${stamp}</option>`;
   }).join('');
  }
  if(s.options.length){
@@ -8433,50 +7354,6 @@ function getBucketValue(value, buckets, fallback=0){
  return fallback;
 }
 
-// V699rev151: linear interpolation between bucket CENTERS.
-//
-// The original getBucketValue is a step function across [lo, hi] ranges. It
-// produces a discontinuity at each bucket boundary — two subjects whose CPI
-// values are 60.00 and 60.02 get materially different expected values despite
-// being behaviorally identical. This rewards hysteresis hunting and introduces
-// cliff-edge behavior in CPA whenever a subject's CPI lands near a boundary.
-//
-// This helper replaces the step lookup with piecewise-linear interpolation
-// between bucket centers ((lo+hi)/2, value). Flat extrapolation is applied
-// below the leftmost center and above the rightmost center so values outside
-// the defined range stay anchored to the nearest expected level.
-//
-// Does not modify getBucketValue. Used by getMode2ExpectedProfileForCpi for
-// all Mode 2 CPA expected-profile lookups.
-function getInterpolatedBucketValue(value, buckets, fallback=0){
- const raw = Number(value);
- if(!Number.isFinite(raw) || !Array.isArray(buckets) || !buckets.length) return fallback;
- // Build sorted list of (center, value) anchor points.
- const points = buckets
-  .filter(b=>Array.isArray(b) && b.length>=3 && Number.isFinite(Number(b[0])) && Number.isFinite(Number(b[1])) && Number.isFinite(Number(b[2])))
-  .map(([lo, hi, v])=>{
-   const a = Number(lo), b = Number(hi);
-   const c = Number.isFinite(b) ? (a+b)/2 : a;
-   return [c, Number(v)];
-  })
-  .sort((a,b)=>a[0]-b[0]);
- if(!points.length) return fallback;
- if(points.length === 1) return points[0][1];
- const x = raw;
- if(x <= points[0][0]) return points[0][1];
- if(x >= points[points.length-1][0]) return points[points.length-1][1];
- for(let i=1;i<points.length;i++){
-  const [x0, y0] = points[i-1];
-  const [x1, y1] = points[i];
-  if(x >= x0 && x <= x1){
-   if(x1 === x0) return y0;
-   const t = (x - x0) / (x1 - x0);
-   return y0 + t * (y1 - y0);
-  }
- }
- return fallback;
-}
-
 function clampSigned(value, limit){
  const v = Number(value);
  const lim = Math.max(0, Number(limit)||0);
@@ -8492,7 +7369,7 @@ function normalizeResidual(observed, expected, tolerance, beneficialHigher=true)
 }
 
 function getMode2NormativeModelVersion(){
- return "Mode 2 normative CPA scaffold v2 (V699rev151) — accuracy-composite + OLS-drift + CV, with interpolated buckets. Field validation required.";
+ return "Mode 2 normative CPA scaffold v1 — field validation required";
 }
 
 function computeMode2SustainedReliefContext(mbsMs){
@@ -8509,27 +7386,6 @@ function computeMode2SustainedReliefContext(mbsMs){
  return { reliefMs, startMs, challengeRatio };
 }
 
-// V699rev151 — expected-profile generator for the Mode 2 CPA composite.
-//
-// Semantics of each expected value:
-//   expectedAccuracyComposite : target for (correctRate - wrongRate - 0.5·missRate)
-//                               — consolidates three previously collinear
-//                               accuracy features into a single metric.
-//   expectedDriftPct          : target full-phase RT slowing percentage, now
-//                               derived from the OLS slope of correct RTs
-//                               across the sustained phase rather than a
-//                               median-of-halves split (weak estimator).
-//   expectedCvPct             : target coefficient of variation across
-//                               correct sustained RTs.
-//
-// The three legacy expected rates (expectedCorrectRate, expectedWrongRate,
-// expectedMissRate) remain populated so legacy CSV rows and verifier receipts
-// retain the same column layout, but they are no longer consumed by
-// computeMode2CPA. See computeMode2CPA for the active adjustment path.
-//
-// Bucket lookups use getInterpolatedBucketValue (linear interpolation between
-// bucket centers) so there are no discontinuities at CPI = 20/40/60/80. This
-// addresses the Rev 150 audit point (b).
 function getMode2ExpectedProfileForCpi(cpi){
  const correctBuckets = parseBucketSpec(settings.mode2NormExpectedCorrectRate,
   [[0,20,0.82],[20.01,40,0.80],[40.01,60,0.76],[60.01,80,0.70],[80.01,100,0.62]]);
@@ -8541,15 +7397,12 @@ function getMode2ExpectedProfileForCpi(cpi){
   [[0,20,4],[20.01,40,5],[40.01,60,7],[60.01,80,9],[80.01,100,12]]);
  const cvBuckets = parseBucketSpec(settings.mode2NormExpectedCvPct,
   [[0,20,12],[20.01,40,13],[40.01,60,15],[60.01,80,18],[80.01,100,22]]);
- const accCompositeBuckets = parseBucketSpec(settings.mode2NormExpectedAccuracyComposite,
-  [[0,20,0.715],[20.01,40,0.680],[40.01,60,0.615],[60.01,80,0.515],[80.01,100,0.385]]);
  return {
-  expectedCorrectRate: getInterpolatedBucketValue(cpi, correctBuckets, 0.7),
-  expectedWrongRate:   getInterpolatedBucketValue(cpi, wrongBuckets,   0.06),
-  expectedMissRate:    getInterpolatedBucketValue(cpi, missBuckets,    0.2),
-  expectedDriftPct:    getInterpolatedBucketValue(cpi, driftBuckets,   8),
-  expectedCvPct:       getInterpolatedBucketValue(cpi, cvBuckets,      16),
-  expectedAccuracyComposite: getInterpolatedBucketValue(cpi, accCompositeBuckets, 0.6)
+  expectedCorrectRate: getBucketValue(cpi, correctBuckets, 0.7),
+  expectedWrongRate: getBucketValue(cpi, wrongBuckets, 0.06),
+  expectedMissRate: getBucketValue(cpi, missBuckets, 0.2),
+  expectedDriftPct: getBucketValue(cpi, driftBuckets, 8),
+  expectedCvPct: getBucketValue(cpi, cvBuckets, 16)
  };
 }
 
@@ -8594,89 +7447,6 @@ function parseBucketSpec(spec, fallback){
   return fallback.map(([min,max,mult])=>[min,max,mult]);
  }
 }
-// ═══════════════════════════════════════════════════════════════════════════
-// computeMode2CPA — V699rev151 Mode 2 Cognitive Performance Ability composite
-// ═══════════════════════════════════════════════════════════════════════════
-//
-// WHAT CPA IS
-// -----------
-// CPA is CPI adjusted by a bounded, normative-profile-based residual score
-// computed from the sustained phase of a Mode 2 run. CPI (derived from the
-// adaptive MBS) provides the SPEED anchor: how fast the subject can still
-// process near their ceiling. The residual score provides the SUSTAIN anchor:
-// how well that speed holds up under a near-ceiling fixed-rate load.
-//
-// CPA = clamp( CPI + clampSigned(Σᵢ wᵢ · residualᵢ, ±maxDelta), 0, 100 )
-//
-// FEATURE SET (V699rev151)
-// ------------------------
-// Three features drive the residual:
-//
-//   1. Accuracy composite   (weight 9.0, tol 0.15)
-//        observed = correctRate - wrongRate - 0.5 · missRate
-//        Higher is better. Consolidates the previously collinear correct,
-//        wrong, and miss rate features into a single scalar. The three raw
-//        rates are still computed and reported for transparency, but they
-//        are no longer independent inputs to the residual score. This is
-//        the Rev 150 audit fix (a).
-//
-//   2. OLS drift slope      (weight 6.0, tol 8 %)
-//        observed = 100 · slope · (N-1) / meanRT
-//        where slope is the OLS slope of correctRT vs. 1-indexed sustained
-//        trial number. The product expresses "percent change in RT from
-//        trial 1 to trial N", which has the same interpretation as the old
-//        median-of-halves drift % but uses every correct trial. Signed —
-//        negative values (speeding up) are NOT clamped to zero; they earn
-//        a positive residual since speeding up within a sustained phase is
-//        beneficial, not harmful. This is the Rev 150 audit fix (c).
-//
-//   3. Coefficient of variation (weight 6.0, tol 10 %)
-//        observed = 100 · sd(correctRT) / mean(correctRT)
-//        Lower is better. Captures response-time stability as a fatigue /
-//        vigilance marker. Unchanged in concept from Rev 150; weight
-//        upgraded from 1.5 to 6.0 to match drift and exploit the headroom
-//        opened by the accuracy-feature consolidation.
-//
-// WEIGHT / CAP DESIGN
-// -------------------
-// Each normalized residual is in [-1, +1] (symmetric clamping around zero
-// tolerance units). Max absolute weighted residual is:
-//     9.0 (accuracy) + 6.0 (drift) + 6.0 (cv) = 21.0
-// mode2NormMaxDelta is set to 20, so the cap CAN engage in the extreme case
-// (all three features at full negative saturation simultaneously — roughly
-// "accuracy one tol below expected AND drifting one tol+ above expected AND
-// variability one tol+ above expected"). Under typical operating regimes the
-// cap is dormant and the composite is driven by the weighted residual sum.
-// This is the Rev 150 audit fix (d).
-//
-// EXPECTED PROFILE
-// ----------------
-// Expected values for each feature are looked up against the subject's
-// current CPI using piecewise-linear interpolation between CPI-bucket
-// centers (10, 30, 50, 70, 90). This eliminates the step-function
-// discontinuities at CPI = 20 / 40 / 60 / 80 that caused adjacent CPI
-// values to produce materially different expected profiles. This is the
-// Rev 150 audit fix (b).
-//
-// BACKWARD COMPATIBILITY
-// ----------------------
-// All legacy output fields (cpaObservedCorrectRate, cpaObservedWrongRate,
-// cpaObservedMissRate, cpaCorrectWeighting, cpaWrongWeighting, ...) remain
-// in the result object so CSV exports and verification receipts retain the
-// same column layout. Legacy residual / weighting fields that correspond
-// to retired features are populated as null. Legacy "correct" weighting is
-// aliased to the new accuracy-composite weighting so the existing results
-// summary display ("Sustained correct-response factor: ...") still reads
-// the headline accuracy adjustment instead of going blank.
-//
-// NEW OUTPUT FIELDS (V699rev151)
-// ------------------------------
-//   cpaObservedAccuracyComposite / cpaExpectedAccuracyComposite
-//   cpaAccuracyResidual / cpaAccuracyWeighting
-//   cpaObservedDriftSlopeMsPerTrial         (raw OLS slope)
-//   cpaObservedDriftPctOls                  (full-phase % slowing, OLS-derived)
-//
-// ═══════════════════════════════════════════════════════════════════════════
 function computeMode2CPA(result){
  const blank = {
   cpa:null, cpaBaseCpi:null,
@@ -8684,18 +7454,12 @@ function computeMode2CPA(result){
   cpaNormativeModelVersion:getMode2NormativeModelVersion(),
   cpaExpectedCorrectRate:null, cpaExpectedWrongRate:null, cpaExpectedMissRate:null,
   cpaExpectedDriftPct:null, cpaExpectedCvPct:null,
-  cpaExpectedAccuracyComposite:null,
   cpaObservedCorrectRate:null, cpaObservedWrongRate:null, cpaObservedMissRate:null,
   cpaObservedDriftPct:null, cpaObservedCvPct:null,
-  cpaObservedAccuracyComposite:null,
-  cpaObservedDriftSlopeMsPerTrial:null,
-  cpaObservedDriftPctOls:null,
   cpaCorrectWeighting:null, cpaWrongWeighting:null,
   cpaMissedWeighting:null, cpaSdWeighting:null, cpaDriftWeighting:null,
-  cpaAccuracyWeighting:null,
   cpaCorrectResidual:null, cpaWrongResidual:null, cpaMissedResidual:null,
   cpaCvResidual:null, cpaDriftResidual:null,
-  cpaAccuracyResidual:null,
   cpaSustainedResponseSdMs:null,
   cpaSustainedCvPct:null,
   cpaSustainedDriftRatio:null,
@@ -8719,21 +7483,6 @@ function computeMode2CPA(result){
  const wrongRate = wrong / presented;
  const missRate = missed / presented;
 
- // V699rev151: the accuracy composite consolidates correct, wrong, and miss
- // rates into a single scalar. Weighting coefficients in the formula reflect
- // the intuition that wrong answers and misses are the harmful-direction
- // signals (hence negative contribution), and that missed trials — while
- // informative about lapses — should not dominate a pure accuracy composite
- // since miss rate also depends strongly on pacing. The 0.5 multiplier on
- // missRate is a deliberate down-weighting within the composite.
- //
- //   accComposite = correctRate - wrongRate - 0.5 · missRate
- //
- // Range under normal operation: roughly 0.3 (high CPI, near ceiling) to
- // 0.8 (low CPI, comfortable pacing). Tolerance 0.15 is sized so a
- // one-tolerance deviation reflects a meaningful but recoverable deviation.
- const accComposite = correctRate - wrongRate - 0.5 * missRate;
-
  const log = Array.isArray(result.rtLog) ? result.rtLog : [];
 
  // Correct sustained RT descriptors remain useful as secondary diagnostics.
@@ -8745,22 +7494,7 @@ function computeMode2CPA(result){
  const responseCvPct = (responseSd!=null && responseMean!=null && responseMean>0)
   ? (responseSd/responseMean)*100 : null;
 
- // V699rev151 drift estimator:
- //
- //   Preserves the two legacy descriptors (earlyMedian, lateMedian,
- //   driftRatio) for retained diagnostic fields, but the value that FEEDS
- //   the residual score is now OLS slope based.
- //
- //   Slope = OLS( y = rt, x = 1..N )   across correct sustained RTs only.
- //   Drift % = 100 · slope · (N-1) / meanRT
- //            — "percent change in RT from first to last trial if the
- //               subject were exactly on the regression line"
- //
- //   Signed: negative slope (subject speeds up across the phase) yields a
- //   negative driftPctOls, which under beneficialHigher=false (lower is
- //   better) maps to a POSITIVE residual — a reward for holding or
- //   improving speed under sustained load. The old estimator floored this
- //   to zero, discarding that information.
+ // Early-vs-late drift remains a positive-only slowing percentage.
  let earlyMedian=null, lateMedian=null, driftRatio=null;
  if(sustainedCorrectRTs.length>=2){
   const half=Math.floor(sustainedCorrectRTs.length/2);
@@ -8771,37 +7505,10 @@ function computeMode2CPA(result){
     driftRatio=Math.max(0,(lateMedian-earlyMedian)/earlyMedian);
   }
  }
- const driftPctLegacy = driftRatio!=null ? driftRatio*100 : null; // legacy, unsigned
+ const driftPct = driftRatio!=null ? driftRatio*100 : null;
 
- // OLS slope over correct sustained RTs (Rev 151). Requires ≥3 points for
- // a minimally meaningful regression; fewer falls back to the legacy drift
- // estimate so low-trial-count sessions still produce a residual.
- let driftSlopeMsPerTrial = null;
- let driftPctOls = null;
- if(sustainedCorrectRTs.length >= 3 && responseMean!=null && responseMean>0){
-  const n = sustainedCorrectRTs.length;
-  // x = 1..n so mean(x) = (n+1)/2 and Σ(x - xMean)² = n(n²-1)/12.
-  const xMean = (n+1)/2;
-  let num = 0;
-  let denom = 0;
-  for(let i=0;i<n;i++){
-   const x = i+1;
-   const dx = x - xMean;
-   num   += dx * (sustainedCorrectRTs[i] - responseMean);
-   denom += dx * dx;
-  }
-  if(denom > 0){
-   driftSlopeMsPerTrial = num / denom;
-   driftPctOls = 100 * driftSlopeMsPerTrial * (n-1) / responseMean;
-  }
- }
- // Observed drift % reported downstream is the OLS value when available;
- // fall back to the legacy median-of-halves only when too few trials.
- const driftPctObserved = driftPctOls!=null ? driftPctOls
-  : (driftPctLegacy!=null ? driftPctLegacy : null);
-
- // Recovery / lapse / efficiency diagnostics (unchanged — retained as
- // secondary metrics for future analysis; not CPA inputs).
+ // Recovery / lapse / efficiency are still logged because future field work
+ // may prove them useful, but Rev 84 no longer makes them direct CPA drivers.
  const recoveryRTs = log
   .filter(e=>e && e.phase==="recovery" && Number.isFinite(Number(e.rt)))
   .map(e=>Number(e.rt));
@@ -8822,64 +7529,25 @@ function computeMode2CPA(result){
  const trialsPerBlock = (blockCount>0 && adaptiveTrials>0)
   ? adaptiveTrials/blockCount : null;
 
- // ── Expected profile via piecewise-linear interpolation ──────────────
  const expected = getMode2ExpectedProfileForCpi(cpi);
- // Retained tolerance fallbacks (drift, cv) and the new accuracy-composite
- // tolerance. The retired per-rate tolerances are intentionally not read
- // here; they remain in DEFAULTS only for storage continuity.
- const tolAccuracy = Number(settings.mode2NormToleranceAccuracyComposite) || DEFAULTS.mode2NormToleranceAccuracyComposite;
- const tolDrift    = Number(settings.mode2NormToleranceDriftPct)          || DEFAULTS.mode2NormToleranceDriftPct;
- const tolCv       = Number(settings.mode2NormToleranceCvPct)             || DEFAULTS.mode2NormToleranceCvPct;
+ const tolCorrect = Number(settings.mode2NormToleranceCorrectRate)||DEFAULTS.mode2NormToleranceCorrectRate;
+ const tolWrong = Number(settings.mode2NormToleranceWrongRate)||DEFAULTS.mode2NormToleranceWrongRate;
+ const tolMiss = Number(settings.mode2NormToleranceMissRate)||DEFAULTS.mode2NormToleranceMissRate;
+ const tolDrift = Number(settings.mode2NormToleranceDriftPct)||DEFAULTS.mode2NormToleranceDriftPct;
+ const tolCv = Number(settings.mode2NormToleranceCvPct)||DEFAULTS.mode2NormToleranceCvPct;
 
- // ── Residuals in [-1, +1] ─────────────────────────────────────────────
- // Accuracy composite: beneficialHigher = true (above profile is good).
- const accuracyResidual = normalizeResidual(accComposite,
-  expected.expectedAccuracyComposite, tolAccuracy, true);
- // OLS drift: beneficialHigher = false (below expected slowing is good;
- // a negative observed drift is BETTER than a positive expected drift, so
- // this yields a positive residual).
- const driftResidual = normalizeResidual(
-  driftPctObserved!=null ? driftPctObserved : expected.expectedDriftPct,
-  expected.expectedDriftPct, tolDrift, false);
- // CV: beneficialHigher = false (below expected variability is good).
- const cvResidual = normalizeResidual(
-  responseCvPct!=null ? responseCvPct : expected.expectedCvPct,
-  expected.expectedCvPct, tolCv, false);
+ const correctResidual = normalizeResidual(correctRate, expected.expectedCorrectRate, tolCorrect, true);
+ const wrongResidual = normalizeResidual(wrongRate, expected.expectedWrongRate, tolWrong, false);
+ const missResidual = normalizeResidual(missRate, expected.expectedMissRate, tolMiss, false);
+ const driftResidual = normalizeResidual(driftPct!=null ? driftPct : expected.expectedDriftPct, expected.expectedDriftPct, tolDrift, false);
+ const cvResidual = normalizeResidual(responseCvPct!=null ? responseCvPct : expected.expectedCvPct, expected.expectedCvPct, tolCv, false);
 
- // ── Weighted adjustment ───────────────────────────────────────────────
- const wAccuracy = Number(settings.mode2NormWeightAccuracy) || DEFAULTS.mode2NormWeightAccuracy;
- const wDrift    = Number(settings.mode2NormWeightDrift)    || DEFAULTS.mode2NormWeightDrift;
- const wCv       = Number(settings.mode2NormWeightCv)       || DEFAULTS.mode2NormWeightCv;
-
- const accuracyAdj = accuracyResidual * wAccuracy;
- const driftAdj    = driftResidual    * wDrift;
- const cvAdj       = cvResidual       * wCv;
-
- // NOTE: the three retired weights (correct / wrong / miss) are now
- // defaulted to 0, but we still read them through the settings fallback
- // so a user who has hand-edited them in Admin gets the expected behavior.
- // Under default settings their contribution is zero.
- const wCorrectLegacy = Number(settings.mode2NormWeightCorrect);
- const wWrongLegacy   = Number(settings.mode2NormWeightWrong);
- const wMissLegacy    = Number(settings.mode2NormWeightMiss);
- const legacyAccuracyAdj = (Number.isFinite(wCorrectLegacy) && wCorrectLegacy>0)
-   ? normalizeResidual(correctRate, expected.expectedCorrectRate,
-      Number(settings.mode2NormToleranceCorrectRate)||DEFAULTS.mode2NormToleranceCorrectRate,
-      true) * wCorrectLegacy
-   : 0;
- const legacyWrongAdj = (Number.isFinite(wWrongLegacy) && wWrongLegacy>0)
-   ? normalizeResidual(wrongRate, expected.expectedWrongRate,
-      Number(settings.mode2NormToleranceWrongRate)||DEFAULTS.mode2NormToleranceWrongRate,
-      false) * wWrongLegacy
-   : 0;
- const legacyMissAdj = (Number.isFinite(wMissLegacy) && wMissLegacy>0)
-   ? normalizeResidual(missRate, expected.expectedMissRate,
-      Number(settings.mode2NormToleranceMissRate)||DEFAULTS.mode2NormToleranceMissRate,
-      false) * wMissLegacy
-   : 0;
-
- const rawAdj = accuracyAdj + driftAdj + cvAdj
-  + legacyAccuracyAdj + legacyWrongAdj + legacyMissAdj;
+ const correctAdj = correctResidual * (Number(settings.mode2NormWeightCorrect)||DEFAULTS.mode2NormWeightCorrect);
+ const wrongAdj = wrongResidual * (Number(settings.mode2NormWeightWrong)||DEFAULTS.mode2NormWeightWrong);
+ const missedAdj = missResidual * (Number(settings.mode2NormWeightMiss)||DEFAULTS.mode2NormWeightMiss);
+ const driftAdj = driftResidual * (Number(settings.mode2NormWeightDrift)||DEFAULTS.mode2NormWeightDrift);
+ const cvAdj = cvResidual * (Number(settings.mode2NormWeightCv)||DEFAULTS.mode2NormWeightCv);
+ const rawAdj = correctAdj + wrongAdj + missedAdj + driftAdj + cvAdj;
  const maxDelta = Math.max(0, Number(settings.mode2NormMaxDelta)||DEFAULTS.mode2NormMaxDelta);
  const cappedAdj = clampSigned(rawAdj, maxDelta);
  const cpa = Math.max(0, Math.min(100, cpi + cappedAdj));
@@ -8892,57 +7560,31 @@ function computeMode2CPA(result){
  const r2 = v=>v!=null&&Number.isFinite(Number(v))?Number(Number(v).toFixed(2)):null;
  const r3 = v=>v!=null&&Number.isFinite(Number(v))?Number(Number(v).toFixed(3)):null;
 
- // Backward-compat note on legacy field population:
- //   cpaCorrectWeighting   ← accuracy-composite adjustment (so the existing
- //                           Results summary line reads the headline accuracy
- //                           signal; the line is relabeled in Rev 151 to
- //                           "Sustained accuracy factor").
- //   cpaCorrectResidual    ← accuracy-composite residual (same alias rationale)
- //   cpaWrongWeighting / cpaMissedWeighting / cpaWrongResidual / cpaMissedResidual
- //                         ← null when the corresponding weight is 0 (default)
- //                           so CSV columns stay but show empty for retired
- //                           features. When a user has opted back in via
- //                           admin overrides, the legacy values are reported.
- const legacyCorrectVal  = (legacyAccuracyAdj!==0) ? legacyAccuracyAdj : null;
- const legacyWrongVal    = (legacyWrongAdj!==0)   ? legacyWrongAdj    : null;
- const legacyMissVal     = (legacyMissAdj!==0)    ? legacyMissAdj     : null;
-
  return {
   cpa: r1(cpa),
   cpaBaseCpi: r1(cpi),
   cpaAdjustmentApplied: r1(cappedAdj),
   cpaNormativeModelVersion: getMode2NormativeModelVersion(),
-  // Expected profile (legacy fields + new composite)
   cpaExpectedCorrectRate: r3(expected.expectedCorrectRate),
   cpaExpectedWrongRate: r3(expected.expectedWrongRate),
   cpaExpectedMissRate: r3(expected.expectedMissRate),
   cpaExpectedDriftPct: r1(expected.expectedDriftPct),
   cpaExpectedCvPct: r1(expected.expectedCvPct),
-  cpaExpectedAccuracyComposite: r3(expected.expectedAccuracyComposite),
-  // Observed values (legacy fields + new composite + OLS drift)
   cpaObservedCorrectRate: r3(correctRate),
   cpaObservedWrongRate: r3(wrongRate),
   cpaObservedMissRate: r3(missRate),
-  cpaObservedDriftPct: r1(driftPctObserved),
+  cpaObservedDriftPct: r1(driftPct),
   cpaObservedCvPct: r1(responseCvPct),
-  cpaObservedAccuracyComposite: r3(accComposite),
-  cpaObservedDriftSlopeMsPerTrial: r3(driftSlopeMsPerTrial),
-  cpaObservedDriftPctOls: r1(driftPctOls),
-  // Weighted adjustments (canonical + legacy aliases)
-  cpaAccuracyWeighting: r1(accuracyAdj),
-  cpaCorrectWeighting: r1(legacyCorrectVal!=null ? legacyCorrectVal : accuracyAdj),
-  cpaWrongWeighting: r1(legacyWrongVal),
-  cpaMissedWeighting: r1(legacyMissVal),
+  cpaCorrectWeighting: r1(correctAdj),
+  cpaWrongWeighting: r1(wrongAdj),
+  cpaMissedWeighting: r1(missedAdj),
   cpaSdWeighting: r1(cvAdj),
   cpaDriftWeighting: r1(driftAdj),
-  // Residuals (canonical + legacy aliases)
-  cpaAccuracyResidual: r2(accuracyResidual),
-  cpaCorrectResidual: r2(accuracyResidual),
-  cpaWrongResidual: legacyWrongVal!=null ? r2(legacyWrongVal / (wWrongLegacy||1)) : null,
-  cpaMissedResidual: legacyMissVal!=null ? r2(legacyMissVal / (wMissLegacy||1)) : null,
+  cpaCorrectResidual: r2(correctResidual),
+  cpaWrongResidual: r2(wrongResidual),
+  cpaMissedResidual: r2(missResidual),
   cpaCvResidual: r2(cvResidual),
   cpaDriftResidual: r2(driftResidual),
-  // Retained diagnostics
   cpaSustainedResponseSdMs: r1(responseSd),
   cpaSustainedCvPct: r1(responseCvPct),
   cpaSustainedDriftRatio: sustainedCorrectRTs.length>=2 ? r3(driftRatio) : null,
@@ -8957,7 +7599,7 @@ function computeMode2CPA(result){
 }
 
 function computeDisposition(result){
- const blank = { dispositionCode:null, dispositionLabel:null, dispositionSpfs:null, dispositionRecommendation:null };
+ const blank = { dispositionCode:null, dispositionLabel:null, dispositionSpfs:null };
  if(!result) return blank;
  // Gate: only completed/successful tests get a disposition. A failed
  // calibration or aborted run should not be assigned an S-PFS level as
@@ -8979,27 +7621,6 @@ function computeDisposition(result){
  // so the disposition vocabulary matches the rest of the app exactly.
  // dispositionCode is the S-PFS numeric level as a string ("1".."7");
  // dispositionSpfs is the same value as a Number for CSV/analysis use.
- //
- // POLARITY NOTE — important to read before changing this code:
- // CogSpeed uses a RE-ORIENTED Samn-Perelli convention. In the canonical
- // published Samn-Perelli scale, 1 = "fully alert" and 7 = "completely
- // exhausted". CogSpeed flips this so 7 = best and 1 = worst, matching
- // the more intuitive "higher is better" reading throughout the app's
- // UI (registration prompt, speedometer, disposition table, etc.).
- // dispositionSpfs values produced here use the CogSpeed re-oriented
- // convention. Anything that maps to canonical Samn-Perelli MUST flip.
- //
- // V699rev175 — `dispositionRecommendation` (NEW) carries universal
- // action guidance suitable for any safety-critical context (driving,
- // operating machinery, piloting, performing safety-critical work).
- // The existing `dispositionLabel` continues to describe COGNITIVE STATE
- // ("Functioning normally", "Difficult to function") so research and
- // analysis surfaces that have always read it stay unaffected.
- // The two fields are paired: same dispositionSpfs always produces the
- // same dispositionLabel AND the same dispositionRecommendation. Per
- // Layne's V699 rev 175 spec, recommendations are grouped 7-6-5 (Fit
- // for duty), 4 (Caution), 3 (Strong recommendation), 2-1 (Stop), so
- // the action guidance is identical within each safety band.
  // ┌────┬──────────────────┬──────────────────────────────────────────────┐
  // │SPF │ Score band (CPA  │ Label (from mode1Bands)                      │
  // │    │ or CPI)          │                                              │
@@ -9032,41 +7653,7 @@ function computeDisposition(result){
  else if(score >= 18)  { spfs=3; label="Functioning starting to slow"; }
  else if(score >= 5.5) { spfs=2; label="Difficult to function / becoming unsafe"; }
  else                  { spfs=1; label="Unable to function / definitely unsafe"; }
-
- // V699rev175 — universal action-recommendation strings.
- // Keep wording verbatim. These strings are user-facing and have been
- // approved by Layne; do not paraphrase, "tighten", or localize without
- // an explicit spec change. They are intentionally portable across
- // safety-critical domains (driving, piloting, operating machinery,
- // performing safety-critical work) so a single deployment configuration
- // can serve roadside, aviation pre-flight, ER pre-shift, and other
- // contexts without separate copy.
- const recommendation = getDispositionRecommendation(spfs);
-
- return {
-  dispositionCode: String(spfs),
-  dispositionLabel: label,
-  dispositionSpfs: spfs,
-  dispositionRecommendation: recommendation
- };
-}
-
-// V699rev175 — universal action-recommendation lookup.
-// Pulled into its own function so future deployments (e.g. a Buc-ee's
-// kiosk variant, an aviation pre-flight build, a research-only build
-// that suppresses recommendations entirely) can override or replace
-// this single function without touching computeDisposition's scoring
-// logic. Returns null for invalid input rather than throwing, mirroring
-// the existing computeDisposition contract.
-function getDispositionRecommendation(spfs){
- const n = Number(spfs);
- if(!Number.isFinite(n) || n < 1 || n > 7) return null;
- const i = Math.round(n);
- if(i >= 5) return "Fit for duty. Safe to drive or perform any safety-critical task.";
- if(i === 4) return "Caution. Mild fatigue detected. Consider rest before driving or any safety-critical task.";
- if(i === 3) return "Strong recommendation: rest before continuing. Do not drive or perform any safety-critical task without a break.";
- // i === 2 || i === 1
- return "Unable to function / Definitely unsafe. Stop! You are not safe to drive or perform any safety-critical task. Rest is required.";
+ return { dispositionCode: String(spfs), dispositionLabel: label, dispositionSpfs: spfs };
 }
 
 // Backward-compatible alias — older call sites use the Mode 2 name, and some
@@ -9115,11 +7702,11 @@ function syncSpeedometerSessionSelect(selectedIdx){
  const existing = Array.from(s.options).map(o=>o.value).join('|');
  const desired = orderedIdx.map(idx=>String(idx)).join('|');
  if(existing !== desired){
-  // V699rev168: canonical session-label formatter.
   s.innerHTML = orderedIdx.map((idx)=>{
    const r = state.history[idx];
-   const label = formatSessionListLabel(r, idx, { showSubject: false });
-   return `<option value="${idx}">${label.replace(/&/g,"&amp;").replace(/</g,"&lt;")}</option>`;
+   const stamp = r && r.time ? new Date(r.time).toLocaleDateString() : `Sess ${idx+1}`;
+   const mode = formatCompactResultModeLabel(r);
+   return `<option value="${idx}">Sess ${idx+1} · ${mode} · ${stamp}</option>`;
   }).join('');
  }
  if(s.options.length){
@@ -9198,13 +7785,6 @@ function resetTrialStateOnly(){
  state.testStartTime=null; state.maxTestRemainingMs=null; state.maxTestDeadlineMs=null; state.totalCorrect=0; state.totalIncorrect=0;
  state.missedTrials=0; state.rollMeanLog=[]; state.mode2SustainedRollMeanLog=[]; state.mode2PendingPriorMiss=null; state.lastFiveAnswers=[];
  state.calibrationTrialIndex=0; state.calibrationRTs=[]; state.calibrationErrors=0;
- // V699rev180 — clear unified-calibration state on every fresh test start.
- state.calibrationConsecCorrect=0; state.calibrationRollingCorrectRTs=[];
- state.calibrationAttemptsUsed=0; state.calibrationPhaseStartMs=null;
- if(state.calibrationPhaseTimer){ try{clearTimeout(state.calibrationPhaseTimer);}catch(e){} state.calibrationPhaseTimer=null; }
- if(state.calibrationHintTimer){ try{clearTimeout(state.calibrationHintTimer);}catch(e){} state.calibrationHintTimer=null; }
- state.calibrationHintActive=false; state.calibrationPendingCorrectTap=false;
- state.calibrationFailedFlag=false;
  state.pacedRTs=[]; state.rtLog=[]; state.lastFrameDuration=null; state.presentedRoundDuration=null;
  state.activeMode=settings.testMode||"mode1"; state.selfPacedRTs=[]; state.selfPacedCorrect=0; state.selfPacedWrong=0;
  state.fixedPacedBaseline=null; state.fixedPacedPresented=0; state.fixedPacedCorrect=0; state.fixedPacedWrong=0;
@@ -9365,13 +7945,9 @@ function startTest(){
 // ──────────────────────────────────────────────────────────────
 function syncTrialLogSessionSelect(selectedValue){
  const sel=$("trialLogSessionSelect"); if(!sel) return;
- // V699rev168: canonical formatter; showSubject=true because the Trial Log
- // overlay can span subjects on multi-user devices and subject identity
- // matters for picking the right log row.
  const options = [...state.history].reverse().map((r,i)=>{
   const idx=state.history.length-1-i;
-  const label = formatSessionListLabel(r, idx, { showSubject: true });
-  return `<option value="${idx}">${label.replace(/&/g,"&amp;").replace(/</g,"&lt;")}</option>`;
+  return `<option value="${idx}">Session ${idx+1} · ${formatModeTag(r.testMode)} · ${r.subjectId} · ${new Date(r.time).toLocaleString()}</option>`;
  }).join("");
  if(sel.dataset.optionsHtml !== options){ sel.innerHTML = options; sel.dataset.optionsHtml = options; }
  if(selectedValue!=null) sel.value=String(selectedValue);
@@ -9506,7 +8082,7 @@ function drawRateRtChart(canvas, sessions, selectedSessionIndex){
  const allPts = prepared.flatMap(s=>s._preparedLog);
  if(!allPts.length){
   ctx.fillStyle="#d7e7f8"; ctx.font="bold 13px sans-serif"; ctx.textAlign="center";
-  const modeTxt = selectedMode ? getFullModeLabel(selectedMode) : "selected session";
+  const modeTxt = selectedMode ? formatModeTag(selectedMode) : "selected session";
   ctx.fillText(`No response-time graph for ${modeTxt}`, W/2, H/2);
   ctx.font="11px sans-serif";
   ctx.fillStyle="#b7d9ef";
@@ -9537,7 +8113,7 @@ function drawRateRtChart(canvas, sessions, selectedSessionIndex){
 
  ctx.fillStyle="#b7d9ef"; ctx.textAlign="left"; ctx.font="10px sans-serif";
  ctx.fillText("Better performance ↑ (smaller ms)", PAD.left, PAD.top-10);
- const modeLabel = selectedMode ? getFullModeLabel(selectedMode) : "All Modes";
+ const modeLabel = selectedMode ? formatModeTag(selectedMode) : "All Modes";
  ctx.fillText(`${modeLabel} only · all sessions start at trial 1`, PAD.left+180, PAD.top-10);
 
  prepared.forEach((session)=>{
@@ -9598,10 +8174,7 @@ function drawRateRtChart(canvas, sessions, selectedSessionIndex){
   ctx.fillStyle="#ffffff";
   ctx.font="bold 10px sans-serif";
   ctx.textAlign="right";
-  // V699rev168: include the compact mode tag so the highlight is unambiguous
-  // when the chart overlays multiple sessions of different modes.
-  const highlightMode = formatCompactResultModeLabel(selected);
-  ctx.fillText(`Highlighted: Sess ${selectedSessionIndex+1} · ${highlightMode}`, W-PAD.right, PAD.top+12);
+  ctx.fillText(`Highlighted: Session ${selectedSessionIndex+1}`, W-PAD.right, PAD.top+12);
  }
 }
 
@@ -9619,9 +8192,7 @@ function buildRateRtOverlay(sessionIndex){
    const idx=r._actualIndex;
    const opt=document.createElement("option");
    opt.value=String(idx);
-   // V699rev168: canonical formatter; showSubject=true since the Rate-RT
-   // overlay can span subjects on multi-user devices.
-   opt.textContent = formatSessionListLabel(r, idx, { showSubject: true });
+   opt.textContent=`Session ${idx+1} · ${formatModeTag(r.testMode)} · ${r.subjectId} · ${new Date(r.time).toLocaleString()}`;
    sel.appendChild(opt);
   });
   if(preservedValue!=null) sel.value=String(preservedValue);
@@ -9638,10 +8209,8 @@ function buildRateRtOverlay(sessionIndex){
  }
  const info=$("rateRtInfoBar");
  if(info){
-  // V699rev168: info bar uses the same canonical session label, then appends
-  // the same-mode-overlay count.
   info.textContent = result
-   ? `${formatSessionListLabel(result, idx, { showSubject: true })} · ${sessionsForChart.length} same-mode session(s) overlaid from trial 1`
+   ? `Session ${idx+1} · ${formatModeTag(result.testMode)} · ${result.subjectId} · ${new Date(result.time).toLocaleString()} · ${sessionsForChart.length} same-mode session(s) overlaid from trial 1`
    : "No session selected";
  }
  drawRateRtChart($("rateRtChart"), sessionsForChart, idx);
@@ -9906,46 +8475,31 @@ function buildMiniScreen(highlightPart){
 
 const TUT_STEPS = [
  // Step 1: before-you-begin preparation page
- //
- // V699rev167: rewritten from a 17-item generic device-care checklist into a
- // tighter 9-item, emotionally-aware preparation list. Key changes vs the
- // earlier wording:
- //   • Opens with the "not an IQ test" framing to defuse test-anxiety on a
- //     first run.
- //   • Reframes "go fast" guidance with "There are no Right or Wrong scores"
- //     so users understand the task isn't about correctness in the test-anxiety
- //     sense.
- //   • Explicitly addresses the "I can't keep up" reaction with "Skip a frame
- //     if needed" plus the reassurance "CogSpeed is always faster than you are!"
- //   • Promotes the safety message ("Stay safe", "Stop and rest!") to a final
- //     bold MOST IMPORTANT! item, with sub-bullets, so it reads as the takeaway
- //     rather than as one bullet among many.
- // Generic device-care items (battery, Wi-Fi, posture, screen brightness) are
- // either consolidated or removed in favor of the higher-impact framing items.
- //
- // V699rev172: per Layne's spec, sharpened the opening framing ("Speedometer
- // for the Brain"), added Mode 3/Mode 4 practice guidance under item 4, and
- // tightened capitalization (PRACTICE, BASELINE) to emphasize the take-home
- // points. Item count stays at 9. Visual styling (sub-bullet indentation,
- // bold "Stay safe", bold "STOP AND REST!", "MOST IMPORTANT!" header)
- // unchanged so the page renders identically aside from the new copy.
  {
   build:()=>{
    return `
    <div style="position:relative;z-index:1;display:flex;flex-direction:column;height:100%;padding:14px 14px 10px 14px;text-align:left">
     <div style="font-size:13px;letter-spacing:.1em;color:rgba(127,215,255,0.8);text-transform:uppercase;margin-bottom:8px;text-align:center;text-shadow:0 0 12px rgba(127,215,255,0.5)">Before You Begin</div>
     <div style="background:rgba(10,20,40,0.92);backdrop-filter:blur(4px);border-radius:16px;padding:12px 14px;max-width:100%;border:1px solid rgba(127,215,255,0.22);overflow:auto">
-     <div style="font-size:18px;font-weight:800;color:#f5fbff;margin-bottom:8px;text-align:center">Hints and Preparation</div>
-     <ol style="margin:0;padding-left:18px;font-size:13.5px;line-height:1.36;color:rgba(255,255,255,0.9)">
-      <li style="margin-bottom:8px">CogSpeed is <span style="font-weight:800">NOT</span> an IQ test. It’s a “Speedometer for the Brain”.</li>
-      <li style="margin-bottom:8px">Just respond as quickly as you can without guessing wildly.<div style="margin-top:4px;margin-left:0.4em;color:rgba(255,255,255,0.82)">→ There are no “Right” or “Wrong” scores.</div></li>
-      <li style="margin-bottom:8px">Don’t get discouraged because you can’t keep up.<div style="margin-top:4px;margin-left:0.4em;color:rgba(255,255,255,0.82)">→ Skip a frame if needed.</div><div style="margin-top:2px;margin-left:1.5em;font-weight:800;color:#f5fbff">→ CogSpeed is always faster than you are!</div></li>
-      <li style="margin-bottom:8px">It takes <span style="font-weight:800">PRACTICE</span>. Establish your personal <span style="font-weight:800">BASELINE</span>.<div style="margin-top:4px;margin-left:0.4em;color:rgba(255,255,255,0.82)">→ Use Mode 3 to practice at your own pace.</div><div style="margin-top:2px;margin-left:0.4em;color:rgba(255,255,255,0.82)">→ Use Mode 4 for a more challenging practice.</div></li>
-      <li style="margin-bottom:8px">Do not take the test in a hazardous place.<div style="margin-top:4px;margin-left:0.4em;color:rgba(255,255,255,0.82)">→ Devote your full attention to it.</div><div style="margin-top:2px;margin-left:0.4em;color:rgba(255,255,255,0.82)">→ Avoid talking or multitasking.</div><div style="margin-top:2px;margin-left:0.4em;font-weight:800;color:#f5fbff">→ Stay safe.</div></li>
-      <li style="margin-bottom:8px">Silence calls, alerts, and pop-up notifications.</li>
-      <li style="margin-bottom:8px">Make sure you have enough battery to finish the test.</li>
-      <li style="margin-bottom:8px">Use your glasses or contacts if needed.</li>
-      <li><span style="font-weight:900">MOST IMPORTANT!</span><div style="margin-top:4px;margin-left:0.4em;color:rgba(255,255,255,0.82)">→ If you ever feel impaired, unsafe, or unable to focus,</div><div style="margin-top:2px;margin-left:1.5em;font-weight:900;color:#f5fbff">→ STOP AND REST!</div><div style="margin-top:2px;margin-left:2.6em;color:rgba(255,255,255,0.82)">→ Regardless of your score.</div></li>
+     <div style="font-size:18px;font-weight:800;color:#f5fbff;margin-bottom:8px;text-align:center">Hints, test hygiene, and preparation</div>
+     <ol style="margin:0;padding-left:18px;font-size:13.5px;line-height:1.36;color:rgba(255,255,255,0.86)">
+      <li>Make sure your phone or tablet has enough battery to finish the test.</li>
+      <li>Use Wi-Fi if possible, especially if you want syncing, downloads, or e-mail features.</li>
+      <li>Silence calls, alerts, and pop-up notifications if you can.</li>
+      <li>Take the test in a safe place where you can focus fully.</li>
+      <li>Do not take the test while driving, walking in traffic, or doing anything hazardous.</li>
+      <li>Hold the device in a comfortable, stable position.</li>
+      <li>Make sure the screen is clean, easy to see, and bright enough.</li>
+      <li>If you use reading glasses or other vision correction, wear them.</li>
+      <li>Use your usual hand and normal tapping posture.</li>
+      <li>Avoid talking or multitasking during the test.</li>
+      <li>Try to minimize distractions from people, TV, music, or other devices.</li>
+      <li>Take the test only when you can give it your full attention for a few minutes.</li>
+      <li>Try to tap as quickly as you can without guessing wildly.</li>
+      <li>Establish your personal baseline.</li>
+      <li>For best comparisons over time, take the test under roughly similar conditions when possible.</li>
+      <li>If you feel unusually impaired, unsafe, or unable to focus, treat that result seriously.</li>
+      <li>Don’t get discouraged if you can’t keep up — CogSpeed is faster than you are!</li>
      </ol>
     </div>
    </div>`;
@@ -10026,10 +8580,10 @@ ${getTutorialTapInstructionHtml()}
     <div style="max-width:360px;background:rgba(12,22,40,0.9);border:1px solid rgba(127,215,255,0.25);border-radius:18px;padding:18px 18px 16px;box-shadow:0 10px 28px rgba(0,0,0,0.2)">
      <div style="font-size:28px;font-weight:900;color:#7fd7ff;letter-spacing:.04em;margin-bottom:10px">PERSONAL BASELINE</div>
      <div style="font-size:15px;line-height:1.6;color:rgba(255,255,255,0.88)">
-      CogSpeed works best when you build your own personal Baseline. Your Baseline is a rolling average of your last ${getBaselineWindowSize()} qualifying ${Array.from(getBaselineAllowedModes()).sort().map(m=>getFullModeLabel(m).replace(/^Mode (\d).*/,'Mode $1')).join(" or ")} MBS scores.
+      CogSpeed works best when you build your own personal Baseline. Your Baseline is a rolling average of your last 5 qualifying Mode 1 or Mode 2 MBS scores.
      </div>
      <div style="margin-top:12px;font-size:14px;line-height:1.6;color:rgba(220,235,255,0.88);background:rgba(127,215,255,0.08);border:1px solid rgba(127,215,255,0.22);border-radius:12px;padding:10px 12px">
-      Baseline sessions must be ${getBaselineExcludeFailed()?"non-failed ":""}non-Guest tests with <strong>MBS at or below ${getPersonalBaselineMaxMbs()} ms</strong> and <strong>S-PFS of ${getBaselineMinSpfs()} through ${getBaselineMaxSpfs()}</strong>. This helps CogSpeed track changes from your own normal level and capture learning effects over time.
+      Baseline sessions must be non-failed non-Guest tests with <strong>MBS at or below ${getPersonalBaselineMaxMbs()} ms</strong> and <strong>S-PFS of 5, 6, or 7</strong>. This helps CogSpeed track changes from your own normal level and capture learning effects over time.
      </div>
     </div>
    </div>`;
@@ -11114,21 +9668,24 @@ function renderSpeedometerSleepMetrics(result){
 // Disposition box consistent with both the color arc and the saved summary/CSV.
 function getMode2DispositionWindowText(result){
  // MODE 2 ONLY:
- // Disposition is an operational recommendation derived from CPA, not CPI,
- // except for the explicit self-report safety override below.
+ // Disposition is an operational recommendation derived from CPA, not CPI.
+ // The Speedometer disposition window intentionally does NOT display S-PFS text
+ // because visible S-PFS and visible CPA/Disposition can otherwise disagree and
+ // confuse the operator.
  //
  // Safety override rule:
- // - If pre-test S-PFS is 1 or 2, force the full STOP recommendation
- //   regardless of CPA.
- // - If pre-test S-PFS is 3, force ORANGE regardless of CPA.
- // - Otherwise use CPA bands only.
+ // - If pre-test S-PFS is 1 or 2, force RED regardless of CPA
+ // - If pre-test S-PFS is 3, force ORANGE regardless of CPA
+ // - Otherwise use CPA bands only
+ //   GREEN  = CPA >= 62.5
+ //   YELLOW = CPA >= 37.5 and < 62.5
+ //   ORANGE = CPA >= 18 and < 37.5
+ //   RED    = CPA < 18
  //
  // Modes 1, 3, and 4 must not use this Disposition window.
  if(!result) return "—";
  const spfs = Number(result?.samnPerelli?.score);
- if(spfs === 1 || spfs === 2){
-  return "Unable to function / Definitely unsafe. Stop! You are not safe to drive or perform any safety-critical task. Rest is required.";
- }
+ if(spfs === 1 || spfs === 2) return "RED — Remove from Hazardous Duty";
  if(spfs === 3) return "ORANGE — Human review required";
 
  const cpa = Number(result?.cpa);
@@ -11137,22 +9694,6 @@ function getMode2DispositionWindowText(result){
  if(cpa >= 37.5) return "YELLOW — Monitor / human review recommended";
  if(cpa >= 18) return "ORANGE — Human review required";
  return "RED — Remove from Hazardous Duty";
-}
-
-function getSpfsBandTextStyle(spfs, extra=""){
- const n = Math.round(Number(spfs));
- const color = (
-  n === 1 ? "#650000" :
-  n === 2 ? "#cf2020" :
-  n === 3 ? "#f28c18" :
-  n === 4 ? "#8a6f00" :
-  n === 5 ? "#4f8f2f" :
-  n === 6 ? "#2f7f38" :
-  n === 7 ? "#0a5d1c" :
-  null
- );
- const base = "font-weight:700";
- return [base, extra, color ? `color:${color}` : ""].filter(Boolean).join(";");
 }
 
 
@@ -11186,11 +9727,7 @@ function getMode2SpeedometerMetric(result, success){
   cpiValue: failed ? null : (Number.isFinite(cpi) ? cpi : null),
   cpaValue: failed ? null : (Number.isFinite(cpa) ? cpa : null),
   boxes: [
-   {
-    label:"Disposition",
-    value:dispositionText,
-    valueStyle:getSpfsBandTextStyle(result && result.samnPerelli && result.samnPerelli.score, "font-size:20px")
-   }
+   {label:"Disposition", value:dispositionText}
   ]
  };
 }
@@ -11205,18 +9742,8 @@ function renderMode2SpeedometerBoxes(metric){
  // V699rev137: Mode 2 now emits a single "Disposition" box. Collapse the grid
  // to one column in that case so the card stretches the full width and no
  // empty phantom column appears beside it.
- // V699rev180: each box may optionally specify a `valueStyle` string used as
- // an inline style on the value div (the default 20px font is too tight for
- // the longer calibration-fail recommendation strings, which run 60-110
- // characters; the failed-cal renderer in renderSpeedometerOutcome passes
- // `valueStyle:"font-size:14px;line-height:1.35;font-weight:700"` for those
- // boxes). HTML escaping kept consistent with the existing pattern (boxes
- // are built internally; values are not user-typed input).
  wrap.style.gridTemplateColumns = boxes.length === 1 ? "1fr" : "1fr 1fr";
- wrap.innerHTML = boxes.map(b=>{
-  const valStyle = b.valueStyle || "font-size:20px";
-  return `<div class="summary-card"><div class="summary-card-label">${b.label}</div><div class="summary-card-val" style="${valStyle}">${b.value}</div></div>`;
- }).join("");
+ wrap.innerHTML = boxes.map(b=>`<div class="summary-card"><div class="summary-card-label">${b.label}</div><div class="summary-card-val" style="font-size:20px">${b.value}</div></div>`).join("");
 }
 
 function renderSpeedometerOutcome(result, sessionIndex){
@@ -11241,7 +9768,7 @@ function renderSpeedometerOutcome(result, sessionIndex){
  const isMode2Speedometer = !!(result && result.testMode==="mode2");
  if(isMode2Speedometer){
   if(result && result.mode2Triggered && result.cpa==null) Object.assign(result, computeMode2CPA(result));
-  if(result && (result.dispositionCode==null || result.dispositionLabel==null || result.dispositionRecommendation==null || /^(GREEN|YELLOW|ORANGE|RED)$/i.test(String(result.dispositionCode||"")))) Object.assign(result, computeDisposition(result));
+  if(result && (result.dispositionCode==null || result.dispositionLabel==null || /^(GREEN|YELLOW|ORANGE|RED)$/i.test(String(result.dispositionCode||"")))) Object.assign(result, computeDisposition(result));
   const mode2Metric = getMode2SpeedometerMetric(result, success);
   cps = success ? mode2Metric.score : 0;
   if(success){
@@ -11290,25 +9817,9 @@ function renderSpeedometerOutcome(result, sessionIndex){
   const avgRt = result && result.pacedResponseMeanMs!=null ? Number(result.pacedResponseMeanMs) : null;
   const pacedRate = result && result.fixedPacedBaselineMs!=null ? Number(result.fixedPacedBaselineMs) : null;
   metricLabel = "Average Machine-Paced RT";
-  // V699rev158: split the two Mode 4 values onto separate lines inside the
-  // yellow box so "Avg RT" and the fixed machine-pacing "Rate" are visually
-  // distinct. Previously (Rev 150) both values rendered on one line
-  // separated by a bullet, which was hard to parse — especially on narrow
-  // canvases where the small 6.8%-radius font shrank further under the
-  // auto-fit logic. The two-line layout is activated by setting
-  // opts.tipValueSecondary; drawSpeedometer falls back to the single-line
-  // centered layout when it is null/empty.
-  if(avgRt!=null && pacedRate!=null){
-   metricValueText = `RT ${avgRt.toFixed(1)} ms`;
-   speedoOpts = speedoOpts || {};
-   speedoOpts.tipValueSecondary = `Rate ${pacedRate.toFixed(1)} ms`;
-  } else if(avgRt!=null){
-   metricValueText = `RT ${avgRt.toFixed(1)} ms`;
-  } else if(pacedRate!=null){
-   metricValueText = `Rate ${pacedRate.toFixed(1)} ms`;
-  } else {
-   metricValueText = null;
-  }
+  metricValueText = avgRt!=null
+   ? `${avgRt.toFixed(1)} ms${pacedRate!=null ? ` • Rate ${pacedRate.toFixed(1)} ms` : ""}`
+   : (pacedRate!=null ? `Rate ${pacedRate.toFixed(1)} ms` : null);
   mbs = avgRt!=null ? avgRt : pacedRate;
  }
 
@@ -11325,36 +9836,7 @@ function renderSpeedometerOutcome(result, sessionIndex){
  // V699rev137: The CPI/CPA toggle button has been removed from the DOM; Mode 2
  // now always renders both needles simultaneously. Any legacy references to
  // #speedometerMode2ToggleBtn are harmlessly ignored because $() returns null.
- // V699rev180 — calibration-failed sessions get a unified disposition box in
- // every mode (Mode 1/2/3/4). Box label is "Disposition" and value is the
- // S-PFS-keyed recommendation per Layne's spec; the value falls back to "—"
- // when the subject's S-PFS is missing/invalid (extremely rare since the
- // pre-test gate requires it). The box overrides the Mode-2-only box that
- // would otherwise have been built for triggered Mode 2 sessions; for failed
- // calibrations no Mode 2 sustained phase ever ran, so the override is
- // semantically clean.
- if(isCalibrationFailedResult(result)){
-  const spfs = getEffectiveSpfsForFailedCalibration(result);
-  const dispositionText = getCalibrationFailDispositionBySpfs(spfs) || "—";
-  // Smaller font + tighter line-height because the calibration-fail
-  // recommendation strings run up to ~110 characters (vs ~25-40 for the
-  // legacy Mode-2 disposition labels). Bold-but-readable.
-  renderMode2SpeedometerBoxes({ boxes: [ { label:"Disposition", value: dispositionText, valueStyle:getSpfsBandTextStyle(spfs, "font-size:14px;line-height:1.35") } ] });
-  // V699rev180 — relabel the "Back to Start" button to "Continue" per
-  // Layne's spec ("CAN GO TO 'CONTINUE' TO RESTART"). The handler is
-  // unchanged — it still routes back to the start page where the subject
-  // re-presses the Start button — but the verb is more inviting after a
-  // training-only failure than the generic Back-to-Start phrasing.
-  const _ssp = $("speedStartPageBtn");
-  if(_ssp) _ssp.textContent = "Continue";
- } else {
-  renderMode2SpeedometerBoxes(isMode2Speedometer ? {boxes:mode2MetricBoxes||[]} : null);
-  // Restore the default label for non-calibration-fail sessions so users
-  // who navigate from a failed-cal speedometer to a successful session
-  // via Prev/Next don't see the "Continue" label persist.
-  const _ssp = $("speedStartPageBtn");
-  if(_ssp) _ssp.textContent = "Back to Start";
- }
+ renderMode2SpeedometerBoxes(isMode2Speedometer ? {boxes:mode2MetricBoxes||[]} : null);
  stopSpeedometer();
  setTimeout(()=>animateSpeedometer(canvas, cps, success, scoreLabel, metricLabel, metricValueText, speedoOpts), 80);
  renderSpfGaugeForResult(result);
@@ -11379,18 +9861,7 @@ function syncOutcomeStatusText(result){
  const ot=$("outcomeText");
  if(!ot) return;
  const ok = !!(result && isTestSuccess(result));
- // V699rev180 — failed-calibration sessions get a more specific headline
- // ("FAILED — NEEDS MORE PRACTICE!") instead of the generic "Failed". The
- // disposition box rendered separately in renderMode2SpeedometerBoxes /
- // renderSpeedometerBoxesForCalibrationFail uses the subject's pre-test
- // S-PFS to show the safety-critical recommendation.
- if(isResultSurvivalChallenge(result)){
-  ot.textContent = getSurvivalOutcomeText(result);
- } else if(!ok && isCalibrationFailedResult(result)){
-  ot.textContent = "FAILED — NEEDS MORE PRACTICE!";
- } else {
-  ot.textContent = ok ? "Success!" : "Failed";
- }
+ ot.textContent = isResultSurvivalChallenge(result) ? getSurvivalOutcomeText(result) : (ok ? "Success!" : "Failed");
  ot.className = "outcome-text " + (ok ? "success" : "failed");
 }
 
@@ -11468,27 +9939,9 @@ const _ssp=$("speedStartPageBtn"); if(_ssp) _ssp.onclick=()=>{ hideAllOverlays()
 // Includes links back to Speedometer and Start.
 
 /* ===== Performance vs Time graph ===== */
-// V699rev171: Performance Over Time graph state.
-// - preset: "30sessions" by default so a fresh open always shows recent data
-//   with reasonable density rather than the full multi-month history.
-//   Special value "custom" = user dragged the minimap to a specific time
-//   window (customRangeStart / customRangeEnd hold the window in ms).
-// - zoom: 1 = fit-to-viewport (mobile) or natural width (desktop). >1 forces
-//   horizontal scrolling of the main canvas. Reset returns to 1.
-// - customRangeStart/End: only consulted when preset==="custom".
-// - minimap: drag/resize state for the focus window; transient, not persisted.
 const perfGraphState = {
-  preset: "30sessions",
-  zoom: 1,
-  customRangeStart: null,
-  customRangeEnd: null,
-  minimap: {
-    dragging: false,
-    dragMode: null,        // "move" | "resize-left" | "resize-right" | null
-    pointerStartX: 0,
-    rangeStartAtDrag: 0,
-    rangeEndAtDrag: 0
-  }
+  preset: "all",
+  zoom: 1
 };
 
 function isPerfFailureSession(r){
@@ -11625,19 +10078,6 @@ function filterSessionsForPerfGraph(hist){
     const startMs = lastMs - (7 * 24 * 60 * 60 * 1000);
     return base.filter(r=> perfSessionUtcMs(r) >= startMs);
   }
-  // V699rev171: minimap-driven custom range. Falls back to "all" if the
-  // window is unset or invalid.
-  if(perfGraphState.preset === "custom"){
-    const s = Number(perfGraphState.customRangeStart);
-    const e = Number(perfGraphState.customRangeEnd);
-    if(Number.isFinite(s) && Number.isFinite(e) && e > s){
-      return base.filter(r=>{
-        const t = perfSessionUtcMs(r);
-        return Number.isFinite(t) && t >= s && t <= e;
-      });
-    }
-    return base;
-  }
   return base;
 }
 
@@ -11650,24 +10090,13 @@ function syncPerfGraphControls(hist){
   const firstDate = base.length ? perfSessionIsoDate(base[0]) : "";
   const lastDate = base.length ? perfSessionIsoDate(base[base.length-1]) : "";
 
-  // V699rev171: the "custom" preset is internal (set when the user drags the
-  // minimap window); the dropdown should still reflect the most recent
-  // explicit user choice. We surface "custom" via the info line instead.
-  if(perfGraphState.preset !== "custom"){
-    preset.value = perfGraphState.preset;
-  }
+  preset.value = perfGraphState.preset;
 
   const filtered = filterSessionsForPerfGraph(base);
   const zoomPct = Math.round((perfGraphState.zoom || 1) * 100);
   if(info){
     if(!base.length){
       info.textContent = "No saved sessions yet.";
-    }else if(perfGraphState.preset === "custom"){
-      const s = Number(perfGraphState.customRangeStart);
-      const e = Number(perfGraphState.customRangeEnd);
-      const sStr = Number.isFinite(s) ? new Date(s).toLocaleDateString() : "—";
-      const eStr = Number.isFinite(e) ? new Date(e).toLocaleDateString() : "—";
-      info.textContent = `Custom window via minimap: ${sStr} – ${eStr} (${filtered.length} session${filtered.length===1?"":"s"}). Zoom ${zoomPct}%.`;
     }else if(perfGraphState.preset === "24h"){
       info.textContent = `Showing sessions from the last 24 hours. Zoom ${zoomPct}%.`;
     }else if(perfGraphState.preset === "7d"){
@@ -11689,19 +10118,12 @@ function wirePerfGraphControls(){
   const rerender = ()=>{
     syncPerfGraphControls(state.history||[]);
     drawPerformanceOverTimeChart($("perfTimeGraph"), state.history||[]);
-    // V699rev171: minimap is redrawn alongside the main chart so the focus
-    // window always reflects the active range.
-    drawPerformanceOverTimeMinimap($("perfTimeMinimap"), state.history||[]);
   };
 
   if(preset && preset.dataset.wired!=="1"){
     preset.dataset.wired="1";
     preset.onchange = ()=>{
-      // V699rev171: explicit preset choice always overrides any active
-      // minimap-driven custom range.
       perfGraphState.preset = preset.value || "all";
-      perfGraphState.customRangeStart = null;
-      perfGraphState.customRangeEnd = null;
       rerender();
     };
   }
@@ -11729,302 +10151,19 @@ function wirePerfGraphControls(){
       rerender();
     };
   }
-
-  // V699rev171: minimap drag/resize wiring. Single attachment guarded by
-  // dataset.wired so repeated openPerformanceOverTimePage() calls don't
-  // accumulate listeners.
-  wirePerfMinimapInteractions(rerender);
-}
-
-// V699rev171: minimap interactions. The minimap is a thin canvas below the
-// main chart that ALWAYS plots the full unfiltered history (sparkline of
-// CPI values) with a translucent focus-window rectangle indicating which
-// time range the main chart is showing. The user can:
-//   - drag the window to slide it across the timeline
-//   - drag the left or right edge (within ~8 px) to resize
-//   - click on empty minimap area to recenter the window there
-// Any of these gestures sets perfGraphState.preset = "custom" and writes
-// customRangeStart/End in ms.
-function wirePerfMinimapInteractions(rerender){
-  const canvas = $("perfTimeMinimap");
-  if(!canvas || canvas.dataset.wired === "1") return;
-  canvas.dataset.wired = "1";
-
-  function getFullTimeBounds(){
-    const base = getPerfGraphBaseSessions(state.history||[]);
-    if(!base.length) return null;
-    const times = base.map(r=>perfSessionUtcMs(r)).filter(Number.isFinite);
-    if(!times.length) return null;
-    let lo = Math.min(...times), hi = Math.max(...times);
-    if(!(hi > lo)){ lo -= 60*60*1000; hi += 60*60*1000; }
-    // Match the main chart: include any sleep span endpoints in the bounds.
-    base.forEach(r=>{
-      const bed = r?.sleepLog?.bedDateTimeIso ? new Date(r.sleepLog.bedDateTimeIso).getTime() : null;
-      const wake = (r?.sleepLog?.wakeDateTimeIso || r?.sleepLog?.lastWakeDateTimeIso) ? new Date(r.sleepLog.wakeDateTimeIso || r.sleepLog.lastWakeDateTimeIso).getTime() : null;
-      if(Number.isFinite(bed)) lo = Math.min(lo, bed);
-      if(Number.isFinite(wake)) hi = Math.max(hi, wake);
-    });
-    return {lo, hi};
-  }
-
-  function getCurrentFocusRangeMs(){
-    // What time range is the main chart currently showing? We re-derive
-    // this from the active filter rather than caching, so external
-    // changes to perfGraphState.preset are honored.
-    const filtered = filterSessionsForPerfGraph(state.history||[]);
-    if(!filtered.length){
-      const b = getFullTimeBounds();
-      return b ? {lo:b.lo, hi:b.hi} : null;
-    }
-    const times = filtered.map(r=>perfSessionUtcMs(r)).filter(Number.isFinite);
-    if(!times.length){
-      const b = getFullTimeBounds();
-      return b ? {lo:b.lo, hi:b.hi} : null;
-    }
-    let lo = Math.min(...times), hi = Math.max(...times);
-    if(!(hi > lo)){ lo -= 60*60*1000; hi += 60*60*1000; }
-    return {lo, hi};
-  }
-
-  const PAD_LEFT = 8, PAD_RIGHT = 8;
-  function pxToMs(px){
-    const bounds = getFullTimeBounds();
-    if(!bounds) return null;
-    const cssW = canvas.clientWidth || canvas.width || 900;
-    const usable = Math.max(1, cssW - PAD_LEFT - PAD_RIGHT);
-    const frac = Math.max(0, Math.min(1, (px - PAD_LEFT) / usable));
-    return bounds.lo + frac * (bounds.hi - bounds.lo);
-  }
-  function msToPx(ms){
-    const bounds = getFullTimeBounds();
-    if(!bounds) return PAD_LEFT;
-    const cssW = canvas.clientWidth || canvas.width || 900;
-    const usable = Math.max(1, cssW - PAD_LEFT - PAD_RIGHT);
-    const frac = Math.max(0, Math.min(1, (ms - bounds.lo) / Math.max(1, bounds.hi - bounds.lo)));
-    return PAD_LEFT + frac * usable;
-  }
-  function pointerLocalX(ev){
-    const r = canvas.getBoundingClientRect();
-    const cx = ev.clientX!=null ? ev.clientX : (ev.touches && ev.touches[0] ? ev.touches[0].clientX : 0);
-    return cx - r.left;
-  }
-  function detectDragMode(localX){
-    const focus = getCurrentFocusRangeMs();
-    if(!focus) return null;
-    const xL = msToPx(focus.lo), xR = msToPx(focus.hi);
-    const EDGE = 8;
-    if(Math.abs(localX - xL) <= EDGE) return "resize-left";
-    if(Math.abs(localX - xR) <= EDGE) return "resize-right";
-    if(localX > xL && localX < xR) return "move";
-    return "click";  // outside window; treated as recenter
-  }
-
-  function applyCustomRange(loMs, hiMs){
-    const bounds = getFullTimeBounds();
-    if(!bounds) return;
-    const span = bounds.hi - bounds.lo;
-    const minSpan = Math.max(60*1000, Math.round(span * 0.01)); // 1% of full span or 1 min
-    let s = Math.max(bounds.lo, Math.min(bounds.hi, loMs));
-    let e = Math.max(bounds.lo, Math.min(bounds.hi, hiMs));
-    if(e - s < minSpan){ e = Math.min(bounds.hi, s + minSpan); }
-    if(e - s < minSpan){ s = Math.max(bounds.lo, e - minSpan); }
-    perfGraphState.preset = "custom";
-    perfGraphState.customRangeStart = s;
-    perfGraphState.customRangeEnd = e;
-    rerender();
-  }
-
-  function onPointerDown(ev){
-    const localX = pointerLocalX(ev);
-    const mode = detectDragMode(localX);
-    const focus = getCurrentFocusRangeMs();
-    if(!mode || !focus) return;
-    const ms = pxToMs(localX);
-    if(mode === "click"){
-      // Recenter: keep existing window width, slide center to clicked position.
-      const halfWidth = (focus.hi - focus.lo) / 2;
-      applyCustomRange(ms - halfWidth, ms + halfWidth);
-      return;
-    }
-    perfGraphState.minimap.dragging = true;
-    perfGraphState.minimap.dragMode = mode;
-    perfGraphState.minimap.pointerStartMs = ms;
-    perfGraphState.minimap.rangeStartAtDrag = focus.lo;
-    perfGraphState.minimap.rangeEndAtDrag = focus.hi;
-    canvas.style.cursor = "grabbing";
-    ev.preventDefault();
-  }
-  function onPointerMove(ev){
-    const m = perfGraphState.minimap;
-    const localX = pointerLocalX(ev);
-    if(!m.dragging){
-      // Hover-only: update cursor based on mode.
-      const mode = detectDragMode(localX);
-      canvas.style.cursor = mode === "resize-left" || mode === "resize-right"
-        ? "ew-resize"
-        : (mode === "move" ? "grab" : "pointer");
-      return;
-    }
-    const ms = pxToMs(localX);
-    if(ms == null) return;
-    const dMs = ms - m.pointerStartMs;
-    if(m.dragMode === "move"){
-      applyCustomRange(m.rangeStartAtDrag + dMs, m.rangeEndAtDrag + dMs);
-    }else if(m.dragMode === "resize-left"){
-      applyCustomRange(m.rangeStartAtDrag + dMs, m.rangeEndAtDrag);
-    }else if(m.dragMode === "resize-right"){
-      applyCustomRange(m.rangeStartAtDrag, m.rangeEndAtDrag + dMs);
-    }
-    ev.preventDefault();
-  }
-  function onPointerUp(){
-    if(!perfGraphState.minimap.dragging) return;
-    perfGraphState.minimap.dragging = false;
-    perfGraphState.minimap.dragMode = null;
-    canvas.style.cursor = "grab";
-  }
-
-  canvas.addEventListener("mousedown", onPointerDown);
-  canvas.addEventListener("mousemove", onPointerMove);
-  window.addEventListener("mouseup", onPointerUp);
-  // Touch.
-  canvas.addEventListener("touchstart", onPointerDown, {passive:false});
-  canvas.addEventListener("touchmove", onPointerMove, {passive:false});
-  window.addEventListener("touchend", onPointerUp);
-  window.addEventListener("touchcancel", onPointerUp);
-}
-
-// V699rev171: minimap renderer. Always draws the full unfiltered history
-// as a faint CPI sparkline + a brighter focus-window rectangle showing
-// which time range the main chart is currently displaying.
-function drawPerformanceOverTimeMinimap(canvas, hist){
-  if(!canvas) return;
-  const dpr = window.devicePixelRatio || 1;
-  const cssW = Math.max(280, canvas.clientWidth || canvas.width || 900);
-  const cssH = 58;
-  canvas.style.height = cssH + "px";
-  canvas.width = Math.round(cssW * dpr);
-  canvas.height = Math.round(cssH * dpr);
-  const ctx = canvas.getContext("2d");
-  ctx.setTransform(dpr,0,0,dpr,0,0);
-  ctx.clearRect(0,0,cssW,cssH);
-  ctx.fillStyle = "#081321";
-  ctx.fillRect(0,0,cssW,cssH);
-
-  const base = getPerfGraphBaseSessions(hist||[]);
-  if(!base.length){
-    ctx.fillStyle = "#6c8aa6";
-    ctx.font = "11px sans-serif";
-    ctx.textAlign = "center";
-    ctx.fillText("No history yet", cssW/2, cssH/2 + 4);
-    return;
-  }
-  const PAD_LEFT = 8, PAD_RIGHT = 8, PAD_TOP = 8, PAD_BOTTOM = 14;
-  const plotW = Math.max(1, cssW - PAD_LEFT - PAD_RIGHT);
-  const plotH = Math.max(1, cssH - PAD_TOP - PAD_BOTTOM);
-  const times = base.map(r=>perfSessionUtcMs(r)).filter(Number.isFinite);
-  let lo = Math.min(...times), hi = Math.max(...times);
-  if(!(hi > lo)){ lo -= 60*60*1000; hi += 60*60*1000; }
-  // Include sleep span endpoints in bounds (matches the main chart).
-  base.forEach(r=>{
-    const bed = r?.sleepLog?.bedDateTimeIso ? new Date(r.sleepLog.bedDateTimeIso).getTime() : null;
-    const wake = (r?.sleepLog?.wakeDateTimeIso || r?.sleepLog?.lastWakeDateTimeIso) ? new Date(r.sleepLog.wakeDateTimeIso || r.sleepLog.lastWakeDateTimeIso).getTime() : null;
-    if(Number.isFinite(bed)) lo = Math.min(lo, bed);
-    if(Number.isFinite(wake)) hi = Math.max(hi, wake);
-  });
-  const span = Math.max(1, hi - lo);
-  const xOf = ms => PAD_LEFT + ((ms - lo) / span) * plotW;
-  const yOfCpi = c => PAD_TOP + plotH - (Math.max(0, Math.min(100, c)) / 100) * plotH;
-
-  // Faint horizontal baseline at CPI=50.
-  ctx.strokeStyle = "rgba(127,215,255,0.16)";
-  ctx.lineWidth = 1;
-  ctx.beginPath();
-  ctx.moveTo(PAD_LEFT, yOfCpi(50));
-  ctx.lineTo(PAD_LEFT + plotW, yOfCpi(50));
-  ctx.stroke();
-
-  // CPI sparkline.
-  ctx.strokeStyle = "rgba(127,215,255,0.55)";
-  ctx.lineWidth = 1.2;
-  ctx.beginPath();
-  let started = false;
-  base.forEach(r=>{
-    const t = perfSessionUtcMs(r);
-    const c = perfSessionCpi(r);
-    if(!Number.isFinite(t) || c == null) return;
-    const x = xOf(t), y = yOfCpi(c);
-    if(!started){ ctx.moveTo(x,y); started = true; } else { ctx.lineTo(x,y); }
-  });
-  if(started) ctx.stroke();
-
-  // Tiny dots for each session (helps when history is sparse).
-  base.forEach(r=>{
-    const t = perfSessionUtcMs(r);
-    const c = perfSessionCpi(r);
-    if(!Number.isFinite(t) || c == null) return;
-    ctx.fillStyle = "rgba(127,215,255,0.6)";
-    ctx.beginPath();
-    ctx.arc(xOf(t), yOfCpi(c), 1.5, 0, Math.PI*2);
-    ctx.fill();
-  });
-
-  // Focus window. Computed from the same filter the main chart uses, so
-  // the visualization always agrees with the actual rendered slice.
-  const filtered = filterSessionsForPerfGraph(hist||[]);
-  let winLo = lo, winHi = hi;
-  if(filtered.length){
-    const ft = filtered.map(r=>perfSessionUtcMs(r)).filter(Number.isFinite);
-    if(ft.length){ winLo = Math.min(...ft); winHi = Math.max(...ft); }
-    if(!(winHi > winLo)){ winLo -= 60*60*1000; winHi += 60*60*1000; }
-  }
-  const wxL = xOf(winLo), wxR = xOf(winHi);
-  const wW = Math.max(8, wxR - wxL);
-  // Dim the area outside the focus window.
-  ctx.fillStyle = "rgba(8,19,33,0.55)";
-  ctx.fillRect(PAD_LEFT, PAD_TOP, wxL - PAD_LEFT, plotH);
-  ctx.fillRect(wxL + wW, PAD_TOP, (PAD_LEFT + plotW) - (wxL + wW), plotH);
-  // Highlight the focus window outline.
-  ctx.strokeStyle = "#7fd7ff";
-  ctx.lineWidth = 1.6;
-  ctx.strokeRect(wxL, PAD_TOP - 1, wW, plotH + 2);
-  // Edge handles.
-  ctx.fillStyle = "rgba(127,215,255,0.9)";
-  ctx.fillRect(wxL - 2, PAD_TOP - 1, 4, plotH + 2);
-  ctx.fillRect(wxL + wW - 2, PAD_TOP - 1, 4, plotH + 2);
-
-  // X-axis date label (rough — first/last only, to stay uncluttered).
-  ctx.fillStyle = "#6c8aa6";
-  ctx.font = "10px sans-serif";
-  ctx.textAlign = "left";
-  const firstD = new Date(lo).toLocaleDateString("en-US", {month:"numeric", day:"numeric", year:"2-digit"});
-  ctx.fillText(firstD, PAD_LEFT, cssH - 3);
-  ctx.textAlign = "right";
-  const lastD = new Date(hi).toLocaleDateString("en-US", {month:"numeric", day:"numeric", year:"2-digit"});
-  ctx.fillText(lastD, PAD_LEFT + plotW, cssH - 3);
 }
 
 function drawPerformanceOverTimeChart(canvas,hist){
   if(!canvas) return;
   const fullHist = hist || [];
   const scroller = canvas.parentElement;
-  // V699rev171: Detect viewport. On mobile (< 700 css px) we fit-to-viewport
-  // at zoom=1 so the chart never forces horizontal scrolling at the default
-  // setting; only the user-driven Zoom In or large session counts can
-  // expand the canvas past the scroller width.
   const viewportW = Math.max(320, Math.round((scroller && scroller.clientWidth) || canvas.clientWidth || canvas.offsetWidth || 900));
-  const viewportH = Math.max(420, Math.round((scroller && scroller.clientHeight) || canvas.clientHeight || canvas.offsetHeight || 600));
-  const isMobile = viewportW < 700;
-  const minCanvasH = isMobile ? 480 : 560;
-  const maxCanvasH = isMobile ? 620 : 720;
+  const viewportH = Math.max(620, Math.round((scroller && scroller.clientHeight) || canvas.clientHeight || canvas.offsetHeight || 700));
 
   function setupCanvas(cssW, cssH){
     const dpr = window.devicePixelRatio || 1;
     canvas.style.width = cssW + "px";
-    // V699rev171: do NOT force min-width — let the canvas truly fit the
-    // viewport at zoom=1. The scroller will only kick in when the JS
-    // explicitly sets a wider cssW (zoomed in or dense desktop history).
-    canvas.style.minWidth = "0";
+    canvas.style.minWidth = cssW + "px";
     canvas.style.height = cssH + "px";
     canvas.width = Math.round(cssW * dpr);
     canvas.height = Math.round(cssH * dpr);
@@ -12033,11 +10172,8 @@ function drawPerformanceOverTimeChart(canvas,hist){
     return ctx;
   }
 
-  // Initial fit-to-viewport sizing. The natural-width recalculation below
-  // may then expand cssW for desktop users who have lots of data and are
-  // zoomed in — but on mobile at zoom=1, this stays the final width.
-  let cssW = viewportW;
-  let cssH = Math.max(minCanvasH, Math.min(maxCanvasH, viewportH));
+  let cssW = Math.max(viewportW, 920);
+  let cssH = Math.max(620, Math.min(760, viewportH));
   let ctx = setupCanvas(cssW, cssH);
   let W = cssW, H = cssH;
   ctx.clearRect(0,0,W,H);
@@ -12117,34 +10253,20 @@ function drawPerformanceOverTimeChart(canvas,hist){
       widthForDensity = Math.max(widthForDensity, Math.round((minMarkerSepPx * timeSpan) / gap));
     }
   }
-  // V699rev171: Width strategy.
-  //   - On mobile at zoom=1: keep cssW = viewport (no scroll).
-  //   - On mobile zoomed in: scale cssW by zoom.
-  //   - On desktop: use the maximum of (viewport, density-driven natural width)
-  //     so dense histories aren't artificially compressed.
-  // The minMarkerSepPx + density math below still drives the desktop natural
-  // width and the mobile zoom>1 width, so the user can always zoom in for
-  // closer examination.
+  // Compress the time axis so typical history ranges stay readable on-screen
+  // without forcing an over-wide scroll canvas by default. User zoom can then
+  // expand or contract the time scale for closer examination.
   const zoom = Math.max(0.5, Math.min(4, Number(perfGraphState.zoom || 1)));
   const pxPerHourBase = perfGraphState.preset === "24h" ? 22
     : perfGraphState.preset === "7d" ? 4
     : perfGraphState.preset === "30sessions" ? 7
-    : perfGraphState.preset === "custom" ? 6
     : 1.2;
   const pxPerHour = pxPerHourBase * zoom;
   const widthForTime = Math.round(340 + (timeSpan / hourMs) * pxPerHour);
   const widthForSessions = Math.round(340 + Math.max(0, n - 1) * ((minMarkerSepPx * zoom) + 2));
-  const densityNatural = Math.max(widthForTime, (widthForDensity ? Math.round(widthForDensity * zoom) : 0), widthForSessions, 920);
-  if(isMobile){
-    // Mobile: at zoom=1, cssW = viewport. At zoom>1, scale by zoom (capped).
-    cssW = Math.round(viewportW * Math.max(1, zoom));
-    cssW = Math.min(cssW, Math.max(viewportW, Math.round(densityNatural)));
-  }else{
-    // Desktop: pick the larger of viewport and density-driven natural width.
-    const maxAutoWidth = Math.max(viewportW, Math.round(viewportW * Math.max(1.35, zoom * 1.6)));
-    cssW = Math.max(viewportW, Math.min(maxAutoWidth, densityNatural));
-  }
-  cssH = Math.max(minCanvasH, Math.min(maxCanvasH, viewportH));
+  const maxAutoWidth = Math.max(viewportW, Math.round(viewportW * Math.max(1.35, zoom * 1.6)));
+  cssW = Math.max(viewportW, Math.min(maxAutoWidth, Math.max(920, widthForTime, (widthForDensity ? Math.round(widthForDensity * zoom) : 0), widthForSessions)));
+  cssH = Math.max(640, Math.min(780, viewportH));
   ctx = setupCanvas(cssW, cssH);
   W = cssW;
   H = cssH;
@@ -12176,36 +10298,22 @@ function drawPerformanceOverTimeChart(canvas,hist){
   const fontSleepLegend = "12px sans-serif";
   const fontXAxisTitle = "bold 12px sans-serif";
 
-  // V699rev171: Compact, mobile-aware padding.
-  //   PAD.top — title (16px, baseline 24) + subtitle (12px, baseline 46)
-  //             + LEGEND ROW(s) (~18px each, baseline 76 for one row)
-  //             + 12 px breathing room before plot.
-  //   PAD.left — wider on desktop to fit two rotated axis titles + tick labels;
-  //              tighter on mobile to maximize plot area.
-  //   PAD.right — narrower; only S-PFS ticks and one rotated title.
-  // Sleep legend band removed — sleep entries fold into the main top legend.
-  // PAD.top is bumped to 100 (from 96) so the second row of a wrapped
-  // mobile legend doesn't push into the plot area.
-  const PAD = isMobile
-    ? {top:100, right:54, left:64}
-    : {top:100, right:90, left:108};
-  const gaps = {afterPlot: 10, betweenTickAndTitle: 12, betweenTitleAndSleep: 12};
-  const sleepBarH = 10;
+  const PAD = {top:72,right:118,left:126};
+  const gaps = {afterPlot: 10, betweenTickAndTitle: 12, betweenTitleAndSleep: 14, betweenSleepAndLegend: 14};
+  const sleepBarH = 12;
   const tickLine1H = 14;
   const tickLine2H = 14;
-  const tickBandH = tickLine1H + tickLine2H + 6;
+  const tickBandH = tickLine1H + tickLine2H + 10;
   const axisTitleBandH = 18;
-  const reservedBottom = tickBandH + gaps.betweenTickAndTitle + axisTitleBandH + gaps.betweenTitleAndSleep + sleepBarH + 14;
+  const sleepLegendBandH = 18;
+  const reservedBottom = tickBandH + gaps.betweenTickAndTitle + axisTitleBandH + gaps.betweenTitleAndSleep + sleepBarH + gaps.betweenSleepAndLegend + sleepLegendBandH + 22;
   const cW = Math.max(260, W - PAD.left - PAD.right);
   const cH = Math.max(180, H - PAD.top - reservedBottom);
   const plotBottom = PAD.top + cH;
   const tickLabelTop = plotBottom + gaps.afterPlot + 12;
   const axisTitleY = plotBottom + gaps.afterPlot + tickBandH + gaps.betweenTickAndTitle;
   const sleepBarY = axisTitleY + gaps.betweenTitleAndSleep;
-  // Legend baseline. For a single row this puts swatches at y=68–77, well
-  // below the subtitle baseline (46). For multi-row wrapping, additional
-  // rows extend downward and the plot area starts at PAD.top=100.
-  const legendY = 76;
+  const legendY = sleepBarY + sleepBarH + gaps.betweenSleepAndLegend;
 
   function rawXForTime(ts){
     const frac = (ts - minTime) / timeSpan;
@@ -12244,12 +10352,11 @@ function drawPerformanceOverTimeChart(canvas,hist){
   const validRawXs = rawXPositions.filter(v=>v!=null).sort((a,b)=>a-b);
   let minRawGapPx = Infinity;
   for(let i=1;i<validRawXs.length;i++) minRawGapPx = Math.min(minRawGapPx, validRawXs[i] - validRawXs[i-1]);
-  // V699rev171: smaller, more consistent markers regardless of density.
-  // Drops the prior counterintuitive "fewer points = bigger markers" logic.
-  const perfOuterRadius = 4.4;   // MBS ring (carries information about MBS presence)
-  const perfInnerRadius = 2.6;   // CPI dot
-  const perfMarkerSize = 3.4;    // CPA square (no x-offset now; sits AT session x)
-  const spfMarkerSize = 3.6;     // S-PFS diamond (slightly larger to remain visible)
+  const denseCluster = Number.isFinite(minRawGapPx) && minRawGapPx < 10;
+  const perfOuterRadius = denseCluster ? 5.0 : 5.8;
+  const perfInnerRadius = denseCluster ? 2.4 : 2.8;
+  const perfMarkerSize = denseCluster ? 3.4 : 3.7;
+  const spfMarkerSize = denseCluster ? 3.7 : 4.2;
 
   function xOfIndex(i){
     const x = displayXPositions[i];
@@ -12264,20 +10371,7 @@ function drawPerformanceOverTimeChart(canvas,hist){
 
   function formatTickDate(ts){
     const d = new Date(ts);
-    // V699rev171: drop year on every tick when the displayed time span is
-    // short (within the same calendar year). The year is implicit from the
-    // first/last tick or from the minimap's year markers, so repeating it
-    // on every tick is just visual noise.
-    const includeYear = (() => {
-      try{
-        const minY = new Date(minTime).getFullYear();
-        const maxY = new Date(maxTime).getFullYear();
-        return minY !== maxY;
-      }catch(e){ return true; }
-    })();
-    return includeYear
-      ? d.toLocaleDateString("en-US", {month:"numeric", day:"numeric", year:"2-digit"})
-      : d.toLocaleDateString("en-US", {month:"numeric", day:"numeric"});
+    return d.toLocaleDateString("en-US", {month:"numeric", day:"numeric", year:"2-digit"});
   }
   function formatTickTime(ts){
     const d = new Date(ts);
@@ -12331,11 +10425,7 @@ function drawPerformanceOverTimeChart(canvas,hist){
   ctx.textAlign="right";
   scoreTicks.forEach((score, i)=>{
     const y = yLeftFromScore(score);
-    // V699rev171: Hide the ms tick column on mobile — PAD.left=64 doesn't
-    // leave enough room for two parallel tick scales without crowding.
-    // The ms-equivalent values can still be inferred from the CPI score
-    // scale (which is the universal axis across all modes anyway).
-    if(showMsAxis && !isMobile){
+    if(showMsAxis){
      ctx.strokeStyle="#ffb357";
      ctx.beginPath(); ctx.moveTo(PAD.left-46, y); ctx.lineTo(PAD.left-36, y); ctx.stroke();
      ctx.fillStyle="#ffb357"; ctx.fillText(String(metricTicks[i]), PAD.left-52, y+4);
@@ -12369,26 +10459,18 @@ function drawPerformanceOverTimeChart(canvas,hist){
       : "    Range: All history";
   ctx.fillText(`All sessions in continuous device-local time    Subjects: ${subjectCount}    Sessions: ${n}${rangeLabel}`, PAD.left, 46);
 
-  // V699rev171: Single consolidated left-side rotated axis title.
-  // The previous two-title stack ("MBS ms" at x=18 + "CPI / CPA" at x=42)
-  // was wider than the mobile PAD.left=64 reservation could afford. The
-  // ms scale is shown via tick labels on the inside of the axis (orange
-  // numbers) and the score scale uses the same gridlines, so a single
-  // combined title is sufficient.
   ctx.save();
-  ctx.translate(Math.max(14, PAD.left - 48), PAD.top + cH/2); ctx.rotate(-Math.PI/2);
-  ctx.fillStyle="#7fd7ff"; ctx.textAlign="center"; ctx.font=fontAxis;
-  // V699rev171: on mobile the ms tick column is hidden (PAD.left too narrow),
-  // so the title should reflect what's actually shown.
-  const leftTitle = isMobile
-    ? "CPI / CPA"
-    : (showMsAxis ? `CPI / CPA (left) — MBS ms (${setLabelForAxis})` : "CPI / CPA (left) — MBS hidden");
-  ctx.fillText(leftTitle, 0, 0); ctx.restore();
+  ctx.translate(18, PAD.top + cH/2); ctx.rotate(-Math.PI/2);
+  ctx.fillStyle="#ffb357"; ctx.textAlign="center"; ctx.font=fontAxis;
+  ctx.fillText(showMsAxis ? `MBS ms (${setLabelForAxis})` : "MBS ms (mixed sets — hidden)", 0, 0); ctx.restore();
 
   ctx.save();
-  // Right-side S-PFS title positioned relative to PAD.right so it doesn't
-  // get clipped on narrow viewports.
-  ctx.translate(W - Math.max(10, PAD.right - 50), PAD.top + cH/2); ctx.rotate(Math.PI/2);
+  ctx.translate(42, PAD.top + cH/2); ctx.rotate(-Math.PI/2);
+  ctx.fillStyle="#7fd7ff"; ctx.textAlign="center"; ctx.font=fontAxis;
+  ctx.fillText("CPI / CPA", 0, 0); ctx.restore();
+
+  ctx.save();
+  ctx.translate(W-8, PAD.top + cH/2); ctx.rotate(Math.PI/2);
   ctx.fillStyle="#88ff88"; ctx.textAlign="center"; ctx.font=fontXAxisTitle;
   ctx.fillText("S-PFS 1–7 (up is better)", 0, 0); ctx.restore();
 
@@ -12510,9 +10592,7 @@ function drawPerformanceOverTimeChart(canvas,hist){
 
   drawLine(spfVals, v=>yRightFromSpf(v), "#88ff88", "diamond", {markerSize: spfMarkerSize});
   drawCombinedPerfMarkers(scoreVals, metricVals);
-  // V699rev171: CPA squares no longer offset by +8 px; this caused visual
-  // crowding and made it hard to align CPA with its parent session marker.
-  drawLine(cpaVals, v=>yLeftFromScore(v), "#d6a7ff", "square", {markerDx:0, markerSize:perfMarkerSize, strokeMarker:true});
+  drawLine(cpaVals, v=>yLeftFromScore(v), "#d6a7ff", "square", {markerDx:8, markerSize:perfMarkerSize, strokeMarker:true});
 
   sleepSpans.forEach(span=>{
     if(!span) return;
@@ -12526,90 +10606,40 @@ function drawPerformanceOverTimeChart(canvas,hist){
     ctx.strokeRect(x1, sleepBarY, barW, sleepBarH);
   });
 
-  // V699rev171: SINGLE horizontal legend row at the top of the chart, between
-  // the subtitle and the plot area. Items are laid out left-to-right with
-  // measured spacing so they never collide. On mobile the legend wraps to
-  // a second row if it doesn't fit in the canvas width.
-  (function drawTopLegend(){
-    const items = [
-      { kind:"dot",     color:"#7fd7ff", label:"CPI" },
-      { kind:"ring",    color:"#ffb357", label:"MBS" },
-      { kind:"square",  color:"#d6a7ff", label:"CPA" },
-      { kind:"diamond", color:"#88ff88", label:"S-PFS" },
-      { kind:"bar",     color:"#46d36a", label:"Sleep: Good" },
-      { kind:"bar",     color:"#ffd84d", label:"Restless" },
-      { kind:"bar",     color:"#ff4d4f", label:"Poor" }
-    ];
-    const itemFont = isMobile ? "11px sans-serif" : "bold 11px sans-serif";
-    ctx.font = itemFont;
-    ctx.textBaseline = "alphabetic";
-    // Measure each item's width so we can pack them tightly.
-    const SWATCH_W = 14, SWATCH_TEXT_GAP = 4, ITEM_GAP = 14;
-    const widths = items.map(it=>{
-      const tw = ctx.measureText(it.label).width;
-      return SWATCH_W + SWATCH_TEXT_GAP + tw;
-    });
-    // Layout left-to-right, wrapping to a second row if width exceeds plot.
-    const legendMaxX = PAD.left + cW;
-    const rows = [];
-    let curRow = [], curRowW = 0;
-    items.forEach((it,i)=>{
-      const w = widths[i];
-      const proposed = curRowW + (curRow.length ? ITEM_GAP : 0) + w;
-      if(curRow.length && (PAD.left + proposed) > legendMaxX){
-        rows.push(curRow);
-        curRow = [{it, i, w}];
-        curRowW = w;
-      }else{
-        curRow.push({it, i, w});
-        curRowW = proposed;
-      }
-    });
-    if(curRow.length) rows.push(curRow);
-    // Vertical placement: center the row(s) in the available legend band
-    // (legendY is the baseline for a single row; for multi-row, stack upward).
-    const ROW_H = 18;
-    const totalH = rows.length * ROW_H;
-    const startY = legendY - (totalH - ROW_H);
-    rows.forEach((row, rIdx)=>{
-      let x = PAD.left;
-      const yBaseline = startY + rIdx * ROW_H;
-      row.forEach(({it, w}, idx)=>{
-        if(idx>0) x += ITEM_GAP;
-        // Swatch.
-        const sx = x, sy = yBaseline - 8;
-        if(it.kind === "dot"){
-          ctx.fillStyle = it.color;
-          ctx.beginPath(); ctx.arc(sx + 7, sy + 5, perfInnerRadius+0.3, 0, Math.PI*2); ctx.fill();
-        }else if(it.kind === "ring"){
-          ctx.strokeStyle = it.color; ctx.lineWidth = 2;
-          ctx.beginPath(); ctx.arc(sx + 7, sy + 5, perfOuterRadius-0.5, 0, Math.PI*2); ctx.stroke();
-        }else if(it.kind === "square"){
-          ctx.fillStyle = it.color;
-          ctx.fillRect(sx + 2, sy + 1, 9, 9);
-          ctx.strokeStyle = "#f6e7ff"; ctx.lineWidth = 1;
-          ctx.strokeRect(sx + 2, sy + 1, 9, 9);
-        }else if(it.kind === "diamond"){
-          ctx.save();
-          ctx.translate(sx + 7, sy + 5);
-          ctx.rotate(Math.PI/4);
-          ctx.fillStyle = it.color;
-          ctx.fillRect(-3.6, -3.6, 7.2, 7.2);
-          ctx.restore();
-        }else if(it.kind === "bar"){
-          ctx.fillStyle = it.color;
-          ctx.fillRect(sx, sy + 1, SWATCH_W, 9);
-          ctx.strokeStyle = "rgba(215,231,248,0.35)"; ctx.lineWidth = 1;
-          ctx.strokeRect(sx, sy + 1, SWATCH_W, 9);
-        }
-        // Label.
-        ctx.fillStyle = "#d7e7f8";
-        ctx.textAlign = "left";
-        ctx.fillText(it.label, sx + SWATCH_W + SWATCH_TEXT_GAP, yBaseline);
-        x += SWATCH_W + SWATCH_TEXT_GAP + (ctx.measureText(it.label).width);
-      });
-    });
-  })();
+  ctx.textAlign="left";
+  ctx.font=fontLegend;
+  ctx.beginPath();
+  ctx.arc(PAD.left+7, PAD.top-18, perfInnerRadius, 0, Math.PI*2);
+  ctx.fillStyle="#7fd7ff";
+  ctx.fill();
+  ctx.fillStyle="#7fd7ff";
+  ctx.fillText("Blue dot = CPI", PAD.left+18, PAD.top-14);
+  ctx.beginPath();
+  ctx.arc(PAD.left+188, PAD.top-18, perfOuterRadius, 0, Math.PI*2);
+  ctx.strokeStyle="#ffb357";
+  ctx.lineWidth=2.2;
+  ctx.stroke();
+  ctx.fillStyle="#ffb357";
+  ctx.fillText("Orange circle = MBS", PAD.left+200, PAD.top-14);
+  ctx.fillStyle="#d6a7ff";
+  ctx.fillRect(PAD.left+360, PAD.top-22, 8, 8);
+  ctx.fillText("Purple square = CPA", PAD.left+376, PAD.top-14);
+  const spLegendY = PAD.top + 4;
+  ctx.fillStyle="#88ff88";
+  ctx.save();
+  ctx.translate(PAD.left+7, spLegendY+4);
+  ctx.rotate(Math.PI/4);
+  ctx.fillRect(-3.8,-3.8,7.6,7.6);
+  ctx.restore();
+  ctx.fillText("Green diamond = S-PFS", PAD.left+18, spLegendY+8);
+
+  ctx.font=fontSleepLegend;
+  ctx.fillStyle = "#ff4d4f"; ctx.fillRect(PAD.left, legendY-8, 12, 8);
+  ctx.fillStyle = "#d7e7f8"; ctx.fillText("Sleep: Poor", PAD.left+18, legendY);
+  ctx.fillStyle = "#ffd84d"; ctx.fillRect(PAD.left+108, legendY-8, 12, 8);
+  ctx.fillStyle = "#d7e7f8"; ctx.fillText("Restless", PAD.left+126, legendY);
+  ctx.fillStyle = "#46d36a"; ctx.fillRect(PAD.left+198, legendY-8, 12, 8);
+  ctx.fillStyle = "#d7e7f8"; ctx.fillText("Good", PAD.left+216, legendY);
 }
 
 function getLastGraphableResult(){
@@ -12642,11 +10672,9 @@ function syncResponseGraphSessionSelect(selectedValue){
  const sel = $("responseGraphSessionSelect");
  if(!sel) return null;
  const graphable = getGraphableResults();
- // V699rev168: canonical formatter; showSubject=true for parity with the
- // other graph-session selectors.
  const options = graphable.map(({result,index})=>{
-  const label = formatSessionListLabel(result, index, { showSubject: true });
-  return `<option value="${index}">${label.replace(/&/g,"&amp;").replace(/</g,"&lt;")}</option>`;
+  const when = result.time ? new Date(result.time).toLocaleString() : `Session ${index+1}`;
+  return `<option value="${index}">Session ${index+1} · ${when}</option>`;
  }).join("");
  if(sel.dataset.optionsHtml !== options){
   sel.innerHTML = options;
@@ -12715,11 +10743,7 @@ function openResponseGraphPage(fromAdmin, selectedIndex){
 }
 
 function renderPerformanceOverTimePage(){
-  // V699rev171: also redraw minimap so the focus window stays in sync
-  // with the main chart on every render pass.
   drawPerformanceOverTimeChart($("perfTimeGraph"), state.history||[]);
-  drawPerformanceOverTimeMinimap($("perfTimeMinimap"), state.history||[]);
-  syncPerfGraphControls(state.history||[]);
 }
 
 function openPerformanceOverTimePage(){
@@ -12843,11 +10867,7 @@ function formatLastPerfTimeText(){
   const h = state.history || [];
   if(!h.length) return "No performance-over-time history available.";
   const rows = h.map((r,i)=>{
-    // V699rev168: prepend canonical session label (with mode, trigger marker,
-    // and failure flag if any) so the exported text is self-describing —
-    // a user pasting it into a spreadsheet can immediately tell Mode 1
-    // from Mode 2 from a Mode 2 with no CPA from a failed session.
-    const sessionLabel = formatSessionListLabel(r, i, { showSubject: false });
+    const when = r.time ? new Date(r.time).toLocaleString() : `Session ${i+1}`;
     const isMode2Sustained = r.testMode==="mode2";
     const cpi = r.cognitivePerformanceIndex!=null ? Math.round(Number(r.cognitivePerformanceIndex)) : "—";
     const mbs = isMode2Sustained
@@ -12866,7 +10886,7 @@ function formatLastPerfTimeText(){
     const spf = r.samnPerelli && r.samnPerelli.score!=null ? r.samnPerelli.score : "—";
     const sleep = r.sleepLog && r.sleepLog.qualityLabel ? r.sleepLog.qualityLabel : (r.sleepSinceLastTest==="no" ? "No sleep before this test" : "—");
     const cpaStr = cpa ? ` | ${cpa}${disp?" ("+disp+")":""}` : (disp ? ` | Disposition: ${disp}` : "");
-    return `${sessionLabel} | CPI ${cpi} | MBS ${mbs}${cpaStr} | S-PFS ${spf} | Sleep ${sleep}`;
+    return `${i+1}. ${when} | CPI ${cpi} | MBS ${mbs}${cpaStr} | S-PFS ${spf} | Sleep ${sleep}`;
   });
   return "Performance Over Date and Time Graph\n\n" + rows.join("\n");
 }
@@ -13010,16 +11030,6 @@ window.addEventListener("resize", ()=>{
  if(last && !$("outcomeOverlay").classList.contains("hidden")){
   try{ renderSpfGaugeForResult(last); }catch(e){}
  }
- // V699rev171: redraw Performance Over Time chart + minimap on resize so
- // the canvas re-fits the new viewport width (mobile rotation, browser
- // resize, etc.).
- try{
-   const perfOv = $("perfTimeOverlay");
-   if(perfOv && !perfOv.classList.contains("hidden")){
-     drawPerformanceOverTimeChart($("perfTimeGraph"), state.history||[]);
-     drawPerformanceOverTimeMinimap($("perfTimeMinimap"), state.history||[]);
-   }
- }catch(e){}
 });
 
 $("refSleepBtn").onclick=()=>showSleepPrompt();
