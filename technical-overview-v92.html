@@ -84,7 +84,7 @@ ol{margin:0 0 12px 22px;padding:0}
 
     <h2>3. Workflow and test flow</h2>
     <p>A typical session can include profile entry, optional sleep logging, a Samn-Perelli Fatigue Scale (S-PFS) rating, and then the selected test mode. If the user is new to the task, a tutorial can be completed before testing. After test completion, results can be reviewed immediately in the Speedometer, Results Summary, Trial Detail, and graph views, and can be exported or e-mailed when needed.</p>
-    <p>Three scheduling approaches can also be used for repeated testing when scheduling is desired: an anytime option, a personal fixed schedule, and a fit-for-duty logic that adjusts the next reminder interval using recent CogSpeed performance and S-PFS values. In the current build, the scheduler is local to the device and designed primarily for registered users rather than Guests.</p>
+    <p>Three scheduling approaches can also be used for repeated testing when scheduling is desired: an anytime option, a personal fixed schedule, and a fit-for-duty logic that adjusts the next reminder interval using recent CogSpeed performance and S-PFS values. The scheduler is local to the device and designed primarily for registered users rather than Guests.</p>
 
     <h2>4. Mode architecture</h2>
     <table class="table">
@@ -96,6 +96,9 @@ ol{margin:0 0 12px 22px;padding:0}
         <tr><td><strong>Mode 4 Machine-paced</strong></td><td>Steady fixed-pace examination after calibration.</td><td>Uses a calibration-derived fixed rate without adaptive pacing changes, usually for about two minutes.</td></tr>
       </tbody>
     </table>
+
+    <h3>Why Mode 2 is the primary mode</h3>
+    <p>Mode 1 is useful because it rapidly estimates an adaptive ceiling. Mode 2 is more valuable when the goal is real-world readiness or fatigue-sensitive research because it does not stop at that ceiling estimate. It deliberately collects three related but distinct streams of information in one session: an adaptive ceiling estimate (CPI), a sustained-performance check on that ceiling (CPA), and a post-load self-paced readout. That triangulation is the central design argument for making Mode 2 the default mode. The added time is justified because it reduces the risk of over-trusting a single adaptive estimate when sustained performance quality and post-load state may tell a more complete story.</p>
 
     <h3>Mode 1 CogSpeed Adapted</h3>
     <p>Mode 1 begins with a self-paced calibration phase intended to estimate the user’s comfortable response speed. It then shifts to adaptive machine pacing that hunts for the fastest presentation rate the user can continue to handle correctly. The rate becomes faster or slower depending on response pattern until the subject blocks, meaning two consecutive misses under the current block rule.</p>
@@ -119,25 +122,45 @@ ol{margin:0 0 12px 22px;padding:0}
     <p>CPI is a normalized 0-100 summary derived from MBS. It is intended to make interpretation easier by converting the speed-derived MBS into a simpler standardized scale. Lower CPI generally indicates degraded cognitive performance.</p>
 
     <h3>Cognitive Performance Ability (CPA)</h3>
-    <p>CPA is the broader Mode 2 sustained-performance estimate derived from CPI plus sustained-phase indicators. It is intended to estimate how well the user can sustain near-maximum performance under continued demand rather than relying only on the adaptive estimate.</p>
+    <p>CPA is the broader Mode 2 sustained-performance estimate. It takes CPI as a speed anchor and applies a bounded, normative-profile-based adjustment computed from three sustained-phase features (an accuracy composite, an OLS-slope drift measure, and a reaction-time variability measure). CPA remains on the same 0–100 scale as CPI and is the score that drives the Mode 2 disposition. See section 6 for the full formula, feature definitions, and rationale.</p>
 
     <h3>Disposition</h3>
     <p>Mode 2 can also present a simple operational disposition derived from CPA bands. The disposition view is intended as a practical summary aid, not as a replacement for full results review or human judgment.</p>
 
-    <h2>6. Mode 2 sustained-performance refinement</h2>
-    <p>Mode 2 is deliberately broader than a pure speed estimate. After the adaptive phase produces MBS and CPI, CogSpeed examines the sustained phase for signs that the adaptive estimate either understated or overstated true sustained ability. It then finishes with post-load self-paced trials. That three-part sequence is the main reason Mode 2 is the primary evaluative mode rather than Mode 1 alone: it provides an adaptive ceiling estimate (CPI), a sustained-performance check on that ceiling (CPA refinement), and a post-load readout after the demanding segment. The goal is not merely to record speed, but to triangulate whether the apparent speed can be maintained with adequate stability and what the subject looks like immediately after load.</p>
-    <p>The sustained refinement framework can incorporate factors such as:</p>
+    <h2>6. Mode 2 sustained-performance refinement — Cognitive Performance Ability (CPA)</h2>
+    <p>Mode 2 is deliberately broader than a pure speed estimate. After the adaptive phase produces MBS and CPI, CogSpeed examines the sustained phase for signs that the adaptive estimate either understated or overstated true sustained ability. It then finishes with post-load self-paced trials. That three-part sequence is the main reason Mode 2 is the primary evaluative mode rather than Mode 1 alone: it provides an adaptive ceiling estimate (CPI), a sustained-performance check on that ceiling (CPA), and a post-load readout after the demanding segment. The goal is not merely to record speed, but to triangulate whether the apparent speed can be maintained with adequate stability and what the subject looks like immediately after load.</p>
+
+    <h3>What CPA measures</h3>
+    <p>CPI supplies the <strong>speed anchor</strong>: how fast the subject can still process near their ceiling, derived linearly from the adaptive MBS. CPA supplies the <strong>sustainability anchor</strong>: how well that speed holds up when the pace is held near that adaptive estimate for a fixed-rate segment. The two anchors are combined by a bounded adjustment:</p>
+
+    <p style="background:#0d1b33;padding:10px 14px;border-radius:8px;border:1px solid rgba(127,215,255,0.25);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13px;">
+      CPA = clamp( CPI + clampSigned( Σ wᵢ · residualᵢ , ± maxDelta ), 0, 100 )
+    </p>
+
+    <p>Each sustained-phase residual is a tolerance-normalized deviation from a CPI-matched expected profile, clamped to the range [−1, +1]. Each residual is multiplied by its feature weight (wᵢ). The sum is then clamped to a maximum total divergence from CPI (the <code>maxDelta</code> cap, default 20 points) before being added to CPI.</p>
+
+    <h3>Feature set</h3>
+    <p>CogSpeed uses a three-feature architecture for the CPA sustained-phase residual, chosen to avoid statistical collinearity between accuracy features and to use response-time estimators with adequate statistical power at typical sustained-phase trial counts:</p>
     <ul>
-      <li>correct sustained responses</li>
-      <li>wrong responses</li>
-      <li>missed responses</li>
-      <li>response variability</li>
-      <li>drift across the sustained segment</li>
-      <li>lapse rate</li>
-      <li>recovery ratio</li>
-      <li>block efficiency and related stability signals</li>
+      <li><strong>Accuracy composite</strong> (weight 9.0, tolerance 0.15). Observed value is <code>correctRate − wrongRate − 0.5 · missRate</code>, a single scalar that consolidates the three previously separate accuracy rates. Higher is better. Rationale: the three raw rates sum to approximately 1 per trial (a simplex), so weighting them separately triple-counts the accuracy signal. The 0.5 factor on miss rate reflects that misses are informative about vigilance but depend heavily on pacing and should not dominate a pure accuracy composite.</li>
+      <li><strong>OLS drift slope</strong> (weight 6.0, tolerance 8%). Observed value is the ordinary-least-squares slope of correct-response reaction time against 1-indexed trial position across the sustained phase, rescaled to express <em>percent change in reaction time from the first trial to the last</em>. Signed: a negative slope (the subject speeds up across the phase) earns a positive residual. Rationale: OLS uses every correct trial and preserves direction, which is behaviorally important because rewarding within-phase speed-up is correct — it is a stability signal, not a flaw. A simpler early-versus-late-half median estimator was considered but discarded because it both discarded slope-from-regression information and floored negative drift to zero.</li>
+      <li><strong>Coefficient of variation</strong> (weight 6.0, tolerance 10%). Observed value is <code>100 · SD(correct RT) ÷ mean(correct RT)</code> across the sustained phase. Lower is better. Rationale: intra-individual reaction-time variability is a well-established fatigue and vigilance marker.</li>
     </ul>
-    <p>These factors are intentionally directional rather than uniformly punitive. In the current build, CPA starts from CPI and is then adjusted by bucketed sustained-phase weightings. The exact formula is configurable in Admin and is therefore not reduced here to one fixed published constant, but the mechanism is not arbitrary: wrong and missed-response burden are the strongest single-count drivers, while variability, drift, lapse rate, recovery ratio, and efficiency act as continuous or semi-continuous stability checks. Zero wrongs and zero or very low misses can reduce CPA penalty or modestly increase the result. Moderate levels can be neutral. Heavier error, miss, or instability patterns can lower CPA, indicating that the initial CPI may have been an overestimate of the subject’s true sustained cognitive ability.</p><p>In the current build, CPA can diverge materially from CPI. The score is always bounded to the same 0-100 scale, and the total negative adjustment is capped so several penalties do not drive the result below a plausible range. Practically, that means two sessions with the same CPI can finish with meaningfully different CPA values if one subject sustains the fixed-rate demand cleanly and the other shows misses, slowing, high variability, or poor recovery.</p>
+
+    <h3>Cap design</h3>
+    <p>The three weights sum to 21.0 when every residual is saturated at −1 or +1. The <code>maxDelta</code> cap is set at 20 points, slightly below that total. This is deliberate: the cap can engage at the extreme of underperformance (all three features simultaneously one tolerance-width worse than expected) but is dormant under typical operation. The cap is low enough to bound the adjustment meaningfully yet high enough that multiple mild residuals alone will not saturate it.</p>
+
+    <h3>Expected-profile interpolation</h3>
+    <p>Expected values for each feature are looked up against the subject’s current CPI using piecewise-linear interpolation between CPI-bucket centers (10, 30, 50, 70, 90) rather than step-function bucket lookups. This avoids discontinuities at CPI = 20 / 40 / 60 / 80 where, under a step-bucket approach, two nearly identical CPI values could produce materially different expected profiles. Expected values at the extremes of the CPI range (below 10 or above 90) are flat-extrapolated to the nearest bucket center value so the function remains defined everywhere on [0, 100].</p>
+
+    <h3>Why CPA can diverge from CPI</h3>
+    <p>CPA can diverge from CPI by up to the <code>maxDelta</code> cap in either direction. Two sessions with the same CPI can finish with meaningfully different CPA values if one subject sustains the fixed-rate demand cleanly while the other shows commission errors, lapse-like misses, within-phase slowing, or high reaction-time variability. Conversely, a session with modestly low CPI can finish with a higher CPA if the sustained phase was executed exceptionally well, because the OLS drift and CV residuals can earn a positive adjustment. The score is always bounded to the same 0–100 scale, and the adjustment total is capped so that multiple mild penalties cannot drive the result below a plausible range.</p>
+
+    <h3>Non-CPA sustained-phase diagnostics</h3>
+    <p>Several additional sustained-phase measures are computed and reported alongside the CPA features but do not drive the CPA adjustment score. These include the <em>recovery-to-calibration reaction-time ratio</em> (mean recovery-trial RT ÷ calibration average RT), the <em>lapse rate</em> (percent of correct sustained RTs slower than 2× the median), and the <em>block-formation efficiency</em> (adaptive paced trials ÷ block count). They remain visible in results summaries and CSV exports so field work can evaluate their predictive value and, if warranted, incorporate them into future versions of the scoring composite.</p>
+
+    <h3>Normative status</h3>
+    <p>The expected profiles for the accuracy composite, OLS drift, and CV are plausible priors informed by vigilance and fatigue-performance research, not yet empirically fitted. The normative model is versioned as <em>Mode 2 CPA normative v2 — field validation required</em>. All expected-profile buckets, tolerances, weights, and the <code>maxDelta</code> cap are exposed as Admin settings, so a deployment can retune the model for its subject population without editing source. CPA should be interpreted as a provisional composite score until field data calibrates the expected profiles; its absolute level is informative relative to the same subject’s own prior sessions, and becomes more operationally meaningful as baseline history accumulates.</p>
 
     <h2>7. Samn-Perelli Fatigue Scale integration</h2>
     <p>CogSpeed incorporates the Samn-Perelli Fatigue Scale (S-PFS) because subjective fatigue data can add useful context to objective performance data. The Samn-Perelli scale has been used in fatigue research since the early 1980s. A foundational reference is Samn, S., & Perelli, L. (1981), <em>Estimating Aircrew Fatigue: A Technique with Application to Airlift Operations</em>, SAM-TR-82-21. The scale has also been discussed or recommended in aviation and fatigue-risk-management contexts by major organizations such as IATA, ICAO, and IFALPA. It has also been used in other industries concerned with fatigue risk and even integrated for in-flight pilot-fatigue recording in commercial aviation.</p>
@@ -146,7 +169,7 @@ ol{margin:0 0 12px 22px;padding:0}
 
     <h2>8. Personal baseline construction</h2>
     <p>CogSpeed is intended to be learned to an individual’s own baseline. Once enough qualifying performance has been accumulated, the app can construct a personal baseline so current results can be interpreted against that user’s own recent history instead of as an isolated score.</p>
-    <p>In the current build, the personal baseline logic uses recent qualifying non-Guest sessions and excludes failed sessions. Only sessions meeting the build’s qualifying rules are included. This design is intended to reduce noise and prevent poor-quality sessions from distorting the baseline. The baseline is therefore a rolling performance reference rather than a permanent trait label.</p>
+    <p>CogSpeed personal baseline logic uses recent qualifying non-Guest sessions and excludes failed sessions. Only sessions meeting the qualifying rules are included. This design is intended to reduce noise and prevent poor-quality sessions from distorting the baseline. The baseline is therefore a rolling performance reference rather than a permanent trait label.</p>
     <p>Repeated use allows review of decline, recovery, instability, learning effects, sleep-related change, and other trends over time. This longitudinal perspective is one of the program’s most important strengths.</p>
 
     <h2>9. Scheduler and repeated-use logic</h2>
@@ -166,7 +189,7 @@ ol{margin:0 0 12px 22px;padding:0}
     <p>The capture package includes a session UUID, provisional local scores, the raw trial log, timing summaries, scoring-model version information, and hashes for the overall payload, the trial log, and the scoring snapshot. Separate local stores retain raw captured sessions, upload-queue records, and verification receipts so the app can keep local user history distinct from research-verification metadata.</p>
     <p>Results shown immediately on the device are therefore provisional unless and until a verification receipt is later applied. When a server-side research system is available, CogSpeed is designed so uploaded sessions can be recomputed or checked after upload rather than blindly trusting the browser-calculated scores. This design does not make tampering impossible on a compromised device, but it makes provenance clearer, makes silent post hoc editing easier to detect, and supports a later workflow in which verified server results can be compared against provisional local results.</p>
     <p>Profile and administrator controls now include an anonymous research-upload toggle, a research anonymous ID, and a research-mode lock intended to keep scoring-critical settings fixed on a device during a study deployment. These features are best understood as integrity-support features, not as a substitute for field validation, secure hosting, or server-side verification.</p>
-    <p>The current build also includes a placeholder research-consent panel. No anonymous research download is active in this build. Any future research-upload capability should require explicit positive user opt-in and appropriate informed consent.</p>
+    <p>CogSpeed also includes a placeholder research-consent panel. No anonymous research download is active at present. Any future research-upload capability requires explicit positive user opt-in and appropriate informed consent.</p>
 
     <h2>11. Challenge formats and administrator controls</h2>
     <h3>Challenge formats</h3>
@@ -189,8 +212,6 @@ ol{margin:0 0 12px 22px;padding:0}
     <div class="note"><strong>Important limitation.</strong> In operational settings, CogSpeed should be treated as a preliminary screening and review-support tool. It should not be used as the sole basis for employment actions, clinical determinations, operational restrictions, or disciplinary measures. Individuals showing decline may require additional supervisory, operational, or clinical evaluation. Field research is still required to confirm sensitivity, specificity, generalizability, and deployment-specific claim boundaries across populations, environments, devices, and use cases.</div>
     <p>CogSpeed is free to use for personal or research purposes, contains no ads, and data is not sold to or shared with unauthorized parties. Data remains on the user’s device unless and until the user explicitly agrees to research use.</p>
 
-    <h3>Why Mode 2 is the primary mode</h3>
-    <p>Mode 1 is useful because it rapidly estimates an adaptive ceiling. Mode 2 is more valuable when the goal is real-world readiness or fatigue-sensitive research because it does not stop at that ceiling estimate. It deliberately collects three related but distinct streams of information in one session: an adaptive ceiling estimate (CPI), a sustained-performance check on that ceiling (CPA), and a post-load self-paced readout. That triangulation is the central design argument for making Mode 2 the default mode. The added time is justified because it reduces the risk of over-trusting a single adaptive estimate when sustained performance quality and post-load state may tell a more complete story.</p>
     <h3>Need for field validation</h3>
     <p>The program’s design logic is strong, but not every intended interpretation is established simply by building the task. Claims about fatigue detection, fit-for-duty value, sensitivity to alcohol or drugs, cross-device stability, age effects, concussion utility, or physiological correlation still require field research, external validation, and setting-specific confirmation. CogSpeed should therefore be described as a structured measurement platform whose strongest claims are those that have been directly tested in the target population and setting.</p>
     <h3>References and historical notes</h3>
